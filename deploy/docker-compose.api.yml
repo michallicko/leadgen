@@ -1,0 +1,15 @@
+# Additive compose file for leadgen API
+# Usage: docker compose -f docker-compose.yml ... -f docker-compose.api.yml up -d
+services:
+  leadgen-api:
+    build:
+      context: /home/ec2-user/leadgen-api
+      dockerfile: Dockerfile.api
+    container_name: leadgen-api
+    environment:
+      - DATABASE_URL=postgresql://${DB_POSTGRESDB_USER}:${DB_POSTGRESDB_PASSWORD}@${DB_POSTGRESDB_HOST}:${DB_POSTGRESDB_PORT}/leadgen?sslmode=require
+      - JWT_SECRET_KEY=${LEADGEN_JWT_SECRET}
+      - CORS_ORIGINS=https://leadgen.visionvolve.com
+    ports:
+      - "127.0.0.1:5000:5000"
+    restart: unless-stopped

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --danger: #F87171;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Gradient top accent */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+/* Subtle grid texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1060px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+  border-color: rgba(110,44,139,0.25);
+  box-shadow: 0 0 30px -10px rgba(110,44,139,0.12);
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* Branded top navigation */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.top-nav__title {
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.top-nav__links {
+  display: flex;
+  gap: 2px;
+  margin-left: 24px;
+}
+.top-nav__link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover {
+  color: var(--text);
+  background: rgba(110,44,139,0.08);
+}
+.top-nav__link.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  background: rgba(0,184,207,0.08);
+}
+
+/* Table */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.admin-table th { text-align: left; padding: 8px 10px; color: var(--text-muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.admin-table td { padding: 10px; border-bottom: 1px solid rgba(35,29,48,0.4); }
+.admin-table tr:hover td { background: rgba(110,44,139,0.04); }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+.badge-active { background: rgba(52,211,153,0.15); color: var(--success); }
+.badge-inactive { background: rgba(248,113,113,0.15); color: var(--error); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-alt); color: var(--text); font-size: 0.82rem; cursor: pointer; transition: border-color var(--transition), background var(--transition); }
+.btn:hover { border-color: var(--accent); background: rgba(110,44,139,0.08); }
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); border-color: #6E2C8B; color: #fff; box-shadow: 0 2px 10px -2px rgba(110,44,139,0.3); }
+.btn-primary:hover { background: linear-gradient(135deg, #8B47A8, #6E2C8B); box-shadow: 0 4px 16px -2px rgba(110,44,139,0.4); }
+.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+.btn-danger { border-color: var(--error); color: var(--error); }
+.btn-danger:hover { background: rgba(248,113,113,0.1); }
+
+/* Forms */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 0.85rem;
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+
+/* Inline edit */
+.inline-edit { background: transparent; border: 1px solid transparent; padding: 2px 6px; color: var(--text); font-size: 0.85rem; border-radius: 4px; }
+.inline-edit:hover { border-color: var(--border); }
+.inline-edit:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+
+/* Role select */
+.role-select { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.78rem; padding: 3px 6px; cursor: pointer; }
+.role-select:focus { outline: none; border-color: var(--accent); }
+
+/* Toggle switch */
+.toggle { position: relative; width: 36px; height: 20px; cursor: pointer; }
+.toggle input { display: none; }
+.toggle .slider { position: absolute; inset: 0; background: var(--border); border-radius: 10px; transition: background var(--transition); }
+.toggle .slider::before { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: var(--text); border-radius: 50%; transition: transform var(--transition); }
+.toggle input:checked + .slider { background: var(--success); }
+.toggle input:checked + .slider::before { transform: translateX(16px); }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.modal-overlay.visible { opacity: 1; pointer-events: all; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; width: 100%; max-width: 440px; }
+.modal h3 { font-size: 1rem; margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* Temp password box */
+.temp-pw-box { background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px; margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+.temp-pw-box code { flex: 1; font-size: 0.9rem; color: var(--accent); word-break: break-all; }
+.temp-pw-box .btn-sm { flex-shrink: 0; }
+
+/* Section selector */
+.namespace-select { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.85rem; padding: 8px 10px; min-width: 200px; }
+.namespace-select:focus { outline: none; border-color: var(--accent); }
+
+/* Empty state */
+.empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.85rem; }
+
+/* Loading */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link">Pipeline</a>
+      <a href="messages.html" class="top-nav__link">Messages</a>
+      <a href="admin.html" class="top-nav__link active" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+
+  <h1>Administration</h1>
+
+  <!-- Namespaces (super_admin only) -->
+  <div class="card" id="namespaces_section" style="display:none;">
+    <div class="card-header">
+      <div class="card-title" style="margin-bottom:0;">Namespaces</div>
+      <button class="btn btn-primary btn-sm" onclick="showCreateNamespace()">+ Create Namespace</button>
+    </div>
+    <table class="admin-table" id="namespaces_table">
+      <thead>
+        <tr><th>Name</th><th>Slug</th><th>Domain</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="namespaces_body"></tbody>
+    </table>
+    <div class="empty" id="namespaces_empty" style="display:none;">No namespaces found.</div>
+  </div>
+
+  <!-- Users & Roles -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="card-title" style="margin-bottom:0;">Users &amp; Roles</div>
+        <select class="namespace-select" id="ns_selector" onchange="loadUsers()">
+          <option value="">Select namespace...</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" id="add_user_btn" onclick="showAddUser()" style="display:none;">+ Add User</button>
+    </div>
+    <table class="admin-table" id="users_table" style="display:none;">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="users_body"></tbody>
+    </table>
+    <div class="empty" id="users_empty">Select a namespace to view users.</div>
+  </div>
+</div>
+
+<!-- Create Namespace Modal -->
+<div class="modal-overlay" id="create_ns_modal">
+  <div class="modal">
+    <h3>Create Namespace</h3>
+    <div class="form-group">
+      <label for="ns_name">Name</label>
+      <input type="text" id="ns_name" placeholder="My Company" oninput="autoSlug()">
+    </div>
+    <div class="form-group">
+      <label for="ns_slug">Slug</label>
+      <input type="text" id="ns_slug" placeholder="my-company" pattern="[a-z0-9\-]+" style="font-family:monospace;">
+    </div>
+    <div class="form-group">
+      <label for="ns_domain">Domain (optional)</label>
+      <input type="text" id="ns_domain" placeholder="company.com">
+    </div>
+    <div class="form-group">
+      <label for="ns_admin_email">Admin Email (optional)</label>
+      <input type="email" id="ns_admin_email" placeholder="admin@company.com">
+    </div>
+    <div id="ns_error" style="color:var(--error);font-size:0.82rem;display:none;margin-top:8px;"></div>
+    <div id="ns_temp_pw" style="display:none;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal('create_ns_modal')">Cancel</button>
+      <button class="btn btn-primary" id="ns_create_btn" onclick="createNamespace()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal-overlay" id="add_user_modal">
+  <div class="modal">
+    <h3>Add User to Namespace</h3>
+    <div class="form-group">
+      <label for="user_email">Email</label>
+      <input type="email" id="user_email" placeholder="user@company.com">
+    </div>
+    <div class="form-group">
+      <label for="user_name">Display Name</label>
+      <input type="text" id="user_name" placeholder="Jane Doe">
+    </div>
+    <div class="form-group">
+      <label for="user_password">Password</label>
+      <input type="password" id="user_password" placeholder="Min 8 characters">
+    </div>
+    <div class="form-group">
+      <label for="user_role">Role</label>
+      <select id="user_role">
+        <option value="viewer">Viewer</option>
+        <option value="editor">Editor</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div id="user_error" style="color:var(--error);font-size:0.82rem;display:none;margin-top:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideModal('add_user_modal')">Cancel</button>
+      <button class="btn btn-primary" id="user_create_btn" onclick="addUser()">Add User</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var API = 'https://leadgen.visionvolve.com/api';
+  var tenants = [];
+  var currentTenantId = null;
+
+  // ---- Helpers ----
+
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        if (k === 'textContent') e.textContent = attrs[k];
+        else if (k === 'className') e.className = attrs[k];
+        else if (k === 'onclick') e.onclick = attrs[k];
+        else e.setAttribute(k, attrs[k]);
+      });
+    }
+    if (children) children.forEach(function (c) { if (c) e.appendChild(c); });
+    return e;
+  }
+
+  function clearChildren(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function authHeaders() {
+    return { 'Authorization': 'Bearer ' + LeadgenAuth.getToken(), 'Content-Type': 'application/json' };
+  }
+
+  function apiFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = authHeaders();
+    return fetch(API + path, opts).then(function (r) {
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Request failed'); });
+      return r.json();
+    });
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '-';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  // ---- Modal helpers ----
+
+  window.showModal = function (id) {
+    document.getElementById(id).classList.add('visible');
+  };
+  window.hideModal = function (id) {
+    document.getElementById(id).classList.remove('visible');
+  };
+
+  // ---- Namespaces ----
+
+  function loadNamespaces() {
+    apiFetch('/tenants').then(function (data) {
+      tenants = data;
+      renderNamespaces();
+      populateSelector();
+    });
+  }
+
+  function renderNamespaces() {
+    var body = document.getElementById('namespaces_body');
+    var empty = document.getElementById('namespaces_empty');
+    clearChildren(body);
+
+    if (tenants.length === 0) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
+
+    tenants.forEach(function (t) {
+      var tr = document.createElement('tr');
+
+      // Name (inline editable)
+      var nameInput = el('input', { className: 'inline-edit', value: t.name, style: 'width:140px;' });
+      nameInput.onblur = function () { if (nameInput.value !== t.name) updateTenant(t.id, { name: nameInput.value }); };
+      nameInput.onkeydown = function (e) { if (e.key === 'Enter') nameInput.blur(); };
+      var tdName = el('td', {}, [nameInput]);
+
+      // Slug (read-only)
+      var tdSlug = el('td', {}, [el('code', { textContent: t.slug, style: 'font-size:0.82rem;color:var(--accent-cyan,var(--accent));' })]);
+
+      // Domain (inline editable)
+      var domainInput = el('input', { className: 'inline-edit', value: t.domain || '', placeholder: '-', style: 'width:140px;' });
+      domainInput.onblur = function () { if (domainInput.value !== (t.domain || '')) updateTenant(t.id, { domain: domainInput.value }); };
+      domainInput.onkeydown = function (e) { if (e.key === 'Enter') domainInput.blur(); };
+      var tdDomain = el('td', {}, [domainInput]);
+
+      // Status toggle
+      var checkbox = el('input', { type: 'checkbox' });
+      checkbox.checked = t.is_active;
+      checkbox.onchange = function () { updateTenant(t.id, { is_active: checkbox.checked }); };
+      var toggle = el('label', { className: 'toggle' }, [checkbox, el('span', { className: 'slider' })]);
+      var tdStatus = el('td', {}, [toggle]);
+
+      // Created
+      var tdCreated = el('td', { textContent: fmtDate(t.created_at), style: 'font-size:0.8rem;color:var(--text-muted);' });
+
+      // Actions
+      var deactivateBtn = el('button', {
+        className: 'btn btn-sm btn-danger',
+        textContent: t.is_active ? 'Deactivate' : 'Activate',
+        onclick: function () {
+          updateTenant(t.id, { is_active: !t.is_active });
+        }
+      });
+      var tdActions = el('td', {}, [deactivateBtn]);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdSlug);
+      tr.appendChild(tdDomain);
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdCreated);
+      tr.appendChild(tdActions);
+      body.appendChild(tr);
+    });
+  }
+
+  function populateSelector() {
+    var sel = document.getElementById('ns_selector');
+    var current = sel.value;
+    clearChildren(sel);
+    sel.appendChild(el('option', { value: '', textContent: 'Select namespace...' }));
+    tenants.forEach(function (t) {
+      var opt = el('option', { value: t.id, textContent: t.name + ' (' + t.slug + ')' });
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  }
+
+  function updateTenant(id, data) {
+    apiFetch('/tenants/' + id, { method: 'PUT', body: JSON.stringify(data) })
+      .then(function () { loadNamespaces(); })
+      .catch(function (e) { alert('Update failed: ' + e.message); });
+  }
+
+  // ---- Create namespace ----
+
+  window.autoSlug = function () {
+    var name = document.getElementById('ns_name').value;
+    document.getElementById('ns_slug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  };
+
+  window.showCreateNamespace = function () {
+    document.getElementById('ns_name').value = '';
+    document.getElementById('ns_slug').value = '';
+    document.getElementById('ns_domain').value = '';
+    document.getElementById('ns_admin_email').value = '';
+    document.getElementById('ns_error').style.display = 'none';
+    var pwEl = document.getElementById('ns_temp_pw');
+    pwEl.style.display = 'none';
+    clearChildren(pwEl);
+    document.getElementById('ns_create_btn').disabled = false;
+    document.getElementById('ns_create_btn').textContent = 'Create';
+    showModal('create_ns_modal');
+  };
+
+  window.createNamespace = function () {
+    var name = document.getElementById('ns_name').value.trim();
+    var slug = document.getElementById('ns_slug').value.trim();
+    var domain = document.getElementById('ns_domain').value.trim();
+    var adminEmail = document.getElementById('ns_admin_email').value.trim();
+    var errEl = document.getElementById('ns_error');
+    var pwEl = document.getElementById('ns_temp_pw');
+
+    errEl.style.display = 'none';
+    pwEl.style.display = 'none';
+
+    if (!name || !slug) { errEl.textContent = 'Name and slug are required.'; errEl.style.display = ''; return; }
+
+    var btn = document.getElementById('ns_create_btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    var payload = { name: name, slug: slug };
+    if (domain) payload.domain = domain;
+    if (adminEmail) payload.admin_email = adminEmail;
+
+    apiFetch('/tenants', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (data) {
+        if (data.temp_password) {
+          clearChildren(pwEl);
+          var copyBtn = el('button', { className: 'btn btn-sm', textContent: 'Copy' });
+          copyBtn.onclick = function () {
+            navigator.clipboard.writeText(data.temp_password).then(function () {
+              copyBtn.textContent = 'Copied!';
+              setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1500);
+            });
+          };
+          var box = el('div', { className: 'temp-pw-box' }, [
+            el('div', {}, [
+              el('div', { textContent: 'Temporary password for ' + adminEmail + ':', style: 'font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;' }),
+              el('code', { textContent: data.temp_password })
+            ]),
+            copyBtn
+          ]);
+          pwEl.appendChild(box);
+          pwEl.style.display = '';
+          btn.textContent = 'Done';
+        } else {
+          hideModal('create_ns_modal');
+        }
+        loadNamespaces();
+      })
+      .catch(function (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Create';
+      });
+  };
+
+  // ---- Users ----
+
+  window.loadUsers = function () {
+    var tenantId = document.getElementById('ns_selector').value;
+    var body = document.getElementById('users_body');
+    var table = document.getElementById('users_table');
+    var empty = document.getElementById('users_empty');
+    var addBtn = document.getElementById('add_user_btn');
+
+    clearChildren(body);
+
+    if (!tenantId) {
+      table.style.display = 'none';
+      addBtn.style.display = 'none';
+      empty.textContent = 'Select a namespace to view users.';
+      empty.style.display = '';
+      return;
+    }
+
+    currentTenantId = tenantId;
+    addBtn.style.display = '';
+    empty.style.display = 'none';
+    table.style.display = '';
+
+    apiFetch('/tenants/' + tenantId + '/users')
+      .then(function (users) {
+        if (users.length === 0) {
+          table.style.display = 'none';
+          empty.textContent = 'No users in this namespace.';
+          empty.style.display = '';
+          return;
+        }
+        renderUsers(users);
+      })
+      .catch(function (e) {
+        empty.textContent = 'Error: ' + e.message;
+        empty.style.display = '';
+        table.style.display = 'none';
+      });
+  };
+
+  function renderUsers(users) {
+    var body = document.getElementById('users_body');
+    clearChildren(body);
+
+    users.forEach(function (u) {
+      var tr = document.createElement('tr');
+
+      var tdName = el('td', { textContent: u.display_name });
+      var tdEmail = el('td', { textContent: u.email, style: 'font-size:0.82rem;color:var(--text-muted);' });
+
+      // Role dropdown
+      var roleSel = el('select', { className: 'role-select' });
+      ['viewer', 'editor', 'admin'].forEach(function (r) {
+        var opt = el('option', { value: r, textContent: r.charAt(0).toUpperCase() + r.slice(1) });
+        if (r === u.role) opt.selected = true;
+        roleSel.appendChild(opt);
+      });
+      roleSel.onchange = function () { changeRole(u.id, roleSel.value); };
+      var tdRole = el('td', {}, [roleSel]);
+
+      // Status badge
+      var badge = el('span', {
+        className: 'badge ' + (u.is_active ? 'badge-active' : 'badge-inactive'),
+        textContent: u.is_active ? 'Active' : 'Inactive'
+      });
+      var tdStatus = el('td', {}, [badge]);
+
+      // Remove button
+      var removeBtn = el('button', {
+        className: 'btn btn-sm btn-danger',
+        textContent: 'Remove',
+        onclick: function () { removeUserRole(u.id, u.display_name); }
+      });
+      var tdActions = el('td', {}, [removeBtn]);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdEmail);
+      tr.appendChild(tdRole);
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdActions);
+      body.appendChild(tr);
+    });
+  }
+
+  function changeRole(userId, newRole) {
+    apiFetch('/users/' + userId, {
+      method: 'PUT',
+      body: JSON.stringify({ tenant_id: currentTenantId, role: newRole })
+    })
+    .then(function () { loadUsers(); })
+    .catch(function (e) { alert('Failed to change role: ' + e.message); });
+  }
+
+  function removeUserRole(userId, name) {
+    if (!confirm('Remove ' + name + ' from this namespace?')) return;
+    apiFetch('/users/' + userId + '/roles/' + currentTenantId, { method: 'DELETE' })
+      .then(function () { loadUsers(); })
+      .catch(function (e) { alert('Failed: ' + e.message); });
+  }
+
+  // ---- Add User ----
+
+  window.showAddUser = function () {
+    document.getElementById('user_email').value = '';
+    document.getElementById('user_name').value = '';
+    document.getElementById('user_password').value = '';
+    document.getElementById('user_role').value = 'viewer';
+    document.getElementById('user_error').style.display = 'none';
+    showModal('add_user_modal');
+  };
+
+  window.addUser = function () {
+    var email = document.getElementById('user_email').value.trim();
+    var name = document.getElementById('user_name').value.trim();
+    var password = document.getElementById('user_password').value;
+    var role = document.getElementById('user_role').value;
+    var errEl = document.getElementById('user_error');
+    errEl.style.display = 'none';
+
+    if (!email || !name || !password) {
+      errEl.textContent = 'All fields are required.';
+      errEl.style.display = '';
+      return;
+    }
+    if (password.length < 8) {
+      errEl.textContent = 'Password must be at least 8 characters.';
+      errEl.style.display = '';
+      return;
+    }
+
+    var btn = document.getElementById('user_create_btn');
+    btn.disabled = true;
+
+    apiFetch('/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email,
+        display_name: name,
+        password: password,
+        tenant_id: currentTenantId,
+        role: role
+      })
+    })
+    .then(function () {
+      hideModal('add_user_modal');
+      loadUsers();
+    })
+    .catch(function (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = '';
+    })
+    .finally(function () { btn.disabled = false; });
+  };
+
+  // ---- Init ----
+
+  function initAdmin() {
+    var user = LeadgenAuth.getUser();
+    if (!user) return;
+
+    // Show namespaces section for super admins
+    if (user.is_super_admin) {
+      document.getElementById('namespaces_section').style.display = '';
+    }
+
+    // Check admin access - show access denied if not admin level
+    var role = LeadgenAuth.getUserRole();
+    if (role !== 'admin') {
+      var container = document.querySelector('.container');
+      clearChildren(container);
+      container.appendChild(el('div', { className: 'empty', textContent: 'You do not have admin access.', style: 'margin-top:80px;' }));
+      return;
+    }
+
+    loadNamespaces();
+  }
+
+  LeadgenAuth.init(initAdmin);
+})();
+</script>
+</body>
+</html>

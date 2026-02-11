@@ -1,0 +1,44 @@
+# Secrets
+.env
+.env.*
+
+# n8n workflow exports (contain credentials)
+workflows/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/settings.local.json.backup
+.claude/plans/
+
+# Migration artifacts (contain credential mappings)
+migration_credential_map.json
+migration_id_mapping.json
+
+# Screenshots and recordings (dev artifacts)
+*.png
+*.wav
+
+# Transcripts (dev artifacts)
+transcript_*
+
+# Playwright MCP cache
+.playwright-mcp/

@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages Review — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --l1-color: #00B8CF;
+  --l2-color: #34D399;
+  --person-color: #9B59B6;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --danger: #F87171;
+  --running: #00B8CF;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Gradient top accent */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+/* Subtle grid texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1060px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+  border-color: rgba(110,44,139,0.25);
+  box-shadow: 0 0 30px -10px rgba(110,44,139,0.12);
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+label { font-size: 0.9rem; color: var(--text); }
+
+input[type="text"], input[type="password"], select, textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color var(--transition);
+  font-family: inherit;
+}
+
+input[type="text"]:focus, input[type="password"]:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+select option { background: var(--bg); color: var(--text); }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label:first-child { display: block; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+.inline-group { display: flex; flex-wrap: wrap; gap: 12px; }
+.inline-group label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; user-select: none; }
+
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); color: #fff; box-shadow: 0 2px 10px -2px rgba(110,44,139,0.3); }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8B47A8, #6E2C8B); box-shadow: 0 4px 16px -2px rgba(110,44,139,0.4); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #3aa372; }
+.btn-danger { background: var(--error); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #c0392b; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
+
+/* Branded top navigation */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.top-nav__title {
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.top-nav__links {
+  display: flex;
+  gap: 2px;
+  margin-left: 24px;
+}
+.top-nav__link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover {
+  color: var(--text);
+  background: rgba(110,44,139,0.08);
+}
+.top-nav__link.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  background: rgba(0,184,207,0.08);
+}
+
+/* Settings */
+.settings-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.settings-toggle .chevron { transition: transform var(--transition); color: var(--text-muted); font-size: 0.8rem; }
+.settings-toggle .chevron.open { transform: rotate(180deg); }
+.settings-body { display: none; margin-top: 14px; }
+.settings-body.open { display: block; }
+
+/* Filter grid */
+.filter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .filter-grid { grid-template-columns: 1fr; } }
+
+/* Summary bar */
+.summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+.summary-bar .count { font-weight: 600; }
+.summary-bar .spacer { flex: 1; }
+
+/* Contact card */
+.contact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.contact-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.contact-name { font-weight: 600; font-size: 0.95rem; }
+.contact-company { color: var(--text-muted); font-size: 0.85rem; }
+.contact-meta { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+.tier-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tier-badge.t1 { background: rgba(230,196,50,0.2); color: #e6c432; }
+.tier-badge.t2 { background: rgba(192,192,192,0.2); color: #c0c0c0; }
+.tier-badge.t3 { background: rgba(205,127,50,0.2); color: #cd7f32; }
+.tier-badge.t4 { background: rgba(150,100,50,0.2); color: #a07838; }
+.tier-badge.t5 { background: rgba(120,80,40,0.2); color: #8a6030; }
+
+.score-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.score-badge .val { color: var(--text); }
+
+.contact-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.78rem;
+}
+.contact-link:hover { text-decoration: underline; }
+
+.contact-actions {
+  padding: 6px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Step section */
+.step-section {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(35,29,48,0.4);
+}
+.step-section:last-child { border-bottom: none; }
+
+.step-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.channel-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  background: rgba(110,44,139,0.12);
+  color: var(--accent);
+  margin-left: 6px;
+}
+
+/* Variants row */
+.variants-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) { .variants-row { grid-template-columns: 1fr; } }
+
+.msg-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  transition: opacity var(--transition), border-color var(--transition);
+}
+.msg-card.approved { border-color: var(--success); opacity: 0.6; }
+.msg-card.rejected { border-color: var(--error); opacity: 0.4; }
+
+.msg-variant-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.msg-subject {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--l1-color);
+}
+
+.msg-body {
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.msg-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.msg-status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.msg-status.draft { background: rgba(243,156,18,0.2); color: var(--warning); }
+.msg-status.approved { background: rgba(67,181,129,0.2); color: var(--success); }
+.msg-status.rejected { background: rgba(231,76,60,0.2); color: var(--error); }
+.msg-status.sent { background: rgba(74,144,217,0.2); color: var(--running); }
+
+.msg-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.msg-edit-area {
+  margin-bottom: 8px;
+}
+.msg-edit-area textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.msg-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.reject-form {
+  margin-top: 8px;
+}
+.reject-form textarea {
+  min-height: 50px;
+  margin-bottom: 6px;
+  resize: vertical;
+}
+.reject-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Toast */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: #fff; opacity: 0; transform: translateX(40px); transition: opacity 0.3s ease, transform 0.3s ease; max-width: 360px; word-break: break-word; }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--running); }
+
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-left: 6px; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+.empty-state .big { font-size: 2rem; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link">Pipeline</a>
+      <a href="messages.html" class="top-nav__link active">Messages</a>
+      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+
+  <h1>Messages Review</h1>
+
+  <!-- Filters -->
+  <div class="card">
+    <div class="card-title">Filters</div>
+    <div class="filter-grid">
+      <div class="form-row">
+        <label for="filter_owner">Owner</label>
+        <select id="filter_owner">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="filter_status">Status</label>
+        <select id="filter_status">
+          <option value="draft">Draft (needs review)</option>
+          <option value="">All statuses</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="filter_channel">Channel</label>
+        <select id="filter_channel">
+          <option value="">All channels</option>
+          <option value="linkedin_connect">LinkedIn Connect</option>
+          <option value="linkedin_message">LinkedIn Message</option>
+          <option value="email">Email</option>
+          <option value="call_script">Call Script</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:4px;">
+      <button class="btn btn-primary btn-sm" id="load_btn">Load Messages</button>
+      <span id="load_status" style="font-size:0.82rem; color:var(--text-muted); align-self:center;"></span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-bar" id="summary_bar" style="display:none;">
+    <span id="summary_text" class="count"></span>
+    <span class="spacer"></span>
+    <button class="btn btn-sm btn-ghost" id="refresh_btn">Refresh</button>
+    <button class="btn btn-sm btn-success" id="approve_all_btn" data-min-role="editor">Approve All Visible (A)</button>
+  </div>
+
+  <!-- Cards container -->
+  <div id="cards_container">
+    <div class="empty-state" id="initial_state">
+      <div class="big">&#9993;</div>
+      Click Load Messages to fetch messages from the API.
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast_container"></div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = 'https://leadgen.visionvolve.com/api';
+
+  // State
+  var allMessages = [];
+  var grouped = {};
+
+  var $ = function(sel) { return document.querySelector(sel); };
+
+  // ---- Auth headers ----
+  function apiHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : (localStorage.getItem('lg_access_token') || '')),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  function apiFetch(url, opts) {
+    var options = Object.assign({}, opts, { headers: Object.assign({}, apiHeaders(), (opts && opts.headers) || {}) });
+    return fetch(url, options).then(function(resp) {
+      if (resp.status === 401) throw new Error('Authentication failed - try logging in again');
+      if (!resp.ok) return resp.text().then(function(t) { throw new Error('HTTP ' + resp.status + ': ' + t); });
+      return resp.json();
+    });
+  }
+
+  // ---- LocalStorage ----
+  function save(k, v) { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch(e) {} }
+  function load(k, fb) { try { var r = localStorage.getItem(k); if (r === null) return fb; if (typeof fb === 'string') return r; return JSON.parse(r); } catch(e) { return fb; } }
+
+  // ---- Toast ----
+  function showToast(msg, type) {
+    var c = $('#toast_container');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(function() { t.classList.add('show'); });
+    setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 300); }, 4000);
+  }
+
+  // ---- DOM builder helpers ----
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function(k) {
+        if (k === 'className') e.className = attrs[k];
+        else if (k === 'style' && typeof attrs[k] === 'object') Object.assign(e.style, attrs[k]);
+        else if (k.indexOf('on') === 0) e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+        else e.setAttribute(k, attrs[k]);
+      });
+    }
+    if (children) {
+      (Array.isArray(children) ? children : [children]).forEach(function(c) {
+        if (c == null) return;
+        if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+        else e.appendChild(c);
+      });
+    }
+    return e;
+  }
+
+  function txt(s) { return document.createTextNode(s || ''); }
+
+  // ---- Channel formatting ----
+  function formatChannel(ch) {
+    var map = { 'linkedin_connect': 'LinkedIn Connect', 'linkedin_message': 'LinkedIn Message', 'email': 'Email', 'call_script': 'Call Script' };
+    return map[ch] || ch;
+  }
+
+  function tierClass(tier) {
+    if (!tier) return '';
+    if (tier.indexOf('Tier 1') === 0) return 't1';
+    if (tier.indexOf('Tier 2') === 0) return 't2';
+    if (tier.indexOf('Tier 3') === 0) return 't3';
+    if (tier.indexOf('Tier 4') === 0) return 't4';
+    if (tier.indexOf('Tier 5') === 0) return 't5';
+    return '';
+  }
+
+  // ---- Load Owners (for filter dropdown) ----
+  function loadOwners() {
+    apiFetch(API_BASE + '/batches')
+      .then(function(data) {
+        var sel = $('#filter_owner');
+        var savedOwner = load('msg_filter_owner', '');
+        // Keep the "All" option, add owners dynamically
+        (data.owners || []).forEach(function(o) {
+          var opt = document.createElement('option');
+          opt.value = o.name;
+          opt.textContent = o.name;
+          sel.appendChild(opt);
+        });
+        if (savedOwner) sel.value = savedOwner;
+      })
+      .catch(function(err) { console.warn('Owner load error:', err); });
+  }
+
+  // ---- Load Messages (single API call) ----
+  function loadMessages() {
+    var statusEl = $('#load_status');
+    statusEl.textContent = '';
+    var loadingSpinner = el('span', { className: 'loading-sm' });
+    statusEl.appendChild(loadingSpinner);
+    statusEl.appendChild(txt(' Loading messages...'));
+
+    var params = [];
+    var filterStatus = $('#filter_status').value;
+    if (filterStatus) params.push('status=' + encodeURIComponent(filterStatus));
+    var filterOwner = $('#filter_owner').value;
+    if (filterOwner) params.push('owner_name=' + encodeURIComponent(filterOwner));
+    var filterChannel = $('#filter_channel').value;
+    if (filterChannel) params.push('channel=' + encodeURIComponent(filterChannel));
+
+    var url = API_BASE + '/messages' + (params.length > 0 ? '?' + params.join('&') : '');
+
+    apiFetch(url)
+      .then(function(data) {
+        allMessages = (data.messages || []).map(function(m) {
+          // Normalize to a shape compatible with the render functions
+          return {
+            id: m.id,
+            contact: m.contact,
+            company: m.company,
+            fields: {
+              channel: m.channel,
+              sequence_step: m.sequence_step,
+              variant: (m.variant || 'A').toUpperCase(),
+              subject: m.subject,
+              body: m.body,
+              status: m.status || 'draft',
+              tone: m.tone,
+              language: m.language,
+              generation_cost: m.generation_cost,
+              review_notes: m.review_notes,
+              approved_at: m.approved_at
+            }
+          };
+        });
+        statusEl.textContent = allMessages.length + ' messages loaded.';
+        if (allMessages.length === 0) {
+          renderEmpty('No messages found matching your filters.');
+          statusEl.textContent = '';
+          return;
+        }
+        groupAndRender();
+      })
+      .catch(function(err) {
+        statusEl.textContent = '';
+        showToast('Error: ' + err.message, 'error');
+      });
+  }
+
+  // ---- Group messages by contact, then by step ----
+  function groupAndRender() {
+    grouped = {};
+
+    allMessages.forEach(function(m) {
+      var contactId = (m.contact && m.contact.id) || '_unknown';
+
+      if (!grouped[contactId]) {
+        grouped[contactId] = {
+          contactId: contactId,
+          contact: m.contact,
+          company: m.company,
+          steps: {}
+        };
+      }
+
+      var step = m.fields.sequence_step || 1;
+      var channel = m.fields.channel || 'unknown';
+      var key = step + '_' + channel;
+
+      if (!grouped[contactId].steps[key]) {
+        grouped[contactId].steps[key] = { step: step, channel: channel, variants: {} };
+      }
+
+      var variant = m.fields.variant || 'A';
+      grouped[contactId].steps[key].variants[variant] = m;
+    });
+
+    // Sort contacts by score desc
+    var sorted = Object.values(grouped).sort(function(a, b) {
+      var scoreA = a.contact ? (a.contact.contact_score || 0) : 0;
+      var scoreB = b.contact ? (b.contact.contact_score || 0) : 0;
+      return scoreB - scoreA;
+    });
+
+    renderCards(sorted);
+  }
+
+  // ---- Render ----
+  function renderCards(sorted) {
+    var container = $('#cards_container');
+    var summaryBar = $('#summary_bar');
+
+    if (sorted.length === 0) {
+      renderEmpty('No messages found matching your filters.');
+      summaryBar.style.display = 'none';
+      return;
+    }
+
+    var totalContacts = sorted.length;
+    var totalMsgs = allMessages.length;
+    var draftMsgs = allMessages.filter(function(m) { return m.fields.status === 'draft'; }).length;
+
+    summaryBar.style.display = '';
+    $('#summary_text').textContent = totalContacts + ' contacts, ' + totalMsgs + ' messages' + (draftMsgs > 0 ? ' (' + draftMsgs + ' drafts)' : '');
+    $('#approve_all_btn').style.display = draftMsgs > 0 ? '' : 'none';
+
+    container.textContent = '';
+    sorted.forEach(function(g) {
+      container.appendChild(buildContactCard(g));
+    });
+  }
+
+  function renderEmpty(msg) {
+    var container = $('#cards_container');
+    container.textContent = '';
+    var div = el('div', { className: 'empty-state' }, [
+      el('div', { className: 'big' }, '\u{1F4AC}'),
+      txt(msg)
+    ]);
+    container.appendChild(div);
+  }
+
+  function buildContactCard(group) {
+    var c = group.contact || {};
+    var co = group.company || {};
+    var name = c.full_name || 'Unknown Contact';
+    var title = c.job_title || '';
+    var coName = co.name || '';
+    var tier = co.tier || '';
+    var score = c.contact_score || '--';
+    var linkedIn = c.linkedin_url || '';
+    var tc = tierClass(tier);
+
+    var stepKeys = Object.keys(group.steps).sort(function(a, b) {
+      return group.steps[a].step - group.steps[b].step;
+    });
+
+    var draftACount = stepKeys.reduce(function(n, k) {
+      var va = group.steps[k].variants['A'];
+      return n + (va && va.fields.status === 'draft' ? 1 : 0);
+    }, 0);
+
+    var card = el('div', { className: 'contact-card', 'data-contact': group.contactId });
+
+    // Header
+    var headerChildren = [];
+    if (tc) headerChildren.push(el('span', { className: 'tier-badge ' + tc }, tier.replace(/ - .*/, '')));
+    headerChildren.push(el('span', { className: 'contact-name' }, name));
+    if (title) headerChildren.push(el('span', { className: 'contact-company' }, title));
+    if (coName) headerChildren.push(el('span', { className: 'contact-company' }, '- ' + coName));
+
+    var metaChildren = [];
+    var scoreBadge = el('span', { className: 'score-badge' }, [txt('Score: '), el('span', { className: 'val' }, String(score))]);
+    metaChildren.push(scoreBadge);
+    if (linkedIn) {
+      var link = el('a', { href: linkedIn, target: '_blank', className: 'contact-link' }, 'LinkedIn');
+      metaChildren.push(link);
+    }
+    headerChildren.push(el('span', { className: 'contact-meta' }, metaChildren));
+
+    card.appendChild(el('div', { className: 'contact-header' }, headerChildren));
+
+    // Bulk approve row
+    if (draftACount > 0) {
+      var approveBtn = el('button', { className: 'btn btn-sm btn-success' }, 'Approve all A (' + draftACount + ')');
+      approveBtn.addEventListener('click', function() { approveContactA(group.contactId); });
+      card.appendChild(el('div', { className: 'contact-actions' }, [approveBtn]));
+    }
+
+    // Steps
+    stepKeys.forEach(function(key) {
+      var s = group.steps[key];
+      var section = el('div', { className: 'step-section' });
+      section.appendChild(el('div', { className: 'step-label' }, [
+        txt('Step ' + s.step),
+        el('span', { className: 'channel-tag' }, formatChannel(s.channel))
+      ]));
+
+      var variantsRow = el('div', { className: 'variants-row' });
+      ['A', 'B'].forEach(function(v) {
+        var msg = s.variants[v];
+        if (!msg) return;
+        variantsRow.appendChild(buildMsgCard(msg, v));
+      });
+      section.appendChild(variantsRow);
+      card.appendChild(section);
+    });
+
+    return card;
+  }
+
+  function buildMsgCard(msg, variant) {
+    var f = msg.fields;
+    var st = f.status || 'draft';
+    var stClass = st === 'approved' ? ' approved' : st === 'rejected' ? ' rejected' : '';
+
+    var card = el('div', { className: 'msg-card' + stClass, id: 'msg_' + msg.id });
+    card.appendChild(el('div', { className: 'msg-variant-label' }, 'Variant ' + variant));
+
+    if (f.subject) {
+      card.appendChild(el('div', { className: 'msg-subject' }, f.subject));
+    }
+
+    card.appendChild(el('div', { className: 'msg-body', id: 'body_' + msg.id }, f.body || ''));
+
+    // Meta line
+    var metaItems = [];
+    metaItems.push(el('span', { className: 'msg-status ' + st }, st));
+    if (f.tone) metaItems.push(el('span', null, f.tone));
+    if (f.language) metaItems.push(el('span', null, f.language));
+    if (f.generation_cost) metaItems.push(el('span', null, '$' + Number(f.generation_cost).toFixed(3)));
+    card.appendChild(el('div', { className: 'msg-meta' }, metaItems));
+
+    // Action buttons
+    var actionsDiv = el('div', { className: 'msg-actions', id: 'actions_' + msg.id });
+
+    if (st === 'draft') {
+      var approveBtn = el('button', { className: 'btn btn-sm btn-success' }, 'Approve');
+      approveBtn.addEventListener('click', function() { approveMsg(msg.id); });
+
+      var editBtn = el('button', { className: 'btn btn-sm btn-ghost' }, 'Edit');
+      editBtn.addEventListener('click', function() { editMsg(msg.id); });
+
+      var rejectBtn = el('button', { className: 'btn btn-sm btn-danger' }, 'Reject');
+      rejectBtn.addEventListener('click', function() { showReject(msg.id); });
+
+      actionsDiv.appendChild(approveBtn);
+      actionsDiv.appendChild(editBtn);
+      actionsDiv.appendChild(rejectBtn);
+    } else if (st === 'approved' || st === 'rejected') {
+      var resetBtn = el('button', { className: 'btn btn-sm btn-ghost' }, 'Reset to Draft');
+      resetBtn.addEventListener('click', function() { resetToDraft(msg.id); });
+      actionsDiv.appendChild(resetBtn);
+
+      if (f.review_notes) {
+        card.appendChild(actionsDiv);
+        card.appendChild(el('div', { style: { fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' } }, 'Notes: ' + f.review_notes));
+        return card;
+      }
+    }
+
+    card.appendChild(actionsDiv);
+    return card;
+  }
+
+  // ---- Actions ----
+  function patchMessage(msgId, fields) {
+    return apiFetch(API_BASE + '/messages/' + msgId, {
+      method: 'PATCH',
+      body: JSON.stringify(fields)
+    });
+  }
+
+  function batchApprove(msgs) {
+    var ids = msgs.map(function(m) { return m.id; });
+    return apiFetch(API_BASE + '/messages/batch', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        ids: ids,
+        fields: { status: 'approved', approved_at: new Date().toISOString() }
+      })
+    });
+  }
+
+  function approveMsg(msgId) {
+    patchMessage(msgId, { status: 'approved', approved_at: new Date().toISOString() })
+      .then(function() {
+        var msg = allMessages.find(function(m) { return m.id === msgId; });
+        if (msg) msg.fields.status = 'approved';
+        rebuildMsgCard(msgId);
+        updateSummary();
+        showToast('Message approved', 'success');
+      })
+      .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+  }
+
+  function resetToDraft(msgId) {
+    patchMessage(msgId, { status: 'draft', approved_at: null, review_notes: null })
+      .then(function() {
+        var msg = allMessages.find(function(m) { return m.id === msgId; });
+        if (msg) {
+          msg.fields.status = 'draft';
+          msg.fields.approved_at = null;
+          msg.fields.review_notes = null;
+        }
+        rebuildMsgCard(msgId);
+        updateSummary();
+        showToast('Reset to draft', 'info');
+      })
+      .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+  }
+
+  function editMsg(msgId) {
+    var msg = allMessages.find(function(m) { return m.id === msgId; });
+    if (!msg) return;
+    var bodyEl = document.getElementById('body_' + msgId);
+    var actionsEl = document.getElementById('actions_' + msgId);
+    if (!bodyEl || !actionsEl) return;
+
+    var currentBody = msg.fields.body || '';
+
+    bodyEl.textContent = '';
+    var editArea = el('div', { className: 'msg-edit-area' });
+    var textarea = el('textarea', { id: 'edit_' + msgId });
+    textarea.value = currentBody;
+    editArea.appendChild(textarea);
+    bodyEl.appendChild(editArea);
+
+    actionsEl.textContent = '';
+    var saveBtn = el('button', { className: 'btn btn-sm btn-success' }, 'Save & Approve');
+    saveBtn.addEventListener('click', function() { saveEdit(msgId); });
+    var cancelBtn = el('button', { className: 'btn btn-sm btn-ghost' }, 'Cancel');
+    cancelBtn.addEventListener('click', function() { rebuildMsgCard(msgId); });
+
+    var editActions = el('div', { className: 'msg-edit-actions' });
+    editActions.appendChild(saveBtn);
+    editActions.appendChild(cancelBtn);
+    actionsEl.appendChild(editActions);
+  }
+
+  function saveEdit(msgId) {
+    var textarea = document.getElementById('edit_' + msgId);
+    if (!textarea) return;
+    var newBody = textarea.value.trim();
+    if (!newBody) { showToast('Body cannot be empty', 'error'); return; }
+
+    patchMessage(msgId, { body: newBody, status: 'approved', approved_at: new Date().toISOString() })
+      .then(function() {
+        var msg = allMessages.find(function(m) { return m.id === msgId; });
+        if (msg) {
+          msg.fields.body = newBody;
+          msg.fields.status = 'approved';
+        }
+        rebuildMsgCard(msgId);
+        updateSummary();
+        showToast('Edited and approved', 'success');
+      })
+      .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+  }
+
+  function showReject(msgId) {
+    var actionsEl = document.getElementById('actions_' + msgId);
+    if (!actionsEl) return;
+
+    actionsEl.textContent = '';
+    var form = el('div', { className: 'reject-form' });
+    var textarea = el('textarea', { id: 'reject_notes_' + msgId, placeholder: 'Reason for rejection (optional)' });
+    form.appendChild(textarea);
+
+    var actions = el('div', { className: 'reject-actions' });
+    var confirmBtn = el('button', { className: 'btn btn-sm btn-danger' }, 'Confirm Reject');
+    confirmBtn.addEventListener('click', function() { confirmReject(msgId); });
+    var cancelBtn = el('button', { className: 'btn btn-sm btn-ghost' }, 'Cancel');
+    cancelBtn.addEventListener('click', function() { rebuildMsgCard(msgId); });
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+    form.appendChild(actions);
+
+    actionsEl.appendChild(form);
+  }
+
+  function confirmReject(msgId) {
+    var notesEl = document.getElementById('reject_notes_' + msgId);
+    var notes = notesEl ? notesEl.value.trim() : '';
+    var fields = { status: 'rejected' };
+    if (notes) fields.review_notes = notes;
+
+    patchMessage(msgId, fields)
+      .then(function() {
+        var msg = allMessages.find(function(m) { return m.id === msgId; });
+        if (msg) {
+          msg.fields.status = 'rejected';
+          if (notes) msg.fields.review_notes = notes;
+        }
+        rebuildMsgCard(msgId);
+        updateSummary();
+        showToast('Message rejected', 'info');
+      })
+      .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+  }
+
+  function rebuildMsgCard(msgId) {
+    var oldEl = document.getElementById('msg_' + msgId);
+    if (!oldEl) return;
+    var msg = allMessages.find(function(m) { return m.id === msgId; });
+    if (!msg) return;
+    var newEl = buildMsgCard(msg, msg.fields.variant || 'A');
+    oldEl.parentNode.replaceChild(newEl, oldEl);
+  }
+
+  function approveContactA(contactId) {
+    var group = grouped[contactId];
+    if (!group) return;
+
+    var draftAs = [];
+    Object.values(group.steps).forEach(function(s) {
+      var va = s.variants['A'];
+      if (va && va.fields.status === 'draft') draftAs.push(va);
+    });
+
+    if (draftAs.length === 0) { showToast('No draft A variants to approve', 'info'); return; }
+
+    batchApprove(draftAs)
+      .then(function() {
+        draftAs.forEach(function(m) {
+          m.fields.status = 'approved';
+          rebuildMsgCard(m.id);
+        });
+        updateSummary();
+        showToast(draftAs.length + ' messages approved', 'success');
+      })
+      .catch(function(err) { showToast('Bulk approve failed: ' + err.message, 'error'); });
+  }
+
+  function approveAllVisible() {
+    var drafts = allMessages.filter(function(m) { return m.fields.status === 'draft' && m.fields.variant === 'A'; });
+    if (drafts.length === 0) { showToast('No draft A variants to approve', 'info'); return; }
+    if (!confirm('Approve ' + drafts.length + ' variant A messages?')) return;
+
+    var btn = $('#approve_all_btn');
+    btn.disabled = true;
+    btn.textContent = 'Approving...';
+
+    batchApprove(drafts)
+      .then(function() {
+        drafts.forEach(function(m) {
+          m.fields.status = 'approved';
+          rebuildMsgCard(m.id);
+        });
+        updateSummary();
+        showToast(drafts.length + ' messages approved', 'success');
+      })
+      .catch(function(err) { showToast('Bulk approve failed: ' + err.message, 'error'); })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Approve All Visible (A)';
+      });
+  }
+
+  function updateSummary() {
+    var draftMsgs = allMessages.filter(function(m) { return m.fields.status === 'draft'; }).length;
+    var totalContacts = Object.keys(grouped).length;
+    var totalMsgs = allMessages.length;
+    $('#summary_text').textContent = totalContacts + ' contacts, ' + totalMsgs + ' messages' + (draftMsgs > 0 ? ' (' + draftMsgs + ' drafts)' : '');
+    $('#approve_all_btn').style.display = draftMsgs > 0 ? '' : 'none';
+  }
+
+  // ---- Init ----
+  function initMessages() {
+    var savedOwner = load('msg_filter_owner', '');
+    if (savedOwner) $('#filter_owner').value = savedOwner;
+    var savedStatus = load('msg_filter_status', 'draft');
+    $('#filter_status').value = savedStatus;
+    var savedChannel = load('msg_filter_channel', '');
+    if (savedChannel) $('#filter_channel').value = savedChannel;
+
+    $('#filter_owner').addEventListener('change', function() { save('msg_filter_owner', $('#filter_owner').value); });
+    $('#filter_status').addEventListener('change', function() { save('msg_filter_status', $('#filter_status').value); });
+    $('#filter_channel').addEventListener('change', function() { save('msg_filter_channel', $('#filter_channel').value); });
+    $('#load_btn').addEventListener('click', loadMessages);
+    $('#refresh_btn').addEventListener('click', loadMessages);
+    $('#approve_all_btn').addEventListener('click', approveAllVisible);
+
+    loadOwners();
+  }
+
+  function init() {
+    LeadgenAuth.init(initMessages);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

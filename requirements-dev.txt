@@ -1,0 +1,4 @@
+# Dev/test dependencies (install alongside api/requirements.txt)
+-r api/requirements.txt
+pytest==8.3.4
+pytest-cov==6.0.0

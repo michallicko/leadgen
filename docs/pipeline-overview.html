@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leadgen Pipeline - Product Spec &amp; Architecture</title>
+<style>
+  :root {
+    --import: #3B82F6; --import-bg: #EFF6FF;
+    --enrich: #F59E0B; --enrich-bg: #FFFBEB;
+    --msggen: #8B5CF6; --msggen-bg: #F5F3FF;
+    --review: #10B981; --review-bg: #ECFDF5;
+    --deliver: #EF4444; --deliver-bg: #FEF2F2;
+    --track: #6B7280; --track-bg: #F9FAFB;
+    --bg: #FFFFFF; --surface: #F8FAFC; --card: #FFFFFF;
+    --border: #E2E8F0; --text: #0F172A; --muted: #64748B; --accent: #7C3AED;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; font-size: 15px; }
+
+  /* Layout */
+  .page { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem; }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 3rem; }
+  .toc h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+  .toc ol { columns: 2; column-gap: 2rem; padding-left: 1.25rem; }
+  .toc li { font-size: 0.9rem; margin-bottom: 0.3rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  h1 { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 1.1rem; margin: 0.5rem 0 0.25rem; }
+  .meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+  h2 { font-size: 1.6rem; font-weight: 700; margin: 3.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--text); letter-spacing: -0.01em; }
+  h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; }
+  h4 { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--muted); }
+  p { margin-bottom: 0.75rem; }
+  ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+  li { margin-bottom: 0.3rem; }
+  code { background: #F1F5F9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  /* Badges */
+  .b { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; vertical-align: middle; letter-spacing: 0.04em; }
+  .b-new { background: var(--accent); color: white; }
+  .b-exists { background: #059669; color: white; }
+  .b-migrate { background: #D97706; color: white; }
+
+  /* ── Architecture Diagram (SVG) ── */
+  .arch-diagram { margin: 1.5rem 0; overflow-x: auto; }
+  .arch-diagram svg { display: block; margin: 0 auto; }
+
+  /* ── Flow Blocks ── */
+  .flow { display: flex; gap: 0; margin: 1.5rem 0; overflow-x: auto; }
+  .flow-step { flex: 1; min-width: 150px; position: relative; }
+  .flow-inner { margin: 0 2px; border-radius: 10px; padding: 1rem 0.75rem; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; color: white; }
+  .flow-step:not(:last-child)::after { content: ''; position: absolute; right: -8px; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; z-index: 2; }
+  .flow-num { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; }
+  .flow-name { font-size: 0.95rem; font-weight: 700; margin: 0.15rem 0; }
+  .flow-desc { font-size: 0.7rem; opacity: 0.85; }
+  .f1 .flow-inner{background:var(--import)} .f1::after{border-left:10px solid var(--import)}
+  .f2 .flow-inner{background:var(--enrich)} .f2::after{border-left:10px solid var(--enrich)}
+  .f3 .flow-inner{background:var(--msggen)} .f3::after{border-left:10px solid var(--msggen)}
+  .f4 .flow-inner{background:var(--review)} .f4::after{border-left:10px solid var(--review)}
+  .f5 .flow-inner{background:var(--deliver)} .f5::after{border-left:10px solid var(--deliver)}
+  .f6 .flow-inner{background:var(--track)}
+
+  /* ── Cards ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+  .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .card-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .card-title { font-weight: 600; font-size: 1rem; }
+
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  @media(max-width:768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .flow { flex-direction: column; } .flow-step::after { display: none !important; } .toc ol { columns: 1; } }
+
+  /* Feature cards */
+  .feat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  .feat-id { font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em; }
+  .feat-name { font-weight: 600; margin: 0.15rem 0 0.35rem; }
+  .feat-desc { font-size: 0.85rem; color: #475569; }
+  .feat-priority { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 4px; margin-top: 0.5rem; }
+  .p-high { background: #FEE2E2; color: #991B1B; }
+  .p-med { background: #FEF3C7; color: #92400E; }
+  .p-low { background: #ECFDF5; color: #065F46; }
+
+  /* Tables */
+  .schema-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 0.5rem 0 1rem; }
+  .schema-table th { text-align: left; padding: 0.5rem 0.75rem; background: var(--surface); font-weight: 600; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
+  .schema-table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid #F1F5F9; }
+  .schema-table td:first-child { font-weight: 500; white-space: nowrap; }
+  .t { display: inline-block; background: #F1F5F9; color: var(--muted); font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-family: 'SF Mono', Menlo, monospace; }
+
+  /* Timeline */
+  .phase { border-left: 3px solid var(--border); padding-left: 1.5rem; margin-left: 0.5rem; margin-bottom: 2rem; position: relative; }
+  .phase::before { content: ''; position: absolute; left: -8px; top: 0; width: 13px; height: 13px; border-radius: 50%; border: 3px solid; background: white; }
+  .phase-1::before { border-color: var(--msggen); }
+  .phase-2::before { border-color: var(--review); }
+  .phase-3::before { border-color: var(--deliver); }
+  .phase-4::before { border-color: var(--track); }
+  .phase-5::before { border-color: var(--import); }
+  .phase-week { font-size: 0.75rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em; }
+  .phase-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+
+  /* Funnel */
+  .funnel { display: flex; flex-direction: column; align-items: center; margin: 1.5rem 0; gap: 2px; }
+  .funnel-row { display: flex; align-items: center; gap: 1rem; width: 100%; }
+  .funnel-bar { padding: 0.45rem 0; text-align: center; color: white; font-size: 0.8rem; font-weight: 500; border-radius: 4px; }
+  .funnel-label { font-size: 0.75rem; color: var(--muted); width: 80px; text-align: right; flex-shrink: 0; }
+
+  /* Collapsible */
+  details { margin-bottom: 0.75rem; }
+  details summary { cursor: pointer; font-weight: 600; padding: 0.5rem 0; }
+  details summary:hover { color: var(--accent); }
+  details[open] summary { margin-bottom: 0.5rem; }
+
+  /* Print */
+  @media print { body { font-size: 12px; } .page { padding: 1rem; max-width: 100%; } details[open] { break-inside: avoid; } h2 { break-before: page; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════════════════════════════════ HEADER ═══════════════════════════════════════════ -->
+<h1>Leadgen Pipeline</h1>
+<p class="lead">Product Specification &amp; System Architecture</p>
+<p class="meta">Version 2.0 &middot; February 2026 &middot; VisionVolve</p>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#overview">System Overview</a></li>
+    <li><a href="#architecture">Architecture &amp; Infrastructure</a></li>
+    <li><a href="#data">Data Model</a></li>
+    <li><a href="#current">Current State</a></li>
+    <li><a href="#spec">Product Spec: Features</a></li>
+    <li><a href="#messages">Message Generation Spec</a></li>
+    <li><a href="#webapp">Review Web App Spec</a></li>
+    <li><a href="#delivery">Delivery &amp; Extension Spec</a></li>
+    <li><a href="#metrics">Metrics &amp; Tracking Spec</a></li>
+    <li><a href="#migration">Migration: Owners</a></li>
+    <li><a href="#implementation">Implementation Plan</a></li>
+    <li><a href="#costs">Cost Model</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════ 1. OVERVIEW ═══════════════════════════════════════════ -->
+<h2 id="overview">1. System Overview</h2>
+
+<p>End-to-end pipeline: import B2B contacts from LinkedIn, verify ICP fit, enrich with AI-generated intelligence, generate personalized outreach messages, route through human review, deliver via Lemlist or LinkedIn extension, and track funnel metrics.</p>
+
+<div class="flow">
+  <div class="flow-step f1"><div class="flow-inner"><div class="flow-num">Stage 1</div><div class="flow-name">Import</div><div class="flow-desc">LinkedIn / CSV / Manual</div></div></div>
+  <div class="flow-step f2"><div class="flow-inner"><div class="flow-num">Stage 2</div><div class="flow-name">Enrich</div><div class="flow-desc">L1 → L2 → Person</div></div></div>
+  <div class="flow-step f3"><div class="flow-inner"><div class="flow-num">Stage 3</div><div class="flow-name">Generate</div><div class="flow-desc">AI Messages</div></div></div>
+  <div class="flow-step f4"><div class="flow-inner"><div class="flow-num">Stage 4</div><div class="flow-name">Review</div><div class="flow-desc">Approve / Edit / Reject</div></div></div>
+  <div class="flow-step f5"><div class="flow-inner"><div class="flow-num">Stage 5</div><div class="flow-name">Deliver</div><div class="flow-desc">Lemlist / Extension</div></div></div>
+  <div class="flow-step f6"><div class="flow-inner"><div class="flow-num">Stage 6</div><div class="flow-name">Track</div><div class="flow-desc">Funnel &amp; Costs</div></div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 2. ARCHITECTURE ═══════════════════════════════════════════ -->
+<h2 id="architecture">2. Architecture &amp; Infrastructure</h2>
+
+<h3>2.1 Component Map</h3>
+
+<div class="arch-diagram">
+<svg viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px;font-family:-apple-system,system-ui,sans-serif">
+  <!-- Background -->
+  <rect x="0" y="0" width="900" height="520" fill="#F8FAFC" rx="12"/>
+
+  <!-- VPS Box -->
+  <rect x="280" y="20" width="600" height="480" rx="10" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="290" y="44" font-size="11" font-weight="600" fill="#94A3B8">VPS &middot; vps.visionvolve.com &middot; Amazon Linux + Docker</text>
+
+  <!-- Caddy -->
+  <rect x="300" y="60" width="560" height="50" rx="8" fill="#1E293B"/>
+  <text x="580" y="90" font-size="13" font-weight="700" fill="white" text-anchor="middle">Caddy (HTTPS reverse proxy)</text>
+  <text x="380" y="90" font-size="10" fill="#94A3B8">:443</text>
+
+  <!-- n8n -->
+  <rect x="300" y="130" width="260" height="160" rx="8" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="430" y="155" font-size="13" font-weight="700" fill="#92400E" text-anchor="middle">n8n (Orchestration)</text>
+  <text x="430" y="172" font-size="10" fill="#A16207" text-anchor="middle">n8n.visionvolve.com</text>
+  <!-- Workflows inside n8n -->
+  <rect x="315" y="185" width="110" height="28" rx="4" fill="#FDE68A"/><text x="370" y="204" font-size="9" font-weight="600" fill="#78350F" text-anchor="middle">Enrichment (4)</text>
+  <rect x="435" y="185" width="110" height="28" rx="4" fill="#FDE68A"/><text x="490" y="204" font-size="9" font-weight="600" fill="#78350F" text-anchor="middle">Message Gen (2)</text>
+  <rect x="315" y="220" width="110" height="28" rx="4" fill="#FDE68A"/><text x="370" y="239" font-size="9" font-weight="600" fill="#78350F" text-anchor="middle">Lemlist Sync (2)</text>
+  <rect x="435" y="220" width="110" height="28" rx="4" fill="#FDE68A"/><text x="490" y="239" font-size="9" font-weight="600" fill="#78350F" text-anchor="middle">Event Router (1)</text>
+  <rect x="315" y="255" width="230" height="22" rx="4" fill="white" stroke="#FDE68A"/><text x="430" y="270" font-size="9" fill="#A16207" text-anchor="middle">Webhooks: /enrich, /generate-messages, /lemlist, /events</text>
+
+  <!-- Web App -->
+  <rect x="590" y="130" width="260" height="100" rx="8" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1.5"/>
+  <text x="720" y="155" font-size="13" font-weight="700" fill="#065F46" text-anchor="middle">Review Web App</text>
+  <text x="720" y="172" font-size="10" fill="#047857" text-anchor="middle">vps.visionvolve.com/app</text>
+  <rect x="605" y="185" width="72" height="28" rx="4" fill="#A7F3D0"/><text x="641" y="204" font-size="9" font-weight="600" fill="#064E3B" text-anchor="middle">Review</text>
+  <rect x="685" y="185" width="72" height="28" rx="4" fill="#A7F3D0"/><text x="721" y="204" font-size="9" font-weight="600" fill="#064E3B" text-anchor="middle">Outreach</text>
+  <rect x="765" y="185" width="72" height="28" rx="4" fill="#A7F3D0"/><text x="801" y="204" font-size="9" font-weight="600" fill="#064E3B" text-anchor="middle">Dashboard</text>
+
+  <!-- MCP -->
+  <rect x="590" y="250" width="260" height="40" rx="8" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="720" y="275" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle">MCP Server (/mcp)</text>
+
+  <!-- PostgreSQL -->
+  <rect x="300" y="310" width="170" height="50" rx="8" fill="#EDE9FE" stroke="#C4B5FD" stroke-width="1.5"/>
+  <text x="385" y="335" font-size="11" font-weight="600" fill="#5B21B6" text-anchor="middle">PostgreSQL (RDS)</text>
+  <text x="385" y="350" font-size="9" fill="#7C3AED" text-anchor="middle">n8n execution data</text>
+
+  <!-- Airtable (external) -->
+  <rect x="40" y="130" width="200" height="170" rx="8" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="140" y="155" font-size="13" font-weight="700" fill="#92400E" text-anchor="middle">Airtable (Data Hub)</text>
+  <rect x="55" y="168" width="80" height="22" rx="4" fill="#FDE68A"/><text x="95" y="183" font-size="8" font-weight="600" fill="#78350F" text-anchor="middle">Contacts</text>
+  <rect x="145" y="168" width="80" height="22" rx="4" fill="#FDE68A"/><text x="185" y="183" font-size="8" font-weight="600" fill="#78350F" text-anchor="middle">Companies</text>
+  <rect x="55" y="196" width="80" height="22" rx="4" fill="#FDE68A"/><text x="95" y="211" font-size="8" font-weight="600" fill="#78350F" text-anchor="middle">Research Dir</text>
+  <rect x="145" y="196" width="80" height="22" rx="4" fill="#E9D5FF"/><text x="185" y="211" font-size="8" font-weight="600" fill="#6B21A8" text-anchor="middle">Messages</text>
+  <rect x="55" y="224" width="80" height="22" rx="4" fill="#E9D5FF"/><text x="95" y="239" font-size="8" font-weight="600" fill="#6B21A8" text-anchor="middle">Owners</text>
+  <rect x="145" y="224" width="80" height="22" rx="4" fill="#FDE68A"/><text x="185" y="239" font-size="8" font-weight="600" fill="#78350F" text-anchor="middle">Activity</text>
+  <rect x="55" y="252" width="170" height="22" rx="4" fill="#E9D5FF"/><text x="140" y="267" font-size="8" font-weight="600" fill="#6B21A8" text-anchor="middle">Campaigns</text>
+  <text x="140" y="290" font-size="8" fill="#A16207" text-anchor="middle">purple = NEW tables</text>
+
+  <!-- External Services -->
+  <rect x="40" y="380" width="200" height="120" rx="8" fill="#F0F9FF" stroke="#BAE6FD" stroke-width="1.5"/>
+  <text x="140" y="402" font-size="12" font-weight="700" fill="#0369A1" text-anchor="middle">External APIs</text>
+  <text x="140" y="422" font-size="10" fill="#0284C7" text-anchor="middle">Perplexity (sonar, sonar-pro)</text>
+  <text x="140" y="440" font-size="10" fill="#0284C7" text-anchor="middle">Anthropic Claude Sonnet</text>
+  <text x="140" y="458" font-size="10" fill="#0284C7" text-anchor="middle">Lemlist (campaigns + events)</text>
+  <text x="140" y="476" font-size="10" fill="#0284C7" text-anchor="middle">LinkedIn (via extension)</text>
+
+  <!-- Chrome Extension -->
+  <rect x="530" y="380" width="330" height="110" rx="8" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="695" y="402" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">Chrome Extension (user's browser)</text>
+  <rect x="545" y="412" width="92" height="28" rx="4" fill="#BFDBFE"/><text x="591" y="431" font-size="9" font-weight="600" fill="#1E3A8A" text-anchor="middle">Lead Capture</text>
+  <rect x="645" y="412" width="92" height="28" rx="4" fill="#BFDBFE"/><text x="691" y="431" font-size="9" font-weight="600" fill="#1E3A8A" text-anchor="middle">Activity Mon</text>
+  <rect x="745" y="412" width="100" height="28" rx="4" fill="#C7D2FE"/><text x="795" y="431" font-size="9" font-weight="600" fill="#3730A3" text-anchor="middle">Outreach Assist</text>
+  <text x="695" y="466" font-size="9" fill="#3B82F6" text-anchor="middle">Captures leads, monitors LinkedIn activity, pre-fills messages</text>
+  <text x="695" y="480" font-size="9" fill="#3B82F6" text-anchor="middle">Events → n8n webhooks → Activity table</text>
+
+  <!-- Connections -->
+  <line x1="240" y1="210" x2="300" y2="210" stroke="#D97706" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="300" y1="340" x2="300" y2="290" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="140" y1="380" x2="300" y2="310" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="590" y1="230" x2="590" y2="250" stroke="#94A3B8" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="695" y1="380" x2="560" y2="290" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="720" y1="230" x2="720" y2="250" stroke="#94A3B8" stroke-width="1" stroke-dasharray="3,3"/>
+  <!-- Web app → Airtable -->
+  <path d="M 590 180 Q 400 130 240 180" fill="none" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrG)"/>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#D97706" stroke-width="1.5"/></marker>
+    <marker id="arrG" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#10B981" stroke-width="1.5"/></marker>
+  </defs>
+</svg>
+</div>
+
+<h3>2.2 Infrastructure</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:#1E293B"></div><div class="card-title">VPS (vps.visionvolve.com)</div></div>
+    <ul style="font-size:0.85rem">
+      <li>Amazon Linux 2023, 2 vCPU, 2 GB RAM + 2 GB swap, 60 GB disk</li>
+      <li><strong>Caddy</strong> reverse proxy: auto-HTTPS, routes by path</li>
+      <li><code>/</code> &rarr; n8n container (:5678)</li>
+      <li><code>/mcp/*</code> &rarr; MCP server (:8765)</li>
+      <li><code>/app/*</code> &rarr; static files (NEW) &mdash; review web app</li>
+      <li>Docker Compose: caddy + n8n + n8n-mcp + <em>static-app (new)</em></li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:var(--enrich)"></div><div class="card-title">n8n (n8n.visionvolve.com)</div></div>
+    <ul style="font-size:0.85rem">
+      <li>n8n v2.6.4, Docker, PostgreSQL RDS backend</li>
+      <li>Current: 4 workflows (orchestrator + 3 enrichment sub-workflows)</li>
+      <li>Planned: +4 workflows (message gen, Lemlist push, Lemlist sync, event router)</li>
+      <li>Credentials: Airtable PAT, Perplexity API, Anthropic API, Lemlist API (new)</li>
+      <li>Webhooks registered via workflow activation</li>
+    </ul>
+  </div>
+</div>
+
+<h3>2.3 Deployment: Web App on VPS</h3>
+<p>The review web app is static HTML/JS. Deploy by adding a <code>handle_path /app/*</code> block in Caddy that serves from a mounted volume:</p>
+<ol>
+  <li>Create <code>/home/ec2-user/leadgen-app/</code> on VPS</li>
+  <li>Add Caddy handler: <code>handle_path /app/* { root /var/leadgen-app; file_server }</code></li>
+  <li>Mount in docker-compose: <code>/home/ec2-user/leadgen-app:/var/leadgen-app</code></li>
+  <li>Deploy with <code>scp</code> or rsync from local build &rarr; accessible at <code>https://vps.visionvolve.com/app/</code></li>
+</ol>
+
+<!-- ═══════════════════════════════════════════ 3. DATA MODEL ═══════════════════════════════════════════ -->
+<h2 id="data">3. Data Model</h2>
+
+<h3>3.1 Table Relationships</h3>
+<div class="arch-diagram">
+<svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:800px;font-family:-apple-system,system-ui,sans-serif">
+  <rect x="0" y="0" width="800" height="300" fill="#FAFAFA" rx="8"/>
+  <!-- Contacts -->
+  <rect x="20" y="40" width="150" height="80" rx="6" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="95" y="62" font-size="12" font-weight="700" fill="#92400E" text-anchor="middle">Contacts</text>
+  <text x="95" y="78" font-size="9" fill="#A16207" text-anchor="middle">batch_name, processed_enrich</text>
+  <text x="95" y="92" font-size="9" fill="#A16207" text-anchor="middle">Contact Score, ICP Fit</text>
+  <text x="95" y="106" font-size="9" fill="#A16207" text-anchor="middle">Owner, message_status</text>
+  <!-- Companies -->
+  <rect x="20" y="160" width="150" height="80" rx="6" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="95" y="182" font-size="12" font-weight="700" fill="#92400E" text-anchor="middle">Companies</text>
+  <text x="95" y="198" font-size="9" fill="#A16207" text-anchor="middle">Status, Tier, batch_name</text>
+  <text x="95" y="212" font-size="9" fill="#A16207" text-anchor="middle">Pain Hypothesis, AI Opps</text>
+  <text x="95" y="226" font-size="9" fill="#A16207" text-anchor="middle">Account Owner</text>
+  <!-- Messages -->
+  <rect x="240" y="40" width="150" height="80" rx="6" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5"/>
+  <text x="315" y="62" font-size="12" font-weight="700" fill="#5B21B6" text-anchor="middle">Messages</text>
+  <text x="315" y="78" font-size="9" fill="#7C3AED" text-anchor="middle">channel, sequence_step</text>
+  <text x="315" y="92" font-size="9" fill="#7C3AED" text-anchor="middle">body, status, variant</text>
+  <text x="315" y="106" font-size="9" fill="#7C3AED" text-anchor="middle">generation_cost, sent_at</text>
+  <!-- Owners -->
+  <rect x="460" y="40" width="150" height="80" rx="6" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5"/>
+  <text x="535" y="62" font-size="12" font-weight="700" fill="#5B21B6" text-anchor="middle">Owners</text>
+  <text x="535" y="78" font-size="9" fill="#7C3AED" text-anchor="middle">Name, Email</text>
+  <text x="535" y="92" font-size="9" fill="#7C3AED" text-anchor="middle">lemlist_configured</text>
+  <text x="535" y="106" font-size="9" fill="#7C3AED" text-anchor="middle">default_tone, language</text>
+  <!-- Activity (existing) -->
+  <rect x="460" y="160" width="150" height="80" rx="6" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="535" y="182" font-size="12" font-weight="700" fill="#92400E" text-anchor="middle">Activity</text>
+  <text x="535" y="198" font-size="9" fill="#A16207" text-anchor="middle">activity_name, source</text>
+  <text x="535" y="212" font-size="9" fill="#A16207" text-anchor="middle">timestamp, activity_type</text>
+  <text x="535" y="226" font-size="9" fill="#A16207" text-anchor="middle">external_id, Processed</text>
+  <!-- Campaigns -->
+  <rect x="240" y="160" width="150" height="80" rx="6" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5"/>
+  <text x="315" y="182" font-size="12" font-weight="700" fill="#5B21B6" text-anchor="middle">Campaigns</text>
+  <text x="315" y="198" font-size="9" fill="#7C3AED" text-anchor="middle">lemlist_campaign_id</text>
+  <text x="315" y="212" font-size="9" fill="#7C3AED" text-anchor="middle">Owner, channel</text>
+  <text x="315" y="226" font-size="9" fill="#7C3AED" text-anchor="middle">batch_name, active</text>
+  <!-- Research Dir -->
+  <rect x="650" y="100" width="130" height="60" rx="6" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1.5"/>
+  <text x="715" y="122" font-size="11" font-weight="700" fill="#92400E" text-anchor="middle">Research Dir</text>
+  <text x="715" y="138" font-size="9" fill="#A16207" text-anchor="middle">API logs + costs</text>
+  <!-- Connections -->
+  <line x1="170" y1="80" x2="240" y2="80" stroke="#7C3AED" stroke-width="1.5" marker-end="url(#arrP)"/>
+  <text x="205" y="74" font-size="8" fill="#7C3AED" text-anchor="middle">has many</text>
+  <line x1="95" y1="120" x2="95" y2="160" stroke="#A16207" stroke-width="1.5"/>
+  <text x="105" y="145" font-size="8" fill="#A16207">belongs to</text>
+  <line x1="390" y1="80" x2="460" y2="80" stroke="#7C3AED" stroke-width="1.5" marker-end="url(#arrP)"/>
+  <text x="425" y="74" font-size="8" fill="#7C3AED" text-anchor="middle">owned by</text>
+  <line x1="315" y1="120" x2="315" y2="160" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="330" y="145" font-size="8" fill="#7C3AED">campaign</text>
+  <line x1="460" y1="200" x2="390" y2="200" stroke="#7C3AED" stroke-width="1"/>
+  <line x1="170" y1="80" x2="170" y2="200" stroke="#A16207" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="170" y1="200" x2="460" y2="200" stroke="#64748B" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="610" y1="80" x2="650" y2="115" stroke="#A16207" stroke-width="1" stroke-dasharray="3,3"/>
+  <defs><marker id="arrP" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7" fill="none" stroke="#7C3AED" stroke-width="1.2"/></marker></defs>
+  <!-- Legend -->
+  <rect x="650" y="200" width="12" height="12" rx="2" fill="#FEF3C7" stroke="#FDE68A"/>
+  <text x="670" y="210" font-size="9" fill="#64748B">Existing</text>
+  <rect x="650" y="220" width="12" height="12" rx="2" fill="#F5F3FF" stroke="#C4B5FD"/>
+  <text x="670" y="230" font-size="9" fill="#64748B">New</text>
+</svg>
+</div>
+
+<h3>3.2 New Table Schemas</h3>
+
+<details open>
+<summary>Messages <span class="b b-new">NEW</span></summary>
+<table class="schema-table">
+<thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Contact</td><td><span class="t">Link</span></td><td>&rarr; Contacts (many messages per contact)</td></tr>
+<tr><td>Owner</td><td><span class="t">Link</span></td><td>&rarr; Owners</td></tr>
+<tr><td>Campaign</td><td><span class="t">Link</span></td><td>&rarr; Campaigns (optional, for Lemlist)</td></tr>
+<tr><td>channel</td><td><span class="t">Select</span></td><td>linkedin_connect | linkedin_message | email | call_script</td></tr>
+<tr><td>sequence_step</td><td><span class="t">Number</span></td><td>1 = initial outreach, 2-4 = follow-ups</td></tr>
+<tr><td>variant</td><td><span class="t">Select</span></td><td>A | B (for A/B testing)</td></tr>
+<tr><td>subject</td><td><span class="t">Text</span></td><td>Email subject line (null for LinkedIn)</td></tr>
+<tr><td>body</td><td><span class="t">Long Text</span></td><td>The message content</td></tr>
+<tr><td>status</td><td><span class="t">Select</span></td><td>draft | approved | rejected | sent | delivered | replied</td></tr>
+<tr><td>tone</td><td><span class="t">Select</span></td><td>professional | casual | bold | empathetic</td></tr>
+<tr><td>language</td><td><span class="t">Select</span></td><td>EN | DE | NL | CS</td></tr>
+<tr><td>generation_cost</td><td><span class="t">Number</span></td><td>USD cost of AI generation</td></tr>
+<tr><td>approved_at</td><td><span class="t">Date</span></td><td>Timestamp of approval</td></tr>
+<tr><td>sent_at</td><td><span class="t">Date</span></td><td>Timestamp of delivery</td></tr>
+<tr><td>batch_name</td><td><span class="t">Text</span></td><td>Inherited from contact's batch</td></tr>
+<tr><td>review_notes</td><td><span class="t">Long Text</span></td><td>Reviewer notes on edit/reject</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary>Owners <span class="b b-new">NEW</span></summary>
+<table class="schema-table">
+<thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Name</td><td><span class="t">Text</span></td><td>Team member name (e.g. "Michal", "Anton")</td></tr>
+<tr><td>Email</td><td><span class="t">Email</span></td><td>For notifications</td></tr>
+<tr><td>lemlist_configured</td><td><span class="t">Checkbox</span></td><td>Has Lemlist campaigns set up</td></tr>
+<tr><td>lemlist_default_campaign</td><td><span class="t">Text</span></td><td>Default Lemlist campaign ID</td></tr>
+<tr><td>default_tone</td><td><span class="t">Select</span></td><td>Preferred message tone</td></tr>
+<tr><td>default_language</td><td><span class="t">Select</span></td><td>EN | DE | NL | CS</td></tr>
+<tr><td>linkedin_profile_url</td><td><span class="t">URL</span></td><td>Owner's LinkedIn profile</td></tr>
+<tr><td>signature_block</td><td><span class="t">Long Text</span></td><td>Email signature to append</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary>Activity <span class="b b-exists">EXISTS</span> (tblOgm2f3Nazx3Kjv)</summary>
+<p style="font-size:0.85rem; color:var(--muted); margin:0.5rem 0">Already receiving events from Chrome extension (connection_accepted, message_sent, etc.). Needs a few new fields for pipeline integration.</p>
+<table class="schema-table">
+<thead><tr><th>Field</th><th>Type</th><th>Status</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>activity_name</td><td><span class="t">Text</span></td><td><span class="b b-exists">EXISTS</span></td><td>Primary: connection_accepted, message_sent, connection_request_sent, etc.</td></tr>
+<tr><td>Contact</td><td><span class="t">Link</span></td><td><span class="b b-exists">EXISTS</span></td><td>&rarr; Contacts</td></tr>
+<tr><td>source</td><td><span class="t">Select</span></td><td><span class="b b-exists">EXISTS</span></td><td>linkedin | email | call | in-person | manual</td></tr>
+<tr><td>timestamp</td><td><span class="t">DateTime</span></td><td><span class="b b-exists">EXISTS</span></td><td>When event occurred</td></tr>
+<tr><td>activity_type</td><td><span class="t">Select</span></td><td><span class="b b-exists">EXISTS</span></td><td>message | event</td></tr>
+<tr><td>activity_detail</td><td><span class="t">Long Text</span></td><td><span class="b b-exists">EXISTS</span></td><td>Message body or event notes</td></tr>
+<tr><td>external_id</td><td><span class="t">Text</span></td><td><span class="b b-exists">EXISTS</span></td><td>Dedup key from extension/Lemlist</td></tr>
+<tr><td>Processed</td><td><span class="t">Checkbox</span></td><td><span class="b b-exists">EXISTS</span></td><td>Marks event as processed by downstream workflows</td></tr>
+<tr><td>Tasks</td><td><span class="t">Link</span></td><td><span class="b b-exists">EXISTS</span></td><td>&rarr; Tasks</td></tr>
+<tr><td>batch_name</td><td><span class="t">Text</span></td><td><span class="b b-new">ADD</span></td><td>For filtering by batch</td></tr>
+<tr><td>cost</td><td><span class="t">Number</span></td><td><span class="b b-new">ADD</span></td><td>Cost in USD if event incurred cost</td></tr>
+<tr><td>Owner</td><td><span class="t">Link</span></td><td><span class="b b-new">ADD</span></td><td>&rarr; Owners (after migration)</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary>Campaigns <span class="b b-new">NEW</span></summary>
+<table class="schema-table">
+<thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Name</td><td><span class="t">Text</span></td><td>Human name: "NL-Nordics Tier2 LinkedIn"</td></tr>
+<tr><td>Owner</td><td><span class="t">Link</span></td><td>&rarr; Owners</td></tr>
+<tr><td>lemlist_campaign_id</td><td><span class="t">Text</span></td><td>Lemlist campaign ID</td></tr>
+<tr><td>channel</td><td><span class="t">Select</span></td><td>linkedin | email | multi</td></tr>
+<tr><td>batch_name</td><td><span class="t">Text</span></td><td>Associated batch</td></tr>
+<tr><td>active</td><td><span class="t">Checkbox</span></td><td>Accepting new leads</td></tr>
+</tbody>
+</table>
+</details>
+
+<h3>3.3 Modifications to Existing Tables</h3>
+<table class="schema-table">
+<thead><tr><th>Table</th><th>Field</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>Contacts</td><td><code>Owner</code></td><td><span class="b b-migrate">MIGRATE</span> Replace text <code>Contact of</code> with Link &rarr; Owners</td></tr>
+<tr><td>Contacts</td><td><code>message_status</code></td><td><span class="b b-new">NEW</span> Select: not_started | generating | pending_review | approved | sent | replied</td></tr>
+<tr><td>Companies</td><td><code>Account Owner</code></td><td><span class="b b-migrate">MIGRATE</span> Replace hardcoded "Michal" with Link &rarr; Owners</td></tr>
+<tr><td>Activity</td><td><code>batch_name</code></td><td><span class="b b-new">NEW</span> Text field for batch filtering</td></tr>
+<tr><td>Activity</td><td><code>cost</code></td><td><span class="b b-new">NEW</span> Number field for cost tracking</td></tr>
+<tr><td>Activity</td><td><code>Owner</code></td><td><span class="b b-new">NEW</span> Link &rarr; Owners</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════ 4. CURRENT STATE ═══════════════════════════════════════════ -->
+<h2 id="current">4. Current State</h2>
+
+<div class="grid-2">
+  <div class="card" style="border-left: 4px solid #059669">
+    <h4 style="color:#059669; margin-top:0">Built &amp; Deployed</h4>
+    <ul style="font-size:0.85rem">
+      <li><strong>Enrichment orchestrator</strong> &mdash; 26-node workflow with Central Gate, SplitInBatches (8/10), 15s waits, static data context preservation</li>
+      <li><strong>L1 Company enrichment</strong> &mdash; Perplexity sonar, ICP scoring, tier assignment</li>
+      <li><strong>L2 Company enrichment</strong> &mdash; Perplexity sonar-pro + Claude synthesis, pain hypothesis</li>
+      <li><strong>Person enrichment</strong> &mdash; Perplexity + Claude, contact scoring, personalization brief</li>
+      <li><strong>Chrome extension</strong> &mdash; Sales Navigator lead capture + LinkedIn activity monitoring</li>
+      <li><strong>CSV importer</strong> &mdash; Node.js CLI with fuzzy company matching</li>
+      <li><strong>VPS + n8n + Caddy</strong> &mdash; Self-hosted, auto-HTTPS, MCP server</li>
+      <li><strong>Activity table</strong> &mdash; Already receiving extension events (connection_accepted, message_sent) with dedup</li>
+      <li><strong>CRM Events + Tasks tables</strong> &mdash; Manual CRM tracking (meetings, calls, follow-ups)</li>
+    </ul>
+  </div>
+  <div class="card" style="border-left: 4px solid var(--accent)">
+    <h4 style="color:var(--accent); margin-top:0">Not Yet Built</h4>
+    <ul style="font-size:0.85rem">
+      <li><strong>Message generation</strong> &mdash; No workflows for generating outreach messages</li>
+      <li><strong>Messages table</strong> &mdash; Does not exist in Airtable</li>
+      <li><strong>Owners table</strong> &mdash; Owners hardcoded as strings ("Michal", "Anton")</li>
+      <li><strong>Review web app</strong> &mdash; No UI for reviewing/approving messages</li>
+      <li><strong>Lemlist integration</strong> &mdash; Placeholder only, no push/sync workflows</li>
+      <li><strong>Extension outreach</strong> &mdash; No popup.html, no outreach queue, no message pre-fill</li>
+      <li><strong>Funnel dashboard</strong> &mdash; Activity table exists but no metrics dashboard</li>
+      <li><strong>Activity routing</strong> &mdash; Extension posts to old n8n cloud URL, not self-hosted</li>
+    </ul>
+  </div>
+</div>
+
+<h3>4.1 Owner Hardcoding (Current)</h3>
+<p>Owners are currently embedded as strings in three places:</p>
+<table class="schema-table">
+<thead><tr><th>Location</th><th>Field</th><th>Current Value</th><th>Migration</th></tr></thead>
+<tbody>
+<tr><td>L1 workflow (Enrich_company_L1.json)</td><td><code>Account Owner</code></td><td>"Michal" (hardcoded in Airtable update nodes)</td><td>Read from Owners table via contact's Owner link</td></tr>
+<tr><td>L2 workflow (Enrichment_L2_-_Company.json)</td><td><code>Account Owner</code></td><td>"Michal" (hardcoded in multiple update nodes)</td><td>Same &mdash; passthrough from orchestrator</td></tr>
+<tr><td>CSV importer (--contact-of flag)</td><td><code>Contact of</code></td><td>Default "Anton" (CLI arg)</td><td>Map to Owner record ID, set Link field</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════ 5. PRODUCT SPEC ═══════════════════════════════════════════ -->
+<h2 id="spec">5. Product Spec: Features</h2>
+
+<h3>5.1 Feature Map</h3>
+
+<div class="grid-3">
+  <div class="feat">
+    <div class="feat-id">F-MSG-01</div>
+    <div class="feat-name">LinkedIn Connect Message Generation</div>
+    <div class="feat-desc">Generate personalized LinkedIn connection requests (&le;300 chars) using enrichment data. Two A/B variants per contact. Claude Sonnet.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-MSG-02</div>
+    <div class="feat-name">Follow-up Sequence Generation</div>
+    <div class="feat-desc">Generate 3 LinkedIn follow-up messages per contact. Step 2: value-first, Step 3: insight/case study, Step 4: soft ask.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-MSG-03</div>
+    <div class="feat-name">Email Outreach Generation</div>
+    <div class="feat-desc">Subject (&le;50 chars) + body (&le;150 words) + CTA. Only for contacts with email address. Append owner signature.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-REV-01</div>
+    <div class="feat-name">Review Queue</div>
+    <div class="feat-desc">Web page listing draft messages per owner. Grouped by contact. A/B variants side-by-side. Approve, edit+approve, or reject each message.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-REV-02</div>
+    <div class="feat-name">Outreach Queue</div>
+    <div class="feat-desc">Web page showing approved messages for manual delivery. Clickable LinkedIn URL + copyable message body. Mark Sent button.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-REV-03</div>
+    <div class="feat-name">Bulk Actions</div>
+    <div class="feat-desc">Approve all variant-A messages for a contact. Approve all for a batch. Reject all for low-score contacts.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-DEL-01</div>
+    <div class="feat-name">Lemlist Campaign Push</div>
+    <div class="feat-desc">Push approved messages to Lemlist campaign via API. Map contact fields + icebreaker message. Track lemlist_lead_id.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-DEL-02</div>
+    <div class="feat-name">Lemlist Event Sync</div>
+    <div class="feat-desc">Lemlist webhook trigger captures send/open/click/reply events. Logs to Activity table. Updates message status.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-EXT-01</div>
+    <div class="feat-name">Extension: Outreach Queue</div>
+    <div class="feat-desc">New popup tab showing today's pending outreach contacts. Clickable LinkedIn links. Priority-sorted.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-EXT-02</div>
+    <div class="feat-name">Extension: Message Pre-fill</div>
+    <div class="feat-desc">On LinkedIn profile page, detect matching outreach and show banner with pre-filled connection request + copy button.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-EXT-03</div>
+    <div class="feat-name">Extension: Follow-up Suggestions</div>
+    <div class="feat-desc">After connection accepted, show next sequence step message from Messages table. Suggest timing.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-TRK-01</div>
+    <div class="feat-name">Funnel Metrics Dashboard</div>
+    <div class="feat-desc">Web page showing conversion funnel from Import to Reply. Queries Activity table. Filter by batch, owner, tier. Key rates + cost per reply.</div>
+    <div class="feat-priority p-med">P1 &middot; Should Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-TRK-02</div>
+    <div class="feat-name">Activity Event Router</div>
+    <div class="feat-desc">n8n workflow receiving extension/Lemlist events, matching to contacts, logging to Activity table, updating statuses.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-OWN-01</div>
+    <div class="feat-name">Owner Migration</div>
+    <div class="feat-desc">Create Owners table. Migrate hardcoded "Michal"/"Anton" strings to linked records. Update L1/L2 workflows + importer.</div>
+    <div class="feat-priority p-high">P0 &middot; Must Have</div>
+  </div>
+  <div class="feat">
+    <div class="feat-id">F-MSG-04</div>
+    <div class="feat-name">Message Regeneration</div>
+    <div class="feat-desc">After rejection, reviewer can trigger regeneration with different temperature/tone. Old messages kept for audit.</div>
+    <div class="feat-priority p-low">P2 &middot; Nice to Have</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 6. MESSAGE GEN ═══════════════════════════════════════════ -->
+<h2 id="messages">6. Message Generation Spec</h2>
+
+<h3>6.1 Workflow Architecture</h3>
+<p>Two workflows: an <strong>orchestrator</strong> (batch processing) and a <strong>sub-workflow</strong> (per-contact generation).</p>
+
+<h4>Orchestrator: <code>message-gen-orchestrator</code></h4>
+<ol>
+  <li>Webhook: <code>POST /webhook/generate-messages</code> with <code>{batch_name, owner_name, channels, tone}</code></li>
+  <li>Load eligible contacts: <code>batch_name</code> match + <code>processed_enrich = true</code> + <code>message_status = not_started</code></li>
+  <li>Resolve Owner record from Owners table by name</li>
+  <li>SplitInBatches (size 5) &rarr; Execute message-gen &rarr; Accumulate &rarr; Wait 30s &rarr; loop</li>
+  <li>Done &rarr; cost summary log</li>
+</ol>
+
+<h4>Sub-workflow: <code>message-gen</code></h4>
+<ol>
+  <li>Get Contact record (full fields including Person Summary, Contact Score)</li>
+  <li>Get Company record (via Contact.Companies[0]) &mdash; Pain Hypothesis, AI Opportunities, Tier</li>
+  <li>Eligibility check: Company.Status = "Enriched L2", Contact has required enrichment data</li>
+  <li>Set Contact <code>message_status = generating</code></li>
+  <li>For each channel &times; variant: call Claude Sonnet with assembled prompt</li>
+  <li>Parse response, validate (length check, no hallucinations)</li>
+  <li>Create Message records in Airtable</li>
+  <li>Set Contact <code>message_status = pending_review</code></li>
+  <li>Log generation cost to Research Directory</li>
+</ol>
+
+<h3>6.2 Prompt Design (LinkedIn Connect)</h3>
+<div class="card" style="font-size:0.85rem; background:#1E293B; color:#E2E8F0; font-family:'SF Mono',Menlo,monospace; white-space:pre-wrap; line-height:1.5">System: You write hyper-personalized LinkedIn connection requests.
+
+RULES:
+1. MUST be under 280 characters (leave margin from 300 limit)
+2. Reference ONE specific thing about the person
+3. Connect it to ONE company-specific insight
+4. No selling. No pitch. Genuine curiosity only.
+5. Sound like a real human, not a bot or template
+6. Match tone: {{tone}}
+7. Write in: {{language}}
+
+OUTPUT: Return ONLY the message text.
+
+---
+User: Write a LinkedIn connection request for:
+
+Name: {{full_name}}, {{job_title}} at {{company_name}}
+Their angle: {{personalization_angle}}
+Connection points: {{connection_points}}
+Company pain: {{pain_hypothesis}}
+Their expertise: {{expertise_areas}}
+Thought leadership: {{thought_leadership}}</div>
+
+<h3>6.3 Edge Cases</h3>
+<ul>
+  <li><strong>No LinkedIn URL</strong> &rarr; skip linkedin_connect and linkedin_message channels, generate email only</li>
+  <li><strong>No email</strong> &rarr; skip email channel, generate LinkedIn only</li>
+  <li><strong>Neither</strong> &rarr; set <code>message_status = no_channel</code>, skip entirely</li>
+  <li><strong>Contact Score &lt; 30</strong> &rarr; generate 1 variant only (no A/B), connection request only</li>
+  <li><strong>Generation failure</strong> &rarr; set <code>message_status = generation_failed</code>, log error to Research Directory</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════ 7. WEB APP ═══════════════════════════════════════════ -->
+<h2 id="webapp">7. Review Web App Spec</h2>
+
+<h3>7.1 Pages</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:var(--review)"></div><div class="card-title">Review Queue</div></div>
+    <p style="font-size:0.85rem">Main working page. Displays all <code>status=draft</code> messages for the logged-in owner.</p>
+    <ul style="font-size:0.85rem">
+      <li>Messages grouped by contact (card per contact)</li>
+      <li>Contact card shows: name, company, tier badge, contact score, LinkedIn URL</li>
+      <li>A/B variants shown as tabs or side-by-side</li>
+      <li>Per message: <strong>[Approve]</strong> <strong>[Edit]</strong> <strong>[Reject]</strong></li>
+      <li>Edit: inline text area, save triggers approval</li>
+      <li>Reject: optional notes field</li>
+      <li>Bulk: "Approve all variant A" per contact</li>
+      <li>Sort: Contact Score desc, then Tier priority</li>
+      <li>Filter: batch, channel, tier</li>
+      <li>Counter: "23 contacts, 92 messages pending"</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:var(--deliver)"></div><div class="card-title">Outreach Queue</div></div>
+    <p style="font-size:0.85rem">For manual delivery when Lemlist is not configured.</p>
+    <ul style="font-size:0.85rem">
+      <li>Shows <code>status=approved</code> messages with no <code>lemlist_lead_id</code></li>
+      <li>Per contact: name, LinkedIn URL (opens in new tab), message body</li>
+      <li>Copy button (copies message to clipboard)</li>
+      <li><strong>[Mark Sent]</strong> button &rarr; sets <code>status=sent</code>, <code>sent_at=now</code></li>
+      <li>After marking step 1 as sent, shows step 2 (follow-up) when relevant</li>
+      <li>Filter: step 1 only (connect) or all steps</li>
+      <li>Counter: "15 pending sends"</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:var(--track)"></div><div class="card-title">Dashboard</div></div>
+    <p style="font-size:0.85rem">Funnel metrics and cost tracking.</p>
+    <ul style="font-size:0.85rem">
+      <li>Funnel chart: Imported &rarr; Enriched &rarr; Generated &rarr; Approved &rarr; Sent &rarr; Accepted &rarr; Replied</li>
+      <li>Conversion rates between stages</li>
+      <li>Key cards: reply rate, accept rate, cost per reply</li>
+      <li>Data source: Activity table (activity_name values map to funnel stages)</li>
+      <li>Filter: by batch, by owner, by date range</li>
+      <li>Cost breakdown: enrichment vs. generation</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot" style="background:var(--import)"></div><div class="card-title">Config</div></div>
+    <p style="font-size:0.85rem">One-time setup per user.</p>
+    <ul style="font-size:0.85rem">
+      <li>Enter owner name (matches Owners table)</li>
+      <li>Enter Airtable PAT (stored in localStorage)</li>
+      <li>Validates by fetching owner record</li>
+      <li>Persists until cleared</li>
+    </ul>
+  </div>
+</div>
+
+<h3>7.2 Tech Stack</h3>
+<ul>
+  <li><strong>Static HTML + vanilla JS</strong> (or Preact for reactivity). No build step preferred.</li>
+  <li><strong>Airtable REST API</strong> for all reads/writes. CORS supported natively.</li>
+  <li><strong>No backend server</strong>. All logic client-side.</li>
+  <li><strong>Hosted on VPS</strong>: <code>https://vps.visionvolve.com/app/</code> via Caddy static file serving.</li>
+  <li><strong>Deploy</strong>: <code>scp -r ./app/* ec2-user@vps.visionvolve.com:~/leadgen-app/</code></li>
+</ul>
+
+<!-- ═══════════════════════════════════════════ 8. DELIVERY ═══════════════════════════════════════════ -->
+<h2 id="delivery">8. Delivery &amp; Extension Spec</h2>
+
+<h3>8.1 Lemlist Integration</h3>
+<p>Two n8n workflows handle Lemlist:</p>
+<ul>
+  <li><strong>lemlist-push</strong>: Reads approved messages, creates leads in Lemlist campaign via API. Maps: email, name, company, icebreaker (message body), custom vars for follow-ups. Updates <code>status=sent</code> + <code>lemlist_lead_id</code>.</li>
+  <li><strong>lemlist-sync</strong>: Lemlist Trigger node receives events (send, open, click, reply, bounce). Matches to contact by email. Logs to Activity table. Updates Message status if reply/bounce.</li>
+</ul>
+
+<h3>8.2 Chrome Extension Enhancements</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <h4 style="margin-top:0">Outreach Queue Popup <span class="b b-new">NEW</span></h4>
+    <p style="font-size:0.85rem">New tab in extension popup showing pending outreach for the day.</p>
+    <ul style="font-size:0.85rem">
+      <li>Fetches from Airtable: Messages where <code>status=approved</code>, <code>channel=linkedin_connect</code>, not yet sent</li>
+      <li>Sorted by Contact Score</li>
+      <li>Each item: name, company, message preview</li>
+      <li>Click &rarr; opens LinkedIn profile</li>
+      <li>Stats bar: "Sent today: 5 / Pending: 12"</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">Profile Page Banner <span class="b b-new">NEW</span></h4>
+    <p style="font-size:0.85rem">On LinkedIn profile pages, detect if this person has pending outreach.</p>
+    <ul style="font-size:0.85rem">
+      <li>Match by LinkedIn URL against Airtable Messages</li>
+      <li>Show floating banner with the pre-written message</li>
+      <li><strong>[Copy]</strong> button copies to clipboard</li>
+      <li><strong>[Connect &amp; Paste]</strong> auto-clicks Connect, adds note, pastes</li>
+      <li><strong>[Mark Sent]</strong> updates Airtable status</li>
+      <li>After connection accepted: show follow-up message banner</li>
+    </ul>
+  </div>
+</div>
+
+<h3>8.3 Activity Monitor Routing</h3>
+<p>The existing activity monitor in <code>activity-monitor.js</code> captures LinkedIn events. Currently posts to the <strong>old n8n cloud URL</strong>. Migration needed:</p>
+<ol>
+  <li>Update webhook URL to <code>https://n8n.visionvolve.com/webhook/activity-events</code></li>
+  <li>Build <strong>Activity Event Router</strong> n8n workflow: receives events, matches to Contact by LinkedIn URL, logs to Activity table, updates Message/Contact status</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════ 9. METRICS ═══════════════════════════════════════════ -->
+<h2 id="metrics">9. Metrics &amp; Tracking Spec</h2>
+
+<h3>9.1 Funnel</h3>
+<div class="funnel">
+  <div class="funnel-row"><div class="funnel-label">Imported</div><div class="funnel-bar" style="width:100%;background:var(--import)">1,000 contacts</div></div>
+  <div class="funnel-row"><div class="funnel-label">L1 Passed</div><div class="funnel-bar" style="width:60%;background:#2563EB">600 (60%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">L2 Enriched</div><div class="funnel-bar" style="width:55%;background:var(--enrich)">550 (92%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Person Done</div><div class="funnel-bar" style="width:50%;background:#D97706">500 (91%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Msgs Generated</div><div class="funnel-bar" style="width:50%;background:var(--msggen)">500 (100%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Approved</div><div class="funnel-bar" style="width:42%;background:#7C3AED">420 (84%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Sent</div><div class="funnel-bar" style="width:40%;background:var(--review)">400 (95%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Accepted</div><div class="funnel-bar" style="width:12%;background:var(--deliver)">120 (30%)</div></div>
+  <div class="funnel-row"><div class="funnel-label">Replied</div><div class="funnel-bar" style="width:5%;background:#1E293B">50 (42%)</div></div>
+</div>
+<p style="font-size:0.8rem; color:var(--muted)">Example numbers. Actual rates depend on ICP quality, message quality, and market.</p>
+
+<h3>9.2 Key Metrics</h3>
+<table class="schema-table">
+<thead><tr><th>Metric</th><th>Formula</th><th>Dimensions</th></tr></thead>
+<tbody>
+<tr><td>L1 Pass Rate</td><td>Triage:Passed / Total Companies</td><td>batch, tier</td></tr>
+<tr><td>Approval Rate</td><td>Approved / (Draft + Approved + Rejected)</td><td>batch, owner</td></tr>
+<tr><td>Send Rate</td><td>Sent / Approved</td><td>batch, owner, channel</td></tr>
+<tr><td>Connection Accept Rate</td><td>Accepted / Sent (LinkedIn)</td><td>batch, owner, tier</td></tr>
+<tr><td>Reply Rate</td><td>Replied / Sent</td><td>batch, owner, channel</td></tr>
+<tr><td>Cost per Contact</td><td>Total Cost / Contacts Processed</td><td>batch</td></tr>
+<tr><td>Cost per Reply</td><td>Total Cost / Replies</td><td>batch, owner</td></tr>
+<tr><td>A/B Win Rate</td><td>Variant A approved% vs B approved%</td><td>batch, channel</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════ 10. MIGRATION ═══════════════════════════════════════════ -->
+<h2 id="migration">10. Migration: Owners</h2>
+
+<h3>10.1 Steps</h3>
+<ol>
+  <li><strong>Create Owners table</strong> in Airtable with records: <code>{Name: "Michal", ...}</code>, <code>{Name: "Anton", ...}</code></li>
+  <li><strong>Add Owner link field</strong> to Contacts table (Link &rarr; Owners). Keep old <code>Contact of</code> field temporarily.</li>
+  <li><strong>Backfill</strong>: Script to match <code>Contact of</code> text values to Owner records, set the new Link field. ~230 contacts.</li>
+  <li><strong>Add Owner link field</strong> to Companies table. Derive from first contact's Owner at the company.</li>
+  <li><strong>Update L1 workflow</strong>: Replace hardcoded <code>"Michal"</code> in Airtable update nodes with <code>{{ $json.account_owner }}</code> passed from orchestrator.</li>
+  <li><strong>Update L2 workflow</strong>: Same pattern &mdash; pass through owner from orchestrator.</li>
+  <li><strong>Update orchestrator</strong>: Build State node reads Owner from Contact, passes to sub-workflows.</li>
+  <li><strong>Update CSV importer</strong>: <code>--contact-of</code> flag resolves to Owner record ID, sets Link field.</li>
+  <li><strong>Remove old fields</strong>: After verification, remove text-based <code>Contact of</code> and hardcoded <code>Account Owner</code>.</li>
+</ol>
+
+<h3>10.2 Risk</h3>
+<p>Low risk &mdash; additive change. New Link fields are added alongside existing text fields. Old fields removed only after verification. Sub-workflows continue to work with hardcoded values until updated.</p>
+
+<!-- ═══════════════════════════════════════════ 11. IMPLEMENTATION PLAN ═══════════════════════════════════════════ -->
+<h2 id="implementation">11. Implementation Plan</h2>
+
+<div class="phase phase-1">
+  <div class="phase-week">Phase 0 &middot; Day 1-2</div>
+  <div class="phase-title">Foundation: Owners Migration + Airtable Schema</div>
+  <p style="font-size:0.85rem">Ground work. No new features yet &mdash; just the data model that everything else depends on.</p>
+  <ul style="font-size:0.85rem">
+    <li>Create <strong>Owners table</strong> in Airtable (Michal, Anton + any others)</li>
+    <li>Create <strong>Messages table</strong> (empty, schema ready)</li>
+    <li>Create <strong>Campaigns table</strong> (empty)</li>
+    <li>Add <code>Owner</code> Link field + <code>message_status</code> Select to Contacts table</li>
+    <li>Add <code>Account Owner</code> Link field to Companies table</li>
+    <li>Run backfill script: map "Michal"/"Anton" strings to Owner record IDs</li>
+    <li>Update L1/L2 workflows: parameterize <code>Account Owner</code> instead of hardcoding</li>
+    <li>Update CSV importer: resolve <code>--contact-of</code> to Owner record ID</li>
+    <li><strong>Verify</strong>: Run enrichment on 2-3 test contacts, confirm Owner propagates correctly</li>
+  </ul>
+</div>
+
+<div class="phase phase-2">
+  <div class="phase-week">Phase 1 &middot; Week 1</div>
+  <div class="phase-title">Message Generation Pipeline</div>
+  <p style="font-size:0.85rem">Core new capability: AI-generated outreach messages.</p>
+  <ul style="font-size:0.85rem">
+    <li>Build <strong>message-gen</strong> sub-workflow: Get Contact + Company &rarr; Build prompt &rarr; Claude Sonnet &rarr; Parse &rarr; Create Messages</li>
+    <li>Build <strong>message-gen-orchestrator</strong>: Webhook trigger &rarr; Load eligible contacts &rarr; SplitInBatches(5) &rarr; Execute &rarr; Wait 30s</li>
+    <li>Prompt design: LinkedIn connect (300 char), 3 follow-ups, email (if available)</li>
+    <li>A/B variant generation (variant A + B for each message type)</li>
+    <li>Test with 10 contacts from batch-2</li>
+    <li>Review generated messages in Airtable grid view (before web app exists)</li>
+    <li><strong>Verify</strong>: Messages appear in Messages table with correct status, costs logged</li>
+  </ul>
+</div>
+
+<div class="phase phase-3">
+  <div class="phase-week">Phase 2 &middot; Week 2</div>
+  <div class="phase-title">Review Web App + VPS Deployment</div>
+  <p style="font-size:0.85rem">Human-in-the-loop: review and approve generated messages.</p>
+  <ul style="font-size:0.85rem">
+    <li>Set up Caddy static file serving on VPS: <code>/app/*</code> handler</li>
+    <li>Build <strong>Review Queue page</strong>: contact cards, A/B tabs, approve/edit/reject</li>
+    <li>Build <strong>Outreach Queue page</strong>: approved messages, copy buttons, mark sent</li>
+    <li>Build <strong>Config page</strong>: owner name + Airtable PAT</li>
+    <li>Deploy to <code>https://vps.visionvolve.com/app/</code></li>
+    <li><strong>Verify</strong>: Full flow &mdash; generate messages, review in web app, approve, see in outreach queue</li>
+  </ul>
+</div>
+
+<div class="phase phase-4">
+  <div class="phase-week">Phase 3 &middot; Week 3</div>
+  <div class="phase-title">Chrome Extension Outreach + Activity Routing</div>
+  <p style="font-size:0.85rem">Connect the extension to the message pipeline.</p>
+  <ul style="font-size:0.85rem">
+    <li>Build extension <strong>popup.html</strong> with outreach queue tab</li>
+    <li>Build <strong>profile banner</strong> content script: detect matching outreach on LinkedIn profiles</li>
+    <li>Copy/paste functionality for connection requests</li>
+    <li>Update activity monitor webhook URL to self-hosted n8n</li>
+    <li>Build <strong>Activity Event Router</strong> n8n workflow</li>
+    <li>Add <code>batch_name</code>, <code>cost</code>, <code>Owner</code> fields to existing <strong>Activity table</strong></li>
+    <li><strong>Verify</strong>: Send connection request via extension, event logged to Activity table</li>
+  </ul>
+</div>
+
+<div class="phase phase-5">
+  <div class="phase-week">Phase 4 &middot; Week 4-5</div>
+  <div class="phase-title">Lemlist + Dashboard + Polish</div>
+  <p style="font-size:0.85rem">Automated delivery and visibility.</p>
+  <ul style="font-size:0.85rem">
+    <li>Set up Lemlist API credentials</li>
+    <li>Build <strong>lemlist-push</strong> workflow (approved messages &rarr; Lemlist campaign)</li>
+    <li>Build <strong>lemlist-sync</strong> workflow (Lemlist events &rarr; Funnel Events)</li>
+    <li>Build <strong>Dashboard page</strong>: funnel chart, conversion rates, cost tracking</li>
+    <li>Extension: follow-up suggestions after connection acceptance</li>
+    <li>End-to-end testing with a real batch</li>
+    <li><strong>Verify</strong>: Complete pipeline from import to reply tracking</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════ 12. COSTS ═══════════════════════════════════════════ -->
+<h2 id="costs">12. Cost Model</h2>
+
+<table class="schema-table">
+<thead><tr><th>Phase</th><th>Cost / Contact</th><th>Service</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>L1 Company Enrichment</td><td>~$0.005</td><td>Perplexity sonar</td><td>1 API call, company verification</td></tr>
+<tr><td>L2 Company Enrichment</td><td>~$0.015</td><td>Perplexity sonar-pro + sonar</td><td>2-3 calls: news, signals, synthesis</td></tr>
+<tr><td>Person Enrichment</td><td>~$0.030</td><td>Perplexity + Claude</td><td>2-3 Perplexity + 1 Claude synthesis</td></tr>
+<tr><td>Message Generation</td><td>~$0.037</td><td>Claude Sonnet</td><td>~8 messages (4 types &times; 2 variants)</td></tr>
+<tr style="background:#F0FDF4; font-weight:600"><td>Total per contact</td><td>~$0.087</td><td></td><td>Full pipeline, all channels</td></tr>
+<tr style="background:#F8FAFC"><td>Effective average</td><td>~$0.06</td><td></td><td>~60% L1 pass rate reduces volume</td></tr>
+</tbody>
+</table>
+
+<div class="grid-3" style="margin-top:1rem">
+  <div class="card" style="text-align:center">
+    <div style="font-size:2rem; font-weight:800; color:var(--accent)">$6</div>
+    <div style="font-size:0.85rem; color:var(--muted)">100 contacts</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div style="font-size:2rem; font-weight:800; color:var(--accent)">$60</div>
+    <div style="font-size:0.85rem; color:var(--muted)">1,000 contacts</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div style="font-size:2rem; font-weight:800; color:var(--accent)">$0.60 - $1.20</div>
+    <div style="font-size:0.85rem; color:var(--muted)">cost per reply (5-10% rate)</div>
+  </div>
+</div>
+
+<hr style="margin-top:3rem">
+<p style="color:var(--muted); font-size:0.8rem; text-align:center; margin-top:1rem;">
+  Leadgen Pipeline &middot; Product Spec v2.0 &middot; February 2026 &middot; VisionVolve
+</p>
+
+</div>
+</body>
+</html>
