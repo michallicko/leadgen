@@ -1,8 +1,10 @@
 # Airtable to PostgreSQL Migration Plan
 
+> **Status**: Infrastructure complete (2026-02-11). PostgreSQL database created, schema applied (migrations 001-004), Flask API live, identity/auth system operational. n8n workflows still read/write Airtable — workflow migration pending.
+
 ## Context
 
-The leadgen pipeline currently uses Airtable as its sole data store (10 tables, 216 fields, 20 link relationships). This works for a single customer but has limitations:
+The leadgen pipeline originally used Airtable as its sole data store (10 tables, 216 fields, 20 link relationships). This worked for a single customer but had limitations:
 - Airtable rate limits (5 req/sec) constrain pipeline throughput
 - No real multi-tenancy — adding more customers means separate bases or messy shared tables
 - 73-field Companies table is bloated with legacy fields and inconsistent patterns
@@ -14,7 +16,7 @@ The leadgen pipeline currently uses Airtable as its sole data store (10 tables, 
 ### Decisions
 - **PG hosting**: New database on the existing RDS instance (same as n8n internal DB)
 - **n8n data access**: PostgreSQL node (built-in) replaces Airtable nodes — direct SQL queries, no middleware
-- **Dashboard API layer**: Lightweight Python API (FastAPI) running on VPS as a Docker container. Replaces direct Airtable REST calls from the browser. Handles auth, serves dashboard CRUD (messages, batch stats), extensible for multi-tenant admin. n8n webhook APIs remain for pipeline triggering and progress polling.
+- **Dashboard API layer**: Lightweight Python API (Flask) running on VPS as a Docker container. Replaces direct Airtable REST calls from the browser. Handles auth, serves dashboard CRUD (messages, batch stats), extensible for multi-tenant admin. n8n webhook APIs remain for pipeline triggering and progress polling.
 ---
 
 ## Target Architecture
@@ -28,7 +30,7 @@ The leadgen pipeline currently uses Airtable as its sole data store (10 tables, 
               ┌──────────┘       └──────────┐
               │                              │
     ┌─────────▼─────────┐      ┌─────────────▼──────────┐
-    │   n8n workflows    │      │   FastAPI (Python)      │
+    │   n8n workflows    │      │   Flask API (Python)  │
     │  (PG node, direct) │      │  Docker on VPS          │
     │                    │      │  - Messages CRUD        │
     │  - Orchestrator    │      │  - Batch stats          │
@@ -42,11 +44,11 @@ The leadgen pipeline currently uses Airtable as its sole data store (10 tables, 
     │              Dashboard (static HTML)                  │
     │  leadgen.visionvolve.com                             │
     │  - Pipeline control (triggers n8n webhooks)          │
-    │  - Messages review (calls FastAPI)                   │
+    │  - Messages review (calls Flask)                   │
     └──────────────────────────────────────────────────────┘
 ```
 
-**Key change**: n8n workflows talk to PG directly (no API layer needed). Only the browser dashboard needs an HTTP API, provided by FastAPI.
+**Key change**: n8n workflows talk to PG directly (no API layer needed). Only the browser dashboard needs an HTTP API, provided by Flask.
 
 ---
 
@@ -159,6 +161,8 @@ tenants                          -- customer namespaces
 **All other tables**: Near 1:1 mapping with proper FKs replacing link fields.
 
 ### Complete DDL
+
+> **Note**: Entity schema below is in `migrations/001_initial_schema.sql`. User identity tables (`users`, `user_tenant_roles`) were added separately in `migrations/002_identity_tables.sql`. Seed data in `003_seed_visionvolve.sql`. Airtable ID indexes in `004_airtable_id_indexes.sql`.
 
 ```sql
 -- ============================================================
@@ -823,8 +827,8 @@ ORDER BY c.contact_score DESC;
 
 1. **Create the database**: New DB on existing RDS, run DDL
 2. **Migration script**: Python script to export Airtable → insert PG (with enum mapping + FK resolution)
-3. **FastAPI service**: Docker container with messages CRUD + batch stats endpoints
+3. **Flask service**: Docker container with messages CRUD + batch stats endpoints
 4. **n8n workflow conversion**: Replace Airtable nodes with PostgreSQL nodes in all 7 workflows
-5. **Dashboard update**: Point messages.html at FastAPI instead of Airtable REST
+5. **Dashboard update**: Point messages.html at Flask instead of Airtable REST
 6. **Parallel run**: Keep Airtable read-only for 1-2 weeks, validate PG data matches
 7. **Airtable sunset**: Decommission Airtable after validation

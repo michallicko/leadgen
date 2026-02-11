@@ -31,7 +31,8 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 │   │ Orch.   │    │ - Auth (JWT/bcrypt)   │                         │
 │   │ L1/L2   │    │ - Tenants CRUD        │                         │
 │   │ Person  │    │ - Users CRUD          │                         │
-│   │ Progress│    │ - (Messages CRUD)     │                         │
+│   │ Progress│    │ - Messages CRUD       │                         │
+│   │         │    │ - Batches / Stats     │                         │
 │   └────┬────┘    └────────┬──────────────┘                         │
 │        │                  │                                         │
 │        └──────┬───────────┘                                        │
@@ -59,7 +60,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/health`
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/messages/*`, `/api/health`
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -68,14 +69,14 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Orchestrator**: Multi-stage enrichment pipeline (L1 → Triage → L2 → Person)
 - **Sub-workflows**: L1 Company, L2 Company, L2 Person (each called via Execute Workflow)
 - **Support**: Progress Store (webhook-based progress tracking), Batch List/Stats APIs
-- **Data**: Currently reads from Airtable (migration to PG planned)
+- **Data**: Currently reads/writes Airtable (PG migration pending for workflow nodes)
 
 ### 4. PostgreSQL (RDS)
 - **Instance**: AWS Lightsail managed PostgreSQL
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
 - **Schema**: 16 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql`
+- **DDL**: `migrations/001_initial_schema.sql` + `002_identity_tables.sql` + `003_seed_visionvolve.sql` + `004_airtable_id_indexes.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -150,7 +151,7 @@ users ── user_tenant_roles ── tenants
 
 ## External Dependencies
 
-- **Airtable**: Current data store (being migrated to PG)
+- **Airtable**: Data store for n8n workflows (dashboard APIs migrated to PG)
 - **Perplexity API**: L1/L2 company research
 - **Anthropic API**: AI analysis, message generation
 - **Lemlist**: Outreach campaign delivery

@@ -1,13 +1,13 @@
 # Leadgen Pipeline Workflows
 
-This document provides comprehensive documentation for all n8n workflows in the leadgen pipeline system. The system is designed for B2B sales lead enrichment, using AI-powered research to qualify and enrich company and contact data stored in Airtable.
+This document provides comprehensive documentation for all n8n workflows in the leadgen pipeline system. The system is designed for B2B sales lead enrichment, using AI-powered research to qualify and enrich company and contact data. n8n workflows currently read/write Airtable; dashboard APIs have been migrated to PostgreSQL.
 
 ## System Overview
 
 ```mermaid
 flowchart TB
     subgraph Dashboard["Dashboard"]
-        DASH[Enrichment Dashboard<br/>n8n.visionvolve.com/dashboard]
+        DASH[Enrichment Dashboard<br/>leadgen.visionvolve.com]
     end
 
     subgraph Orchestration["Orchestration Layer"]
@@ -747,15 +747,17 @@ A minimal 2-node workflow that uses n8n's `staticData` as an in-memory key-value
 
 ## 6. Enrichment Dashboard
 
-**URL:** `https://n8n.visionvolve.com/dashboard/`
-**Type:** Static HTML (served by Caddy)
+**URL:** `https://leadgen.visionvolve.com/`
+**Type:** Static HTML/JS/CSS (served by Caddy with namespace routing)
 
 ### Features
 
-- Trigger enrichment runs with configurable batch name, owner, tier filter, and stage toggles
-- Real-time progress bars polling the Pipeline Progress Store every 10 seconds
-- Execution history via n8n REST API (requires API key in settings)
-- All configuration persisted in localStorage
+- Pipeline visualization with 8-node flow (Contacts → L1 → Triage → L2 → Person → Generate → Review → Ready)
+- Trigger enrichment runs with configurable batch name, owner, tier filter, and stage skip toggles
+- Real-time progress overlay polling the Pipeline Progress Store every 10 seconds
+- Batch and owner selection populated from `/webhook/batch-list` API
+- Stats loaded from `/webhook/batch-stats` API with tier breakdown and stage counts
+- JWT authentication with namespace-based multi-tenancy
 
 ### Deployment
 
@@ -763,4 +765,4 @@ A minimal 2-node workflow that uses n8n's `staticData` as an in-memory key-value
 bash deploy/deploy-dashboard.sh
 ```
 
-Copies `dashboard/index.html` and `deploy/Caddyfile` to VPS, then restarts Caddy with the dashboard volume mount.
+Copies `dashboard/` static files to VPS Caddy container and restarts Caddy.

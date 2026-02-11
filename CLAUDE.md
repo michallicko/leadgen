@@ -37,22 +37,22 @@
 
 ```
 leadgen-pipeline/
-  api/                    # Flask API (Python)
+  api/                    # Flask API (auth, tenants, users, messages, batches)
   dashboard/              # Static frontend (HTML/JS/CSS)
   deploy/                 # Deployment scripts and Docker compose overlays
-  migrations/             # SQL migration files
-  scripts/                # Utility scripts
+  migrations/             # SQL migration files (001-004)
+  scripts/                # Utility scripts (Airtable migration)
   tests/
     unit/                 # Unit tests (pytest)
     e2e/                  # End-to-end tests
-    conftest.py           # Shared fixtures
+    conftest.py           # Shared fixtures + SQLite compat layer
   docs/
-    ARCHITECTURE.md       # High-level architecture diagram and description
-    specs/                # Feature specifications
-    *.md                  # Other documentation
-  workflows/              # n8n workflow JSON exports (gitignored)
+    ARCHITECTURE.md       # System architecture and data flow
+    specs/                # Feature specifications (created per feature)
+    postgres-migration.md # Airtable → PostgreSQL migration design
   CLAUDE.md               # This file — project rules
   CHANGELOG.md            # Release log
+  README.md               # Project overview and quick start
 ```
 
 ## Tech Stack
@@ -97,7 +97,7 @@ pytest tests/e2e/ -v
 
 ## Code Standards
 
-- Python: PEP 8, type hints on public API functions
+- Python: PEP 8, type hints encouraged on public functions
 - JS: ES5 compatible (no build step, vanilla JS)
 - SQL: Lowercase keywords, snake_case names
 - No over-engineering — minimum complexity for current requirements
