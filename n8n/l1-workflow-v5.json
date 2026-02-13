@@ -1,0 +1,324 @@
+{
+  "id": "oCCiiwvp7DYqoFb3",
+  "name": "Enrich company L1",
+  "nodes": [
+    {
+      "id": "new-webhook-id",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        100
+      ],
+      "webhookId": "l1-enrich",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "l1-enrich",
+        "responseMode": "lastNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "record_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -304,
+        -112
+      ],
+      "id": "1b015495-c387-433e-b764-9c1563365e22",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "id": "bacee63a-d5e9-40ac-a336-18f1f5584a36",
+      "name": "Read Company",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -48,
+        -112
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, domain, status, industry, company_size, revenue_range, tier, enrichment_cost_usd, owner_id, tenant_id FROM companies WHERE id = '{{ $json.body?.company_id || $json.company_id }}'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "enrichment_failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        -112
+      ],
+      "id": "f6a147d1-771c-4320-84c6-59096c5bb7af",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "message": [
+            {
+              "content": "=You verify company basics for B2B sales qualification. Return ONLY the JSON structure requested. No commentary.\n\nRules:\n- Official filings > company website > third-party databases > LinkedIn\n- If data is for parent company, not the target entity, mark 'unverified - possible parent'\n- Revenue/employee ratio above \u20ac500K/employee = flag as 'unverified - check parent vs subsidiary'\n- Revenue must be for THIS legal entity, not group/parent\n- 'unverified' is always better than a guess",
+              "role": "system"
+            },
+            {
+              "content": "=Verify company basics: {{ $json.name }} ({{ $json.domain }})\n\nLinkedIn claims to verify or correct:\n- Industry: {{ $json.industry }}\n- Employees: {{ $json.company_size }}\n- Revenue: {{ $json.revenue_range }}\n\nReturn JSON only:\n{\n  \"company_name\": \"Official registered name\",\n  \"summary\": \"What they do, 1-2 sentences max\",\n  \"b2b\": true/false,\n  \"hq\": \"City, Country\",\n  \"markets\": \"Countries they operate in, comma-separated, or 'domestic only'\",\n  \"founded\": \"Year or 'Unknown'\",\n  \"ownership\": \"Family / PE-backed (investor name) / Public (exchange:ticker) / Subsidiary of [parent] / Founder-led / Unknown\",\n  \"industry\": \"Corrected industry or 'confirmed'\",\n  \"business_model\": \"Manufacturer / Distributor / Service provider / SaaS / Platform / Other\",\n  \"revenue_eur_m\": \"Number in EUR millions for THIS entity, or 'unverified'\",\n  \"revenue_year\": \"Year of revenue figure, or null\",\n  \"revenue_source\": \"Source name, or null\",\n  \"employees\": \"Number or range for THIS entity, or 'unverified'\",\n  \"employees_source\": \"Source name, or null\",\n  \"confidence\": \"high / medium / low\",\n  \"flags\": [\"list of any issues, e.g. 'possible parent data', 'domain mismatch', 'conflicting sources'\"]\n}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.1,
+          "searchRecency": "month"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -128
+      ],
+      "id": "023732bc-65d4-4dd1-ab2f-7ad3b76fdb22",
+      "name": "Basic Company Reseach",
+      "credentials": {
+        "perplexityApi": {
+          "id": "yClHOVia8DI1R8pq",
+          "name": "Perplexity account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// STAGE A \u2014 TRIAGE: Research QC + Tier Requalification (v5 \u2014 Postgres)\n// ============================================================================\n// Mode:   Run Once for Each Item\n// After:  Perplexity basic research\n// Input:  Perplexity response ($('Basic Company Reseach'))\n//         + Postgres record ($('Read Company'))\n// Output: verdict + corrected tier + Postgres-ready fields\n//         + research_directory scores\n// Next:   Update Company \u2192 Save Research Asset\n// ============================================================================\n\nconst original = $('Read Company').item.json;\nconst perplexity = $('Basic Company Reseach').item.json;\nconst rawContent = perplexity.choices?.[0]?.message?.content || '';\nconst researchCost = perplexity.usage?.cost?.total_cost || 0;\nconst model = perplexity.model || 'unknown';\n\n// -----------------------------------------------------------------------\n// 1. PARSE RESEARCH JSON\n// -----------------------------------------------------------------------\nlet research = null;\nlet parseError = false;\n\ntry {\n  let cleaned = rawContent.trim();\n  if (cleaned.startsWith('```')) {\n    cleaned = cleaned.replace(/^```(?:json)?\\s*/, '').replace(/\\s*```$/, '');\n  }\n  research = JSON.parse(cleaned);\n} catch (e) {\n  parseError = true;\n}\n\nif (parseError || !research) {\n  return {\n    record_id: original.id,\n    company_name: original.name || 'Unknown',\n    triage_verdict: 'manual_review',\n    pg_status: 'triage_review',\n    pg_triage_notes: `PARSE_ERROR: Failed to parse Perplexity response (${rawContent.length} chars). Manual research needed.`,\n    pg_triage_score: 0,\n    research_quality_score: 0,\n    research_confidence_score: 0,\n    pg_enrichment_cost: (parseFloat(original.enrichment_cost_usd) || 0) + researchCost,\n    raw_research: rawContent\n  };\n}\n\n// -----------------------------------------------------------------------\n// 2. HELPERS\n// -----------------------------------------------------------------------\nfunction parseRevenue(raw) {\n  if (!raw || raw === 'unverified' || raw === 'Unknown' || raw === 'N/A' || raw === 'null') return null;\n  const str = String(raw).toLowerCase().replace(/[\u20ac$\u00a3,\\s]/g, '');\n  let match = str.match(/([\\d.]+)\\s*(b|billion)/i);\n  if (match) return parseFloat(match[1]) * 1000;\n  match = str.match(/([\\d.]+)\\s*(m|million)/i);\n  if (match) return parseFloat(match[1]);\n  match = str.match(/^([\\d.]+)$/);\n  if (match) {\n    const val = parseFloat(match[1]);\n    if (val > 1000000) return val / 1000000;\n    return val;\n  }\n  return null;\n}\n\nfunction parseEmployees(raw) {\n  if (!raw || raw === 'unverified' || raw === 'Unknown' || raw === 'N/A' || raw === 'null') return null;\n  const str = String(raw).replace(/[,\\s+]/g, '');\n  let match = str.match(/(\\d+)-(\\d+)/);\n  if (match) return Math.round((parseInt(match[1]) + parseInt(match[2])) / 2);\n  match = str.match(/(\\d+)\\+?/);\n  if (match) return parseInt(match[1]);\n  return null;\n}\n\n// Parse PG revenue_range enum to numeric range\nfunction parseLinkedInRevenue(raw) {\n  if (!raw) return null;\n  const str = String(raw);\n  const ranges = {\n    'micro':      { min: 0, max: 2 },\n    'small':      { min: 2, max: 10 },\n    'medium':     { min: 10, max: 50 },\n    'mid_market': { min: 50, max: 500 },\n    'enterprise': { min: 500, max: 50000 },\n  };\n  return ranges[str] || null;\n}\n\n// Parse PG company_size enum to numeric range\nfunction parseLinkedInEmployees(raw) {\n  if (!raw) return null;\n  const str = String(raw);\n  const ranges = {\n    'micro':      { min: 1, max: 20 },\n    'startup':    { min: 20, max: 49 },\n    'smb':        { min: 50, max: 199 },\n    'mid_market': { min: 200, max: 1999 },\n    'enterprise': { min: 2000, max: 50000 },\n  };\n  return ranges[str] || null;\n}\n\n// Geo cluster from HQ only\nfunction deriveGeoCluster(hq) {\n  const text = (hq || '').toLowerCase();\n  if (/czech|slovakia|poland|hungary|romania|bulgaria|croatia|slovenia|serbia|bosnia|albania|north macedonia|moldova|montenegro|kosovo|estonia|latvia|lithuania/i.test(text)) return 'cee';\n  if (/germany|austria|switzerland|liechtenstein/i.test(text)) return 'dach';\n  if (/sweden|norway|denmark|finland|iceland/i.test(text)) return 'nordics';\n  if (/netherlands|belgium|luxembourg/i.test(text)) return 'benelux';\n  if (/uk|united kingdom|england|scotland|wales|ireland/i.test(text)) return 'uk_ireland';\n  if (/spain|italy|portugal|greece|malta|cyprus/i.test(text)) return 'southern_europe';\n  if (/united states|usa|us\\b|america/i.test(text)) return 'us';\n  return 'other';\n}\n\n// Returns PG tier enum value\nfunction formatTier(tier) {\n  const map = {\n    'Platinum':      'tier_1_platinum',\n    'Gold':          'tier_2_gold',\n    'Silver':        'tier_3_silver',\n    'Bronze':        'tier_4_bronze',\n    'Copper':        'tier_5_copper',\n    'Deprioritized': 'deprioritize',\n  };\n  return map[tier] || null;\n}\n\n// Returns PG revenue_range enum value\nfunction revenueToBucket(revM) {\n  if (revM === null) return null;\n  if (revM < 2) return 'micro';\n  if (revM < 10) return 'small';\n  if (revM < 50) return 'medium';\n  if (revM < 500) return 'mid_market';\n  return 'enterprise';\n}\n\n// Returns PG company_size enum value\nfunction employeesToBucket(emp) {\n  if (emp === null) return null;\n  if (emp < 20) return 'micro';\n  if (emp < 50) return 'startup';\n  if (emp < 200) return 'smb';\n  if (emp < 2000) return 'mid_market';\n  return 'enterprise';\n}\n\n// Returns PG ownership_type enum value\nfunction mapOwnership(raw) {\n  if (!raw || raw.toLowerCase() === 'unknown') return null;\n  const l = raw.toLowerCase();\n  if (l.includes('family')) return 'family_owned';\n  if (l.includes('pe') || l.includes('private equity') || l.includes('backed')) return 'pe_backed';\n  if (l.includes('vc') || l.includes('venture')) return 'vc_backed';\n  if (l.includes('public') || l.includes('listed')) return 'public';\n  if (l.includes('state') || l.includes('government')) return 'state_owned';\n  if (l.includes('founder') || l.includes('bootstrap')) return 'bootstrapped';\n  if (l.includes('subsidiary')) return 'other';\n  return 'other';\n}\n\n// Display-format tier for triage notes (human-readable)\nfunction displayTier(pgTier) {\n  const map = {\n    'tier_1_platinum': 'Tier 1 - Platinum',\n    'tier_2_gold':     'Tier 2 - Gold',\n    'tier_3_silver':   'Tier 3 - Silver',\n    'tier_4_bronze':   'Tier 4 - Bronze',\n    'tier_5_copper':   'Tier 5 - Copper',\n    'deprioritize':    'Deprioritize',\n  };\n  return map[pgTier] || pgTier;\n}\n\n// -----------------------------------------------------------------------\n// 3. EXTRACT & NORMALIZE\n// -----------------------------------------------------------------------\nconst flags = [];\nconst contradictions = [];\n\nconst researchRevenue = parseRevenue(research.revenue_eur_m);\nconst researchEmployees = parseEmployees(research.employees);\nconst researchConfidence = (research.confidence || 'low').toLowerCase();\n\nconst linkedinRevRange = parseLinkedInRevenue(original.revenue_range);\nconst linkedinEmpRange = parseLinkedInEmployees(original.company_size);\n\nconst isB2B = research.b2b === true;\n\n// Import model-reported flags\nif (Array.isArray(research.flags)) {\n  for (const f of research.flags) {\n    if (f && typeof f === 'string' && f.trim().length > 0) {\n      flags.push('MODEL: ' + f.trim());\n    }\n  }\n}\n\n// -----------------------------------------------------------------------\n// 4. CONTRADICTION DETECTION\n// -----------------------------------------------------------------------\n\nif (researchRevenue !== null && linkedinRevRange) {\n  if (researchRevenue > linkedinRevRange.max * 3) {\n    contradictions.push({\n      field: 'revenue', severity: 'critical',\n      detail: `Research \u20ac${researchRevenue}M vs LinkedIn \u20ac${linkedinRevRange.min}-${linkedinRevRange.max}M (${Math.round(researchRevenue / linkedinRevRange.max)}x higher)`\n    });\n    flags.push('REVENUE_MISMATCH_HIGH');\n  } else if (linkedinRevRange.min > 0 && researchRevenue < linkedinRevRange.min * 0.3) {\n    contradictions.push({\n      field: 'revenue', severity: 'critical',\n      detail: `Research \u20ac${researchRevenue}M vs LinkedIn \u20ac${linkedinRevRange.min}-${linkedinRevRange.max}M (significantly lower)`\n    });\n    flags.push('REVENUE_MISMATCH_LOW');\n  }\n}\n\nif (researchEmployees !== null && linkedinEmpRange) {\n  if (researchEmployees > linkedinEmpRange.max * 3) {\n    contradictions.push({\n      field: 'employees', severity: 'warning',\n      detail: `Research ${researchEmployees} vs LinkedIn ${linkedinEmpRange.min}-${linkedinEmpRange.max}`\n    });\n    flags.push('EMPLOYEE_MISMATCH_HIGH');\n  } else if (researchEmployees < linkedinEmpRange.min * 0.3) {\n    contradictions.push({\n      field: 'employees', severity: 'warning',\n      detail: `Research ${researchEmployees} vs LinkedIn ${linkedinEmpRange.min}-${linkedinEmpRange.max}`\n    });\n    flags.push('EMPLOYEE_MISMATCH_LOW');\n  }\n}\n\nif (researchRevenue !== null && researchEmployees && researchEmployees > 0) {\n  const ratioPerEmp = (researchRevenue * 1000000) / researchEmployees;\n  if (ratioPerEmp > 500000) {\n    flags.push('REV_EMP_RATIO_SUSPICIOUS');\n    contradictions.push({\n      field: 'ratio', severity: 'warning',\n      detail: `\u20ac${Math.round(ratioPerEmp / 1000)}K/employee \u2014 possible parent data`\n    });\n  }\n}\n\nif (!isB2B) flags.push('NOT_B2B');\nif (researchConfidence === 'low') flags.push('LOW_CONFIDENCE');\n\n// -----------------------------------------------------------------------\n// 5. RESEARCH QUALITY SCORE (0-10)\n// -----------------------------------------------------------------------\nlet qualityScore = 0;\n\nif (research.summary && research.summary.length > 30) qualityScore += 2;\nelse if (research.summary) qualityScore += 1;\n\nif (isB2B) qualityScore += 1;\nif (researchRevenue !== null) qualityScore += 2;\nif (researchEmployees !== null) qualityScore += 1;\n\nconst ownership = (research.ownership || '').toLowerCase();\nif (ownership && ownership !== 'unknown') qualityScore += 1;\nif (research.business_model && research.business_model !== 'Other') qualityScore += 0.5;\nif (research.markets && research.markets !== 'Unknown' && research.markets !== 'domestic only') qualityScore += 0.5;\nif (research.revenue_source) qualityScore += 0.5;\nif (research.employees_source) qualityScore += 0.5;\n\nif (researchConfidence === 'high') qualityScore += 1;\nelse if (researchConfidence === 'medium') qualityScore += 0.5;\n\nif (contradictions.some(c => c.severity === 'critical')) qualityScore -= 2;\nif (flags.includes('REV_EMP_RATIO_SUSPICIOUS')) qualityScore -= 1;\nif (flags.some(f => f.startsWith('MODEL:'))) qualityScore -= 0.5;\n\nqualityScore = Math.max(0, Math.min(10, Math.round(qualityScore * 10) / 10));\n\n// Confidence as numeric score for research_directory\nconst confidenceScore = researchConfidence === 'high' ? 0.9\n  : researchConfidence === 'medium' ? 0.6\n  : 0.3;\n\n// -----------------------------------------------------------------------\n// 6. TIER REQUALIFICATION\n// -----------------------------------------------------------------------\n\nconst bestRevenue = researchRevenue;\n\nlet bestEmployees = researchEmployees;\nlet employeeSource = researchEmployees ? 'research' : 'none';\nif (!researchEmployees && linkedinEmpRange) {\n  bestEmployees = Math.round((linkedinEmpRange.min + linkedinEmpRange.max) / 2);\n  employeeSource = 'linkedin';\n  flags.push('EMPLOYEES_FROM_LINKEDIN');\n}\n\nconst isPE = ownership.includes('pe') || ownership.includes('private equity')\n  || ownership.includes('backed') || ownership.includes('venture');\nconst isSubsidiary = ownership.includes('subsidiary');\n\nconst summary = (research.summary || '').toLowerCase();\nconst industry = (research.industry || '').toLowerCase();\n\nconst isPEFund = industry.includes('private equity') || industry.includes('venture capital')\n  || industry.includes('fund management') || industry.includes('investment management')\n  || summary.includes('private equity firm') || summary.includes('venture capital firm')\n  || summary.includes('investment fund');\n\nconst originalTier = original.tier || null;\n\nlet newTier = null;\nlet tierReason = '';\nconst tierSignals = [];\n\nif (isPEFund) {\n  newTier = 'Bronze';\n  tierReason = 'PE/VC fund \u2014 portfolio multiplier opportunity';\n  tierSignals.push('pe_fund_detected');\n\n} else if (bestRevenue !== null) {\n  if (bestRevenue >= 200) {\n    newTier = 'Platinum';\n    tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2192 Platinum (\u20ac200M+)`;\n    tierSignals.push('revenue_platinum');\n  } else if (bestRevenue >= 50) {\n    newTier = 'Gold';\n    tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2192 Gold (\u20ac50-200M)`;\n    tierSignals.push('revenue_gold');\n  } else if (bestRevenue >= 20) {\n    newTier = 'Silver';\n    tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2192 Silver (\u20ac20-100M)`;\n    tierSignals.push('revenue_silver');\n    if (bestEmployees !== null && bestEmployees < 50) {\n      newTier = 'Copper';\n      tierReason = `Verified \u20ac${Math.round(bestRevenue)}M but ~${Math.round(bestEmployees)} emp \u2192 Copper`;\n      tierSignals.push('low_headcount_downgrade');\n    }\n  } else if (bestRevenue >= 10) {\n    if (bestEmployees !== null && bestEmployees <= 50) {\n      newTier = 'Copper';\n      tierReason = `Verified \u20ac${Math.round(bestRevenue)}M, ~${Math.round(bestEmployees)} emp \u2192 Copper`;\n      tierSignals.push('revenue_copper', 'lean_headcount');\n    } else {\n      newTier = 'Bronze';\n      tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2192 Bronze`;\n      tierSignals.push('revenue_bronze');\n    }\n  } else if (bestRevenue >= 8) {\n    if (bestEmployees !== null && bestEmployees <= 50) {\n      newTier = 'Copper';\n      tierReason = `Verified \u20ac${Math.round(bestRevenue)}M, ~${Math.round(bestEmployees)} emp \u2192 Copper (borderline)`;\n      tierSignals.push('revenue_borderline_copper');\n    } else {\n      newTier = 'Deprioritized';\n      tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2014 below Silver, above Copper emp max`;\n      tierSignals.push('revenue_below_threshold');\n    }\n  } else {\n    newTier = 'Deprioritized';\n    tierReason = `Verified \u20ac${Math.round(bestRevenue)}M \u2014 below \u20ac8M minimum`;\n    tierSignals.push('revenue_too_low');\n  }\n\n} else if (bestEmployees !== null) {\n  flags.push('TIER_FROM_EMPLOYEE_PROXY');\n  if (bestEmployees >= 500) {\n    newTier = 'Gold';\n    tierReason = `No verified revenue, ~${Math.round(bestEmployees)} emp \u2192 Gold (conservative proxy)`;\n    tierSignals.push('employee_proxy_gold');\n  } else if (bestEmployees >= 100) {\n    newTier = 'Silver';\n    tierReason = `No verified revenue, ~${Math.round(bestEmployees)} emp \u2192 Silver (proxy)`;\n    tierSignals.push('employee_proxy_silver');\n  } else if (bestEmployees >= 50) {\n    newTier = 'Bronze';\n    tierReason = `No verified revenue, ~${Math.round(bestEmployees)} emp \u2192 Bronze (proxy)`;\n    tierSignals.push('employee_proxy_bronze');\n  } else if (bestEmployees >= 2) {\n    newTier = 'Copper';\n    tierReason = `No verified revenue, ~${Math.round(bestEmployees)} emp \u2192 Copper (proxy)`;\n    tierSignals.push('employee_proxy_copper');\n  } else {\n    newTier = 'Deprioritized';\n    tierReason = 'No verified revenue, employee count too low';\n    tierSignals.push('insufficient_data');\n  }\n\n} else {\n  newTier = 'Unclassified';\n  tierReason = 'No verified revenue or employee count';\n  tierSignals.push('no_sizing_data');\n  flags.push('NO_SIZING_DATA');\n}\n\n// --- Tier adjustments ---\nif (isPE && !isPEFund && newTier === 'Silver') {\n  flags.push('PE_BACKED_SILVER_COULD_BE_GOLD');\n}\n\nif (isSubsidiary) {\n  flags.push('SUBSIDIARY_CHECK_REVENUE');\n  if (researchRevenue !== null && researchRevenue >= 200) {\n    contradictions.push({\n      field: 'revenue', severity: 'critical',\n      detail: 'Subsidiary \u2014 revenue figure may belong to parent company'\n    });\n  }\n}\n\nconst pgNewTier = formatTier(newTier);\n\nlet tierChanged = false;\nlet tierDirection = 'none';\nif (originalTier && pgNewTier) {\n  if (pgNewTier !== originalTier) {\n    tierChanged = true;\n    const tierOrder = ['deprioritize', 'tier_5_copper', 'tier_4_bronze', 'tier_3_silver', 'tier_2_gold', 'tier_1_platinum'];\n    const oldIdx = tierOrder.indexOf(originalTier);\n    const newIdx = tierOrder.indexOf(pgNewTier);\n    if (oldIdx >= 0 && newIdx >= 0) {\n      tierDirection = newIdx > oldIdx ? 'upgraded' : 'downgraded';\n    } else {\n      tierDirection = 'reclassified';\n    }\n    flags.push(`TIER_${tierDirection.toUpperCase()}`);\n  }\n}\n\n// -----------------------------------------------------------------------\n// 7. GEOGRAPHY & INDUSTRY\n// -----------------------------------------------------------------------\nconst hq = research.hq || '';\nconst hqLower = hq.toLowerCase();\n\nconst europeanCountries = [\n  'czech', 'slovakia', 'germany', 'austria', 'switzerland', 'netherlands',\n  'belgium', 'luxembourg', 'denmark', 'sweden', 'norway', 'finland', 'iceland',\n  'poland', 'hungary', 'romania', 'bulgaria', 'croatia', 'slovenia', 'serbia',\n  'france', 'spain', 'italy', 'portugal', 'ireland', 'uk', 'united kingdom',\n  'great britain', 'england', 'scotland', 'estonia', 'latvia', 'lithuania',\n  'greece', 'cyprus', 'malta'\n];\nconst isEuropean = europeanCountries.some(c => hqLower.includes(c));\nif (!isEuropean && hq && hqLower !== 'unknown') flags.push('NON_EUROPEAN_HQ');\n\nconst targetIndustries = [\n  'manufacturing', 'logistics', 'distribution', 'retail', 'pharma',\n  'pharmaceutical', 'financial', 'fintech', 'banking', 'insurance',\n  'energy', 'healthcare', 'professional services', 'construction',\n  'industrial', 'automotive', 'food', 'chemical', 'engineering',\n  'solar', 'renewable'\n];\nconst isTargetIndustry = targetIndustries.some(ind =>\n  industry.includes(ind) || summary.includes(ind)\n);\nif (!isTargetIndustry && industry && industry !== 'confirmed') {\n  flags.push('NON_TARGET_INDUSTRY');\n}\n\nconst geoCluster = deriveGeoCluster(hq);\n\n// -----------------------------------------------------------------------\n// 8. TRIAGE VERDICT\n// -----------------------------------------------------------------------\nlet verdict = 'pass';\nconst verdictReason = [];\n\n// Hard disqualifiers\nif (!isB2B) {\n  verdict = 'disqualify';\n  verdictReason.push('Not B2B');\n}\nif (newTier === 'Deprioritized') {\n  verdict = 'disqualify';\n  verdictReason.push('Below minimum revenue/size threshold');\n}\n\n// Manual review triggers\nif (verdict !== 'disqualify') {\n\n  if (contradictions.some(c => c.severity === 'critical')) {\n    verdict = 'manual_review';\n    verdictReason.push('Critical data contradictions');\n  }\n\n  if (newTier === 'Unclassified') {\n    verdict = 'manual_review';\n    verdictReason.push('No sizing data \u2014 cannot assign tier');\n  }\n\n  if (flags.includes('SUBSIDIARY_CHECK_REVENUE') && researchRevenue !== null && researchRevenue >= 200) {\n    verdict = 'manual_review';\n    verdictReason.push('Subsidiary with high revenue \u2014 verify entity');\n  }\n\n  if (tierChanged) {\n    const tierOrder = ['deprioritize', 'tier_5_copper', 'tier_4_bronze', 'tier_3_silver', 'tier_2_gold', 'tier_1_platinum'];\n    const oldIdx = tierOrder.indexOf(originalTier);\n    const newIdx = tierOrder.indexOf(pgNewTier);\n    if (oldIdx >= 0 && newIdx >= 0 && Math.abs(newIdx - oldIdx) >= 2) {\n      verdict = 'manual_review';\n      verdictReason.push(`Large tier shift: ${displayTier(originalTier)} \u2192 ${displayTier(pgNewTier)}`);\n    }\n  }\n\n  if (qualityScore <= 3) {\n    verdict = 'manual_review';\n    verdictReason.push('Low research quality score');\n  }\n}\n\n// PG enum status values\nconst statusMap = {\n  'pass': 'triage_passed',\n  'manual_review': 'triage_review',\n  'disqualify': 'triage_disqualified'\n};\n\n// -----------------------------------------------------------------------\n// 9. COMPOSE TRIAGE NOTES\n// -----------------------------------------------------------------------\nconst triageNoteLines = [];\ntriageNoteLines.push(`VERDICT: ${verdict.toUpperCase()}${verdictReason.length ? ' \u2014 ' + verdictReason.join('; ') : ''}`);\ntriageNoteLines.push(`TIER: ${displayTier(pgNewTier) || newTier}${tierChanged ? ` (was: ${displayTier(originalTier)}, ${tierDirection})` : ''}`);\ntriageNoteLines.push(`REASON: ${tierReason}`);\ntriageNoteLines.push(`SCORE: ${qualityScore}/10 | CONFIDENCE: ${researchConfidence}`);\ntriageNoteLines.push(`SIZING: Revenue ${researchRevenue !== null ? '\u20ac' + researchRevenue + 'M' : 'unverified'} (${researchRevenue !== null ? research.revenue_source || 'research' : '-'}) | Employees ${researchEmployees || 'unverified'} (${employeeSource})`);\nif (flags.length) triageNoteLines.push(`FLAGS: ${flags.join(', ')}`);\nif (contradictions.length) triageNoteLines.push(`CONTRADICTIONS: ${contradictions.map(c => `[${c.severity}] ${c.detail}`).join(' | ')}`);\ntriageNoteLines.push(`COST: $${researchCost.toFixed(4)} (${model})`);\n\nconst triageNotes = triageNoteLines.join('\\n');\n\n// -----------------------------------------------------------------------\n// 10. RETURN (Postgres-ready values)\n// -----------------------------------------------------------------------\nreturn {\n  // --- Routing ---\n  record_id: original.id,\n  triage_verdict: verdict,\n\n  // --- Postgres: companies table (pg_ prefix = ready to write) ---\n  pg_status: statusMap[verdict],\n  pg_tier: pgNewTier,\n  pg_summary: research.summary || null,\n  pg_hq_city: hq.split(',')[0]?.trim() || null,\n  pg_hq_country: hq.split(',')[1]?.trim() || null,\n  pg_geo_cluster: geoCluster,\n  pg_ownership_type: mapOwnership(research.ownership),\n  pg_business_model: isB2B ? 'b2b' : null,\n  pg_industry: (research.industry && research.industry !== 'confirmed') ? research.industry : null,\n\n  // --- Verified data ---\n  pg_verified_revenue_m: researchRevenue,\n  pg_verified_employees: researchEmployees,\n  pg_triage_score: qualityScore,\n  pg_triage_notes: triageNotes,\n  pg_business_type: research.business_model || null,\n\n  // --- Bucket updates ---\n  pg_revenue_bucket: revenueToBucket(researchRevenue),\n  pg_company_size_bucket: employeesToBucket(researchEmployees),\n\n  // --- Accumulate cost ---\n  pg_enrichment_cost: (parseFloat(original.enrichment_cost_usd) || 0) + researchCost,\n\n  // --- research_assets scores ---\n  research_quality_score: qualityScore,\n  research_confidence_score: confidenceScore,\n\n  // --- Metadata (not stored in companies) ---\n  tier_changed: tierChanged,\n  tier_direction: tierDirection,\n  is_european: isEuropean,\n  is_target_industry: isTargetIndustry,\n  employee_source: employeeSource,\n  raw_research: JSON.stringify(research),\n\n  // --- Return enrichment cost for Python orchestrator ---\n  enrichment_cost_usd: researchCost\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -128
+      ],
+      "id": "342a6d5a-0a49-44f6-821c-27969dce7a83",
+      "name": "Code in JavaScript"
+    },
+    {
+      "id": "e94e97d6-9225-4d1e-a12b-c3d2d303770d",
+      "name": "Update Company Success",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1104,
+        -128
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE companies SET\n  status = '{{ $json.pg_status }}',\n  tier = '{{ $json.pg_tier }}',\n  summary = '{{ $json.pg_summary }}',\n  hq_city = '{{ $json.pg_hq_city }}',\n  hq_country = '{{ $json.pg_hq_country }}',\n  geo_region = '{{ $json.pg_geo_cluster }}',\n  ownership_type = '{{ $json.pg_ownership_type }}',\n  triage_notes = {{ $json.pg_triage_notes ? \"'\" + $json.pg_triage_notes.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n  triage_score = {{ $json.pg_triage_score }},\n  verified_employees = {{ $json.pg_verified_employees || 'NULL' }},\n  verified_revenue_eur_m = {{ $json.pg_verified_revenue_m || 'NULL' }},\n  business_model = {{ $json.pg_business_model ? \"'\" + $json.pg_business_model + \"'\" : \"NULL\" }},\n  industry = {{ $json.pg_industry ? \"'\" + $json.pg_industry + \"'\" : \"NULL\" }},\n  business_type = {{ $json.pg_business_type ? \"'\" + $json.pg_business_type + \"'\" : \"NULL\" }},\n  revenue_range = {{ $json.pg_revenue_bucket ? \"'\" + $json.pg_revenue_bucket + \"'\" : \"NULL\" }},\n  company_size = {{ $json.pg_company_size_bucket ? \"'\" + $json.pg_company_size_bucket + \"'\" : \"NULL\" }},\n  enrichment_cost_usd = {{ $json.pg_enrichment_cost }},\n  updated_at = now()\nWHERE id = '{{ $json.record_id }}'\nRETURNING id, status, tier, enrichment_cost_usd",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "011776e6-d5fb-471f-9161-a8978cd90cf6",
+      "name": "Update Company Error",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        624,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE companies SET\n  status = 'enrichment_failed',\n  error_message = {{ $json.error ? \"'\" + String($json.error).replace(/'/g, \"''\").substring(0, 500) + \"'\" : \"NULL\" }},\n  updated_at = now()\nWHERE id = '{{ $('Read Company').item.json.id }}'\nRETURNING id, status",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "bb5fb03f-a786-44c6-8e6f-947992de8a2a",
+      "name": "Save Research Asset",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1328,
+        -128
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_assets (\n  tenant_id, entity_type, entity_id, name, tool_name,\n  cost_usd, research_data, confidence_score, quality_score\n) VALUES (\n  '{{ $('Read Company').item.json.tenant_id }}',\n  'company',\n  '{{ $('Read Company').item.json.id }}',\n  'company_basic_research',\n  'perplexity_{{ $('Basic Company Reseach').item.json.model }}',\n  {{ $('Basic Company Reseach').item.json.usage.cost.total_cost || 0 }},\n  '{{ $('Basic Company Reseach').item.json.choices[0].message.content.replace(/'/g, \"''\") }}',\n  {{ $json.research_confidence_score || 0 }},\n  {{ $json.research_quality_score || 0 }}\n)\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Read Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Company": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Basic Company Reseach",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic Company Reseach": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update Company Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Research Asset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Company Success": {
+      "main": [
+        []
+      ]
+    },
+    "Update Company Error": {
+      "main": [
+        []
+      ]
+    },
+    "Save Research Asset": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "01a66f1d-843b-42fa-b482-5f8a1aad52c7",
+  "tags": []
+}

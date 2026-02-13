@@ -1,6 +1,6 @@
 # Leadgen Pipeline - Architecture
 
-> Last updated: 2026-02-11
+> Last updated: 2026-02-13
 
 ## System Overview
 
@@ -53,14 +53,15 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 1. Dashboard (Static Frontend)
 - **Tech**: Vanilla HTML/JS/CSS, no build step
 - **Hosting**: Caddy file server at `leadgen.visionvolve.com`
-- **Pages**: `index.html` (Pipeline), `messages.html` (Messages), `admin.html` (Admin)
+- **Pages**: `index.html` (Pipeline), `companies.html` (Companies), `contacts.html` (Contacts), `messages.html` (Messages), `admin.html` (Admin)
+- **Virtual scroll**: Companies and Contacts tables use DOM windowing — only ~60-80 rows rendered at any time regardless of dataset size. Data fetched via infinite scroll (IntersectionObserver), rendered via `renderWindow()` on scroll (see ADR-001)
 - **Auth**: JWT stored in localStorage, managed by `auth.js`
 - **Namespace routing**: `/{tenant-slug}/page` — Caddy strips prefix, JS reads namespace from URL
 
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/messages/*`, `/api/health`
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/health`
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 

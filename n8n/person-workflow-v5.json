@@ -1,0 +1,432 @@
+{
+  "id": "7a9lVChP2mpqVoIb",
+  "name": "Enrich person L3",
+  "nodes": [
+    {
+      "id": "pw-webhook-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [200, 100],
+      "webhookId": "person-enrich",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "person-enrich",
+        "responseMode": "lastNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "pw-exec-trigger-001",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [-304, -112],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "record_id"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "pw-read-contact-001",
+      "name": "Read Contact + Company",
+      "type": "n8n-nodes-base.postgres",
+      "position": [-48, -112],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ct.id, ct.tenant_id, ct.company_id, ct.full_name, ct.job_title,\n  ct.email_address, ct.linkedin_url, ct.location_city, ct.location_country,\n  ct.seniority_level, ct.department, ct.processed_enrich, ct.enrichment_cost_usd,\n  c.name AS company_name, c.domain AS company_domain, c.status AS company_status,\n  c.industry, c.summary AS company_summary, c.tier AS company_tier,\n  c.hq_city, c.hq_country,\n  l2.pain_hypothesis, l2.ai_opportunities, l2.quick_wins,\n  l2.company_intel, l2.recent_news, l2.digital_initiatives,\n  l2.industry_pain_points, l2.customer_segments\nFROM contacts ct\nJOIN companies c ON ct.company_id = c.id\nLEFT JOIN company_enrichment_l2 l2 ON c.id = l2.company_id\nWHERE ct.id = '{{ $json.body?.contact_id || $json.contact_id || $json.record_id }}'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "pw-if-eligible-001",
+      "name": "If Eligible",
+      "type": "n8n-nodes-base.if",
+      "position": [200, -112],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-status",
+              "leftValue": "={{ $json.company_status }}",
+              "rightValue": "enriched_l2",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-not-processed",
+              "leftValue": "={{ $json.processed_enrich }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "typeVersion": 2.3
+    },
+    {
+      "id": "pw-research-profile-001",
+      "name": "Research Profile",
+      "type": "n8n-nodes-base.perplexity",
+      "position": [464, -128],
+      "parameters": {
+        "model": "sonar-pro",
+        "messages": {
+          "message": [
+            {
+              "content": "You research professionals for B2B sales outreach. Return ONLY the JSON structure requested. No commentary.",
+              "role": "system"
+            },
+            {
+              "content": "=Research this person: {{ $json.full_name }} at {{ $json.company_name }} ({{ $json.company_domain }})\n\nCurrent claimed role: {{ $json.job_title }}\nLinkedIn: {{ $json.linkedin_url || 'not available' }}\nLocation: {{ $json.location_city || '' }}, {{ $json.location_country || '' }}\n\nVerify their current role and research:\n1. Career trajectory and previous positions\n2. Thought leadership (articles, talks, podcasts, posts)\n3. Education and certifications\n4. Areas of expertise and domain knowledge\n5. Public presence and professional visibility\n\nReturn JSON only:\n{\n  \"role_verified\": true/false,\n  \"current_role\": \"Verified current title and company\",\n  \"career_trajectory\": \"Summary of career path, 2-3 sentences\",\n  \"expertise_areas\": [\"area1\", \"area2\", \"area3\"],\n  \"education\": \"Degree, institution, or 'Unknown'\",\n  \"thought_leadership_topics\": [\"topic1\", \"topic2\"],\n  \"public_presence_level\": \"high/medium/low/minimal\",\n  \"notable_achievements\": \"Any standout accomplishments or 'None found'\",\n  \"professional_interests\": [\"interest1\", \"interest2\"]\n}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 800,
+          "temperature": 0.2,
+          "searchRecency": "month"
+        },
+        "requestOptions": {}
+      },
+      "credentials": {
+        "perplexityApi": {
+          "id": "yClHOVia8DI1R8pq",
+          "name": "Perplexity account"
+        }
+      },
+      "typeVersion": 1,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "pw-research-signals-001",
+      "name": "Research Signals",
+      "type": "n8n-nodes-base.perplexity",
+      "position": [720, -128],
+      "parameters": {
+        "model": "sonar",
+        "messages": {
+          "message": [
+            {
+              "content": "You identify decision-making signals for B2B sales targeting. Return ONLY the JSON structure requested. No commentary.",
+              "role": "system"
+            },
+            {
+              "content": "=Research decision signals for {{ $json.full_name }} at {{ $json.company_name }}.\n\nTheir role: {{ $('Read Contact + Company').item.json.job_title }}\nCompany industry: {{ $('Read Contact + Company').item.json.industry }}\n\nIdentify:\n1. AI/innovation interest signals (posts, initiatives, projects)\n2. Decision authority indicators (team size, budget mentions, strategic role)\n3. Team management signals (reports, hiring activity)\n4. Budget and procurement indicators\n5. Technology evaluation activity (vendor meetings, RFPs, pilots)\n\nReturn JSON only:\n{\n  \"ai_interest_signals\": [\"signal1\", \"signal2\"],\n  \"authority_level\": \"high/medium/low\",\n  \"team_management\": \"Description of team/reports or 'Unknown'\",\n  \"tech_evaluations\": [\"evaluation1\"],\n  \"decision_signals\": [\"signal1\", \"signal2\"],\n  \"budget_indicators\": \"Any budget-related signals or 'None found'\",\n  \"innovation_involvement\": \"Description or 'None found'\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.2
+        },
+        "requestOptions": {}
+      },
+      "credentials": {
+        "perplexityApi": {
+          "id": "yClHOVia8DI1R8pq",
+          "name": "Perplexity account"
+        }
+      },
+      "typeVersion": 1,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "pw-ai-synthesis-001",
+      "name": "AI Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [976, -128],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5-20250929\",\n  \"max_tokens\": 800,\n  \"temperature\": 0.7,\n  \"system\": \"You are an expert B2B sales strategist who creates personalized outreach briefs. Return ONLY valid JSON. No commentary or markdown.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Given the following research on a contact and their company, create a personalized outreach synthesis.\\n\\n--- PERSON ---\\nName: {{ $('Read Contact + Company').item.json.full_name }}\\nTitle: {{ $('Read Contact + Company').item.json.job_title }}\\nCompany: {{ $('Read Contact + Company').item.json.company_name }}\\nLocation: {{ $('Read Contact + Company').item.json.location_city || '' }}, {{ $('Read Contact + Company').item.json.location_country || '' }}\\n\\n--- PERSON PROFILE RESEARCH ---\\n{{ $('Research Profile').item.json.choices?.[0]?.message?.content || 'No profile research available' }}\\n\\n--- PERSON DECISION SIGNALS ---\\n{{ $('Research Signals').item.json.choices?.[0]?.message?.content || 'No signal research available' }}\\n\\n--- COMPANY CONTEXT ---\\nIndustry: {{ $('Read Contact + Company').item.json.industry }}\\nCompany Summary: {{ $('Read Contact + Company').item.json.company_summary || 'N/A' }}\\nTier: {{ $('Read Contact + Company').item.json.company_tier }}\\n\\n--- L2 ENRICHMENT ---\\nPain Hypothesis: {{ $('Read Contact + Company').item.json.pain_hypothesis || 'N/A' }}\\nAI Opportunities: {{ $('Read Contact + Company').item.json.ai_opportunities || 'N/A' }}\\nQuick Wins: {{ JSON.stringify($('Read Contact + Company').item.json.quick_wins) || 'N/A' }}\\nDigital Initiatives: {{ $('Read Contact + Company').item.json.digital_initiatives || 'N/A' }}\\nIndustry Pain Points: {{ $('Read Contact + Company').item.json.industry_pain_points || 'N/A' }}\\n\\nReturn JSON only:\\n{\\n  \\\"person_summary\\\": \\\"2-3 sentence summary of this person's role, background, and relevance\\\",\\n  \\\"relationship_synthesis\\\": \\\"How to approach this person \\u2014 what resonates, what to avoid, recommended angle\\\",\\n  \\\"personalization_angle\\\": \\\"The single strongest hook for outreach\\\",\\n  \\\"connection_points\\\": [\\\"point1\\\", \\\"point2\\\", \\\"point3\\\"],\\n  \\\"pain_connection\\\": \\\"How the company's pain points connect to this person's specific role and concerns\\\",\\n  \\\"conversation_starters\\\": [\\\"question1\\\", \\\"question2\\\", \\\"question3\\\"],\\n  \\\"predicted_objection\\\": \\\"Most likely pushback and how to handle it\\\",\\n  \\\"seniority_level\\\": \\\"c_level/vp/director/manager/individual_contributor/founder/other\\\",\\n  \\\"department\\\": \\\"executive/engineering/product/sales/marketing/customer_success/finance/hr/operations/other\\\",\\n  \\\"icp_fit\\\": \\\"strong_fit/moderate_fit/weak_fit/unknown\\\",\\n  \\\"contact_score\\\": 0-100,\\n  \\\"ai_champion\\\": true/false,\\n  \\\"ai_champion_score\\\": 0-10,\\n  \\\"authority_score\\\": 0-10\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_ANTHROPIC_CRED_ID",
+          "name": "Anthropic account"
+        }
+      },
+      "typeVersion": 4.2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "pw-code-parse-001",
+      "name": "Code: Parse & Score",
+      "type": "n8n-nodes-base.code",
+      "position": [1232, -128],
+      "parameters": {
+        "jsCode": "// ============================================================================\n// PERSON ENRICHMENT — Parse & Score (v5 — Postgres)\n// ============================================================================\n// Input:  AI Synthesis response + Research Profile + Research Signals\n//         + Original contact+company data from Read Contact + Company\n// Output: Postgres-ready fields for contacts + contact_enrichment + research_assets\n// ============================================================================\n\nconst original = $('Read Contact + Company').item.json;\nconst profileResponse = $('Research Profile').item.json;\nconst signalsResponse = $('Research Signals').item.json;\nconst synthesisResponse = $('AI Synthesis').item.json;\n\nconst profileContent = profileResponse.choices?.[0]?.message?.content || '';\nconst signalsContent = signalsResponse.choices?.[0]?.message?.content || '';\nconst synthesisContent = synthesisResponse.content?.[0]?.text\n  || synthesisResponse.choices?.[0]?.message?.content\n  || synthesisResponse.message?.content || '';\n\nconst profileCost = profileResponse.usage?.cost?.total_cost || 0;\nconst signalsCost = signalsResponse.usage?.cost?.total_cost || 0;\n\n// Anthropic cost estimation: ~$3/M input, ~$15/M output for Sonnet\nconst synthesisInputTokens = synthesisResponse.usage?.input_tokens || 0;\nconst synthesisOutputTokens = synthesisResponse.usage?.output_tokens || 0;\nconst synthesisCost = (synthesisInputTokens * 3 / 1000000) + (synthesisOutputTokens * 15 / 1000000);\nconst totalResearchCost = profileCost + signalsCost + synthesisCost;\nconst totalCost = (parseFloat(original.enrichment_cost_usd) || 0) + totalResearchCost;\n\n// -----------------------------------------------------------------------\n// 1. PARSE JSON RESPONSES\n// -----------------------------------------------------------------------\nfunction parseJson(raw) {\n  try {\n    let cleaned = raw.trim();\n    if (cleaned.startsWith('```')) {\n      cleaned = cleaned.replace(/^```(?:json)?\\s*/, '').replace(/\\s*```$/, '');\n    }\n    return JSON.parse(cleaned);\n  } catch (e) {\n    return null;\n  }\n}\n\nconst profile = parseJson(profileContent);\nconst signals = parseJson(signalsContent);\nconst synthesis = parseJson(synthesisContent);\n\nif (!synthesis) {\n  return {\n    record_id: original.id,\n    error: `PARSE_ERROR: Failed to parse AI Synthesis response (${synthesisContent.length} chars)`,\n    enrichment_cost_usd: totalResearchCost,\n    pg_enrichment_cost: totalCost,\n    raw_profile: profileContent,\n    raw_signals: signalsContent,\n    raw_synthesis: synthesisContent\n  };\n}\n\n// -----------------------------------------------------------------------\n// 2. MAP SENIORITY TO PG ENUM\n// -----------------------------------------------------------------------\nfunction mapSeniority(raw) {\n  if (!raw) return null;\n  const l = raw.toLowerCase().replace(/[^a-z_]/g, '');\n  const valid = ['c_level', 'vp', 'director', 'manager', 'individual_contributor', 'founder', 'other'];\n  if (valid.includes(l)) return l;\n  if (l.includes('clevel') || l.includes('ceo') || l.includes('cto') || l.includes('cfo') || l.includes('coo') || l.includes('chief')) return 'c_level';\n  if (l.includes('vp') || l.includes('vice_president') || l.includes('vicepresident')) return 'vp';\n  if (l.includes('director') || l.includes('head')) return 'director';\n  if (l.includes('manager') || l.includes('lead')) return 'manager';\n  if (l.includes('founder') || l.includes('cofounder')) return 'founder';\n  if (l.includes('individual') || l.includes('contributor') || l.includes('analyst') || l.includes('engineer') || l.includes('specialist')) return 'individual_contributor';\n  return 'other';\n}\n\n// -----------------------------------------------------------------------\n// 3. MAP DEPARTMENT TO PG ENUM\n// -----------------------------------------------------------------------\nfunction mapDepartment(raw) {\n  if (!raw) return null;\n  const l = raw.toLowerCase().replace(/[^a-z_]/g, '');\n  const valid = ['executive', 'engineering', 'product', 'sales', 'marketing', 'customer_success', 'finance', 'hr', 'operations', 'other'];\n  if (valid.includes(l)) return l;\n  if (l.includes('executive') || l.includes('ceo') || l.includes('cto') || l.includes('cfo') || l.includes('board') || l.includes('general_management') || l.includes('leadership')) return 'executive';\n  if (l.includes('engineering') || l.includes('development') || l.includes('tech') || l.includes('software') || l.includes('it')) return 'engineering';\n  if (l.includes('product') || l.includes('design') || l.includes('ux')) return 'product';\n  if (l.includes('sales') || l.includes('business_development') || l.includes('revenue') || l.includes('commercial')) return 'sales';\n  if (l.includes('marketing') || l.includes('growth') || l.includes('brand') || l.includes('communications')) return 'marketing';\n  if (l.includes('customer') || l.includes('success') || l.includes('support') || l.includes('service')) return 'customer_success';\n  if (l.includes('finance') || l.includes('accounting') || l.includes('controlling')) return 'finance';\n  if (l.includes('hr') || l.includes('human') || l.includes('people') || l.includes('talent') || l.includes('recruitment')) return 'hr';\n  if (l.includes('operations') || l.includes('supply') || l.includes('logistics') || l.includes('procurement') || l.includes('manufacturing')) return 'operations';\n  return 'other';\n}\n\n// -----------------------------------------------------------------------\n// 4. MAP ICP FIT TO PG ENUM\n// -----------------------------------------------------------------------\nfunction mapIcpFit(raw) {\n  if (!raw) return 'unknown';\n  const l = raw.toLowerCase().replace(/[^a-z_]/g, '');\n  const valid = ['strong_fit', 'moderate_fit', 'weak_fit', 'unknown'];\n  if (valid.includes(l)) return l;\n  if (l.includes('strong')) return 'strong_fit';\n  if (l.includes('moderate') || l.includes('medium') || l.includes('good')) return 'moderate_fit';\n  if (l.includes('weak') || l.includes('low') || l.includes('poor')) return 'weak_fit';\n  return 'unknown';\n}\n\n// -----------------------------------------------------------------------\n// 5. DETECT LANGUAGE FROM LOCATION\n// -----------------------------------------------------------------------\nfunction detectLanguage(city, country) {\n  const loc = ((city || '') + ' ' + (country || '')).toLowerCase();\n  const czechVariants = ['czech', 'czechia', 'česk', 'prague', 'praha', 'brno', 'ostrava', 'plzeň', 'olomouc', 'liberec', 'pardubice'];\n  if (czechVariants.some(v => loc.includes(v))) return 'cs';\n  const germanVariants = ['germany', 'deutschland', 'austria', 'österreich', 'switzerland', 'schweiz', 'munich', 'berlin', 'hamburg', 'frankfurt', 'vienna', 'wien', 'zürich', 'zurich'];\n  if (germanVariants.some(v => loc.includes(v))) return 'de';\n  const dutchVariants = ['netherlands', 'nederland', 'holland', 'amsterdam', 'rotterdam', 'utrecht', 'belgium', 'belgien', 'belgian'];\n  if (dutchVariants.some(v => loc.includes(v))) return 'nl';\n  return 'en';\n}\n\n// -----------------------------------------------------------------------\n// 6. BUILD OUTPUTS\n// -----------------------------------------------------------------------\nconst seniority = mapSeniority(synthesis.seniority_level || original.seniority_level);\nconst department = mapDepartment(synthesis.department || original.department);\nconst icpFit = mapIcpFit(synthesis.icp_fit);\nconst language = detectLanguage(original.location_city, original.location_country);\n\nconst contactScore = Math.max(0, Math.min(100, parseInt(synthesis.contact_score) || 0));\nconst aiChampion = synthesis.ai_champion === true;\nconst aiChampionScore = Math.max(0, Math.min(10, parseInt(synthesis.ai_champion_score) || 0));\nconst authorityScore = Math.max(0, Math.min(10, parseInt(synthesis.authority_score) || 0));\n\n// Build linkedin_profile_summary from profile research\nconst profileParts = [];\nif (profile) {\n  if (profile.current_role) profileParts.push(`Current Role: ${profile.current_role}`);\n  if (profile.career_trajectory) profileParts.push(`Career: ${profile.career_trajectory}`);\n  if (profile.education && profile.education !== 'Unknown') profileParts.push(`Education: ${profile.education}`);\n  if (Array.isArray(profile.expertise_areas) && profile.expertise_areas.length) profileParts.push(`Expertise: ${profile.expertise_areas.join(', ')}`);\n  if (Array.isArray(profile.thought_leadership_topics) && profile.thought_leadership_topics.length) profileParts.push(`Thought Leadership: ${profile.thought_leadership_topics.join(', ')}`);\n  if (profile.public_presence_level) profileParts.push(`Public Presence: ${profile.public_presence_level}`);\n  if (profile.notable_achievements && profile.notable_achievements !== 'None found') profileParts.push(`Achievements: ${profile.notable_achievements}`);\n}\nconst linkedinProfileSummary = profileParts.join('\\n') || null;\n\nconst personSummary = synthesis.person_summary || null;\nconst relationshipSynthesis = synthesis.relationship_synthesis || null;\n\nreturn {\n  // --- Routing ---\n  record_id: original.id,\n  tenant_id: original.tenant_id,\n  company_id: original.company_id,\n\n  // --- Postgres: contacts table ---\n  pg_seniority_level: seniority,\n  pg_department: department,\n  pg_icp_fit: icpFit,\n  pg_contact_score: contactScore,\n  pg_ai_champion: aiChampion,\n  pg_ai_champion_score: aiChampionScore,\n  pg_authority_score: authorityScore,\n  pg_language: language,\n  pg_enrichment_cost: totalCost,\n\n  // --- Postgres: contact_enrichment table ---\n  pg_person_summary: personSummary,\n  pg_linkedin_profile_summary: linkedinProfileSummary,\n  pg_relationship_synthesis: relationshipSynthesis,\n  pg_enrichment_research_cost: totalResearchCost,\n\n  // --- Synthesis metadata (for response) ---\n  personalization_angle: synthesis.personalization_angle || null,\n  connection_points: synthesis.connection_points || [],\n  pain_connection: synthesis.pain_connection || null,\n  conversation_starters: synthesis.conversation_starters || [],\n  predicted_objection: synthesis.predicted_objection || null,\n\n  // --- Research asset data ---\n  raw_profile: profileContent,\n  raw_signals: signalsContent,\n  profile_model: profileResponse.model || 'sonar-pro',\n  signals_model: signalsResponse.model || 'sonar',\n  profile_cost: profileCost,\n  signals_cost: signalsCost,\n  synthesis_cost: synthesisCost,\n\n  // --- Return enrichment cost for orchestrator ---\n  enrichment_cost_usd: totalResearchCost\n};\n"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "pw-update-success-001",
+      "name": "Update Contact Success",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1488, -192],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH contact_update AS (\n  UPDATE contacts SET\n    processed_enrich = true,\n    seniority_level = '{{ $json.pg_seniority_level }}',\n    department = '{{ $json.pg_department }}',\n    ai_champion = {{ $json.pg_ai_champion }},\n    icp_fit = '{{ $json.pg_icp_fit }}',\n    contact_score = {{ $json.pg_contact_score }},\n    ai_champion_score = {{ $json.pg_ai_champion_score }},\n    authority_score = {{ $json.pg_authority_score }},\n    language = '{{ $json.pg_language }}',\n    enrichment_cost_usd = {{ $json.pg_enrichment_cost }},\n    message_status = 'not_started',\n    updated_at = now()\n  WHERE id = '{{ $json.record_id }}'\n  RETURNING id, processed_enrich, contact_score, enrichment_cost_usd\n),\nenrichment_upsert AS (\n  INSERT INTO contact_enrichment (\n    contact_id, person_summary, linkedin_profile_summary,\n    relationship_synthesis, enrichment_cost_usd, enriched_at\n  ) VALUES (\n    '{{ $json.record_id }}',\n    {{ $json.pg_person_summary ? \"'\" + $json.pg_person_summary.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.pg_linkedin_profile_summary ? \"'\" + $json.pg_linkedin_profile_summary.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.pg_relationship_synthesis ? \"'\" + $json.pg_relationship_synthesis.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.pg_enrichment_research_cost }},\n    now()\n  )\n  ON CONFLICT (contact_id) DO UPDATE SET\n    person_summary = EXCLUDED.person_summary,\n    linkedin_profile_summary = EXCLUDED.linkedin_profile_summary,\n    relationship_synthesis = EXCLUDED.relationship_synthesis,\n    enrichment_cost_usd = EXCLUDED.enrichment_cost_usd,\n    enriched_at = now()\n  RETURNING contact_id\n)\nSELECT cu.id, cu.processed_enrich, cu.contact_score, cu.enrichment_cost_usd\nFROM contact_update cu",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "pw-update-error-001",
+      "name": "Update Contact Error",
+      "type": "n8n-nodes-base.postgres",
+      "position": [720, 128],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE contacts SET\n  error = {{ $json.error ? \"'\" + String($json.error).replace(/'/g, \"''\").substring(0, 500) + \"'\" : ($json.message ? \"'\" + String($json.message).replace(/'/g, \"''\").substring(0, 500) + \"'\" : \"'Person enrichment failed'\") }},\n  updated_at = now()\nWHERE id = '{{ $('Read Contact + Company').item.json.id }}'\nRETURNING id, error",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "pw-save-asset-profile-001",
+      "name": "Save Research Asset 1",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1488, -48],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_assets (\n  tenant_id, entity_type, entity_id, name, tool_name,\n  cost_usd, research_data, confidence_score, quality_score\n) VALUES (\n  '{{ $json.tenant_id }}',\n  'contact',\n  '{{ $json.record_id }}',\n  'person_profile_research',\n  'perplexity_{{ $json.profile_model }}',\n  {{ $json.profile_cost || 0 }},\n  '{{ $json.raw_profile.replace(/'/g, \"''\") }}',\n  0,\n  0\n)\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "pw-save-asset-signals-001",
+      "name": "Save Research Asset 2",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1488, 96],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_assets (\n  tenant_id, entity_type, entity_id, name, tool_name,\n  cost_usd, research_data, confidence_score, quality_score\n) VALUES (\n  '{{ $json.tenant_id }}',\n  'contact',\n  '{{ $json.record_id }}',\n  'person_signals_research',\n  'perplexity_{{ $json.signals_model }}',\n  {{ $json.signals_cost || 0 }},\n  '{{ $json.raw_signals.replace(/'/g, \"''\") }}',\n  0,\n  0\n)\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Contact + Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Read Contact + Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Contact + Company": {
+      "main": [
+        [
+          {
+            "node": "If Eligible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Eligible": {
+      "main": [
+        [
+          {
+            "node": "Research Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Contact Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Profile": {
+      "main": [
+        [
+          {
+            "node": "Research Signals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Contact Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Signals": {
+      "main": [
+        [
+          {
+            "node": "AI Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Contact Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse & Score",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Contact Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse & Score": {
+      "main": [
+        [
+          {
+            "node": "Update Contact Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Research Asset 1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Research Asset 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact Success": {
+      "main": [
+        []
+      ]
+    },
+    "Update Contact Error": {
+      "main": [
+        []
+      ]
+    },
+    "Save Research Asset 1": {
+      "main": [
+        []
+      ]
+    },
+    "Save Research Asset 2": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "pw-v5-001",
+  "tags": []
+}

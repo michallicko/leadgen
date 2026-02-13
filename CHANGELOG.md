@@ -5,6 +5,13 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- Companies & Contacts dashboard pages with infinite scroll and virtual DOM windowing (ADR-001)
+- Virtual scroll: only ~60-80 DOM rows rendered at any time, constant performance regardless of dataset size
+- Companies API routes: list (paginated, filterable), detail, PATCH update
+- Contacts API routes: list (paginated, filterable), detail, PATCH update
+- Pipeline API routes: start, stop, status, run-all, stop-all
+- Architecture Decision Records (ADR) framework in `docs/adr/`
+- Mandatory quality gates in CLAUDE.md: tests, code review, security audit, documentation, backlog, commit+push
 - Project structure: CLAUDE.md rules, ARCHITECTURE.md, test infrastructure
 - Git repository initialized with GitHub remote (`michallicko/leadgen`)
 - Flask API: auth (login/refresh/me), tenants CRUD, users CRUD, messages CRUD, batches/stats

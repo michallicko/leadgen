@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..display import display_message_status, display_status, display_tier
+from ..display import display_message_status, display_status, display_tier, tier_db_values
 from ..models import db
 
 batch_bp = Blueprint("batches", __name__)
@@ -40,6 +40,7 @@ def batch_stats():
     body = request.get_json(silent=True) or {}
     batch_name = body.get("batch_name", "")
     owner_name = body.get("owner", "")
+    tier_filter = body.get("tier_filter", [])
 
     if not batch_name:
         return jsonify({"error": "batch_name required"}), 400
@@ -76,6 +77,23 @@ def batch_stats():
     if owner_id:
         ct_where += " AND ct.owner_id = :o"
 
+    # Tier filter — only applied to post-triage queries.
+    # Tier is an OUTPUT of L1, so input counts (contacts, companies, pre-L1 statuses) stay unfiltered.
+    tier_values = tier_db_values(tier_filter) if tier_filter else []
+    tier_sql = ""  # clause for queries that already JOIN companies as c
+    tier_co_where = co_where  # tier-filtered company WHERE
+    tier_params = dict(params)
+    tier_ct_params = dict(ct_params)
+    if tier_values:
+        tier_ph = ", ".join(f":tier_{i}" for i in range(len(tier_values)))
+        tier_sql = f" AND c.tier IN ({tier_ph})"
+        tier_co_where = co_where + tier_sql
+        for i, tv in enumerate(tier_values):
+            tier_params[f"tier_{i}"] = tv
+            tier_ct_params[f"tier_{i}"] = tv
+
+    # --- Pre-triage (unfiltered) ---
+
     contacts_total = db.session.execute(
         db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {ct_where}"),
         ct_params,
@@ -91,7 +109,7 @@ def batch_stats():
         params,
     ).scalar() or 0
 
-    # Status counts
+    # Status counts (unfiltered — for pre-L1 statuses: New, Enrichment Failed)
     status_rows = db.session.execute(
         db.text(f"SELECT c.status, COUNT(*) FROM companies c WHERE {co_where} GROUP BY c.status"),
         params,
@@ -101,15 +119,27 @@ def batch_stats():
         if row[0]:
             status_counts[display_status(row[0])] = row[1]
 
+    # --- Post-triage (tier-filtered) ---
+
+    # Status counts filtered by tier (for Triage: Passed, Disqualified, Enriched L2, etc.)
+    status_filtered_rows = db.session.execute(
+        db.text(f"SELECT c.status, COUNT(*) FROM companies c WHERE {tier_co_where} GROUP BY c.status"),
+        tier_params,
+    ).fetchall()
+    status_counts_filtered = {}
+    for row in status_filtered_rows:
+        if row[0]:
+            status_counts_filtered[display_status(row[0])] = row[1]
+
     # L2 eligible by tier (companies with status = triage_passed)
     tier_rows = db.session.execute(
         db.text(f"""
             SELECT c.tier, COUNT(*)
             FROM companies c
-            WHERE {co_where} AND c.status = 'triage_passed'
+            WHERE {tier_co_where} AND c.status = 'triage_passed'
             GROUP BY c.tier
         """),
-        params,
+        tier_params,
     ).fetchall()
     l2_eligible_by_tier = {}
     for row in tier_rows:
@@ -118,8 +148,8 @@ def batch_stats():
 
     # Person eligible: companies with status = enriched_l2
     person_eligible_cos = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM companies c WHERE {co_where} AND c.status = 'enriched_l2'"),
-        params,
+        db.text(f"SELECT COUNT(*) FROM companies c WHERE {tier_co_where} AND c.status = 'enriched_l2'"),
+        tier_params,
     ).scalar() or 0
 
     # Contacts in enriched L2 companies
@@ -129,9 +159,10 @@ def batch_stats():
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
             WHERE ct.tenant_id = :t AND ct.batch_id = :b AND c.status = 'enriched_l2'
+            {tier_sql}
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
-        ct_params,
+        tier_ct_params,
     ).scalar() or 0
 
     # Person enriched contacts (processed_enrich = true AND company enriched_l2)
@@ -141,10 +172,11 @@ def batch_stats():
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
             WHERE ct.tenant_id = :t AND ct.batch_id = :b AND c.status = 'enriched_l2'
+            {tier_sql}
             AND ct.processed_enrich = true
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
-        ct_params,
+        tier_ct_params,
     ).scalar() or 0
 
     # Person failed contacts
@@ -180,6 +212,7 @@ def batch_stats():
         "contacts_unprocessed": contacts_unprocessed,
         "companies_total": companies_total,
         "status_counts": status_counts,
+        "status_counts_filtered": status_counts_filtered,
         "l2_eligible_by_tier": l2_eligible_by_tier,
         "person_eligible_companies": person_eligible_cos,
         "person_eligible_contacts": contacts_in_enriched,

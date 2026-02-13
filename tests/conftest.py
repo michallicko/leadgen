@@ -133,3 +133,124 @@ def auth_header(client, email="admin@test.com", password="testpass123"):
     resp = client.post("/api/auth/login", json={"email": email, "password": password})
     token = resp.get_json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def seed_companies_contacts(db, seed_tenant, seed_super_admin):
+    """Seed owners, batches, companies (mixed statuses/tiers), and contacts for testing."""
+    from api.models import (
+        Batch, Company, CompanyEnrichmentL2, CompanyTag,
+        Contact, ContactEnrichment, Message, Owner, UserTenantRole,
+    )
+
+    # Give super_admin editor role on tenant
+    role = UserTenantRole(
+        user_id=seed_super_admin.id,
+        tenant_id=seed_tenant.id,
+        role="admin",
+        granted_by=seed_super_admin.id,
+    )
+    db.session.add(role)
+
+    # Owners
+    owner1 = Owner(tenant_id=seed_tenant.id, name="Alice", is_active=True)
+    owner2 = Owner(tenant_id=seed_tenant.id, name="Bob", is_active=True)
+    db.session.add_all([owner1, owner2])
+    db.session.flush()
+
+    # Batches
+    batch1 = Batch(tenant_id=seed_tenant.id, name="batch-1", is_active=True)
+    batch2 = Batch(tenant_id=seed_tenant.id, name="batch-2", is_active=True)
+    db.session.add_all([batch1, batch2])
+    db.session.flush()
+
+    # Companies
+    companies = []
+    company_data = [
+        ("Acme Corp", "acme.com", "new", None, owner1.id, batch1.id, "software_saas", "Germany", 8.5),
+        ("Beta Inc", "beta.io", "triage_passed", "tier_1_platinum", owner1.id, batch1.id, "it", "UK", 9.0),
+        ("Gamma LLC", "gamma.co", "triage_passed", "tier_2_gold", owner2.id, batch1.id, "healthcare", "US", 7.5),
+        ("Delta GmbH", "delta.de", "enriched_l2", "tier_1_platinum", owner1.id, batch2.id, "manufacturing", "Austria", 9.5),
+        ("Epsilon SA", "epsilon.fr", "triage_disqualified", "tier_5_copper", owner2.id, batch2.id, "retail", "France", 3.0),
+    ]
+    for name, domain, status, tier, oid, bid, industry, country, score in company_data:
+        c = Company(
+            tenant_id=seed_tenant.id, name=name, domain=domain,
+            status=status, tier=tier, owner_id=oid, batch_id=bid,
+            industry=industry, hq_country=country, triage_score=score,
+            summary=f"Summary for {name}", notes=f"Notes for {name}",
+        )
+        db.session.add(c)
+        companies.append(c)
+    db.session.flush()
+
+    # L2 enrichment for Delta GmbH
+    l2 = CompanyEnrichmentL2(
+        company_id=companies[3].id,
+        company_intel="Leading manufacturer in DACH region",
+        recent_news="Expanded to new markets",
+        ai_opportunities="Process automation in supply chain",
+    )
+    db.session.add(l2)
+
+    # Tags for Beta Inc
+    tags = [
+        CompanyTag(company_id=companies[1].id, category="ai_use_case", value="chatbot"),
+        CompanyTag(company_id=companies[1].id, category="trigger_event", value="new_cto"),
+    ]
+    db.session.add_all(tags)
+
+    # Contacts
+    contacts = []
+    contact_data = [
+        ("John Doe", "CEO", companies[0].id, owner1.id, batch1.id, 85, "strong_fit", "not_started", "john@acme.com"),
+        ("Jane Smith", "CTO", companies[0].id, owner1.id, batch1.id, 90, "strong_fit", "approved", "jane@acme.com"),
+        ("Bob Wilson", "VP Engineering", companies[1].id, owner1.id, batch1.id, 75, "moderate_fit", "not_started", "bob@beta.io"),
+        ("Carol Lee", "Director of AI", companies[1].id, owner1.id, batch1.id, 80, "strong_fit", "pending_review", "carol@beta.io"),
+        ("Dave Brown", "Manager", companies[2].id, owner2.id, batch1.id, 60, "weak_fit", "not_started", None),
+        ("Eve Green", "CFO", companies[3].id, owner1.id, batch2.id, 70, "moderate_fit", "approved", "eve@delta.de"),
+        ("Frank Black", "CIO", companies[3].id, owner1.id, batch2.id, 88, "strong_fit", "sent", "frank@delta.de"),
+        ("Grace White", "Sales Director", companies[4].id, owner2.id, batch2.id, 45, "weak_fit", "not_started", None),
+        ("Hank Grey", "Intern", companies[4].id, owner2.id, batch2.id, 20, "unknown", "not_started", None),
+        ("Ivy Blue", "Product Manager", companies[2].id, owner2.id, batch1.id, 65, "moderate_fit", "generating", "ivy@gamma.co"),
+    ]
+    for name, title, coid, oid, bid, score, icp, mstatus, email in contact_data:
+        ct = Contact(
+            tenant_id=seed_tenant.id, full_name=name, job_title=title,
+            company_id=coid, owner_id=oid, batch_id=bid,
+            contact_score=score, icp_fit=icp, message_status=mstatus,
+            email_address=email, seniority_level="c_level" if "C" in title else "director",
+            department="executive" if "C" in title else "engineering",
+        )
+        db.session.add(ct)
+        contacts.append(ct)
+    db.session.flush()
+
+    # Contact enrichment for John Doe
+    ce = ContactEnrichment(
+        contact_id=contacts[0].id,
+        person_summary="Experienced CEO with AI background",
+        linkedin_profile_summary="20+ years in tech leadership",
+        relationship_synthesis="Warm lead via referral",
+    )
+    db.session.add(ce)
+
+    # Messages for Jane Smith
+    m = Message(
+        tenant_id=seed_tenant.id, contact_id=contacts[1].id,
+        owner_id=owner1.id, channel="linkedin_connect",
+        sequence_step=1, variant="a", subject="Connect",
+        body="Hi Jane, let's connect!", status="draft",
+        batch_id=batch1.id,
+    )
+    db.session.add(m)
+
+    db.session.commit()
+
+    return {
+        "tenant": seed_tenant,
+        "owners": [owner1, owner2],
+        "batches": [batch1, batch2],
+        "companies": companies,
+        "contacts": contacts,
+    }

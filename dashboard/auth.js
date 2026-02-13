@@ -334,6 +334,34 @@
     if (nameEl && user) nameEl.textContent = user.display_name || user.email;
 
     buildNamespaceSwitcher(user);
+    rewriteNavLinks(user);
+  }
+
+  // ---- Namespace-aware nav links ----
+
+  function rewriteNavLinks() {
+    var links = document.querySelectorAll('.top-nav__link');
+    for (var i = 0; i < links.length; i++) {
+      (function(link) {
+        link.addEventListener('click', function(e) {
+          var href = link.getAttribute('href');
+          if (!href || href === 'admin.html') return; // admin stays root-level
+          // Already namespace-prefixed? let it through
+          if (href.charAt(0) === '/' && href.indexOf('.') === -1) return;
+
+          var ns = getNamespace();
+          if (!ns) {
+            var switcher = document.getElementById('ns_switcher');
+            ns = switcher && switcher.value;
+          }
+          if (!ns) return; // no namespace available, follow default link
+
+          e.preventDefault();
+          var page = href.replace('.html', '').replace('index', '');
+          window.location.href = '/' + ns + '/' + page;
+        });
+      })(links[i]);
+    }
   }
 
   // ---- Namespace switcher ----

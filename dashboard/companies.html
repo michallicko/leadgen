@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companies — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+select, input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+select option { background: var(--bg); color: var(--text); }
+
+textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+textarea:focus { outline: none; border-color: var(--accent); }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label:first-child { display: block; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+.filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-items: end; }
+@media (max-width: 900px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); color: #fff; box-shadow: 0 2px 10px -2px rgba(110,44,139,0.3); }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8B47A8, #6E2C8B); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #3aa372; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
+
+/* Top nav */
+.top-nav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 0; margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand { display: flex; align-items: center; gap: 10px; }
+.top-nav__title { font-family: var(--font-title); font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.top-nav__links { display: flex; gap: 2px; margin-left: 24px; }
+.top-nav__link {
+  color: var(--text-muted); text-decoration: none;
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
+  padding: 6px 14px; border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover { color: var(--text); background: rgba(110,44,139,0.08); }
+.top-nav__link.active { color: var(--accent-cyan); font-weight: 600; background: rgba(0,184,207,0.08); }
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.data-table th {
+  text-align: left; padding: 10px 12px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none;
+  white-space: nowrap;
+}
+.data-table th:hover { color: var(--text); }
+.data-table th .sort-arrow { font-size: 0.65rem; margin-left: 4px; }
+.data-table td {
+  padding: 10px 12px; border-bottom: 1px solid rgba(35,29,48,0.3);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.data-table tr { cursor: pointer; transition: background 0.15s; }
+.data-table tbody tr:hover { background: var(--surface-alt); }
+
+/* Status/tier badges */
+.status-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.status-badge.new { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.status-badge.triage-passed { background: rgba(52,211,153,0.15); color: var(--success); }
+.status-badge.triage-review { background: rgba(251,191,36,0.15); color: var(--warning); }
+.status-badge.triage-disqualified { background: rgba(248,113,113,0.15); color: var(--error); }
+.status-badge.enriched-l2 { background: rgba(52,211,153,0.2); color: #2ecc71; }
+.status-badge.enrichment-failed { background: rgba(248,113,113,0.15); color: var(--error); }
+.status-badge.default { background: rgba(139,146,160,0.15); color: var(--text-muted); }
+
+.tier-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tier-badge.t1 { background: rgba(230,196,50,0.2); color: #e6c432; }
+.tier-badge.t2 { background: rgba(192,192,192,0.2); color: #c0c0c0; }
+.tier-badge.t3 { background: rgba(205,127,50,0.2); color: #cd7f32; }
+.tier-badge.t4 { background: rgba(150,100,50,0.2); color: #a07838; }
+.tier-badge.t5 { background: rgba(120,80,40,0.2); color: #8a6030; }
+
+/* Scroll container */
+.table-scroll {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.data-table thead { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+.scroll-status { padding: 12px 16px; font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; }
+.scroll-status .count { font-weight: 500; }
+.scroll-sentinel { height: 1px; }
+.scroll-loader { text-align: center; padding: 16px 0; }
+.scroll-end { text-align: center; padding: 12px 0; font-size: 0.8rem; color: var(--text-dim); }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 200;
+  justify-content: center; align-items: flex-start;
+  padding: 40px 16px; overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); width: 100%; max-width: 800px;
+  max-height: calc(100vh - 80px); overflow-y: auto;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.modal-header h2 { font-family: var(--font-title); font-size: 1.1rem; font-weight: 600; }
+.modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 4px 8px; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 24px; }
+
+.detail-section { margin-bottom: 24px; }
+.detail-section-title {
+  font-family: var(--font-title); font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin-bottom: 12px;
+  cursor: pointer; user-select: none;
+}
+.detail-section-title .chevron { font-size: 0.7rem; margin-left: 6px; transition: transform 0.2s; }
+.detail-section-title .chevron.collapsed { transform: rotate(-90deg); }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.detail-field label { display: block; font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.detail-field .value { font-size: 0.88rem; color: var(--text); word-break: break-word; }
+.detail-field .value.empty { color: var(--text-dim); font-style: italic; }
+.detail-field.full { grid-column: 1 / -1; }
+
+/* Tags */
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-chip {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: 0.72rem; font-weight: 500;
+  background: rgba(110,44,139,0.12); color: var(--accent);
+}
+.tag-category { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* L2 text blocks */
+.l2-block { margin-bottom: 12px; }
+.l2-block label { display: block; font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.l2-block .l2-text { font-size: 0.84rem; color: var(--text); white-space: pre-wrap; line-height: 1.5; }
+
+/* Mini contacts table */
+.mini-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.mini-table th {
+  text-align: left; padding: 6px 8px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.mini-table td { padding: 6px 8px; border-bottom: 1px solid rgba(35,29,48,0.3); }
+.mini-table tr { cursor: pointer; transition: background 0.15s; }
+.mini-table tbody tr:hover { background: var(--surface-alt); }
+
+/* Toast */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: #fff; opacity: 0; transform: translateX(40px); transition: opacity 0.3s, transform 0.3s; max-width: 360px; }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--accent-cyan); }
+
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 0.95rem; }
+.empty-state .big { font-size: 2rem; margin-bottom: 8px; }
+
+.loading-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.link-btn { color: var(--accent-cyan); background: none; border: none; cursor: pointer; font-size: inherit; font-family: inherit; text-decoration: underline; padding: 0; }
+.link-btn:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link">Pipeline</a>
+      <a href="companies.html" class="top-nav__link active">Companies</a>
+      <a href="contacts.html" class="top-nav__link">Contacts</a>
+      <a href="messages.html" class="top-nav__link">Messages</a>
+      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+
+  <h1>Companies</h1>
+
+  <!-- Filters -->
+  <div class="card">
+    <div class="card-title">Filters</div>
+    <div class="filter-grid">
+      <div class="form-row">
+        <label for="filter_search">Search</label>
+        <input type="text" id="filter_search" placeholder="Name or domain...">
+      </div>
+      <div class="form-row">
+        <label for="filter_status">Status</label>
+        <select id="filter_status">
+          <option value="">All</option>
+          <option value="new">New</option>
+          <option value="triage_passed">Triage: Passed</option>
+          <option value="triage_review">Triage: Review</option>
+          <option value="triage_disqualified">Disqualified</option>
+          <option value="enriched_l2">Enriched L2</option>
+          <option value="enrichment_failed">Enrichment Failed</option>
+          <option value="enrichment_l2_failed">L2 Failed</option>
+          <option value="synced">Synced</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="filter_tier">Tier</label>
+        <select id="filter_tier">
+          <option value="">All</option>
+          <option value="tier_1_platinum">Tier 1 - Platinum</option>
+          <option value="tier_2_gold">Tier 2 - Gold</option>
+          <option value="tier_3_silver">Tier 3 - Silver</option>
+          <option value="tier_4_bronze">Tier 4 - Bronze</option>
+          <option value="tier_5_copper">Tier 5 - Copper</option>
+          <option value="deprioritize">Deprioritize</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="filter_batch">Batch</label>
+        <select id="filter_batch"><option value="">All</option></select>
+      </div>
+      <div class="form-row">
+        <label for="filter_owner">Owner</label>
+        <select id="filter_owner"><option value="">All</option></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="scroll-status" id="scroll_status"></div>
+    <div class="table-scroll" id="scroll_container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Name <span class="sort-arrow"></span></th>
+            <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+            <th data-sort="status">Status <span class="sort-arrow"></span></th>
+            <th data-sort="tier">Tier <span class="sort-arrow"></span></th>
+            <th>Owner</th>
+            <th>Batch</th>
+            <th data-sort="industry">Industry <span class="sort-arrow"></span></th>
+            <th data-sort="hq_country">HQ <span class="sort-arrow"></span></th>
+            <th data-sort="triage_score">Score <span class="sort-arrow"></span></th>
+            <th data-sort="contact_count">Contacts <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="table_body">
+          <tr><td colspan="10" class="empty-state">Loading...</td></tr>
+        </tbody>
+      </table>
+      <div class="scroll-sentinel" id="scroll_sentinel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal_overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal_title">Company Detail</h2>
+      <button class="modal-close" id="modal_close">&times;</button>
+    </div>
+    <div class="modal-body" id="modal_body"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast_container"></div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = 'https://leadgen.visionvolve.com/api';
+
+  var state = {
+    page: 1,
+    pageSize: 50,
+    sort: 'name',
+    sortDir: 'asc',
+    total: 0,
+    items: [],
+    isLoading: false,
+    hasMore: true
+  };
+
+  var $ = function(sel) { return document.querySelector(sel); };
+
+  function apiHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : (localStorage.getItem('lg_access_token') || '')),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  function apiFetch(url, opts) {
+    var options = Object.assign({}, opts, { headers: Object.assign({}, apiHeaders(), (opts && opts.headers) || {}) });
+    return fetch(url, options).then(function(resp) {
+      if (resp.status === 401) throw new Error('Authentication failed');
+      if (!resp.ok) return resp.text().then(function(t) { throw new Error('HTTP ' + resp.status + ': ' + t); });
+      return resp.json();
+    });
+  }
+
+  function save(k, v) { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch(e) {} }
+  function load(k, fb) { try { var r = localStorage.getItem(k); if (r === null) return fb; if (typeof fb === 'string') return r; return JSON.parse(r); } catch(e) { return fb; } }
+
+  function showToast(msg, type) {
+    var c = $('#toast_container');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(function() { t.classList.add('show'); });
+    setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 300); }, 4000);
+  }
+
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function(k) {
+        if (k === 'className') e.className = attrs[k];
+        else if (k === 'style' && typeof attrs[k] === 'object') Object.assign(e.style, attrs[k]);
+        else if (k.indexOf('on') === 0) e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+        else e.setAttribute(k, attrs[k]);
+      });
+    }
+    if (children) {
+      (Array.isArray(children) ? children : [children]).forEach(function(c) {
+        if (c == null) return;
+        if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+        else e.appendChild(c);
+      });
+    }
+    return e;
+  }
+
+  // ---- Status/tier helpers ----
+  function statusClass(s) {
+    if (!s) return 'default';
+    var sl = s.toLowerCase().replace(/[: ]+/g, '-');
+    return sl;
+  }
+
+  function tierClass(t) {
+    if (!t) return '';
+    if (t.indexOf('Tier 1') === 0) return 't1';
+    if (t.indexOf('Tier 2') === 0) return 't2';
+    if (t.indexOf('Tier 3') === 0) return 't3';
+    if (t.indexOf('Tier 4') === 0) return 't4';
+    if (t.indexOf('Tier 5') === 0) return 't5';
+    return '';
+  }
+
+  // ---- Load filter options ----
+  function loadFilterOptions() {
+    apiFetch(API_BASE + '/batches').then(function(data) {
+      var batchSel = $('#filter_batch');
+      (data.batches || []).forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b.name; opt.textContent = b.name;
+        batchSel.appendChild(opt);
+      });
+      var ownerSel = $('#filter_owner');
+      (data.owners || []).forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o.name; opt.textContent = o.name;
+        ownerSel.appendChild(opt);
+      });
+      // Restore saved filters
+      $('#filter_search').value = load('co_filter_search', '');
+      $('#filter_status').value = load('co_filter_status', '');
+      $('#filter_tier').value = load('co_filter_tier', '');
+      $('#filter_batch').value = load('co_filter_batch', '');
+      $('#filter_owner').value = load('co_filter_owner', '');
+      resetAndLoad();
+    }).catch(function(err) {
+      showToast('Error loading filters: ' + err.message, 'error');
+      resetAndLoad();
+    });
+  }
+
+  // ---- Virtual scroll ----
+  var ROW_HEIGHT = 41;
+  var BUFFER = 20;
+  var visibleRange = { start: 0, end: 0 };
+  var rafPending = false;
+
+  function updateScrollStatus() {
+    var el_ = $('#scroll_status');
+    if (state.total === 0 && !state.isLoading) {
+      el_.textContent = '';
+      return;
+    }
+    var loaded = state.items.length;
+    el_.innerHTML = '<span class="count">Loaded ' + loaded.toLocaleString() + ' of ' + state.total.toLocaleString() + ' companies</span>';
+  }
+
+  function createRow(c) {
+    var tr = el('tr', { onClick: function() { openDetail(c.id); } });
+    tr.appendChild(el('td', null, c.name || '-'));
+    tr.appendChild(el('td', null, c.domain || '-'));
+
+    var statusTd = el('td');
+    if (c.status) {
+      statusTd.appendChild(el('span', { className: 'status-badge ' + statusClass(c.status) }, c.status));
+    } else {
+      statusTd.textContent = '-';
+    }
+    tr.appendChild(statusTd);
+
+    var tierTd = el('td');
+    if (c.tier) {
+      var tc = tierClass(c.tier);
+      tierTd.appendChild(el('span', { className: 'tier-badge ' + tc }, c.tier.replace(/ - .*/, '')));
+    } else {
+      tierTd.textContent = '-';
+    }
+    tr.appendChild(tierTd);
+
+    tr.appendChild(el('td', null, c.owner_name || '-'));
+    tr.appendChild(el('td', null, c.batch_name || '-'));
+    tr.appendChild(el('td', null, c.industry || '-'));
+    tr.appendChild(el('td', null, c.hq_country || '-'));
+    tr.appendChild(el('td', null, c.triage_score != null ? String(c.triage_score) : '-'));
+    tr.appendChild(el('td', null, String(c.contact_count)));
+    return tr;
+  }
+
+  function spacerRow(height) {
+    var tr = document.createElement('tr');
+    tr.style.height = height + 'px';
+    var td = document.createElement('td');
+    td.colSpan = 10;
+    td.style.padding = '0';
+    td.style.border = 'none';
+    td.style.lineHeight = '0';
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function renderWindow() {
+    if (state.items.length === 0) return;
+    var container = $('#scroll_container');
+    var scrollTop = container.scrollTop;
+    var viewportH = container.clientHeight;
+
+    var start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER);
+    var end = Math.min(state.items.length, Math.ceil((scrollTop + viewportH) / ROW_HEIGHT) + BUFFER);
+
+    if (start === visibleRange.start && end === visibleRange.end) return;
+    visibleRange = { start: start, end: end };
+
+    var tbody = $('#table_body');
+    tbody.textContent = '';
+
+    if (start > 0) tbody.appendChild(spacerRow(start * ROW_HEIGHT));
+
+    for (var i = start; i < end; i++) {
+      tbody.appendChild(createRow(state.items[i]));
+    }
+
+    if (end < state.items.length) tbody.appendChild(spacerRow((state.items.length - end) * ROW_HEIGHT));
+  }
+
+  function onScroll() {
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(function() {
+        rafPending = false;
+        renderWindow();
+      });
+    }
+  }
+
+  // ---- Fetch companies (append to state.items) ----
+  function loadMore() {
+    if (state.isLoading || !state.hasMore) return;
+    state.isLoading = true;
+
+    var params = [];
+    params.push('page=' + state.page);
+    params.push('page_size=' + state.pageSize);
+    params.push('sort=' + encodeURIComponent(state.sort));
+    params.push('sort_dir=' + encodeURIComponent(state.sortDir));
+
+    var search = $('#filter_search').value.trim();
+    if (search) params.push('search=' + encodeURIComponent(search));
+    var status = $('#filter_status').value;
+    if (status) params.push('status=' + encodeURIComponent(status));
+    var tier = $('#filter_tier').value;
+    if (tier) params.push('tier=' + encodeURIComponent(tier));
+    var batch = $('#filter_batch').value;
+    if (batch) params.push('batch_name=' + encodeURIComponent(batch));
+    var owner = $('#filter_owner').value;
+    if (owner) params.push('owner_name=' + encodeURIComponent(owner));
+
+    save('co_filter_search', search);
+    save('co_filter_status', status);
+    save('co_filter_tier', tier);
+    save('co_filter_batch', batch);
+    save('co_filter_owner', owner);
+
+    var sentinel = $('#scroll_sentinel');
+    if (state.page === 1) {
+      $('#table_body').innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;"><span class="loading-sm"></span> Loading...</td></tr>';
+    } else {
+      sentinel.innerHTML = '<div class="scroll-loader"><span class="loading-sm"></span></div>';
+    }
+
+    apiFetch(API_BASE + '/companies?' + params.join('&')).then(function(data) {
+      state.total = data.total;
+
+      if (data.companies.length === 0 && state.page === 1) {
+        $('#table_body').innerHTML = '<tr><td colspan="10" class="empty-state"><div class="big">&#127970;</div>No companies match your filters.</td></tr>';
+        state.hasMore = false;
+      } else {
+        state.items = state.items.concat(data.companies);
+        state.page++;
+        state.hasMore = state.items.length < data.total;
+        visibleRange = { start: 0, end: 0 };
+        renderWindow();
+      }
+
+      updateScrollStatus();
+      sentinel.innerHTML = state.hasMore ? '' : (state.items.length > 0 ? '<div class="scroll-end">All companies loaded</div>' : '');
+      state.isLoading = false;
+    }).catch(function(err) {
+      if (state.page === 1) {
+        $('#table_body').innerHTML = '<tr><td colspan="10" class="empty-state">Error: ' + err.message + '</td></tr>';
+      }
+      sentinel.innerHTML = '';
+      state.isLoading = false;
+    });
+  }
+
+  function resetAndLoad() {
+    state.page = 1;
+    state.items = [];
+    state.hasMore = true;
+    visibleRange = { start: 0, end: 0 };
+    $('#table_body').textContent = '';
+    $('#scroll_container').scrollTop = 0;
+    loadMore();
+  }
+
+  // ---- Sorting ----
+  function setupSorting() {
+    var ths = document.querySelectorAll('.data-table th[data-sort]');
+    ths.forEach(function(th) {
+      th.addEventListener('click', function() {
+        var col = th.getAttribute('data-sort');
+        if (state.sort === col) {
+          state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sort = col;
+          state.sortDir = 'asc';
+        }
+        updateSortArrows();
+        resetAndLoad();
+      });
+    });
+  }
+
+  function updateSortArrows() {
+    var ths = document.querySelectorAll('.data-table th[data-sort]');
+    ths.forEach(function(th) {
+      var arrow = th.querySelector('.sort-arrow');
+      var col = th.getAttribute('data-sort');
+      if (col === state.sort) {
+        arrow.textContent = state.sortDir === 'asc' ? '\u25B2' : '\u25BC';
+      } else {
+        arrow.textContent = '';
+      }
+    });
+  }
+
+  // ---- Detail modal ----
+  function openDetail(companyId) {
+    var body = $('#modal_body');
+    body.innerHTML = '<div style="text-align:center;padding:40px;"><span class="loading-sm"></span> Loading...</div>';
+    showModal();
+
+    apiFetch(API_BASE + '/companies/' + companyId).then(function(c) {
+      $('#modal_title').textContent = c.name || 'Company Detail';
+      renderDetail(c);
+    }).catch(function(err) {
+      body.innerHTML = '<div class="empty-state">Error loading company: ' + err.message + '</div>';
+    });
+  }
+
+  function renderDetail(c) {
+    var body = $('#modal_body');
+    body.textContent = '';
+
+    // Header section
+    var header = el('div', { className: 'detail-section' });
+    var headerGrid = el('div', { className: 'detail-grid' });
+    headerGrid.appendChild(field('Name', c.name));
+    headerGrid.appendChild(field('Domain', c.domain, true));
+    headerGrid.appendChild(fieldBadge('Status', c.status, 'status-badge ' + statusClass(c.status)));
+    headerGrid.appendChild(fieldBadge('Tier', c.tier, 'tier-badge ' + tierClass(c.tier)));
+    headerGrid.appendChild(field('Owner', c.owner_name));
+    headerGrid.appendChild(field('Batch', c.batch_name));
+    header.appendChild(headerGrid);
+    body.appendChild(header);
+
+    // Classification
+    var classif = section('Classification');
+    var cg = el('div', { className: 'detail-grid' });
+    cg.appendChild(field('Business Model', c.business_model));
+    cg.appendChild(field('Company Size', c.company_size));
+    cg.appendChild(field('Ownership', c.ownership_type));
+    cg.appendChild(field('Geo Region', c.geo_region));
+    cg.appendChild(field('Industry', c.industry));
+    cg.appendChild(field('Industry Category', c.industry_category));
+    cg.appendChild(field('Revenue Range', c.revenue_range));
+    cg.appendChild(field('Business Type', c.business_type));
+    classif.appendChild(cg);
+    body.appendChild(classif);
+
+    // Pipeline
+    var pipeline = section('Pipeline');
+    var pg = el('div', { className: 'detail-grid' });
+    pg.appendChild(editableSelect('Buying Stage', 'buying_stage', c.buying_stage, ['', 'Unaware', 'Problem Aware', 'Exploring AI', 'Looking for Partners', 'In Discussion', 'Proposal Sent', 'Won', 'Lost']));
+    pg.appendChild(editableSelect('Engagement', 'engagement_status', c.engagement_status, ['', 'Cold', 'Approached', 'Prospect', 'Customer', 'Churned']));
+    pg.appendChild(editableSelect('CRM Status', 'crm_status', c.crm_status, ['', 'Cold', 'Scheduled for Outreach', 'Outreach', 'Prospect', 'Customer', 'Churn']));
+    pg.appendChild(field('AI Adoption', c.ai_adoption));
+    pg.appendChild(editableSelect('Cohort', 'cohort', c.cohort, ['', 'A', 'B']));
+    pipeline.appendChild(pg);
+    body.appendChild(pipeline);
+
+    // Scores
+    var scores = section('Scores');
+    var sg = el('div', { className: 'detail-grid' });
+    sg.appendChild(field('Triage Score', c.triage_score));
+    sg.appendChild(field('Pre Score', c.pre_score));
+    sg.appendChild(field('Revenue (EUR M)', c.verified_revenue_eur_m));
+    sg.appendChild(field('Employees', c.verified_employees));
+    sg.appendChild(field('Enrichment Cost', c.enrichment_cost_usd != null ? '$' + c.enrichment_cost_usd.toFixed(4) : null));
+    scores.appendChild(sg);
+    body.appendChild(scores);
+
+    // Location
+    var loc = section('Location');
+    var lg = el('div', { className: 'detail-grid' });
+    lg.appendChild(field('HQ City', c.hq_city));
+    lg.appendChild(field('HQ Country', c.hq_country));
+    loc.appendChild(lg);
+    body.appendChild(loc);
+
+    // Summary & Notes (editable)
+    var notes = section('Summary & Notes');
+    var ng = el('div', { className: 'detail-grid' });
+    ng.appendChild(fieldText('Summary', 'summary', c.summary, true));
+    ng.appendChild(fieldText('Notes', 'notes', c.notes));
+    ng.appendChild(fieldText('Triage Notes', 'triage_notes', c.triage_notes));
+    notes.appendChild(ng);
+    body.appendChild(notes);
+
+    // Save button
+    var saveRow = el('div', { style: { display: 'flex', gap: '8px', marginBottom: '24px' } });
+    var saveBtn = el('button', { className: 'btn btn-sm btn-success', id: 'save_company_btn', onClick: function() { saveCompany(c.id); } }, 'Save Changes');
+    var saveStatus = el('span', { id: 'save_status', style: { alignSelf: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' } });
+    saveRow.appendChild(saveBtn);
+    saveRow.appendChild(saveStatus);
+    body.appendChild(saveRow);
+
+    // L2 Enrichment (collapsible)
+    if (c.enrichment_l2) {
+      var l2 = section('L2 Enrichment', true);
+      var l2Content = el('div', { className: 'l2-content', style: { display: 'none' } });
+      var l2Fields = [
+        'company_intel', 'recent_news', 'ai_opportunities', 'pain_hypothesis',
+        'relevant_case_study', 'digital_initiatives', 'leadership_changes',
+        'hiring_signals', 'key_products', 'customer_segments', 'competitors',
+        'tech_stack', 'funding_history', 'eu_grants', 'leadership_team',
+        'ai_hiring', 'tech_partnerships', 'certifications',
+        'industry_pain_points', 'cross_functional_pain', 'adoption_barriers',
+        'competitor_ai_moves'
+      ];
+      l2Fields.forEach(function(f) {
+        var val = c.enrichment_l2[f];
+        if (val) {
+          var block = el('div', { className: 'l2-block' });
+          block.appendChild(el('label', null, f.replace(/_/g, ' ')));
+          block.appendChild(el('div', { className: 'l2-text' }, typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val)));
+          l2Content.appendChild(block);
+        }
+      });
+      if (c.enrichment_l2.enriched_at) {
+        l2Content.appendChild(el('div', { style: { fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' } },
+          'Enriched: ' + new Date(c.enrichment_l2.enriched_at).toLocaleDateString() +
+          (c.enrichment_l2.enrichment_cost_usd != null ? ' | Cost: $' + c.enrichment_l2.enrichment_cost_usd.toFixed(4) : '')));
+      }
+      l2.appendChild(l2Content);
+      body.appendChild(l2);
+
+      // Toggle
+      l2.querySelector('.detail-section-title').addEventListener('click', function() {
+        var content = l2.querySelector('.l2-content');
+        var chev = l2.querySelector('.chevron');
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          if (chev) chev.classList.remove('collapsed');
+        } else {
+          content.style.display = 'none';
+          if (chev) chev.classList.add('collapsed');
+        }
+      });
+    }
+
+    // Tags
+    if (c.tags && c.tags.length > 0) {
+      var tags = section('Tags');
+      var grouped = {};
+      c.tags.forEach(function(t) {
+        if (!grouped[t.category]) grouped[t.category] = [];
+        grouped[t.category].push(t.value);
+      });
+      Object.keys(grouped).sort().forEach(function(cat) {
+        tags.appendChild(el('div', { className: 'tag-category' }, cat.replace(/_/g, ' ')));
+        var chips = el('div', { className: 'tag-chips', style: { marginBottom: '10px' } });
+        grouped[cat].forEach(function(v) {
+          chips.appendChild(el('span', { className: 'tag-chip' }, v));
+        });
+        tags.appendChild(chips);
+      });
+      body.appendChild(tags);
+    }
+
+    // Contacts mini-table
+    if (c.contacts && c.contacts.length > 0) {
+      var contactsSec = section('Contacts (' + c.contacts.length + ')');
+      var table = el('table', { className: 'mini-table' });
+      var thead = el('thead');
+      var hrow = el('tr');
+      ['Name', 'Title', 'Email', 'Score', 'ICP Fit'].forEach(function(h) { hrow.appendChild(el('th', null, h)); });
+      thead.appendChild(hrow);
+      table.appendChild(thead);
+      var mtbody = el('tbody');
+      c.contacts.forEach(function(ct) {
+        var tr = el('tr', { onClick: function() {
+          var ns = LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '';
+          var prefix = ns ? '/' + ns + '/' : '';
+          window.location.href = prefix + 'contacts?open=' + ct.id;
+        }});
+        tr.appendChild(el('td', null, ct.full_name || '-'));
+        tr.appendChild(el('td', null, ct.job_title || '-'));
+        tr.appendChild(el('td', null, ct.email_address || '-'));
+        tr.appendChild(el('td', null, ct.contact_score != null ? String(ct.contact_score) : '-'));
+        tr.appendChild(el('td', null, ct.icp_fit || '-'));
+        mtbody.appendChild(tr);
+      });
+      table.appendChild(mtbody);
+      contactsSec.appendChild(table);
+      body.appendChild(contactsSec);
+    }
+
+    // Error/flags
+    if (c.error_message) {
+      var errSec = section('Error');
+      errSec.appendChild(el('div', { style: { color: 'var(--error)', fontSize: '0.85rem' } }, c.error_message));
+      body.appendChild(errSec);
+    }
+
+    // Timestamps
+    var meta = el('div', { style: { fontSize: '0.75rem', color: 'var(--text-dim)', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '8px' } });
+    if (c.created_at) meta.appendChild(el('div', null, 'Created: ' + new Date(c.created_at).toLocaleString()));
+    if (c.updated_at) meta.appendChild(el('div', null, 'Updated: ' + new Date(c.updated_at).toLocaleString()));
+    body.appendChild(meta);
+  }
+
+  // ---- Helpers for detail rendering ----
+  function field(label, value, isLink) {
+    var div = el('div', { className: 'detail-field' });
+    div.appendChild(el('label', null, label));
+    if (isLink && value) {
+      var a = el('a', { href: value.indexOf('://') === -1 ? 'https://' + value : value, target: '_blank', style: { color: 'var(--accent-cyan)', fontSize: '0.88rem' } }, value);
+      div.appendChild(a);
+    } else {
+      var span = el('div', { className: 'value' + (value == null || value === '' ? ' empty' : '') }, value != null && value !== '' ? String(value) : '-');
+      div.appendChild(span);
+    }
+    return div;
+  }
+
+  function fieldBadge(label, value, badgeClass) {
+    var div = el('div', { className: 'detail-field' });
+    div.appendChild(el('label', null, label));
+    if (value) {
+      div.appendChild(el('span', { className: badgeClass }, value));
+    } else {
+      div.appendChild(el('div', { className: 'value empty' }, '-'));
+    }
+    return div;
+  }
+
+  function fieldText(label, name, value) {
+    var div = el('div', { className: 'detail-field full' });
+    div.appendChild(el('label', null, label));
+    var ta = el('textarea', { 'data-field': name });
+    ta.value = value || '';
+    div.appendChild(ta);
+    return div;
+  }
+
+  function editableSelect(label, name, value, options) {
+    var div = el('div', { className: 'detail-field' });
+    div.appendChild(el('label', null, label));
+    var sel = el('select', { 'data-field': name });
+    options.forEach(function(o) {
+      var opt = el('option', { value: o }, o || '(none)');
+      if (o === value) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    div.appendChild(sel);
+    return div;
+  }
+
+  function section(title, collapsible) {
+    var div = el('div', { className: 'detail-section' });
+    var titleEl = el('div', { className: 'detail-section-title' }, title);
+    if (collapsible) {
+      titleEl.appendChild(el('span', { className: 'chevron collapsed' }, '\u25BC'));
+    }
+    div.appendChild(titleEl);
+    return div;
+  }
+
+  // ---- Save company ----
+  function saveCompany(companyId) {
+    var fields = {};
+    // Collect editable selects
+    var selects = document.querySelectorAll('#modal_body select[data-field]');
+    selects.forEach(function(sel) {
+      var name = sel.getAttribute('data-field');
+      var val = sel.value;
+      fields[name] = val || null;
+    });
+    // Collect textareas
+    var textareas = document.querySelectorAll('#modal_body textarea[data-field]');
+    textareas.forEach(function(ta) {
+      var name = ta.getAttribute('data-field');
+      fields[name] = ta.value || null;
+    });
+
+    // Map display values back to DB enum values for selects
+    var reverseMap = {
+      buying_stage: { 'Unaware': 'unaware', 'Problem Aware': 'problem_aware', 'Exploring AI': 'exploring_ai', 'Looking for Partners': 'looking_for_partners', 'In Discussion': 'in_discussion', 'Proposal Sent': 'proposal_sent', 'Won': 'won', 'Lost': 'lost' },
+      engagement_status: { 'Cold': 'cold', 'Approached': 'approached', 'Prospect': 'prospect', 'Customer': 'customer', 'Churned': 'churned' },
+      crm_status: { 'Cold': 'cold', 'Scheduled for Outreach': 'scheduled_for_outreach', 'Outreach': 'outreach', 'Prospect': 'prospect', 'Customer': 'customer', 'Churn': 'churn' },
+      cohort: { 'A': 'a', 'B': 'b' }
+    };
+
+    Object.keys(reverseMap).forEach(function(k) {
+      if (fields[k] && reverseMap[k][fields[k]]) {
+        fields[k] = reverseMap[k][fields[k]];
+      }
+    });
+
+    var statusEl = $('#save_status');
+    statusEl.textContent = 'Saving...';
+    var btn = $('#save_company_btn');
+    btn.disabled = true;
+
+    apiFetch(API_BASE + '/companies/' + companyId, {
+      method: 'PATCH',
+      body: JSON.stringify(fields)
+    }).then(function() {
+      statusEl.textContent = '';
+      showToast('Company updated', 'success');
+      resetAndLoad();
+    }).catch(function(err) {
+      statusEl.textContent = '';
+      showToast('Error: ' + err.message, 'error');
+    }).finally(function() {
+      btn.disabled = false;
+    });
+  }
+
+  // ---- Modal show/hide ----
+  function showModal() { $('#modal_overlay').classList.add('open'); }
+  function hideModal() { $('#modal_overlay').classList.remove('open'); }
+
+  // ---- Filter change handlers ----
+  function setupFilters() {
+    var debounceTimer;
+    $('#filter_search').addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function() { resetAndLoad(); }, 400);
+    });
+    ['filter_status', 'filter_tier', 'filter_batch', 'filter_owner'].forEach(function(id) {
+      $('#' + id).addEventListener('change', function() { resetAndLoad(); });
+    });
+  }
+
+  // ---- Init ----
+  function initCompanies() {
+    setupSorting();
+    updateSortArrows();
+    setupFilters();
+    loadFilterOptions();
+
+    $('#modal_close').addEventListener('click', hideModal);
+    $('#modal_overlay').addEventListener('click', function(e) {
+      if (e.target === $('#modal_overlay')) hideModal();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') hideModal();
+    });
+
+    // Virtual scroll + infinite load
+    var scrollContainer = $('#scroll_container');
+    var sentinel = $('#scroll_sentinel');
+    scrollContainer.addEventListener('scroll', onScroll);
+    var observer = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting && !state.isLoading && state.hasMore) {
+        loadMore();
+      }
+    }, { root: scrollContainer, rootMargin: '200px' });
+    observer.observe(sentinel);
+
+    // Auto-open from query param
+    var params = new URLSearchParams(window.location.search);
+    var openId = params.get('open');
+    if (openId) {
+      setTimeout(function() { openDetail(openId); }, 500);
+    }
+  }
+
+  function init() {
+    LeadgenAuth.init(initCompanies);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

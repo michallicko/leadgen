@@ -330,6 +330,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 .pipe-node__progress-fill.l1 { background: var(--l1-color); }
 .pipe-node__progress-fill.l2 { background: var(--l2-color); }
 .pipe-node__progress-fill.person { background: var(--person-color); }
+.pipe-node__progress-fill.generate { background: var(--outreach-color); }
 .pipe-node__progress-fill.animated {
   background-image: linear-gradient(-45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%);
   background-size: 20px 20px; animation: barberpole 0.8s linear infinite;
@@ -341,15 +342,61 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 
 @keyframes barberpole { 0% { background-position: 0 0; } 100% { background-position: 20px 0; } }
 
-/* Skip badge */
-.pipe-node__skip-badge {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  font-size: 0.6rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--text-muted); background: var(--surface);
-  padding: 2px 10px; border-radius: 4px;
+/* Run button on pipeline nodes */
+.pipe-node__run-btn {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid var(--text-dim); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; margin-left: auto; flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  padding: 0;
 }
+.pipe-node__run-btn:hover { border-color: var(--text); background: rgba(255,255,255,0.06); }
+.pipe-node__run-btn svg { width: 10px; height: 10px; }
+.pipe-node__run-btn .run-play { color: var(--text-muted); }
+.pipe-node__run-btn .run-stop { color: var(--error); display: none; }
+.pipe-node__run-btn.is-running .run-play { display: none; }
+.pipe-node__run-btn.is-running .run-stop { display: flex; }
+.pipe-node__run-btn.is-running { border-color: var(--error); animation: btn-pulse 1.5s ease-in-out infinite; }
+.pipe-node__run-btn.is-unavailable { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+
+/* Stage-specific run button colors */
+.pipe-node[data-stage="l1"] .pipe-node__run-btn:hover { border-color: var(--l1-color); box-shadow: 0 0 8px rgba(0,184,207,0.3); }
+.pipe-node[data-stage="l2"] .pipe-node__run-btn:hover { border-color: var(--l2-color); box-shadow: 0 0 8px rgba(52,211,153,0.3); }
+.pipe-node[data-stage="person"] .pipe-node__run-btn:hover { border-color: var(--person-color); box-shadow: 0 0 8px rgba(155,89,182,0.3); }
+.pipe-node[data-stage="generate"] .pipe-node__run-btn:hover { border-color: var(--outreach-color); box-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.pipe-node[data-stage="review"] .pipe-node__run-btn:hover { border-color: var(--review-color); box-shadow: 0 0 8px rgba(0,184,207,0.3); }
+
+@keyframes btn-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Run All / Stop All buttons */
+.pipeline-actions { display: flex; gap: 8px; align-items: center; }
+.pipeline-actions__btn {
+  font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
+  padding: 4px 12px; border-radius: 4px; border: 1px solid;
+  cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.pipeline-actions__btn--run {
+  background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3);
+}
+.pipeline-actions__btn--run:hover { background: rgba(52,211,153,0.22); border-color: var(--success); }
+.pipeline-actions__btn--stop {
+  background: rgba(248,113,113,0.12); color: var(--error); border-color: rgba(248,113,113,0.3);
+}
+.pipeline-actions__btn--stop:hover { background: rgba(248,113,113,0.22); border-color: var(--error); }
+.pipeline-actions__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pipeline-actions__btn svg { width: 10px; height: 10px; }
+
+/* Tier filter tags (inside triage node) */
+.pipe-node__tier-filter { padding: 2px 10px 6px; }
+.pipe-node__tier-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.pipe-node__tier-tag {
+  font-size: 0.58rem; font-weight: 600;
+  padding: 1px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.05); color: var(--text-dim);
+}
+.pipe-node__tier-tag--active { background: rgba(52,211,153,0.18); color: var(--l2-color); }
 
 /* Node states */
 .pipe-node.is-active { animation: node-pulse 2s ease-in-out infinite; }
@@ -358,12 +405,6 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   animation: led-blink 1.5s ease-in-out infinite;
 }
 .pipe-node.is-upcoming { opacity: 0.45; }
-.pipe-node.is-skipped {
-  opacity: 0.25; border-style: dashed; box-shadow: none;
-}
-.pipe-node.is-skipped .pipe-node__body,
-.pipe-node.is-skipped .pipe-node__qc,
-.pipe-node.is-skipped .pipe-node__divider { display: none; }
 
 @keyframes node-pulse {
   0%,100% { box-shadow: 0 0 12px rgba(110,44,139,0.2); }
@@ -374,17 +415,19 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 /* Pipe Connectors */
 .pipe-connector {
   flex: 0 0 auto; width: 60px;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  min-height: 70px; position: relative;
-  align-self: flex-start; margin-top: 28px;
+  position: relative;
+  align-self: flex-start;
+  min-height: 56px;
 }
 .pipe-connector__badge {
+  position: absolute; top: 2px; left: 50%;
+  transform: translateX(-50%);
   font-size: 0.72rem; font-weight: 700; color: var(--text);
-  font-variant-numeric: tabular-nums; margin-bottom: 3px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .pipe-connector__track-wrap {
-  width: 100%; display: flex; align-items: center;
+  position: absolute; top: 22px; left: 0; right: 0;
+  display: flex; align-items: center;
 }
 .pipe-connector__track {
   flex: 1; height: 3px; position: relative;
@@ -419,8 +462,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 .pipe-connector__arrow--active { border-left: 7px solid var(--accent); }
 
 .pipe-connector__domain {
+  position: absolute; top: 34px; left: 50%;
+  transform: translateX(-50%);
   font-size: 0.55rem; color: var(--text-muted);
-  margin-top: 3px; white-space: nowrap;
+  white-space: nowrap;
 }
 .pipe-connector--domain-switch .pipe-connector__track--completed { background: var(--accent); height: 4px; }
 .pipe-connector--domain-switch .pipe-connector__arrow--completed { border-left-color: var(--accent); }
@@ -447,6 +492,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 @media (max-width: 900px) {
   .pipe-flow { flex-wrap: wrap; justify-content: center; gap: 4px; padding-bottom: 70px; }
   .pipe-connector { width: 36px; min-height: 40px; }
+  .pipe-connector__track-wrap { top: 18px; }
   .pipe-connector__domain { display: none; }
   .pipe-node { width: 120px; }
   .pipe-node--terminal { width: 85px; }
@@ -599,6 +645,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     </div>
     <div class="top-nav__links">
       <a href="index.html" class="top-nav__link active">Pipeline</a>
+      <a href="companies.html" class="top-nav__link">Companies</a>
+      <a href="contacts.html" class="top-nav__link">Contacts</a>
       <a href="messages.html" class="top-nav__link">Messages</a>
       <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
     </div>
@@ -636,24 +684,9 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
           <label><input type="checkbox" name="tier" value="Tier 5"> T5</label>
         </div>
       </div>
-      <div class="form-row">
-        <label>Stages</label>
-        <div class="inline-group" style="margin-top:4px;">
-          <label><input type="checkbox" name="stage" value="l1" checked> L1</label>
-          <label><input type="checkbox" name="stage" value="l2" checked> L2</label>
-          <label><input type="checkbox" name="stage" value="person" checked> Person</label>
-        </div>
-      </div>
       <div class="form-row full">
         <label for="job_title">Job Title Filter</label>
         <input type="text" id="job_title" placeholder="CEO, CTO, VP Engineering (comma-separated, contains match)">
-      </div>
-      <div class="form-row full">
-        <div class="trigger-actions">
-          <button class="btn btn-primary" id="start_btn" onclick="startEnrichment()">Start Enrichment</button>
-          <button class="btn btn-sm" id="apply_btn" style="background:var(--surface-alt); color:var(--text);" onclick="applyFilters()">Apply Filters</button>
-          <span id="trigger_status" style="font-size:0.85rem; color:var(--text-muted);"></span>
-        </div>
       </div>
     </div>
   </div>
@@ -662,7 +695,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   <div class="card" id="model_card">
     <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
       Pipeline Model
-      <span id="model_loading" style="display:none;"><span class="loading-sm"></span></span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="pipeline-actions" id="pipeline_actions" data-min-role="editor"></div>
+        <span id="model_loading" style="display:none;"><span class="loading-sm"></span></span>
+      </div>
     </div>
     <div id="pipeline_model">
       <div class="model-placeholder">Select a batch to view the pipeline</div>
@@ -733,6 +769,11 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   let ownerData = [];
   let cachedStats = null;
   let activeProgress = null; // most recent running progress
+  let stageStatus = {};       // per-stage status from Flask API {l1: {status,done,total,...}, ...}
+  let stagePollTimer = null;
+  var AVAILABLE_STAGES = { l1: true, l2: true, person: true, generate: true };
+  var COMING_SOON_STAGES = { review: true };
+  var activePipelineRun = null; // {run_id, status} from status endpoint
 
   // ---- SVG Icon System ----
   const NS = 'http://www.w3.org/2000/svg';
@@ -784,22 +825,27 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     alert: (w,h) => { const s = svgEl(w||12, h||12, [
       svgPath('M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'),
       svgLine(12,9,12,13), svgLine(12,17,12.01,17)
-    ]); return s; }
+    ]); return s; },
+    play: (w,h) => { const s = svgEl(w||10, h||10, [svgPath('M5 3l14 9-14 9V3z')]); s.setAttribute('fill','currentColor'); s.setAttribute('stroke','none'); return s; },
+    stop: (w,h) => { const s = svgEl(w||10, h||10, []); const r = document.createElementNS(NS,'rect'); r.setAttribute('x','4'); r.setAttribute('y','4'); r.setAttribute('width','16'); r.setAttribute('height','16'); r.setAttribute('rx','2'); r.setAttribute('fill','currentColor'); s.appendChild(r); s.setAttribute('stroke','none'); return s; }
   };
 
   // ---- Pipeline Stage Configuration ----
   function computePipelineData(stats) {
     const sc = stats.status_counts || {};
+    const scf = stats.status_counts_filtered || sc;
     const ms = stats.message_status_counts || {};
     const contactsTotal = stats.contacts_total || 0;
     const companiesTotal = stats.companies_total || 0;
+    // Pre-L1 (unfiltered — tier is unknown before L1 runs)
     const l1New = sc['New'] || 0;
     const l1Failed = sc['Enrichment Failed'] || 0;
-    const l1NeedsReview = sc['Needs Review'] || sc['Triage: Review'] || 0;
-    const triagePassed = sc['Triage: Passed'] || 0;
-    const disqualified = sc['Triage: Disqualified'] || sc['Disqualified'] || 0;
-    const enrichedL2 = sc['Enriched L2'] || 0;
-    const l2Failed = sc['Enrichment L2 Failed'] || 0;
+    // Post-triage (tier-filtered)
+    const l1NeedsReview = scf['Needs Review'] || scf['Triage: Review'] || 0;
+    const triagePassed = scf['Triage: Passed'] || 0;
+    const disqualified = scf['Triage: Disqualified'] || scf['Disqualified'] || 0;
+    const enrichedL2 = scf['Enriched L2'] || 0;
+    const l2Failed = scf['Enrichment L2 Failed'] || 0;
     const l1Processed = companiesTotal - l1New;
     const l1PassedTriage = triagePassed + enrichedL2 + l2Failed;
     const contactsInEnrichedCos = stats.contacts_in_enriched_cos || 0;
@@ -823,86 +869,111 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     };
   }
 
-  const PIPELINE_STAGES = [
-    { id:'contacts', label:'CONTACTS', type:'terminal', icon:'people',
-      metrics: d => [{color:'#5A6170',count:d.contactsTotal,label:'contacts'}],
-      qc:null, dropoff:()=>[] },
-    { edge:true, count:d=>d.companiesTotal, domainSwitch:true, domainLabel:'companies' },
-    { id:'l1', label:'L1 ENRICH', type:'processor', icon:'gear',
-      metrics: d => [
+  var STAGE_NODES = {
+    contacts: { id:'contacts', label:'CONTACTS', type:'terminal', icon:'people',
+      metrics: function(d){ return [{color:'#5A6170',count:d.contactsTotal,label:'contacts'}]; },
+      qc:null, dropoff:function(){return [];} },
+    l1: { id:'l1', label:'L1 ENRICH', type:'processor', icon:'gear',
+      metrics: function(d){ return [
         {color:'#00B8CF',count:d.l1Processed,label:'processed'},
         {color:'#F87171',count:d.l1Failed,label:'failed'},
         {color:'#5A6170',count:d.l1New,label:'waiting'}
-      ],
-      qc:null, dropoff:()=>[] },
-    { edge:true, count:d=>d.l1Processed, domainSwitch:false, domainLabel:null },
-    { id:'triage', label:'TRIAGE', type:'gate', icon:'funnel',
-      metrics: d => [
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    triage: { id:'triage', label:'TRIAGE', type:'gate', icon:'funnel',
+      metrics: function(d){ return [
         {type:'pass',color:'var(--qc-pass)',count:d.l1PassedTriage,label:'passed',useIcon:true},
         {type:'fail',color:'var(--qc-fail)',count:d.disqualified,label:'disqualified',useIcon:true},
         {type:'review',color:'var(--qc-review)',count:d.l1NeedsReview,label:'review',useIcon:true}
-      ],
+      ]; },
       qc:null,
-      dropoff: d => {
-        const r=[];
+      dropoff: function(d) {
+        var r=[];
         if(d.disqualified>0)r.push({type:'fail',count:d.disqualified,label:'disq'});
         if(d.l1NeedsReview>0)r.push({type:'review',count:d.l1NeedsReview,label:'review'});
         return r;
-      }
-    },
-    { edge:true, count:d=>d.l1PassedTriage, domainSwitch:false, domainLabel:null },
-    { id:'l2', label:'L2 ENRICH', type:'processor', icon:'gear',
-      metrics: d => [
+      } },
+    l2: { id:'l2', label:'L2 ENRICH', type:'processor', icon:'gear',
+      metrics: function(d){ return [
         {color:'#34D399',count:d.l2Enriched,label:'enriched'},
         {color:'#5A6170',count:d.l2Waiting,label:'waiting'}
-      ],
-      qc:{ label:'QC CHECK', icon:'shield', rows: d => [
+      ]; },
+      qc:{ label:'QC CHECK', icon:'shield', rows: function(d){ return [
         {type:'pass',count:d.l2Enriched,label:'passed'},
         {type:'fail',count:d.l2Failed,label:'failed'}
-      ]},
-      dropoff: d => d.l2Failed>0 ? [{type:'fail',count:d.l2Failed,label:'failed'}] : []
-    },
-    { edge:true, count:d=>d.contactsInEnrichedCos, domainSwitch:true, domainLabel:'contacts' },
-    { id:'person', label:'PERSON', type:'processor', icon:'gear',
-      metrics: d => [
+      ]; }},
+      dropoff: function(d){ return d.l2Failed>0 ? [{type:'fail',count:d.l2Failed,label:'failed'}] : []; } },
+    person: { id:'person', label:'PERSON', type:'processor', icon:'gear',
+      metrics: function(d){ return [
         {color:'#9B59B6',count:d.personEnriched,label:'enriched'},
         {color:'#5A6170',count:d.personPending,label:'pending'}
-      ],
-      qc:null, dropoff:()=>[] },
-    { edge:true, count:d=>d.personEnriched, domainSwitch:false, domainLabel:null },
-    { id:'generate', label:'GENERATE', type:'processor', icon:'sparkle',
-      metrics: d => [
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    generate: { id:'generate', label:'GENERATE', type:'processor', icon:'sparkle',
+      metrics: function(d){ return [
         {color:'#F59E0B',count:d.msGenerated,label:'generated'},
         {color:'#5A6170',count:d.msGenerating,label:'generating'}
-      ],
-      qc:{ label:'AUTO QC', icon:'shield', rows: d => [
+      ]; },
+      qc:{ label:'AUTO QC', icon:'shield', rows: function(d){ return [
         {type:'pass',count:d.msGenerated,label:'passed QC'},
         {type:'fail',count:d.msFailed,label:'rejected'},
         {type:'review',count:d.msNoChannel,label:'no channel'}
-      ]},
-      dropoff: d => {
-        const r=[];
+      ]; }},
+      dropoff: function(d) {
+        var r=[];
         if(d.msFailed>0)r.push({type:'fail',count:d.msFailed,label:'rejected'});
         if(d.msNoChannel>0)r.push({type:'review',count:d.msNoChannel,label:'no channel'});
         return r;
-      }
-    },
-    { edge:true, count:d=>d.msGenerated, domainSwitch:false, domainLabel:null },
-    { id:'review', label:'REVIEW', type:'gate', icon:'eye',
-      metrics: d => [
+      } },
+    review: { id:'review', label:'REVIEW', type:'gate', icon:'eye',
+      metrics: function(d){ return [
         {color:'#00B8CF',count:d.rvApproved,label:'approved'},
         {color:'#FBBF24',count:d.rvPending,label:'pending'}
-      ],
-      qc:null, dropoff:()=>[] },
-    { edge:true, count:d=>d.rvApproved, domainSwitch:false, domainLabel:null },
-    { id:'ready', label:'READY', type:'terminal', icon:'rocket',
-      metrics: d => [
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    ready: { id:'ready', label:'READY', type:'terminal', icon:'rocket',
+      metrics: function(d){ return [
         {color:'#34D399',count:d.rdReady,label:'ready'},
         {color:'#00B8CF',count:d.rdSent,label:'sent'},
         {color:'#34D399',count:d.rdReplied,label:'replied'}
-      ],
-      qc:null, dropoff:()=>[] }
-  ];
+      ]; },
+      qc:null, dropoff:function(){return [];} }
+  };
+
+  var EDGE_MAP = {
+    'contacts->l1':      { count: function(d){return d.companiesTotal;},        domainSwitch: true,  domainLabel: 'companies' },
+    'contacts->triage':  { count: function(d){return d.companiesTotal;},        domainSwitch: true,  domainLabel: 'companies' },
+    'l1->triage':        { count: function(d){return d.l1Processed;},           domainSwitch: false, domainLabel: null },
+    'triage->l2':        { count: function(d){return d.l1PassedTriage;},        domainSwitch: false, domainLabel: null },
+    'triage->generate':  { count: function(d){return d.personEnriched;},        domainSwitch: true,  domainLabel: 'contacts' },
+    'l2->person':        { count: function(d){return d.contactsInEnrichedCos;}, domainSwitch: true,  domainLabel: 'contacts' },
+    'l2->generate':      { count: function(d){return d.contactsInEnrichedCos;}, domainSwitch: true,  domainLabel: 'contacts' },
+    'person->generate':  { count: function(d){return d.personEnriched;},        domainSwitch: false, domainLabel: null },
+    'generate->review':  { count: function(d){return d.msGenerated;},           domainSwitch: false, domainLabel: null },
+    'review->ready':     { count: function(d){return d.rvApproved;},            domainSwitch: false, domainLabel: null }
+  };
+
+  function buildActivePipeline(stages) {
+    var nodeOrder = ['contacts'];
+    if (!stages || stages.l1) nodeOrder.push('l1');
+    nodeOrder.push('triage');
+    if (!stages || stages.l2) nodeOrder.push('l2');
+    if (!stages || stages.person) nodeOrder.push('person');
+    nodeOrder.push('generate', 'review', 'ready');
+
+    var result = [];
+    for (var i = 0; i < nodeOrder.length; i++) {
+      if (i > 0) {
+        var edgeKey = nodeOrder[i-1] + '->' + nodeOrder[i];
+        var edgeCfg = EDGE_MAP[edgeKey];
+        if (edgeCfg) {
+          result.push({ edge:true, fromId:nodeOrder[i-1], toId:nodeOrder[i], count:edgeCfg.count, domainSwitch:edgeCfg.domainSwitch, domainLabel:edgeCfg.domainLabel });
+        }
+      }
+      result.push(STAGE_NODES[nodeOrder[i]]);
+    }
+    return result;
+  }
 
   const STAGE_ORDER = ['contacts','l1','triage','l2','person','generate','review','ready'];
 
@@ -927,38 +998,44 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   function getBatch() { return $('#batch_name').value || ''; }
   function getOwner() { return $('#owner_select').value || ''; }
   function getTiers() { return $$('input[name="tier"]:checked').map(c => c.value); }
-  function getStages() { const o = {}; $$('input[name="stage"]').forEach(c => { o[c.value] = c.checked; }); return o; }
+  function getStages() { return { l1: true, l2: true, person: true }; }
   function getJobTitle() { return ($('#job_title').value || '').trim(); }
+
+  // L2→Person dependency no longer needed (stages triggered per-node)
 
   // ---- Restore + persist form state ----
   function restoreState() {
     const tiers = load('tier_filter', ['Tier 2', 'Tier 3']);
     $$('input[name="tier"]').forEach(cb => { cb.checked = tiers.includes(cb.value); });
-    const stages = load('stages', { l1: true, l2: true, person: true });
-    $$('input[name="stage"]').forEach(cb => { cb.checked = stages[cb.value] !== false; });
     const apiKey = load('n8n_api_key', '');
     if (apiKey) $('#api_key').value = apiKey;
     const jt = load('job_title', '');
     if (jt) $('#job_title').value = jt;
   }
 
+  var _jobTitleTimer = null;
+
   function bindPersistence() {
     $('#batch_name').addEventListener('change', () => {
       save('batch_name', getBatch());
       updateBatchMeta();
       loadBatchStats();
+      stageStatus = {};
+      stopStagePoll();
+      if (getBatch()) startStagePoll();
     });
     $('#owner_select').addEventListener('change', () => {
       save('owner', getOwner());
       loadBatchStats();
     });
     $$('input[name="tier"]').forEach(cb => {
-      cb.addEventListener('change', () => { save('tier_filter', getTiers()); renderPipelineModel(); });
+      cb.addEventListener('change', () => { save('tier_filter', getTiers()); renderPipelineModel(); loadBatchStats(); });
     });
-    $$('input[name="stage"]').forEach(cb => {
-      cb.addEventListener('change', () => { save('stages', getStages()); renderPipelineModel(); });
+    $('#job_title').addEventListener('input', () => {
+      save('job_title', getJobTitle());
+      clearTimeout(_jobTitleTimer);
+      _jobTitleTimer = setTimeout(() => loadBatchStats(), 500);
     });
-    $('#job_title').addEventListener('input', () => save('job_title', getJobTitle()));
     $('#api_key').addEventListener('input', () => save('n8n_api_key', $('#api_key').value));
   }
 
@@ -1034,7 +1111,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
       const resp = await fetch(LEADGEN_API + '/batch-stats', {
         method: 'POST',
         headers: apiHeaders(),
-        body: JSON.stringify({ batch_name: batch, owner: owner }),
+        body: JSON.stringify({ batch_name: batch, owner: owner, tier_filter: getTiers() }),
         signal: statsAbort.signal
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1053,7 +1130,19 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 
   // ---- Pipeline Model Rendering (Control Room v4) ----
 
+  function getActiveStages() {
+    // Return set of stage IDs that are currently running (from Flask API status)
+    var active = {};
+    for (var sk in stageStatus) {
+      if (stageStatus[sk].status === 'running' || stageStatus[sk].status === 'stopping') {
+        active[sk] = true;
+      }
+    }
+    return active;
+  }
+
   function getActiveStage(prog) {
+    // Legacy: single active stage from n8n progress
     if (!prog || prog.status !== 'running') return null;
     if ((prog.l1_done||0) < (prog.l1_total||0)) return 'l1';
     if ((prog.l2_done||0) < (prog.l2_total||0)) return 'l2';
@@ -1062,6 +1151,15 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   }
 
   function getNodeState(stageId, activeStageId) {
+    // Check new multi-stage status first
+    var activeStages = getActiveStages();
+    if (Object.keys(activeStages).length > 0) {
+      if (activeStages[stageId]) return 'is-active';
+      var ss = stageStatus[stageId];
+      if (ss && (ss.status === 'completed' || ss.status === 'stopped')) return 'is-completed';
+      return '';
+    }
+    // Legacy single-stage fallback
     if (!activeStageId) return '';
     const si = STAGE_ORDER.indexOf(stageId);
     const ai = STAGE_ORDER.indexOf(activeStageId);
@@ -1070,11 +1168,21 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     return 'is-upcoming';
   }
 
-  function getPipeState(edgeIndex, activeStageId, edgeCount) {
+  function getPipeState(fromId, toId, activeStageId, edgeCount) {
+    // Check new multi-stage status first
+    var activeStages = getActiveStages();
+    if (Object.keys(activeStages).length > 0) {
+      var fromSs = stageStatus[fromId];
+      if (activeStages[fromId]) return 'active';
+      if (fromSs && (fromSs.status === 'completed' || fromSs.status === 'stopped')) return 'completed';
+      return edgeCount > 0 ? 'completed' : 'inactive';
+    }
+    // Legacy single-stage fallback
     if (!activeStageId) return edgeCount > 0 ? 'completed' : 'inactive';
-    const ai = STAGE_ORDER.indexOf(activeStageId);
-    if (edgeIndex < ai) return 'completed';
-    if (edgeIndex === ai) return 'active';
+    var ai = STAGE_ORDER.indexOf(activeStageId);
+    var fi = STAGE_ORDER.indexOf(fromId);
+    if (fi < ai) return 'completed';
+    if (fi === ai) return 'active';
     return 'inactive';
   }
 
@@ -1147,9 +1255,9 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   function buildNode(cfg, data, stages, activeStageId, prog) {
     var node = document.createElement('div');
     var typeClass = cfg.type === 'terminal' ? 'pipe-node--terminal' : cfg.type === 'gate' ? 'pipe-node--gate' : 'pipe-node--processor';
-    var skippable = ['l1','l2','person'];
-    var isSkipped = skippable.indexOf(cfg.id) >= 0 && stages && !stages[cfg.id];
-    var stateClass = isSkipped ? 'is-skipped' : getNodeState(cfg.id, activeStageId);
+    var ss = stageStatus[cfg.id];
+    var isRunning = ss && (ss.status === 'running' || ss.status === 'stopping');
+    var stateClass = isRunning ? 'is-active' : getNodeState(cfg.id, activeStageId);
 
     node.className = ['pipe-node', typeClass, stateClass].filter(Boolean).join(' ');
     node.setAttribute('data-stage', cfg.id);
@@ -1165,26 +1273,73 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     lbl.className = 'pipe-node__label';
     lbl.textContent = cfg.label;
     hdr.appendChild(lbl);
-    if (cfg.type === 'processor') {
-      var led = document.createElement('span');
-      led.className = 'pipe-node__led';
-      hdr.appendChild(led);
+
+    // Run button (for processor and gate nodes, not terminals)
+    if (cfg.type === 'processor' || cfg.type === 'gate') {
+      var showRunBtn = cfg.id !== 'triage'; // Triage is auto, no run button
+      if (showRunBtn) {
+        var runBtn = document.createElement('button');
+        runBtn.className = 'pipe-node__run-btn';
+        if (isRunning) runBtn.className += ' is-running';
+        if (COMING_SOON_STAGES[cfg.id]) runBtn.className += ' is-unavailable';
+        runBtn.setAttribute('data-stage', cfg.id);
+        runBtn.title = COMING_SOON_STAGES[cfg.id] ? 'Coming soon' : (isRunning ? 'Stop ' + cfg.label : 'Run ' + cfg.label);
+
+        var playIcon = document.createElement('span');
+        playIcon.className = 'run-play';
+        playIcon.appendChild(ICONS.play(10, 10));
+        runBtn.appendChild(playIcon);
+
+        var stopIcon = document.createElement('span');
+        stopIcon.className = 'run-stop';
+        stopIcon.appendChild(ICONS.stop(10, 10));
+        runBtn.appendChild(stopIcon);
+
+        runBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var stage = this.getAttribute('data-stage');
+          if (COMING_SOON_STAGES[stage]) return;
+          var info = stageStatus[stage];
+          if (info && (info.status === 'running' || info.status === 'stopping')) {
+            stopStage(info.run_id);
+          } else {
+            startStage(stage);
+          }
+        });
+        hdr.appendChild(runBtn);
+      } else {
+        // Triage: just show LED
+        var led = document.createElement('span');
+        led.className = 'pipe-node__led';
+        hdr.appendChild(led);
+      }
     }
     node.appendChild(hdr);
-
-    if (isSkipped) {
-      var skip = document.createElement('div');
-      skip.className = 'pipe-node__skip-badge';
-      skip.textContent = 'SKIPPED';
-      node.appendChild(skip);
-      return node;
-    }
 
     // Body
     var body = document.createElement('div');
     body.className = 'pipe-node__body';
     cfg.metrics(data).forEach(function(m) { body.appendChild(buildRow(m)); });
     node.appendChild(body);
+
+    // Tier tags for triage node
+    if (cfg.id === 'triage') {
+      var activeTiers = getTiers();
+      var allTiers = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'];
+      var tf = document.createElement('div');
+      tf.className = 'pipe-node__tier-filter';
+      var tags = document.createElement('div');
+      tags.className = 'pipe-node__tier-tags';
+      allTiers.forEach(function(t) {
+        var tag = document.createElement('span');
+        var isActive = activeTiers.indexOf(t) >= 0;
+        tag.className = 'pipe-node__tier-tag' + (isActive ? ' pipe-node__tier-tag--active' : '');
+        tag.textContent = t.replace('Tier ', 'T');
+        tags.appendChild(tag);
+      });
+      tf.appendChild(tags);
+      node.appendChild(tf);
+    }
 
     // QC section
     if (cfg.qc) {
@@ -1205,26 +1360,49 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
       node.appendChild(qc);
     }
 
-    // Progress bar
-    if (prog && activeStageId === cfg.id) {
+    // Per-node progress bar (from Flask API stage status)
+    if (ss && ss.total > 0 && (ss.status === 'running' || ss.status === 'stopping' || ss.status === 'completed' || ss.status === 'stopped' || ss.status === 'failed')) {
       var stageKey = cfg.id;
-      var done = prog[stageKey + '_done'] || 0;
-      var total = prog[stageKey + '_total'] || 0;
-      if (total > 0) {
-        var pg = document.createElement('div');
-        pg.className = 'pipe-node__progress';
-        var track = document.createElement('div');
-        track.className = 'pipe-node__progress-track';
-        var fill = document.createElement('div');
-        fill.className = 'pipe-node__progress-fill ' + stageKey + ' animated';
-        fill.style.width = Math.round((done / total) * 100) + '%';
-        track.appendChild(fill);
-        pg.appendChild(track);
-        node.appendChild(pg);
-        var txt = document.createElement('div');
-        txt.className = 'pipe-node__progress-text';
-        txt.textContent = done + ' / ' + total;
-        node.appendChild(txt);
+      var done = ss.done || 0;
+      var total = ss.total || 0;
+      var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      var pg = document.createElement('div');
+      pg.className = 'pipe-node__progress';
+      var track = document.createElement('div');
+      track.className = 'pipe-node__progress-track';
+      var fill = document.createElement('div');
+      fill.className = 'pipe-node__progress-fill ' + stageKey;
+      if (ss.status === 'running') fill.className += ' animated';
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      pg.appendChild(track);
+      node.appendChild(pg);
+      var txt = document.createElement('div');
+      txt.className = 'pipe-node__progress-text';
+      var costStr = ss.cost > 0 ? ' ($' + ss.cost.toFixed(3) + ')' : '';
+      txt.textContent = done + ' / ' + total + (ss.failed > 0 ? ' (' + ss.failed + ' failed)' : '') + costStr;
+      node.appendChild(txt);
+    }
+    // Legacy n8n progress (fallback for old orchestrator runs)
+    else if (prog && activeStageId === cfg.id) {
+      var stageKey2 = cfg.id;
+      var done2 = prog[stageKey2 + '_done'] || 0;
+      var total2 = prog[stageKey2 + '_total'] || 0;
+      if (total2 > 0) {
+        var pg2 = document.createElement('div');
+        pg2.className = 'pipe-node__progress';
+        var track2 = document.createElement('div');
+        track2.className = 'pipe-node__progress-track';
+        var fill2 = document.createElement('div');
+        fill2.className = 'pipe-node__progress-fill ' + stageKey2 + ' animated';
+        fill2.style.width = Math.round((done2 / total2) * 100) + '%';
+        track2.appendChild(fill2);
+        pg2.appendChild(track2);
+        node.appendChild(pg2);
+        var txt2 = document.createElement('div');
+        txt2.className = 'pipe-node__progress-text';
+        txt2.textContent = done2 + ' / ' + total2;
+        node.appendChild(txt2);
       }
     }
 
@@ -1237,7 +1415,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     return node;
   }
 
-  function buildConnector(edgeCfg, data, edgeIndex, activeStageId) {
+  function buildConnector(edgeCfg, data, activeStageId) {
     var conn = document.createElement('div');
     conn.className = 'pipe-connector' + (edgeCfg.domainSwitch ? ' pipe-connector--domain-switch' : '');
     var count = edgeCfg.count(data);
@@ -1249,7 +1427,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     conn.appendChild(badge);
 
     // Pipe state
-    var pState = getPipeState(edgeIndex, activeStageId, count);
+    var pState = getPipeState(edgeCfg.fromId, edgeCfg.toId, activeStageId, count);
 
     // Track + arrow wrapper
     var wrap = document.createElement('div');
@@ -1300,11 +1478,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
     var flow = document.createElement('div');
     flow.className = 'pipe-flow';
 
-    var edgeIndex = 0;
-    PIPELINE_STAGES.forEach(function(cfg) {
+    var pipelineStages = buildActivePipeline(stages);
+    pipelineStages.forEach(function(cfg) {
       if (cfg.edge) {
-        flow.appendChild(buildConnector(cfg, data, edgeIndex, activeStageId));
-        edgeIndex++;
+        flow.appendChild(buildConnector(cfg, data, activeStageId));
       } else {
         flow.appendChild(buildNode(cfg, data, stages, activeStageId, prog));
       }
@@ -1356,23 +1533,57 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
       container.appendChild(td);
     }
 
-    // ETA bar
-    var hasProgress = prog && prog.status === 'running';
-    if (hasProgress) {
-      var elapsed = prog.started_at ? (Date.now() - new Date(prog.started_at).getTime()) / 1000 : 0;
-      var totalItems = (prog.l1_total||0) + (prog.l2_total||0) + (prog.person_total||0);
-      var doneItems = (prog.l1_done||0) + (prog.l2_done||0) + (prog.person_done||0);
-      var pct = totalItems > 0 ? doneItems / totalItems : 0;
+    // ETA bar — aggregate across all running stages
+    var runningStages = [];
+    var aggregateDone = 0, aggregateTotal = 0, aggregateCost = 0, earliestStart = null;
+    for (var sk in stageStatus) {
+      var ss = stageStatus[sk];
+      if (ss.status === 'running' || ss.status === 'stopping') {
+        runningStages.push(ss);
+        aggregateDone += (ss.done || 0);
+        aggregateTotal += (ss.total || 0);
+        aggregateCost += (ss.cost || 0);
+        if (ss.started_at) {
+          var t = new Date(ss.started_at).getTime();
+          if (!earliestStart || t < earliestStart) earliestStart = t;
+        }
+      }
+    }
+    // Also include cost from completed stages in this session
+    if (activePipelineRun && activePipelineRun.cost) {
+      aggregateCost = Math.max(aggregateCost, activePipelineRun.cost);
+    }
+
+    if (runningStages.length > 0) {
+      var elapsed = earliestStart ? (Date.now() - earliestStart) / 1000 : 0;
+      var pct = aggregateTotal > 0 ? aggregateDone / aggregateTotal : 0;
       var etaSec = pct > 0.01 ? Math.round((elapsed / pct) * (1 - pct)) : null;
-      var costStr = typeof prog.cost === 'number' ? '$' + prog.cost.toFixed(3) : '--';
+      var costStr = '$' + aggregateCost.toFixed(3);
+      var stageLabel = runningStages.length > 1 ? runningStages.length + ' stages' : runningStages[0].run_id ? sk.toUpperCase() : '1 stage';
       var eta = document.createElement('div');
       eta.className = 'pipeline-eta';
       eta.id = 'pipeline_eta';
       eta.appendChild(crEtaItem('Elapsed:', fmtDur(elapsed), 'model_elapsed'));
       if (etaSec !== null) eta.appendChild(crEtaItem('ETA:', '~' + fmtDur(etaSec)));
-      eta.appendChild(crEtaItem('Progress:', Math.round(pct * 100) + '%'));
+      eta.appendChild(crEtaItem('Progress:', aggregateDone + '/' + aggregateTotal + ' (' + Math.round(pct * 100) + '%)'));
       eta.appendChild(crEtaItem('Cost:', costStr));
       container.appendChild(eta);
+    } else if (prog && prog.status === 'running') {
+      // Legacy n8n progress fallback
+      var elapsed2 = prog.started_at ? (Date.now() - new Date(prog.started_at).getTime()) / 1000 : 0;
+      var totalItems2 = (prog.l1_total||0) + (prog.l2_total||0) + (prog.person_total||0);
+      var doneItems2 = (prog.l1_done||0) + (prog.l2_done||0) + (prog.person_done||0);
+      var pct2 = totalItems2 > 0 ? doneItems2 / totalItems2 : 0;
+      var etaSec2 = pct2 > 0.01 ? Math.round((elapsed2 / pct2) * (1 - pct2)) : null;
+      var costStr2 = typeof prog.cost === 'number' ? '$' + prog.cost.toFixed(3) : '--';
+      var eta2 = document.createElement('div');
+      eta2.className = 'pipeline-eta';
+      eta2.id = 'pipeline_eta';
+      eta2.appendChild(crEtaItem('Elapsed:', fmtDur(elapsed2), 'model_elapsed'));
+      if (etaSec2 !== null) eta2.appendChild(crEtaItem('ETA:', '~' + fmtDur(etaSec2)));
+      eta2.appendChild(crEtaItem('Progress:', Math.round(pct2 * 100) + '%'));
+      eta2.appendChild(crEtaItem('Cost:', costStr2));
+      container.appendChild(eta2);
     }
   }
 
@@ -1406,49 +1617,200 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-  // ---- Apply Filters ----
-  window.applyFilters = function() {
-    loadBatchStats();
-  };
+  // ---- Per-Stage Start/Stop ----
+  async function startStage(stage) {
+    var batch = getBatch();
+    if (!batch) { showToast('Select a batch first.', 'error'); return; }
 
-  // ---- Trigger ----
-  window.startEnrichment = async function() {
-    const batch = getBatch();
-    if (!batch) { showToast('Select a batch.', 'error'); return; }
-    const tiers = getTiers();
-    if (tiers.length === 0) { showToast('Select at least one tier.', 'error'); return; }
-
-    const stages = getStages();
-    const btn = $('#start_btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Starting...';
-
-    const payload = {
+    var payload = {
+      stage: stage,
       batch_name: batch,
       owner: getOwner(),
-      tier_filter: tiers,
-      skip_l1: !stages.l1,
-      skip_l2: !stages.l2,
-      skip_person: !stages.person
+      tier_filter: getTiers()
     };
-    const jt = getJobTitle();
+    var jt = getJobTitle();
     if (jt) payload.job_title_filter = jt;
 
     try {
-      const resp = await fetch(WEBHOOK_BASE + '/enrich-pipeline-v2', {
+      var resp = await fetch(LEADGEN_API + '/pipeline/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders(),
         body: JSON.stringify(payload)
       });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text().catch(() => '')));
-      showToast('Pipeline started for "' + batch + '"', 'success');
-      startPolling();
+      var data = await resp.json();
+      if (!resp.ok) {
+        if (data.error && data.error.indexOf('No eligible') !== -1) {
+          showToast('All done! You have no new items to process.', 'success');
+          return;
+        }
+        throw new Error(data.error || 'HTTP ' + resp.status);
+      }
+      showToast(stage.toUpperCase() + ' started (' + data.total + ' items)', 'success');
+      startStagePoll();
     } catch (err) {
-      showToast('Failed: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = 'Start Enrichment';
+      showToast('Failed to start ' + stage.toUpperCase() + ': ' + err.message, 'error');
     }
+  }
+
+  async function stopStage(runId) {
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/stop', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ run_id: runId })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      showToast('Stop requested', 'info');
+    } catch (err) {
+      showToast('Failed to stop: ' + err.message, 'error');
+    }
+  }
+
+  // ---- Run All / Stop All ----
+  async function startRunAll() {
+    var batch = getBatch();
+    if (!batch) { showToast('Select a batch first.', 'error'); return; }
+
+    var payload = {
+      batch_name: batch,
+      owner: getOwner(),
+      tier_filter: getTiers()
+    };
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/run-all', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify(payload)
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      activePipelineRun = { run_id: data.pipeline_run_id, status: 'running', cost: 0 };
+      showToast('Pipeline started — all stages running', 'success');
+      startStagePoll();
+    } catch (err) {
+      showToast('Failed to start pipeline: ' + err.message, 'error');
+    }
+  }
+
+  async function stopRunAll() {
+    if (!activePipelineRun || !activePipelineRun.run_id) {
+      showToast('No active pipeline run to stop.', 'error');
+      return;
+    }
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/stop-all', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ pipeline_run_id: activePipelineRun.run_id })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      showToast('Pipeline stop requested — stages will finish current items', 'info');
+    } catch (err) {
+      showToast('Failed to stop pipeline: ' + err.message, 'error');
+    }
+  }
+
+  function updatePipelineActions() {
+    var container = $('#pipeline_actions');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    var anyRunning = Object.values(stageStatus).some(function(s) {
+      return s.status === 'running' || s.status === 'stopping' || s.status === 'pending';
+    });
+    var pipelineRunning = activePipelineRun && (activePipelineRun.status === 'running' || activePipelineRun.status === 'stopping');
+
+    if (pipelineRunning) {
+      var stopBtn = document.createElement('button');
+      stopBtn.className = 'pipeline-actions__btn pipeline-actions__btn--stop';
+      stopBtn.appendChild(ICONS.stop(10, 10));
+      stopBtn.appendChild(document.createTextNode('Stop All'));
+      if (activePipelineRun.status === 'stopping') {
+        stopBtn.disabled = true;
+        stopBtn.textContent = 'Stopping...';
+      }
+      stopBtn.addEventListener('click', stopRunAll);
+      container.appendChild(stopBtn);
+    } else {
+      var runBtn = document.createElement('button');
+      runBtn.className = 'pipeline-actions__btn pipeline-actions__btn--run';
+      runBtn.appendChild(ICONS.play(10, 10));
+      runBtn.appendChild(document.createTextNode('Run All'));
+      if (anyRunning) runBtn.disabled = true;
+      runBtn.addEventListener('click', startRunAll);
+      container.appendChild(runBtn);
+    }
+  }
+
+  // ---- Stage Status Polling (Flask API) ----
+  function startStagePoll() {
+    if (stagePollTimer) return;
+    pollStageStatus();
+    stagePollTimer = setInterval(pollStageStatus, 5000);
+  }
+
+  function stopStagePoll() {
+    if (stagePollTimer) { clearInterval(stagePollTimer); stagePollTimer = null; }
+  }
+
+  async function pollStageStatus() {
+    var batch = getBatch();
+    if (!batch) return;
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/status?batch_name=' + encodeURIComponent(batch), {
+        headers: apiHeaders()
+      });
+      if (!resp.ok) return;
+      var data = await resp.json();
+      stageStatus = data.stages || {};
+
+      // Track pipeline run status (from enhanced status endpoint)
+      if (data.pipeline) {
+        activePipelineRun = {
+          run_id: data.pipeline.run_id,
+          status: data.pipeline.status,
+          cost: data.pipeline.cost || 0
+        };
+      } else if (activePipelineRun && activePipelineRun.status !== 'running' && activePipelineRun.status !== 'stopping') {
+        activePipelineRun = null;
+      }
+
+      updatePipelineActions();
+      renderPipelineModel();
+
+      // Check if any stage is running
+      var anyRunning = Object.values(stageStatus).some(function(s) {
+        return s.status === 'running' || s.status === 'stopping' || s.status === 'pending';
+      });
+
+      // If a run just completed, refresh batch stats
+      var anyJustCompleted = Object.values(stageStatus).some(function(s) {
+        return s.status === 'completed' || s.status === 'stopped' || s.status === 'failed';
+      });
+
+      if (!anyRunning && anyJustCompleted) {
+        loadBatchStats();
+        if (activePipelineRun && (activePipelineRun.status === 'completed' || activePipelineRun.status === 'stopped' || activePipelineRun.status === 'failed')) {
+          activePipelineRun = null;
+          updatePipelineActions();
+        }
+      }
+
+      // Keep polling as long as a batch is selected (cheap call)
+    } catch (err) {
+      console.warn('Stage poll error:', err);
+    }
+  }
+
+  // ---- Legacy Trigger (n8n orchestrator — kept for backward compat) ----
+  window.startEnrichment = async function() {
+    // Legacy: removed (per-node buttons replace this)
+    showToast('Use the play buttons on each pipeline node to start enrichment.', 'info');
   };
 
   // ---- Progress Polling ----
@@ -1636,7 +1998,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
   function initDashboard() {
     restoreState();
     bindPersistence();
-    loadBatches();
+    loadBatches().then(function() {
+      // Start stage status polling once batches are loaded
+      if (getBatch()) startStagePoll();
+    });
     if (load('n8n_api_key', '')) loadHistory();
     pollProgress().then(() => {
       if ($('#progress_panel').classList.contains('visible')) startPolling();

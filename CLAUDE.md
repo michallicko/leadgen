@@ -6,6 +6,14 @@
 
 ## Workflow
 
+### 0. Check Backlog
+- Before starting any new feature, read `BACKLOG.md`
+- Check if the requested feature already exists as a backlog item
+- Identify related items that could be bundled together
+- Flag dependency conflicts (don't start X if Y isn't done yet)
+- Suggest the optimal feature to work on if the user is open to it
+- Use `/backlog` to add new ideas or view the current backlog
+
 ### 1. Spec First
 - Before writing any code, create a spec in `docs/specs/` as `{feature-name}.md`
 - Spec must include: purpose, requirements, acceptance criteria, API contracts, data model changes, edge cases
@@ -27,11 +35,37 @@
 - Commit every major increment (not just at the end)
 - Commit messages: imperative, concise, reference the spec or feature
 - Never commit secrets, `.env` files, or credentials
+- **Push to remote after every commit** — work must never exist only locally
 
-### 5. Documentation
+### 5. Documentation (Mandatory — Every Feature)
 - Update `docs/ARCHITECTURE.md` when adding/changing components
 - Update relevant spec when requirements change
 - Keep `CHANGELOG.md` updated with each feature merge
+- **ADR**: Write an Architecture Decision Record in `docs/adr/` for any non-trivial technical decision (see ADR section below)
+- Documentation is a **completion gate** — a feature is not done until docs are updated
+
+### 6. Quality Gates (Mandatory — Before Merge/Deploy)
+Every feature must pass ALL of these before it is considered complete:
+
+1. **Tests**: Unit tests (`tests/unit/`) + E2E tests (`tests/e2e/`) covering the new functionality. Run `pytest tests/ -v` and verify all pass.
+2. **Code review**: Self-review all changed files — check for security issues, edge cases, consistency with existing patterns.
+3. **Security audit**: Check for OWASP top 10 (XSS, injection, auth bypass, etc.). Validate at system boundaries. Never trust client input.
+4. **Documentation**: ARCHITECTURE.md, CHANGELOG.md, ADR (if applicable), spec updates.
+5. **Backlog**: Update `BACKLOG.md` — mark completed items, add new items discovered during work. Use `/backlog` to manage.
+6. **Commit + push**: All work committed and pushed to remote.
+
+### 7. Architecture Decision Records (ADR)
+- Location: `docs/adr/NNN-title.md`
+- **When to write**: Any decision about technology choice, pattern adoption, data model change, performance strategy, or trade-off
+- **Format**:
+  ```
+  # ADR-NNN: Title
+  **Date**: YYYY-MM-DD | **Status**: Accepted
+  ## Context
+  ## Decision
+  ## Consequences
+  ```
+- ADRs are append-only — superseded decisions get Status: Superseded with a link to the replacement
 
 ## Project Structure
 
@@ -48,8 +82,10 @@ leadgen-pipeline/
     conftest.py           # Shared fixtures + SQLite compat layer
   docs/
     ARCHITECTURE.md       # System architecture and data flow
+    adr/                  # Architecture Decision Records (append-only)
     specs/                # Feature specifications (created per feature)
     postgres-migration.md # Airtable → PostgreSQL migration design
+  BACKLOG.md              # MoSCoW-prioritized feature backlog
   CLAUDE.md               # This file — project rules
   CHANGELOG.md            # Release log
   README.md               # Project overview and quick start

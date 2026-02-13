@@ -1,0 +1,466 @@
+{
+  "id": "cMYHH336qfXpZDwj",
+  "name": "Enrich company L2",
+  "nodes": [
+    {
+      "id": "l2-webhook-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        100
+      ],
+      "webhookId": "l2-enrich",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "l2-enrich",
+        "responseMode": "lastNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "record_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -304,
+        -112
+      ],
+      "id": "l2-trigger-002",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "id": "l2-read-003",
+      "name": "Read Company",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -48,
+        -112
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, domain, status, industry, company_size, revenue_range, tier, enrichment_cost_usd, owner_id, tenant_id, summary, hq_country, business_model, triage_notes, verified_revenue_eur_m, verified_employees FROM companies WHERE id = '{{ $json.body?.company_id || $json.company_id }}'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "triage_passed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "enrichment_l2_failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        -112
+      ],
+      "id": "l2-eligible-004",
+      "name": "If Eligible"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "message": [
+            {
+              "content": "You are a deep research analyst specializing in B2B company intelligence. Return ONLY valid JSON, no commentary or markdown.",
+              "role": "system"
+            },
+            {
+              "content": "=Research recent business news (last 12 months) for {{ $('Read Company').item.json.name }} ({{ $('Read Company').item.json.domain }}).\n\nFocus on: funding rounds, leadership changes, geographic expansion, AI/digital transformation initiatives, revenue trends, market moves.\n\nReturn JSON only:\n{\n  \"recent_news\": \"Summary of key recent developments (2-4 sentences)\",\n  \"funding_history\": \"Latest funding rounds, investors, amounts, or 'None found'\",\n  \"leadership_changes\": \"Recent C-suite/VP changes, or 'None found'\",\n  \"digital_initiatives\": \"Any digital transformation, cloud migration, or tech modernization efforts\",\n  \"ai_hiring\": \"AI/ML job postings or team building signals, or 'None found'\",\n  \"hiring_signals\": \"Overall hiring trends — growing, stable, shrinking, key departments\",\n  \"eu_grants\": \"Any EU/government grants, subsidies, or innovation funding, or 'None found'\",\n  \"certifications\": \"ISO, SOC2, GDPR compliance, industry-specific certifications, or 'None found'\",\n  \"tech_partnerships\": \"Technology vendor partnerships, integrations, or platform choices, or 'None found'\",\n  \"news_confidence\": \"high/medium/low — based on recency and source quality\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.2,
+          "searchRecency": "month"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -200
+      ],
+      "id": "l2-news-005",
+      "name": "Research News",
+      "credentials": {
+        "perplexityApi": {
+          "id": "yClHOVia8DI1R8pq",
+          "name": "Perplexity account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "message": [
+            {
+              "content": "You are a strategic company analyst. Return ONLY valid JSON, no commentary or markdown.",
+              "role": "system"
+            },
+            {
+              "content": "=Research strategic profile for {{ $('Read Company').item.json.name }} ({{ $('Read Company').item.json.domain }}).\n\nFocus on: organizational structure, market position, technology landscape, regulatory exposure.\n\nReturn JSON only:\n{\n  \"leadership_team\": \"Key executives with titles (CEO, CTO, CDO, CIO), or 'Unknown'\",\n  \"key_products\": \"Main products/services and their market segments\",\n  \"customer_segments\": \"Target customers: industries, company sizes, geographies\",\n  \"competitors\": \"Top 3-5 direct competitors with brief positioning\",\n  \"tech_stack\": \"Known technology platforms, ERP, CRM, cloud providers, or 'Unknown'\",\n  \"regulatory_exposure\": \"Key regulations affecting them: GDPR, industry-specific, ESG, or 'Minimal'\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 800,
+          "temperature": 0.2
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -200
+      ],
+      "id": "l2-strategic-006",
+      "name": "Research Strategic",
+      "credentials": {
+        "perplexityApi": {
+          "id": "yClHOVia8DI1R8pq",
+          "name": "Perplexity account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5-20250929\",\n  \"max_tokens\": 1200,\n  \"temperature\": 0.1,\n  \"system\": \"You are an AI strategy consultant who identifies concrete AI/automation opportunities for B2B companies. Return ONLY valid JSON, no commentary or markdown.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Given the company profile and research below, generate an AI opportunity synthesis.\\n\\n**Company**: {{ $('Read Company').item.json.name }} ({{ $('Read Company').item.json.domain }})\\n**Industry**: {{ $('Read Company').item.json.industry || 'Unknown' }}\\n**Size**: {{ $('Read Company').item.json.verified_employees || 'Unknown' }} employees, \\u20ac{{ $('Read Company').item.json.verified_revenue_eur_m || 'Unknown' }}M revenue\\n**Summary**: {{ $('Read Company').item.json.summary || 'N/A' }}\\n**Triage Notes**: {{ $('Read Company').item.json.triage_notes || 'N/A' }}\\n\\n**News Research**: {{ $('Research News').item.json.choices[0].message.content }}\\n\\n**Strategic Research**: {{ $('Research Strategic').item.json.choices[0].message.content }}\\n\\nReturn JSON only:\\n{\\n  \\\"ai_opportunities\\\": [\\n    {\\n      \\\"use_case\\\": \\\"Short title\\\",\\n      \\\"description\\\": \\\"What it does and why it matters\\\",\\n      \\\"evidence\\\": \\\"Why this company specifically (based on research)\\\",\\n      \\\"impact\\\": \\\"high/medium/low\\\",\\n      \\\"complexity\\\": \\\"low/medium/high\\\"\\n    }\\n  ],\\n  \\\"pain_hypothesis\\\": \\\"1-2 sentences: the core business pain AI could solve for them\\\",\\n  \\\"quick_wins\\\": [\\n    {\\n      \\\"project\\\": \\\"Short title\\\",\\n      \\\"timeline\\\": \\\"4-8 weeks\\\",\\n      \\\"description\\\": \\\"What to build and expected ROI\\\"\\n    }\\n  ],\\n  \\\"industry_pain_points\\\": \\\"Top 2-3 industry-wide pains relevant to AI\\\",\\n  \\\"adoption_barriers\\\": \\\"Likely obstacles to AI adoption for this company\\\",\\n  \\\"competitor_ai_moves\\\": \\\"What competitors are doing with AI, or 'No signals'\\\",\\n  \\\"cross_functional_pain\\\": \\\"Pain points spanning multiple departments that AI could address\\\"\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -200
+      ],
+      "id": "l2-synthesis-007",
+      "name": "AI Synthesis",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_ANTHROPIC_CRED_ID",
+          "name": "Anthropic account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// L2 ENRICHMENT: Parse & Aggregate (v5 — Postgres)\n// ============================================================================\n// Mode:   Run Once for Each Item\n// After:  Perplexity News + Perplexity Strategic + Anthropic Synthesis\n// Input:  $('Research News'), $('Research Strategic'), $('AI Synthesis'),\n//         $('Read Company')\n// Output: Postgres-ready fields for companies + company_enrichment_l2 +\n//         research_assets metadata\n// ============================================================================\n\nconst original = $('Read Company').item.json;\nconst newsResponse = $('Research News').item.json;\nconst strategicResponse = $('Research Strategic').item.json;\nconst synthesisResponse = $('AI Synthesis').item.json;\n\n// -----------------------------------------------------------------------\n// 1. EXTRACT RAW CONTENT\n// -----------------------------------------------------------------------\nconst newsRaw = newsResponse.choices?.[0]?.message?.content || '';\nconst strategicRaw = strategicResponse.choices?.[0]?.message?.content || '';\nconst synthesisRaw = synthesisResponse.choices?.[0]?.message?.content\n  || synthesisResponse.content?.[0]?.text\n  || synthesisResponse.message?.content\n  || '';\n\n// -----------------------------------------------------------------------\n// 2. COST AGGREGATION\n// -----------------------------------------------------------------------\nconst newsCost = newsResponse.usage?.cost?.total_cost || 0;\nconst strategicCost = strategicResponse.usage?.cost?.total_cost || 0;\n\n// Anthropic cost estimation: ~$3/M input, ~$15/M output for Sonnet\nconst synthesisInputTokens = synthesisResponse.usage?.input_tokens || 0;\nconst synthesisOutputTokens = synthesisResponse.usage?.output_tokens || 0;\nconst synthesisCost = (synthesisInputTokens * 3 / 1000000) + (synthesisOutputTokens * 15 / 1000000);\n\nconst totalL2Cost = newsCost + strategicCost + synthesisCost;\nconst accumulatedCost = (parseFloat(original.enrichment_cost_usd) || 0) + totalL2Cost;\n\n// -----------------------------------------------------------------------\n// 3. PARSE JSON RESPONSES\n// -----------------------------------------------------------------------\nfunction parseJSON(raw) {\n  try {\n    let cleaned = raw.trim();\n    if (cleaned.startsWith('```')) {\n      cleaned = cleaned.replace(/^```(?:json)?\\s*/, '').replace(/\\s*```$/, '');\n    }\n    return JSON.parse(cleaned);\n  } catch (e) {\n    return null;\n  }\n}\n\nconst news = parseJSON(newsRaw);\nconst strategic = parseJSON(strategicRaw);\nconst synthesis = parseJSON(synthesisRaw);\n\n// -----------------------------------------------------------------------\n// 4. DETERMINE STATUS\n// -----------------------------------------------------------------------\nlet finalStatus = 'enriched_l2';\nlet errorMessage = null;\nconst parseErrors = [];\n\nif (!news) parseErrors.push('news');\nif (!strategic) parseErrors.push('strategic');\nif (!synthesis) parseErrors.push('synthesis');\n\nif (parseErrors.length > 0) {\n  // If synthesis failed, mark as failed; if only one research failed, still proceed\n  if (!synthesis) {\n    finalStatus = 'enrichment_l2_failed';\n    errorMessage = `L2 parse errors: ${parseErrors.join(', ')}. Synthesis required for completion.`;\n  }\n}\n\n// -----------------------------------------------------------------------\n// 5. SAFE FIELD EXTRACTION\n// -----------------------------------------------------------------------\nfunction safe(obj, field, fallback) {\n  if (!obj) return fallback || null;\n  const val = obj[field];\n  if (val === undefined || val === null || val === '') return fallback || null;\n  return val;\n}\n\nfunction safeStr(obj, field) {\n  const val = safe(obj, field, null);\n  if (val === null) return null;\n  if (typeof val === 'object') return JSON.stringify(val);\n  return String(val);\n}\n\n// -----------------------------------------------------------------------\n// 6. BUILD ENRICHMENT L2 FIELDS (Postgres-ready)\n// -----------------------------------------------------------------------\nconst enrichmentL2 = {\n  // News research\n  recent_news: safeStr(news, 'recent_news'),\n  funding_history: safeStr(news, 'funding_history'),\n  leadership_changes: safeStr(news, 'leadership_changes'),\n  digital_initiatives: safeStr(news, 'digital_initiatives'),\n  ai_hiring: safeStr(news, 'ai_hiring'),\n  hiring_signals: safeStr(news, 'hiring_signals'),\n  eu_grants: safeStr(news, 'eu_grants'),\n  certifications: safeStr(news, 'certifications'),\n  tech_partnerships: safeStr(news, 'tech_partnerships'),\n\n  // Strategic research\n  leadership_team: safeStr(strategic, 'leadership_team'),\n  key_products: safeStr(strategic, 'key_products'),\n  customer_segments: safeStr(strategic, 'customer_segments'),\n  competitors: safeStr(strategic, 'competitors'),\n  tech_stack: safeStr(strategic, 'tech_stack'),\n\n  // Synthesis\n  ai_opportunities: synthesis ? JSON.stringify(synthesis.ai_opportunities || []) : null,\n  pain_hypothesis: safeStr(synthesis, 'pain_hypothesis'),\n  quick_wins: synthesis?.quick_wins ? JSON.stringify(synthesis.quick_wins) : null,\n  industry_pain_points: safeStr(synthesis, 'industry_pain_points'),\n  adoption_barriers: safeStr(synthesis, 'adoption_barriers'),\n  competitor_ai_moves: safeStr(synthesis, 'competitor_ai_moves'),\n  cross_functional_pain: safeStr(synthesis, 'cross_functional_pain'),\n\n  // Company intel = concatenated summary\n  company_intel: [\n    synthesis?.pain_hypothesis ? `PAIN: ${synthesis.pain_hypothesis}` : null,\n    synthesis?.ai_opportunities?.length ? `OPPORTUNITIES: ${synthesis.ai_opportunities.length} identified` : null,\n    synthesis?.quick_wins?.length ? `QUICK WINS: ${synthesis.quick_wins.length} projects` : null\n  ].filter(Boolean).join(' | ') || null,\n\n  // Cost\n  enrichment_cost_usd: totalL2Cost\n};\n\n// -----------------------------------------------------------------------\n// 7. NEWS CONFIDENCE → companies.news_confidence\n// -----------------------------------------------------------------------\nconst newsConfidence = safe(news, 'news_confidence', 'low');\nconst pgNewsConfidence = ['high', 'medium', 'low'].includes(newsConfidence) ? newsConfidence : 'low';\n\n// -----------------------------------------------------------------------\n// 8. RESEARCH DATA FOR ASSETS\n// -----------------------------------------------------------------------\nconst newsResearchData = newsRaw;\nconst strategicResearchData = strategicRaw;\n\n// -----------------------------------------------------------------------\n// 9. RETURN\n// -----------------------------------------------------------------------\nreturn {\n  // --- Routing ---\n  record_id: original.id,\n  tenant_id: original.tenant_id,\n  final_status: finalStatus,\n  error_message: errorMessage,\n\n  // --- companies table updates ---\n  pg_status: finalStatus,\n  pg_tier: original.tier,\n  pg_news_confidence: pgNewsConfidence,\n  pg_enrichment_cost: accumulatedCost,\n\n  // --- company_enrichment_l2 UPSERT ---\n  l2: enrichmentL2,\n\n  // --- research_assets metadata ---\n  news_research_data: newsResearchData,\n  news_model: newsResponse.model || 'sonar-pro',\n  news_cost: newsCost,\n  strategic_research_data: strategicResearchData,\n  strategic_model: strategicResponse.model || 'sonar',\n  strategic_cost: strategicCost,\n  synthesis_cost: synthesisCost,\n\n  // --- Quality scores ---\n  news_quality_score: news ? 7 : 0,\n  news_confidence_score: newsConfidence === 'high' ? 9 : newsConfidence === 'medium' ? 6 : 3,\n  strategic_quality_score: strategic ? 7 : 0,\n  strategic_confidence_score: strategic ? 7 : 0,\n\n  // --- Return enrichment cost for pipeline orchestrator ---\n  enrichment_cost_usd: totalL2Cost\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -200
+      ],
+      "id": "l2-parse-008",
+      "name": "Code: Parse & Aggregate"
+    },
+    {
+      "id": "l2-success-009",
+      "name": "Update Company Success",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1360,
+        -300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH company_update AS (\n  UPDATE companies SET\n    status = '{{ $json.pg_status }}',\n    news_confidence = {{ $json.pg_news_confidence ? \"'\" + $json.pg_news_confidence + \"'\" : \"NULL\" }},\n    enrichment_cost_usd = {{ $json.pg_enrichment_cost }},\n    updated_at = now()\n  WHERE id = '{{ $json.record_id }}'\n  RETURNING id, status, tier, enrichment_cost_usd\n),\nl2_upsert AS (\n  INSERT INTO company_enrichment_l2 (\n    company_id,\n    company_intel,\n    recent_news,\n    ai_opportunities,\n    pain_hypothesis,\n    digital_initiatives,\n    leadership_changes,\n    hiring_signals,\n    key_products,\n    customer_segments,\n    competitors,\n    tech_stack,\n    funding_history,\n    eu_grants,\n    leadership_team,\n    ai_hiring,\n    tech_partnerships,\n    certifications,\n    quick_wins,\n    industry_pain_points,\n    cross_functional_pain,\n    adoption_barriers,\n    competitor_ai_moves,\n    enriched_at,\n    enrichment_cost_usd\n  ) VALUES (\n    '{{ $json.record_id }}',\n    {{ $json.l2.company_intel ? \"'\" + $json.l2.company_intel.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.recent_news ? \"'\" + $json.l2.recent_news.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.ai_opportunities ? \"'\" + $json.l2.ai_opportunities.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.pain_hypothesis ? \"'\" + $json.l2.pain_hypothesis.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.digital_initiatives ? \"'\" + $json.l2.digital_initiatives.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.leadership_changes ? \"'\" + $json.l2.leadership_changes.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.hiring_signals ? \"'\" + $json.l2.hiring_signals.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.key_products ? \"'\" + $json.l2.key_products.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.customer_segments ? \"'\" + $json.l2.customer_segments.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.competitors ? \"'\" + $json.l2.competitors.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.tech_stack ? \"'\" + $json.l2.tech_stack.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.funding_history ? \"'\" + $json.l2.funding_history.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.eu_grants ? \"'\" + $json.l2.eu_grants.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.leadership_team ? \"'\" + $json.l2.leadership_team.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.ai_hiring ? \"'\" + $json.l2.ai_hiring.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.tech_partnerships ? \"'\" + $json.l2.tech_partnerships.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.certifications ? \"'\" + $json.l2.certifications.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.quick_wins ? \"'\" + $json.l2.quick_wins.replace(/'/g, \"''\") + \"'::jsonb\" : \"NULL\" }},\n    {{ $json.l2.industry_pain_points ? \"'\" + $json.l2.industry_pain_points.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.cross_functional_pain ? \"'\" + $json.l2.cross_functional_pain.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.adoption_barriers ? \"'\" + $json.l2.adoption_barriers.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    {{ $json.l2.competitor_ai_moves ? \"'\" + $json.l2.competitor_ai_moves.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n    now(),\n    {{ $json.l2.enrichment_cost_usd || 0 }}\n  )\n  ON CONFLICT (company_id) DO UPDATE SET\n    company_intel = EXCLUDED.company_intel,\n    recent_news = EXCLUDED.recent_news,\n    ai_opportunities = EXCLUDED.ai_opportunities,\n    pain_hypothesis = EXCLUDED.pain_hypothesis,\n    digital_initiatives = EXCLUDED.digital_initiatives,\n    leadership_changes = EXCLUDED.leadership_changes,\n    hiring_signals = EXCLUDED.hiring_signals,\n    key_products = EXCLUDED.key_products,\n    customer_segments = EXCLUDED.customer_segments,\n    competitors = EXCLUDED.competitors,\n    tech_stack = EXCLUDED.tech_stack,\n    funding_history = EXCLUDED.funding_history,\n    eu_grants = EXCLUDED.eu_grants,\n    leadership_team = EXCLUDED.leadership_team,\n    ai_hiring = EXCLUDED.ai_hiring,\n    tech_partnerships = EXCLUDED.tech_partnerships,\n    certifications = EXCLUDED.certifications,\n    quick_wins = EXCLUDED.quick_wins,\n    industry_pain_points = EXCLUDED.industry_pain_points,\n    cross_functional_pain = EXCLUDED.cross_functional_pain,\n    adoption_barriers = EXCLUDED.adoption_barriers,\n    competitor_ai_moves = EXCLUDED.competitor_ai_moves,\n    enriched_at = now(),\n    enrichment_cost_usd = EXCLUDED.enrichment_cost_usd\n  RETURNING company_id\n)\nSELECT cu.id, cu.status, cu.tier, cu.enrichment_cost_usd\nFROM company_update cu",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "l2-error-010",
+      "name": "Update Company Error",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        800,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE companies SET\n  status = 'enrichment_l2_failed',\n  error_message = {{ $json.error ? \"'\" + String($json.error).replace(/'/g, \"''\").substring(0, 500) + \"'\" : $json.error_message ? \"'\" + String($json.error_message).replace(/'/g, \"''\").substring(0, 500) + \"'\" : \"'L2 enrichment failed - not eligible or API error'\" }},\n  updated_at = now()\nWHERE id = '{{ $('Read Company').item.json.id }}'\nRETURNING id, status",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "l2-asset1-011",
+      "name": "Save Research Asset 1",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1360,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_assets (\n  tenant_id, entity_type, entity_id, name, tool_name,\n  cost_usd, research_data, confidence_score, quality_score\n) VALUES (\n  '{{ $json.tenant_id }}',\n  'company',\n  '{{ $json.record_id }}',\n  'l2_news_research',\n  'perplexity_{{ $json.news_model }}',\n  {{ $json.news_cost || 0 }},\n  {{ $json.news_research_data ? \"'\" + $json.news_research_data.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n  {{ $json.news_confidence_score || 0 }},\n  {{ $json.news_quality_score || 0 }}\n)\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "l2-asset2-012",
+      "name": "Save Research Asset 2",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1360,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_assets (\n  tenant_id, entity_type, entity_id, name, tool_name,\n  cost_usd, research_data, confidence_score, quality_score\n) VALUES (\n  '{{ $json.tenant_id }}',\n  'company',\n  '{{ $json.record_id }}',\n  'l2_strategic_research',\n  'perplexity_{{ $json.strategic_model }}',\n  {{ $json.strategic_cost || 0 }},\n  {{ $json.strategic_research_data ? \"'\" + $json.strategic_research_data.replace(/'/g, \"''\") + \"'\" : \"NULL\" }},\n  {{ $json.strategic_confidence_score || 0 }},\n  {{ $json.strategic_quality_score || 0 }}\n)\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Read Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Company": {
+      "main": [
+        [
+          {
+            "node": "If Eligible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Eligible": {
+      "main": [
+        [
+          {
+            "node": "Research News",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research News": {
+      "main": [
+        [
+          {
+            "node": "Research Strategic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Strategic": {
+      "main": [
+        [
+          {
+            "node": "AI Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse & Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Company Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse & Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Update Company Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Research Asset 1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Research Asset 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Company Success": {
+      "main": [
+        []
+      ]
+    },
+    "Update Company Error": {
+      "main": [
+        []
+      ]
+    },
+    "Save Research Asset 1": {
+      "main": [
+        []
+      ]
+    },
+    "Save Research Asset 2": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "l2-v5-001",
+  "tags": []
+}

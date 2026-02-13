@@ -14,13 +14,14 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 echo "==> Deploying leadgen API to VPS..."
 
 # 1. Create API directory on VPS
-ssh -i "$VPS_KEY" "$VPS_HOST" "mkdir -p ${API_DIR}/api/routes"
+ssh -i "$VPS_KEY" "$VPS_HOST" "mkdir -p ${API_DIR}/api/routes ${API_DIR}/api/services"
 
 # 2. Copy API source files
 scp -i "$VPS_KEY" "${PROJECT_DIR}/Dockerfile.api" "${VPS_HOST}:${API_DIR}/"
 scp -i "$VPS_KEY" "${PROJECT_DIR}/api/requirements.txt" "${VPS_HOST}:${API_DIR}/api/"
 scp -i "$VPS_KEY" ${PROJECT_DIR}/api/*.py "${VPS_HOST}:${API_DIR}/api/"
 scp -i "$VPS_KEY" ${PROJECT_DIR}/api/routes/*.py "${VPS_HOST}:${API_DIR}/api/routes/"
+scp -i "$VPS_KEY" ${PROJECT_DIR}/api/services/*.py "${VPS_HOST}:${API_DIR}/api/services/"
 echo "    Copied API source files"
 
 # 3. Copy compose overlay

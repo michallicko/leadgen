@@ -8,3 +8,4 @@ class Config:
     JWT_ACCESS_EXPIRY = 3600  # 1 hour
     JWT_REFRESH_EXPIRY = 7 * 24 * 3600  # 7 days
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
+    N8N_BASE_URL = os.environ.get("N8N_BASE_URL", "https://n8n.visionvolve.com")

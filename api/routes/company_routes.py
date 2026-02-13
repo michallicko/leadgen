@@ -1,0 +1,333 @@
+import math
+
+from flask import Blueprint, jsonify, request
+
+from ..auth import require_auth, require_role, resolve_tenant
+from ..display import (
+    display_business_model,
+    display_buying_stage,
+    display_cohort,
+    display_company_size,
+    display_confidence,
+    display_crm_status,
+    display_engagement_status,
+    display_geo_region,
+    display_icp_fit,
+    display_industry,
+    display_ownership_type,
+    display_revenue_range,
+    display_status,
+    display_tier,
+)
+from ..models import db
+
+companies_bp = Blueprint("companies", __name__)
+
+
+def _iso(v):
+    """Safely convert a datetime or string to ISO format."""
+    if v is None:
+        return None
+    return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+ALLOWED_SORT = {
+    "name", "domain", "status", "tier", "triage_score", "hq_country",
+    "industry", "contact_count", "created_at",
+}
+
+
+@companies_bp.route("/api/companies", methods=["GET"])
+@require_auth
+def list_companies():
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    page = max(1, request.args.get("page", 1, type=int))
+    page_size = min(100, max(1, request.args.get("page_size", 25, type=int)))
+    search = request.args.get("search", "").strip()
+    status = request.args.get("status", "").strip()
+    tier = request.args.get("tier", "").strip()
+    batch_name = request.args.get("batch_name", "").strip()
+    owner_name = request.args.get("owner_name", "").strip()
+    sort = request.args.get("sort", "name").strip()
+    sort_dir = request.args.get("sort_dir", "asc").strip().lower()
+
+    if sort not in ALLOWED_SORT:
+        sort = "name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+
+    where = ["c.tenant_id = :tenant_id"]
+    params = {"tenant_id": tenant_id}
+
+    if search:
+        where.append("(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))")
+        params["search"] = f"%{search}%"
+    if status:
+        where.append("c.status = :status")
+        params["status"] = status
+    if tier:
+        where.append("c.tier = :tier")
+        params["tier"] = tier
+    if batch_name:
+        where.append("b.name = :batch_name")
+        params["batch_name"] = batch_name
+    if owner_name:
+        where.append("o.name = :owner_name")
+        params["owner_name"] = owner_name
+
+    where_clause = " AND ".join(where)
+
+    # Count query
+    total = db.session.execute(
+        db.text(f"""
+            SELECT COUNT(*)
+            FROM companies c
+            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN owners o ON c.owner_id = o.id
+            WHERE {where_clause}
+        """),
+        params,
+    ).scalar() or 0
+
+    pages = max(1, math.ceil(total / page_size))
+    offset = (page - 1) * page_size
+
+    # Sort mapping for computed columns
+    sort_col = "contact_count" if sort == "contact_count" else f"c.{sort}"
+    order = f"{sort_col} {'ASC' if sort_dir == 'asc' else 'DESC'} NULLS LAST"
+
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                c.id, c.name, c.domain, c.status, c.tier,
+                o.name AS owner_name, b.name AS batch_name,
+                c.industry, c.hq_country, c.triage_score,
+                (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
+                c.created_at
+            FROM companies c
+            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN owners o ON c.owner_id = o.id
+            WHERE {where_clause}
+            ORDER BY {order}
+            LIMIT :limit OFFSET :offset
+        """),
+        {**params, "limit": page_size, "offset": offset},
+    ).fetchall()
+
+    companies = []
+    for r in rows:
+        companies.append({
+            "id": str(r[0]),
+            "name": r[1],
+            "domain": r[2],
+            "status": display_status(r[3]),
+            "tier": display_tier(r[4]),
+            "owner_name": r[5],
+            "batch_name": r[6],
+            "industry": display_industry(r[7]),
+            "hq_country": r[8],
+            "triage_score": float(r[9]) if r[9] is not None else None,
+            "contact_count": r[10] or 0,
+        })
+
+    return jsonify({
+        "companies": companies,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": pages,
+    })
+
+
+@companies_bp.route("/api/companies/<company_id>", methods=["GET"])
+@require_auth
+def get_company(company_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT
+                c.id, c.name, c.domain, c.status, c.tier,
+                c.business_model, c.company_size, c.ownership_type,
+                c.geo_region, c.industry, c.industry_category,
+                c.revenue_range, c.buying_stage, c.engagement_status,
+                c.crm_status, c.ai_adoption, c.news_confidence,
+                c.business_type, c.cohort,
+                c.summary, c.hq_city, c.hq_country,
+                c.triage_notes, c.triage_score,
+                c.verified_revenue_eur_m, c.verified_employees,
+                c.enrichment_cost_usd, c.pre_score,
+                c.lemlist_synced, c.error_message, c.notes,
+                c.created_at, c.updated_at,
+                o.name AS owner_name, b.name AS batch_name
+            FROM companies c
+            LEFT JOIN owners o ON c.owner_id = o.id
+            LEFT JOIN batches b ON c.batch_id = b.id
+            WHERE c.id = :id AND c.tenant_id = :tenant_id
+        """),
+        {"id": company_id, "tenant_id": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    company = {
+        "id": str(row[0]),
+        "name": row[1],
+        "domain": row[2],
+        "status": display_status(row[3]),
+        "tier": display_tier(row[4]),
+        "business_model": display_business_model(row[5]),
+        "company_size": display_company_size(row[6]),
+        "ownership_type": display_ownership_type(row[7]),
+        "geo_region": display_geo_region(row[8]),
+        "industry": display_industry(row[9]),
+        "industry_category": row[10],
+        "revenue_range": display_revenue_range(row[11]),
+        "buying_stage": display_buying_stage(row[12]),
+        "engagement_status": display_engagement_status(row[13]),
+        "crm_status": display_crm_status(row[14]),
+        "ai_adoption": display_confidence(row[15]),
+        "news_confidence": display_confidence(row[16]),
+        "business_type": row[17],
+        "cohort": display_cohort(row[18]),
+        "summary": row[19],
+        "hq_city": row[20],
+        "hq_country": row[21],
+        "triage_notes": row[22],
+        "triage_score": float(row[23]) if row[23] is not None else None,
+        "verified_revenue_eur_m": float(row[24]) if row[24] is not None else None,
+        "verified_employees": float(row[25]) if row[25] is not None else None,
+        "enrichment_cost_usd": float(row[26]) if row[26] is not None else None,
+        "pre_score": float(row[27]) if row[27] is not None else None,
+        "lemlist_synced": row[28],
+        "error_message": row[29],
+        "notes": row[30],
+        "created_at": _iso(row[31]),
+        "updated_at": _iso(row[32]),
+        "owner_name": row[33],
+        "batch_name": row[34],
+    }
+
+    # L2 enrichment
+    l2_row = db.session.execute(
+        db.text("""
+            SELECT company_intel, recent_news, ai_opportunities,
+                   pain_hypothesis, relevant_case_study, digital_initiatives,
+                   leadership_changes, hiring_signals, key_products,
+                   customer_segments, competitors, tech_stack,
+                   funding_history, eu_grants, leadership_team,
+                   ai_hiring, tech_partnerships, certifications,
+                   quick_wins, industry_pain_points, cross_functional_pain,
+                   adoption_barriers, competitor_ai_moves,
+                   enriched_at, enrichment_cost_usd
+            FROM company_enrichment_l2
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+
+    if l2_row:
+        company["enrichment_l2"] = {
+            "company_intel": l2_row[0],
+            "recent_news": l2_row[1],
+            "ai_opportunities": l2_row[2],
+            "pain_hypothesis": l2_row[3],
+            "relevant_case_study": l2_row[4],
+            "digital_initiatives": l2_row[5],
+            "leadership_changes": l2_row[6],
+            "hiring_signals": l2_row[7],
+            "key_products": l2_row[8],
+            "customer_segments": l2_row[9],
+            "competitors": l2_row[10],
+            "tech_stack": l2_row[11],
+            "funding_history": l2_row[12],
+            "eu_grants": l2_row[13],
+            "leadership_team": l2_row[14],
+            "ai_hiring": l2_row[15],
+            "tech_partnerships": l2_row[16],
+            "certifications": l2_row[17],
+            "quick_wins": l2_row[18],
+            "industry_pain_points": l2_row[19],
+            "cross_functional_pain": l2_row[20],
+            "adoption_barriers": l2_row[21],
+            "competitor_ai_moves": l2_row[22],
+            "enriched_at": _iso(l2_row[23]),
+            "enrichment_cost_usd": float(l2_row[24]) if l2_row[24] is not None else None,
+        }
+    else:
+        company["enrichment_l2"] = None
+
+    # Tags
+    tag_rows = db.session.execute(
+        db.text("SELECT category, value FROM company_tags WHERE company_id = :id ORDER BY category, value"),
+        {"id": company_id},
+    ).fetchall()
+    company["tags"] = [{"category": r[0], "value": r[1]} for r in tag_rows]
+
+    # Contacts summary
+    contact_rows = db.session.execute(
+        db.text("""
+            SELECT ct.id, ct.full_name, ct.job_title, ct.email_address,
+                   ct.contact_score, ct.icp_fit, ct.message_status
+            FROM contacts ct
+            WHERE ct.company_id = :id
+            ORDER BY ct.contact_score DESC NULLS LAST
+        """),
+        {"id": company_id},
+    ).fetchall()
+    company["contacts"] = [{
+        "id": str(r[0]),
+        "full_name": r[1],
+        "job_title": r[2],
+        "email_address": r[3],
+        "contact_score": r[4],
+        "icp_fit": display_icp_fit(r[5]),
+        "message_status": r[6],
+    } for r in contact_rows]
+
+    return jsonify(company)
+
+
+@companies_bp.route("/api/companies/<company_id>", methods=["PATCH"])
+@require_role("editor")
+def update_company(company_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    allowed = {
+        "status", "tier", "notes", "triage_notes",
+        "buying_stage", "engagement_status", "crm_status", "cohort",
+    }
+    fields = {k: v for k, v in body.items() if k in allowed}
+
+    if not fields:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    # Verify company belongs to tenant
+    exists = db.session.execute(
+        db.text("SELECT id FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": tenant_id},
+    ).fetchone()
+    if not exists:
+        return jsonify({"error": "Company not found"}), 404
+
+    set_parts = []
+    params = {"id": company_id}
+    for k, v in fields.items():
+        set_parts.append(f"{k} = :{k}")
+        params[k] = v
+
+    db.session.execute(
+        db.text(f"UPDATE companies SET {', '.join(set_parts)} WHERE id = :id"),
+        params,
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})

@@ -1,0 +1,221 @@
+{
+  "id": "generateMessagesV1",
+  "name": "Generate Messages v1",
+  "nodes": [
+    {
+      "id": "gen-webhook-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        100
+      ],
+      "webhookId": "generate-messages",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-messages",
+        "responseMode": "lastNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "contact_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        -150
+      ],
+      "id": "gen-trigger-002",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "id": "gen-read-003",
+      "name": "Read Contact Data",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        500,
+        -25
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ct.id as contact_id, ct.full_name, ct.job_title, ct.email_address, ct.linkedin_url,\n  ct.seniority_level, ct.department, ct.icp_fit, ct.contact_score, ct.ai_champion,\n  ct.language, ct.enrichment_cost_usd as contact_cost, ct.tenant_id, ct.owner_id, ct.batch_id,\n  c.name as company_name, c.domain as company_domain, c.industry, c.summary as company_summary,\n  c.tier, c.hq_country, c.business_model,\n  l2.pain_hypothesis, l2.ai_opportunities, l2.quick_wins, l2.recent_news,\n  l2.industry_pain_points, l2.adoption_barriers,\n  ce.person_summary, ce.linkedin_profile_summary, ce.relationship_synthesis,\n  o.name as owner_name\nFROM contacts ct\nJOIN companies c ON ct.company_id = c.id\nLEFT JOIN company_enrichment_l2 l2 ON c.id = l2.company_id\nLEFT JOIN contact_enrichment ce ON ct.id = ce.contact_id\nLEFT JOIN owners o ON ct.owner_id = o.id\nWHERE ct.id = '{{ $json.body?.contact_id || $json.contact_id }}'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "gen-status-004",
+      "name": "Set Generating",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        750,
+        -25
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE contacts SET message_status = 'generating', updated_at = now() WHERE id = '{{ $json.contact_id }}' RETURNING id, message_status",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "gen-code-005",
+      "name": "Generate & Critique",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        -25
+      ],
+      "parameters": {
+        "jsCode": "// Generate & Critique: Agentic message generation with self-critique loop\n// Calls Claude API directly for generate\u2192critique\u2192retry loop\n\nconst contact = $('Read Contact Data').item.json;\nconst ANTHROPIC_API_KEY = $env.ANTHROPIC_API_KEY;\nconst MODEL = 'claude-sonnet-4-5-20250929';\nconst MAX_RETRIES = 2; // 3 total attempts\n\nlet totalInputTokens = 0;\nlet totalOutputTokens = 0;\n\nasync function callClaude(systemPrompt, userPrompt, maxTokens) {\n  const resp = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': ANTHROPIC_API_KEY,\n      'anthropic-version': '2023-06-01'\n    },\n    body: JSON.stringify({\n      model: MODEL,\n      max_tokens: maxTokens,\n      temperature: 0.7,\n      system: systemPrompt,\n      messages: [{ role: 'user', content: userPrompt }]\n    })\n  });\n  const data = await resp.json();\n  totalInputTokens += data.usage?.input_tokens || 0;\n  totalOutputTokens += data.usage?.output_tokens || 0;\n  return data.content?.[0]?.text || '';\n}\n\n// Build context\nconst context = {\n  contact: {\n    name: contact.full_name,\n    title: contact.job_title,\n    seniority: contact.seniority_level,\n    department: contact.department,\n    icp_fit: contact.icp_fit,\n    ai_champion: contact.ai_champion,\n    person_summary: contact.person_summary || '',\n    relationship_synthesis: contact.relationship_synthesis || '',\n  },\n  company: {\n    name: contact.company_name,\n    industry: contact.industry,\n    summary: contact.company_summary || '',\n    pain_hypothesis: contact.pain_hypothesis || '',\n    ai_opportunities: contact.ai_opportunities || '',\n    quick_wins: contact.quick_wins || '',\n    recent_news: contact.recent_news || '',\n  },\n  owner: contact.owner_name || 'the team'\n};\n\nconst generateSystem = `You are a B2B sales message writer for VisionVolve, an AI consulting company.\nWrite personalized outreach messages in English. Be specific \u2014 reference the person's role, company pain points, and AI opportunities.\nNever be generic. Every sentence must contain something specific to THIS person or THIS company.\nOutput JSON only with these 3 messages:\n{\n  \"linkedin_connect\": \"300 chars max. Personal connection request. Reference something specific about them.\",\n  \"linkedin_message\": \"500-800 chars. Follow-up message after connection. Reference their pain points and how AI can help. Include a soft CTA.\",\n  \"email\": {\n    \"subject\": \"Short, specific subject line (no generic 'AI for your business')\",\n    \"body\": \"3-4 paragraphs. Reference specific company challenges and AI opportunities. End with clear CTA for a brief call.\"\n  }\n}`;\n\nconst generatePrompt = `Write 3 personalized outreach messages for:\n\nCONTACT: ${context.contact.name}, ${context.contact.title} at ${context.company.name}\nSENIORITY: ${context.contact.seniority}\nDEPARTMENT: ${context.contact.department}\nAI CHAMPION: ${context.contact.ai_champion ? 'Yes' : 'No'}\nPERSON SUMMARY: ${context.contact.person_summary}\nRELATIONSHIP SYNTHESIS: ${context.contact.relationship_synthesis}\n\nCOMPANY: ${context.company.name}\nINDUSTRY: ${context.company.industry}\nSUMMARY: ${context.company.summary}\nPAIN HYPOTHESIS: ${context.company.pain_hypothesis}\nAI OPPORTUNITIES: ${context.company.ai_opportunities}\nQUICK WINS: ${context.company.quick_wins}\nRECENT NEWS: ${context.company.recent_news}\n\nSENDER: ${context.owner} from VisionVolve\n\nReturn JSON only.`;\n\nconst critiqueSystem = `You evaluate B2B sales outreach messages. Score each message 1-10 on:\n1. Personalization specificity (does it reference THIS person/company specifically?)\n2. Length compliance (linkedin_connect \u2264300 chars, linkedin_message 500-800 chars, email 3-4 paragraphs)\n3. Tone (professional but warm, not salesy)\n4. CTA clarity (clear next step)\nReturn JSON: { \"pass\": true/false, \"scores\": { \"personalization\": N, \"length\": N, \"tone\": N, \"cta\": N }, \"feedback\": \"specific improvements needed\" }\nA message passes if all scores are \u2265 7.`;\n\nlet messages = null;\nlet attempts = 0;\nlet feedback = '';\n\nwhile (attempts <= MAX_RETRIES) {\n  attempts++;\n  const prompt = feedback\n    ? `${generatePrompt}\\n\\nPREVIOUS ATTEMPT FEEDBACK:\\n${feedback}\\n\\nImprove the messages based on this feedback.`\n    : generatePrompt;\n\n  const rawMessages = await callClaude(generateSystem, prompt, 1500);\n\n  try {\n    let cleaned = rawMessages.trim();\n    if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\\s*/, '').replace(/\\s*```$/, '');\n    messages = JSON.parse(cleaned);\n  } catch (e) {\n    feedback = 'Failed to parse JSON. Return valid JSON only.';\n    continue;\n  }\n\n  // Self-critique\n  const critiquePrompt = `Evaluate these outreach messages for ${context.contact.name} at ${context.company.name}:\\n\\n${JSON.stringify(messages, null, 2)}`;\n  const rawCritique = await callClaude(critiqueSystem, critiquePrompt, 400);\n\n  try {\n    let cleanedCritique = rawCritique.trim();\n    if (cleanedCritique.startsWith('```')) cleanedCritique = cleanedCritique.replace(/^```(?:json)?\\s*/, '').replace(/\\s*```$/, '');\n    const critique = JSON.parse(cleanedCritique);\n\n    if (critique.pass) break;\n    feedback = critique.feedback || 'Improve personalization and specificity.';\n  } catch (e) {\n    break; // If critique parse fails, accept current messages\n  }\n}\n\n// Calculate cost (Sonnet pricing: $3/M input, $15/M output)\nconst costUsd = (totalInputTokens * 3 / 1000000) + (totalOutputTokens * 15 / 1000000);\nconst perMessageCost = costUsd / 3;\n\nif (!messages) {\n  return {\n    contact_id: contact.contact_id,\n    success: false,\n    error: 'Failed to generate messages after ' + attempts + ' attempts',\n    enrichment_cost_usd: costUsd\n  };\n}\n\nreturn {\n  contact_id: contact.contact_id,\n  tenant_id: contact.tenant_id,\n  owner_id: contact.owner_id,\n  batch_id: contact.batch_id,\n  messages: messages,\n  attempts: attempts,\n  total_cost_usd: costUsd,\n  per_message_cost: perMessageCost,\n  enrichment_cost_usd: costUsd,\n  success: true\n};\n"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "gen-write-006",
+      "name": "Write Messages",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1300,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (tenant_id, contact_id, owner_id, batch_id, channel, sequence_step, variant, subject, body, status, generation_cost_usd)\nVALUES \n  ('{{ $json.tenant_id }}', '{{ $json.contact_id }}', {{ $json.owner_id ? \"'\" + $json.owner_id + \"'\" : \"NULL\" }}, {{ $json.batch_id ? \"'\" + $json.batch_id + \"'\" : \"NULL\" }}, 'linkedin_connect', 1, 'a', NULL, '{{ $json.messages.linkedin_connect.replace(/'/g, \"''\") }}', 'draft', {{ $json.per_message_cost }}),\n  ('{{ $json.tenant_id }}', '{{ $json.contact_id }}', {{ $json.owner_id ? \"'\" + $json.owner_id + \"'\" : \"NULL\" }}, {{ $json.batch_id ? \"'\" + $json.batch_id + \"'\" : \"NULL\" }}, 'linkedin_message', 1, 'a', NULL, '{{ $json.messages.linkedin_message.replace(/'/g, \"''\") }}', 'draft', {{ $json.per_message_cost }}),\n  ('{{ $json.tenant_id }}', '{{ $json.contact_id }}', {{ $json.owner_id ? \"'\" + $json.owner_id + \"'\" : \"NULL\" }}, {{ $json.batch_id ? \"'\" + $json.batch_id + \"'\" : \"NULL\" }}, 'email', 1, 'a', '{{ $json.messages.email.subject.replace(/'/g, \"''\") }}', '{{ $json.messages.email.body.replace(/'/g, \"''\") }}', 'draft', {{ $json.per_message_cost }});\n\nUPDATE contacts SET message_status = 'pending_review', enrichment_cost_usd = COALESCE(enrichment_cost_usd, 0) + {{ $json.total_cost_usd }}, updated_at = now() WHERE id = '{{ $json.contact_id }}' RETURNING id, message_status;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "gen-error-007",
+      "name": "Write Error",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1300,
+        150
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE contacts SET\n  message_status = 'generation_failed',\n  error_message = {{ $json.error ? \"'\" + String($json.error).replace(/'/g, \"''\").substring(0, 500) + \"'\" : \"'Unknown generation error'\" }},\n  enrichment_cost_usd = COALESCE(enrichment_cost_usd, 0) + {{ $json.enrichment_cost_usd || 0 }},\n  updated_at = now()\nWHERE id = '{{ $json.contact_id || $('Read Contact Data').item.json.contact_id }}'\nRETURNING id, message_status",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "pgLeadgenCred001",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Read Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Contact Data": {
+      "main": [
+        [
+          {
+            "node": "Set Generating",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Generating": {
+      "main": [
+        [
+          {
+            "node": "Generate & Critique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate & Critique": {
+      "main": [
+        [
+          {
+            "node": "Write Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Messages": {
+      "main": [
+        []
+      ]
+    },
+    "Write Error": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "gen-v1-001",
+  "tags": []
+}
