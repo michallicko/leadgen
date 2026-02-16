@@ -474,11 +474,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     l2: { name: 'L2 Deep Research', color: 'var(--l2-color)' },
     person: { name: 'Person Enrichment', color: 'var(--person-color)' },
     generate: { name: 'Message Generation', color: 'var(--generate-color)' },
-    ares: { name: 'Legal & Registers (ARES)', color: 'var(--ares-color)' }
+    ares: { name: 'Czech Registry (ARES)', color: 'var(--ares-color)' },
+    brreg: { name: 'Norway Registry (BRREG)', color: 'var(--ares-color)' },
+    prh: { name: 'Finland Registry (PRH)', color: 'var(--ares-color)' },
+    recherche: { name: 'France Registry (INSEE)', color: 'var(--ares-color)' }
   };
 
   var estimateData = null;
-  var enabledStages = { l1: true, l2: true, person: true, generate: true, ares: true };
+  var enabledStages = { l1: true, l2: true, person: true, generate: true, ares: true, brreg: true, prh: true, recherche: true };
   var batchList = [];
   var ownerList = [];
 
@@ -709,7 +712,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getEnabledStages() {
-    return ['l1', 'l2', 'person', 'generate', 'ares'].filter(function(s) { return enabledStages[s]; });
+    return ['l1', 'l2', 'person', 'generate', 'ares', 'brreg', 'prh', 'recherche'].filter(function(s) { return enabledStages[s]; });
   }
 
   // --- Step 3: Start pipeline and poll ---
