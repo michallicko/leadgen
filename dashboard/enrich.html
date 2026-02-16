@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nav.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -65,34 +66,6 @@ body::after {
   pointer-events: none;
   z-index: -1;
 }
-
-/* Nav */
-.top-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-.top-nav__brand { display: flex; align-items: center; gap: 10px; }
-.top-nav__title { font-family: var(--font-title); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-.top-nav__links { display: flex; gap: 2px; margin-left: 24px; }
-.top-nav__link {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 6px;
-  transition: var(--transition);
-}
-.top-nav__link:hover { color: var(--text); background: rgba(110,44,139,0.08); }
-.top-nav__link.active { color: var(--accent-cyan); font-weight: 600; background: rgba(0,184,207,0.08); }
-.auth-user { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-muted); }
-.auth-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
-.auth-logout:hover { border-color: var(--error); color: var(--error); }
 
 /* Layout */
 .container { max-width: 920px; margin: 0 auto; padding: 32px 16px; }
@@ -478,28 +451,9 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 }
 </style>
 </head>
-<body>
+<body data-pillar="radar" data-page="enrich">
 
-<nav class="top-nav">
-  <div class="top-nav__brand">
-    <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
-    <span class="top-nav__title">Leadgen</span>
-  </div>
-  <div class="top-nav__links">
-    <a href="index.html" class="top-nav__link">Pipeline</a>
-    <a href="companies.html" class="top-nav__link">Companies</a>
-    <a href="contacts.html" class="top-nav__link">Contacts</a>
-    <a href="messages.html" class="top-nav__link">Messages</a>
-    <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
-    <a href="enrich.html" class="top-nav__link active" data-min-role="editor">Enrich</a>
-    <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
-    <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
-  </div>
-  <span class="auth-user">
-    <span id="auth_user_name"></span>
-    <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
-  </span>
-</nav>
+<div id="app-nav"></div>
 
 <div class="container">
   <h1>Enrich Contacts</h1>
@@ -612,6 +566,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   </div>
 </div>
 
+<script src="nav.js"></script>
 <script src="auth.js"></script>
 <script>
 (function() {

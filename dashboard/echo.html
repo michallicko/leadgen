@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nav.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+h1 {
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin-bottom: 24px;
+}
+
+/* Demo banner */
+.demo-banner {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--warning);
+}
+
+.demo-banner__icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* Metric cards */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) { .metrics-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 500px) { .metrics-row { grid-template-columns: 1fr; } }
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.metric-card__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.metric-card__value {
+  font-family: var(--font-title);
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.metric-card__delta {
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.delta-up { color: var(--success); }
+.delta-down { color: var(--error); }
+.delta-flat { color: var(--text-dim); }
+
+/* Charts area */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.chart-card__title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* Funnel visualization */
+.funnel { display: flex; flex-direction: column; gap: 6px; }
+
+.funnel-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.funnel-step__bar {
+  height: 28px;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.funnel-step__label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.funnel-step__count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Bar chart rows */
+.bar-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-row__label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 80px;
+  text-align: right;
+}
+
+.bar-row__track {
+  flex: 1;
+  height: 20px;
+  background: var(--surface-alt);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-row__fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.bar-row__value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 40px;
+}
+</style>
+</head>
+<body data-pillar="echo" data-page="echo">
+
+<div id="app-nav"></div>
+
+<div class="container">
+  <h1>Echo Analytics</h1>
+  <p class="page-subtitle">Outreach performance and pipeline velocity</p>
+
+  <div class="demo-banner">
+    <span class="demo-banner__icon">&#9888;</span>
+    <span><strong>Static Mockup</strong> — This page shows demo data only. Live analytics will be connected in a future release.</span>
+  </div>
+
+  <!-- Top metrics -->
+  <div class="metrics-row">
+    <div class="metric-card">
+      <div class="metric-card__label">Contacts Enriched</div>
+      <div class="metric-card__value" style="color:var(--accent-cyan);">2,608</div>
+      <div class="metric-card__delta delta-up">+312 this week</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card__label">Messages Generated</div>
+      <div class="metric-card__value" style="color:var(--success);">847</div>
+      <div class="metric-card__delta delta-up">+94 this week</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card__label">Response Rate</div>
+      <div class="metric-card__value" style="color:var(--warning);">18.3%</div>
+      <div class="metric-card__delta delta-up">+2.1pp vs last month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card__label">Pipeline Value</div>
+      <div class="metric-card__value" style="color:var(--accent-hover);">$142K</div>
+      <div class="metric-card__delta delta-flat">Estimated from responses</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <!-- Conversion Funnel -->
+    <div class="chart-card">
+      <div class="chart-card__title">Conversion Funnel</div>
+      <div class="funnel">
+        <div class="funnel-step">
+          <span class="funnel-step__label">Imported</span>
+          <div class="funnel-step__bar" style="width:100%;background:var(--accent-cyan);"></div>
+          <span class="funnel-step__count">2,608</span>
+        </div>
+        <div class="funnel-step">
+          <span class="funnel-step__label">Enriched L1</span>
+          <div class="funnel-step__bar" style="width:69%;background:var(--success);"></div>
+          <span class="funnel-step__count">1,806</span>
+        </div>
+        <div class="funnel-step">
+          <span class="funnel-step__label">Triage Pass</span>
+          <div class="funnel-step__bar" style="width:24%;background:var(--warning);"></div>
+          <span class="funnel-step__count">624</span>
+        </div>
+        <div class="funnel-step">
+          <span class="funnel-step__label">Enriched L2</span>
+          <div class="funnel-step__bar" style="width:14%;background:var(--accent);"></div>
+          <span class="funnel-step__count">362</span>
+        </div>
+        <div class="funnel-step">
+          <span class="funnel-step__label">Msg Sent</span>
+          <div class="funnel-step__bar" style="width:6%;background:rgba(245,158,11,0.8);"></div>
+          <span class="funnel-step__count">155</span>
+        </div>
+        <div class="funnel-step">
+          <span class="funnel-step__label">Replied</span>
+          <div class="funnel-step__bar" style="width:1.1%;background:#34D399;min-width:12px;"></div>
+          <span class="funnel-step__count">28</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Response by Channel -->
+    <div class="chart-card">
+      <div class="chart-card__title">Response Rate by Channel</div>
+      <div class="bar-rows">
+        <div class="bar-row">
+          <span class="bar-row__label">LinkedIn</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:24%;background:var(--accent-cyan);"></div>
+          </div>
+          <span class="bar-row__value">24%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Email</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:14%;background:var(--success);"></div>
+          </div>
+          <span class="bar-row__value">14%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Phone</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:8%;background:var(--warning);"></div>
+          </div>
+          <span class="bar-row__value">8%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Multi-touch</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:31%;background:var(--accent);"></div>
+          </div>
+          <span class="bar-row__value">31%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier Performance -->
+    <div class="chart-card">
+      <div class="chart-card__title">Tier Performance</div>
+      <div class="bar-rows">
+        <div class="bar-row">
+          <span class="bar-row__label">Platinum</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:34%;background:var(--accent-cyan);"></div>
+          </div>
+          <span class="bar-row__value">34%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Gold</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:22%;background:var(--warning);"></div>
+          </div>
+          <span class="bar-row__value">22%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Silver</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:11%;background:var(--text-muted);"></div>
+          </div>
+          <span class="bar-row__value">11%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Velocity -->
+    <div class="chart-card">
+      <div class="chart-card__title">Pipeline Velocity</div>
+      <div class="bar-rows">
+        <div class="bar-row">
+          <span class="bar-row__label">Import→L1</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:90%;background:var(--success);"></div>
+          </div>
+          <span class="bar-row__value">~2h</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">L1→Triage</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:20%;background:var(--accent-cyan);"></div>
+          </div>
+          <span class="bar-row__value">~15m</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">Triage→L2</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:75%;background:var(--warning);"></div>
+          </div>
+          <span class="bar-row__value">~1.5h</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-row__label">L2→Message</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" style="width:40%;background:var(--accent);"></div>
+          </div>
+          <span class="bar-row__value">~30m</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="nav.js"></script>
+<script src="auth.js"></script>
+<script>
+(function() {
+  LeadgenAuth.init();
+})();
+</script>
+</body>
+</html>

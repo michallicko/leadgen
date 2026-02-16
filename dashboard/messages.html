@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nav.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -140,52 +141,6 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 .btn-danger:hover:not(:disabled) { background: #c0392b; }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
-
-/* Branded top navigation */
-.top-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 0;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-}
-.top-nav__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.top-nav__title {
-  font-family: var(--font-title);
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-.top-nav__links {
-  display: flex;
-  gap: 2px;
-  margin-left: 24px;
-}
-.top-nav__link {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 6px;
-  transition: color 0.2s, background 0.2s;
-}
-.top-nav__link:hover {
-  color: var(--text);
-  background: rgba(110,44,139,0.08);
-}
-.top-nav__link.active {
-  color: var(--accent-cyan);
-  font-weight: 600;
-  background: rgba(0,184,207,0.08);
-}
 
 /* Settings */
 .settings-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
@@ -417,29 +372,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 .empty-state .big { font-size: 2rem; margin-bottom: 8px; }
 </style>
 </head>
-<body>
+<body data-pillar="reach" data-page="messages">
 
 <div class="container">
-  <nav class="top-nav">
-    <div class="top-nav__brand">
-      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
-      <span class="top-nav__title">Leadgen</span>
-    </div>
-    <div class="top-nav__links">
-      <a href="index.html" class="top-nav__link">Pipeline</a>
-      <a href="companies.html" class="top-nav__link">Companies</a>
-      <a href="contacts.html" class="top-nav__link">Contacts</a>
-      <a href="messages.html" class="top-nav__link active">Messages</a>
-      <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
-      <a href="enrich.html" class="top-nav__link" data-min-role="editor">Enrich</a>
-      <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
-      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
-    </div>
-    <span class="auth-user">
-      <span id="auth_user_name"></span>
-      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
-    </span>
-  </nav>
+  <div id="app-nav"></div>
 
   <h1>Messages Review</h1>
 
@@ -498,6 +434,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width
 
 <div class="toast-container" id="toast_container"></div>
 
+<script src="nav.js"></script>
 <script src="auth.js"></script>
 <script>
 (function() {
