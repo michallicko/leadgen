@@ -61,8 +61,8 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `ares.py` (Czech ARES registry lookups), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
+- **Services**: `pipeline_engine.py` (stage orchestration), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `ares.py` (Czech ARES registry lookups), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -90,18 +90,21 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 
 ### Enrichment Pipeline
 ```
-Trigger (webhook)
+POST /api/enrich/start
     │
     ▼
-Load Contacts (Airtable) ──→ Gate Logic (route by status)
-    │                              │
-    ├──→ L1 Enrichment ──→ Triage  │
-    │                              │
-    ├──→ L2 Enrichment ────────────┤
-    │                              │
-    ├──→ Person Enrichment ────────┤
-    │                              │
-    └──→ Done (mark complete) ◄────┘
+Pipeline Engine (pipeline_engine.py)
+    │
+    ├──→ L1: Native Python (l1_enricher.py → Perplexity sonar)
+    │         → QC validation → triage_passed / needs_review
+    │         → Research stored in research_assets
+    │         → Cost tracked in llm_usage_log
+    │
+    ├──→ L2: n8n webhook (/webhook/l2-enrich) [coming soon]
+    │
+    ├──→ Person: n8n webhook (/webhook/person-enrich) [coming soon]
+    │
+    └──→ Generate: n8n webhook (/webhook/generate-messages) [coming soon]
 ```
 
 ### Authentication Flow
