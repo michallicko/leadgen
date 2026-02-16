@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* ---- Design tokens mapped from existing dashboard ---- */
+@theme {
+  --color-bg: #0D0F14;
+  --color-surface: #14171E;
+  --color-surface-alt: #1A1E28;
+  --color-border: rgba(110, 44, 139, 0.15);
+  --color-border-solid: #231D30;
+
+  --color-text: #E8EAF0;
+  --color-text-muted: #8B92A0;
+  --color-text-dim: #5A6170;
+
+  --color-accent: #6E2C8B;
+  --color-accent-hover: #8B47A8;
+  --color-accent-cyan: #00B8CF;
+
+  --color-success: #34D399;
+  --color-error: #F87171;
+  --color-warning: #FBBF24;
+
+  --font-title: "Lexend Deca", system-ui, sans-serif;
+  --font-body: "Work Sans", system-ui, sans-serif;
+
+  --radius-default: 8px;
+  --radius-lg: 12px;
+}
+
+/* ---- Login page animations ---- */
+@keyframes authMeshDrift {
+  0% { transform: translate(-5%, -5%) rotate(0deg); }
+  100% { transform: translate(5%, 5%) rotate(8deg); }
+}
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+
+/* ---- Base styles ---- */
+@layer base {
+  body {
+    font-family: var(--font-body);
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.5;
+    min-height: 100vh;
+    margin: 0;
+  }
+
+  /* Gradient top accent — brand purple→cyan */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+    z-index: 100;
+  }
+
+  /* Subtle grid texture */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(110, 44, 139, .025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(110, 44, 139, .025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: -1;
+  }
+}
