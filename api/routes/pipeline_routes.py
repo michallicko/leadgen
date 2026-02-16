@@ -561,7 +561,7 @@ def pipeline_dag_status():
             SELECT id, status, cost_usd, stages, config, started_at, completed_at, updated_at
             FROM pipeline_runs
             WHERE tenant_id = :t AND batch_id = :b
-              AND CAST(config AS TEXT) LIKE '%%"mode": "dag"%%'
+              AND CAST(config AS TEXT) LIKE '%%mode%%dag%%'
             ORDER BY started_at DESC
             LIMIT 1
         """),

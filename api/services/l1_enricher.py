@@ -580,11 +580,13 @@ def _map_ownership(raw):
     if "public" in s or "listed" in s:
         return "public"
     if "government" in s or "state" in s:
-        return "government"
+        return "state_owned"
     if "cooperative" in s or "coop" in s:
-        return "cooperative"
+        return "other"
+    if "bootstrap" in s:
+        return "bootstrapped"
     if "private" in s:
-        return "private"
+        return "bootstrapped"
 
     return None
 

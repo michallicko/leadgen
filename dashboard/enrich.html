@@ -1132,16 +1132,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       $$('[data-toggle]').forEach(function(input) { input.disabled = true; });
 
+      // Show spinner in status area
+      var statusEl = $('#dag_pipeline_status');
+      statusEl.textContent = '';
+      var spinner = mkEl('span', { className: 'loading-sm' });
+      statusEl.appendChild(spinner);
+      statusEl.appendChild(document.createTextNode('Pipeline running\u2026'));
+
       STAGE_ORDER.forEach(function(code) {
+        var nodeEl = document.querySelector('[data-stage="' + code + '"]');
         var progressEl = document.querySelector('[data-progress="' + code + '"]');
         var statsEl = document.querySelector('[data-stats="' + code + '"]');
         var fieldsEl = document.querySelector('[data-fields="' + code + '"]');
-        if (progressEl && enabledStages[code]) progressEl.classList.remove('hidden');
-        if (statsEl && enabledStages[code]) statsEl.classList.add('hidden');
-        if (fieldsEl && enabledStages[code]) fieldsEl.classList.add('hidden');
 
-        if (!enabledStages[code]) {
-          var nodeEl = document.querySelector('[data-stage="' + code + '"]');
+        if (enabledStages[code]) {
+          if (nodeEl) nodeEl.setAttribute('data-state', 'running');
+          if (progressEl) progressEl.classList.remove('hidden');
+          if (statsEl) statsEl.classList.add('hidden');
+          if (fieldsEl) fieldsEl.classList.add('hidden');
+        } else {
           if (nodeEl) nodeEl.setAttribute('data-state', 'disabled');
         }
       });
@@ -1296,6 +1305,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     if (pipeline.status === 'completed' || pipeline.status === 'failed' || pipeline.status === 'stopped') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       dagMode = 'completed';
+      $('#dag_pipeline_status').textContent = pipeline.status === 'completed' ? 'Done' : (pipeline.status === 'stopped' ? 'Stopped' : 'Failed');
       showDagCompletion(pipeline, data.stages);
     }
   }
