@@ -197,6 +197,7 @@ class CompanyRegistryData(db.Model):
     raw_vr_response = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     match_confidence = db.Column(db.Numeric(3, 2))
     match_method = db.Column(db.Text)
+    registry_country = db.Column(db.Text, default="CZ")
     ares_updated_at = db.Column(db.Date)
     enriched_at = db.Column(db.DateTime(timezone=True))
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
