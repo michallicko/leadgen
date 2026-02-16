@@ -1,0 +1,2023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leadgen — Pipeline Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --l1-color: #00B8CF;
+  --l2-color: #34D399;
+  --person-color: #9B59B6;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --danger: #F87171;
+  --running: #00B8CF;
+  --outreach-color: #F59E0B;
+  --review-color: #00B8CF;
+  --ready-color: #34D399;
+  --pipe-inactive: #1A1E28;
+  --pipe-completed: #34D399;
+  --particle-color: rgba(110,44,139,0.8);
+  --qc-pass: #34D399;
+  --qc-fail: #F87171;
+  --qc-review: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Gradient top accent — brand purple→cyan */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+/* Subtle grid texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1400px; margin: 0 auto; padding: 24px 16px; position: relative; }
+
+/* Branded top navigation */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.top-nav__title {
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.top-nav__links {
+  display: flex;
+  gap: 2px;
+  margin-left: 24px;
+}
+.top-nav__link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover {
+  color: var(--text);
+  background: rgba(110,44,139,0.08);
+}
+.top-nav__link.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  background: rgba(0,184,207,0.08);
+}
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+  border-color: rgba(110,44,139,0.25);
+  box-shadow: 0 0 30px -10px rgba(110,44,139,0.12);
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+label { font-size: 0.9rem; color: var(--text); }
+
+input[type="text"], input[type="password"], select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color var(--transition);
+}
+
+input[type="text"]:focus, input[type="password"]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+select option { background: var(--bg); color: var(--text); }
+
+.batch-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label:first-child { display: block; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+.inline-group { display: flex; flex-wrap: wrap; gap: 12px; }
+.inline-group label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; user-select: none; }
+
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); color: #fff; box-shadow: 0 2px 10px -2px rgba(110,44,139,0.3); }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8B47A8, #6E2C8B); box-shadow: 0 4px 16px -2px rgba(110,44,139,0.4); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+.trigger-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.trigger-grid .form-row.full { grid-column: 1 / -1; }
+@media (max-width: 600px) { .trigger-grid { grid-template-columns: 1fr; } }
+.trigger-actions { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+
+/* Pipeline Model — Control Room v4 */
+.model-placeholder { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.9rem; }
+
+.pipe-flow {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding: 20px 0 60px;
+  gap: 0;
+}
+
+/* Base node */
+.pipe-node {
+  flex: 0 0 auto;
+  width: 155px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  position: relative;
+  transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
+}
+
+.pipe-node--terminal {
+  width: 105px;
+  border-radius: 50px;
+  text-align: center;
+  padding: 14px 8px;
+}
+
+.pipe-node--processor { padding: 0; }
+
+.pipe-node--gate {
+  width: 125px;
+  padding: 0;
+}
+
+/* Stage colors */
+.pipe-node[data-stage="contacts"] { border-color: var(--text-muted); border-style: dashed; }
+.pipe-node[data-stage="l1"] { border-color: var(--l1-color); box-shadow: 0 0 12px rgba(0,184,207,0.2); }
+.pipe-node[data-stage="l2"] { border-color: var(--l2-color); box-shadow: 0 0 12px rgba(52,211,153,0.2); }
+.pipe-node[data-stage="person"] { border-color: var(--person-color); box-shadow: 0 0 12px rgba(155,89,182,0.2); }
+.pipe-node[data-stage="generate"] { border-color: var(--outreach-color); box-shadow: 0 0 12px rgba(245,158,11,0.2); }
+.pipe-node[data-stage="triage"] { border-color: var(--warning); box-shadow: 0 0 12px rgba(251,191,36,0.2); }
+.pipe-node[data-stage="review"] { border-color: var(--review-color); box-shadow: 0 0 12px rgba(0,184,207,0.2); }
+.pipe-node[data-stage="ready"] { border-color: var(--ready-color); box-shadow: 0 0 12px rgba(52,211,153,0.2); }
+
+/* Node header */
+.pipe-node__header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 10px 6px;
+}
+.pipe-node--terminal .pipe-node__header { justify-content: center; padding: 0 0 4px; }
+
+.pipe-node__icon {
+  flex-shrink: 0; display: flex; align-items: center;
+  color: var(--text-muted);
+}
+.pipe-node[data-stage="l1"] .pipe-node__icon { color: var(--l1-color); }
+.pipe-node[data-stage="l2"] .pipe-node__icon { color: var(--l2-color); }
+.pipe-node[data-stage="person"] .pipe-node__icon { color: var(--person-color); }
+.pipe-node[data-stage="triage"] .pipe-node__icon { color: var(--warning); }
+.pipe-node[data-stage="generate"] .pipe-node__icon { color: var(--outreach-color); }
+.pipe-node[data-stage="review"] .pipe-node__icon { color: var(--review-color); }
+.pipe-node[data-stage="ready"] .pipe-node__icon { color: var(--ready-color); }
+
+.pipe-node__label {
+  font-family: var(--font-title);
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.pipe-node[data-stage="l1"] .pipe-node__label { color: var(--l1-color); }
+.pipe-node[data-stage="l2"] .pipe-node__label { color: var(--l2-color); }
+.pipe-node[data-stage="person"] .pipe-node__label { color: var(--person-color); }
+.pipe-node[data-stage="triage"] .pipe-node__label { color: var(--warning); }
+.pipe-node[data-stage="generate"] .pipe-node__label { color: var(--outreach-color); }
+.pipe-node[data-stage="review"] .pipe-node__label { color: var(--review-color); }
+.pipe-node[data-stage="ready"] .pipe-node__label { color: var(--ready-color); }
+
+.pipe-node__led {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--border); flex-shrink: 0; margin-left: auto;
+}
+
+/* Body (metrics) */
+.pipe-node__body { padding: 2px 10px 8px; }
+.pipe-node--terminal .pipe-node__body { padding: 0 10px 4px; }
+
+.pipe-node__row {
+  display: flex; align-items: center; gap: 5px;
+  padding: 1px 0; font-size: 0.72rem;
+}
+.pipe-node__row-icon {
+  width: 12px; height: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pipe-node__row-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.pipe-node__row-count {
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: 22px; text-align: right;
+}
+.pipe-node__row-label { color: var(--text-muted); font-size: 0.68rem; }
+
+/* Divider */
+.pipe-node__divider {
+  border: none; border-top: 1.5px dashed var(--border); margin: 0 10px;
+}
+
+/* QC Section */
+.pipe-node__qc { padding: 6px 10px 8px; }
+.pipe-node__qc-header {
+  display: flex; align-items: center; gap: 4px;
+  margin-bottom: 4px;
+  font-size: 0.58rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.pipe-node__qc-icon { display: flex; align-items: center; color: var(--text-muted); }
+
+/* Progress bar inside node */
+.pipe-node__progress { margin: 4px 10px 4px; }
+.pipe-node__progress-track {
+  height: 4px; background: rgba(255,255,255,0.08);
+  border-radius: 2px; overflow: hidden;
+}
+.pipe-node__progress-fill {
+  height: 100%; border-radius: 2px; transition: width 0.5s ease;
+}
+.pipe-node__progress-fill.l1 { background: var(--l1-color); }
+.pipe-node__progress-fill.l2 { background: var(--l2-color); }
+.pipe-node__progress-fill.person { background: var(--person-color); }
+.pipe-node__progress-fill.generate { background: var(--outreach-color); }
+.pipe-node__progress-fill.animated {
+  background-image: linear-gradient(-45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%);
+  background-size: 20px 20px; animation: barberpole 0.8s linear infinite;
+}
+.pipe-node__progress-text {
+  font-size: 0.6rem; color: var(--text-muted);
+  margin-top: 2px; font-variant-numeric: tabular-nums; padding: 0 10px 6px;
+}
+
+@keyframes barberpole { 0% { background-position: 0 0; } 100% { background-position: 20px 0; } }
+
+/* Run button on pipeline nodes */
+.pipe-node__run-btn {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid var(--text-dim); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; margin-left: auto; flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  padding: 0;
+}
+.pipe-node__run-btn:hover { border-color: var(--text); background: rgba(255,255,255,0.06); }
+.pipe-node__run-btn svg { width: 10px; height: 10px; }
+.pipe-node__run-btn .run-play { color: var(--text-muted); }
+.pipe-node__run-btn .run-stop { color: var(--error); display: none; }
+.pipe-node__run-btn.is-running .run-play { display: none; }
+.pipe-node__run-btn.is-running .run-stop { display: flex; }
+.pipe-node__run-btn.is-running { border-color: var(--error); animation: btn-pulse 1.5s ease-in-out infinite; }
+.pipe-node__run-btn.is-unavailable { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+
+/* Stage-specific run button colors */
+.pipe-node[data-stage="l1"] .pipe-node__run-btn:hover { border-color: var(--l1-color); box-shadow: 0 0 8px rgba(0,184,207,0.3); }
+.pipe-node[data-stage="l2"] .pipe-node__run-btn:hover { border-color: var(--l2-color); box-shadow: 0 0 8px rgba(52,211,153,0.3); }
+.pipe-node[data-stage="person"] .pipe-node__run-btn:hover { border-color: var(--person-color); box-shadow: 0 0 8px rgba(155,89,182,0.3); }
+.pipe-node[data-stage="generate"] .pipe-node__run-btn:hover { border-color: var(--outreach-color); box-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.pipe-node[data-stage="review"] .pipe-node__run-btn:hover { border-color: var(--review-color); box-shadow: 0 0 8px rgba(0,184,207,0.3); }
+
+@keyframes btn-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Run All / Stop All buttons */
+.pipeline-actions { display: flex; gap: 8px; align-items: center; }
+.pipeline-actions__btn {
+  font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
+  padding: 4px 12px; border-radius: 4px; border: 1px solid;
+  cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.pipeline-actions__btn--run {
+  background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3);
+}
+.pipeline-actions__btn--run:hover { background: rgba(52,211,153,0.22); border-color: var(--success); }
+.pipeline-actions__btn--stop {
+  background: rgba(248,113,113,0.12); color: var(--error); border-color: rgba(248,113,113,0.3);
+}
+.pipeline-actions__btn--stop:hover { background: rgba(248,113,113,0.22); border-color: var(--error); }
+.pipeline-actions__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pipeline-actions__btn svg { width: 10px; height: 10px; }
+
+/* Tier filter tags (inside triage node) */
+.pipe-node__tier-filter { padding: 2px 10px 6px; }
+.pipe-node__tier-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.pipe-node__tier-tag {
+  font-size: 0.58rem; font-weight: 600;
+  padding: 1px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.05); color: var(--text-dim);
+}
+.pipe-node__tier-tag--active { background: rgba(52,211,153,0.18); color: var(--l2-color); }
+
+/* Node states */
+.pipe-node.is-active { animation: node-pulse 2s ease-in-out infinite; }
+.pipe-node.is-active .pipe-node__led {
+  background: #34D399; box-shadow: 0 0 6px #34D399;
+  animation: led-blink 1.5s ease-in-out infinite;
+}
+.pipe-node.is-upcoming { opacity: 0.45; }
+
+@keyframes node-pulse {
+  0%,100% { box-shadow: 0 0 12px rgba(110,44,139,0.2); }
+  50% { box-shadow: 0 0 24px rgba(110,44,139,0.4), 0 0 40px rgba(110,44,139,0.15); }
+}
+@keyframes led-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* Pipe Connectors */
+.pipe-connector {
+  flex: 0 0 auto; width: 60px;
+  position: relative;
+  align-self: flex-start;
+  min-height: 56px;
+}
+.pipe-connector__badge {
+  position: absolute; top: 2px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.pipe-connector__track-wrap {
+  position: absolute; top: 22px; left: 0; right: 0;
+  display: flex; align-items: center;
+}
+.pipe-connector__track {
+  flex: 1; height: 3px; position: relative;
+  overflow: hidden; border-radius: 2px;
+}
+.pipe-connector__track--inactive { background: none; height: 2px; border-top: 1.5px dashed var(--pipe-inactive); }
+.pipe-connector__track--completed { background: var(--pipe-completed); }
+.pipe-connector__track--active { background: var(--accent); }
+
+.pipe-connector__particles {
+  position: absolute; top: 0; left: 0;
+  width: 200%; height: 100%;
+  background: repeating-linear-gradient(90deg,
+    transparent 0px, transparent 16px,
+    var(--particle-color) 16px, rgba(110,44,139,0.9) 20px,
+    transparent 20px, transparent 36px);
+  animation: pipe-particles 1.5s linear infinite;
+}
+@keyframes pipe-particles {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.pipe-connector__arrow {
+  width: 0; height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  flex-shrink: 0;
+}
+.pipe-connector__arrow--inactive { border-left: 7px solid var(--pipe-inactive); opacity: 0.4; }
+.pipe-connector__arrow--completed { border-left: 7px solid var(--pipe-completed); }
+.pipe-connector__arrow--active { border-left: 7px solid var(--accent); }
+
+.pipe-connector__domain {
+  position: absolute; top: 34px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem; color: var(--text-muted);
+  white-space: nowrap;
+}
+.pipe-connector--domain-switch .pipe-connector__track--completed { background: var(--accent); height: 4px; }
+.pipe-connector--domain-switch .pipe-connector__arrow--completed { border-left-color: var(--accent); }
+
+/* Drop-offs */
+.pipe-dropoff {
+  position: absolute; bottom: -48px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
+}
+.pipe-dropoff__stem {
+  width: 1px; height: 12px;
+  border-left: 1.5px dashed var(--border);
+}
+.pipe-dropoff__badges { display: flex; gap: 4px; }
+.pipe-dropoff__badge {
+  font-size: 0.6rem; font-weight: 600;
+  padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+}
+.pipe-dropoff__badge--fail { background: rgba(248,113,113,0.15); color: var(--qc-fail); }
+.pipe-dropoff__badge--review { background: rgba(251,191,36,0.15); color: var(--qc-review); }
+
+/* Mobile */
+@media (max-width: 900px) {
+  .pipe-flow { flex-wrap: wrap; justify-content: center; gap: 4px; padding-bottom: 70px; }
+  .pipe-connector { width: 36px; min-height: 40px; }
+  .pipe-connector__track-wrap { top: 18px; }
+  .pipe-connector__domain { display: none; }
+  .pipe-node { width: 120px; }
+  .pipe-node--terminal { width: 85px; }
+}
+
+/* Status breakdown below model */
+.pipeline-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+.breakdown-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 3px 0;
+}
+
+.breakdown-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.breakdown-count {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ETA bar */
+.pipeline-eta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  background: rgba(110,44,139,0.08);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.pipeline-eta .eta-item { display: flex; align-items: center; gap: 5px; }
+.pipeline-eta .eta-label { color: var(--text-muted); }
+.pipeline-eta .eta-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Tier detail */
+.tier-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.tier-tag {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-muted);
+}
+
+.tier-tag.active { background: rgba(52,211,153,0.15); color: var(--l2-color); }
+
+/* Progress panel (active runs) */
+.progress-panel { display: none; }
+.progress-panel.visible { display: block; }
+
+.run-block + .run-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+.run-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+
+.run-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.82rem; margin-bottom: 10px; }
+.run-meta .meta-item { display: flex; align-items: center; gap: 5px; }
+.run-meta .meta-label { color: var(--text-muted); }
+
+.run-batch-name { font-size: 0.88rem; font-weight: 600; }
+
+.status-badge {
+  display: inline-block; padding: 2px 10px; border-radius: 12px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.status-running { background: rgba(0,184,207,0.2); color: var(--running); }
+.status-completed { background: rgba(52,211,153,0.2); color: var(--success); }
+.status-error { background: rgba(248,113,113,0.2); color: var(--error); }
+
+.progress-bars { display: flex; flex-direction: column; gap: 8px; }
+.progress-item { display: grid; grid-template-columns: 60px 1fr 55px; align-items: center; gap: 8px; }
+.progress-label { font-size: 0.82rem; font-weight: 600; }
+.progress-label.l1 { color: var(--l1-color); }
+.progress-label.l2 { color: var(--l2-color); }
+.progress-label.person { color: var(--person-color); }
+
+.progress-track { height: 18px; background: var(--bg); border-radius: 9px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 9px; transition: width 0.5s ease; }
+.progress-fill.l1 { background: var(--l1-color); }
+.progress-fill.l2 { background: var(--l2-color); }
+.progress-fill.person { background: var(--person-color); }
+.progress-fill.animated {
+  background-image: linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%);
+  background-size: 30px 30px; animation: barberpole 1s linear infinite;
+}
+.progress-count { font-size: 0.78rem; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* History */
+.history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.history-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.history-table td { padding: 8px 10px; border-bottom: 1px solid rgba(35,29,48,0.4); font-variant-numeric: tabular-nums; }
+.history-table tr:hover td { background: rgba(110,44,139,0.04); }
+.history-table a { color: var(--accent-cyan); text-decoration: none; }
+.history-table a:hover { text-decoration: underline; }
+.history-empty, .history-no-key { text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.9rem; }
+
+/* Settings */
+.settings-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.settings-toggle .chevron { transition: transform var(--transition); color: var(--text-muted); font-size: 0.8rem; }
+.settings-toggle .chevron.open { transform: rotate(180deg); }
+.settings-body { display: none; margin-top: 14px; }
+.settings-body.open { display: block; }
+
+/* Toast */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: #fff; opacity: 0; transform: translateX(40px); transition: opacity 0.3s ease, transform 0.3s ease; max-width: 360px; word-break: break-word; }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--running); }
+
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-left: 6px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link active">Pipeline</a>
+      <a href="companies.html" class="top-nav__link">Companies</a>
+      <a href="contacts.html" class="top-nav__link">Contacts</a>
+      <a href="messages.html" class="top-nav__link">Messages</a>
+      <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
+      <a href="enrich.html" class="top-nav__link" data-min-role="editor">Enrich</a>
+      <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
+      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+  <h1>Pipeline Dashboard</h1>
+
+  <!-- Trigger Form (editor+) -->
+  <div class="card" data-min-role="editor">
+    <div class="card-title">Configure Run</div>
+    <div class="trigger-grid">
+      <div class="form-row">
+        <label for="batch_name">Batch</label>
+        <select id="batch_name">
+          <option value="" disabled selected>Loading...</option>
+        </select>
+        <div class="batch-meta" id="batch_meta"></div>
+      </div>
+      <div class="form-row">
+        <label for="owner_select">Owner</label>
+        <select id="owner_select">
+          <option value="" disabled selected>Loading...</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Tier Filter</label>
+        <div class="inline-group" style="margin-top:4px;">
+          <label><input type="checkbox" name="tier" value="Tier 1"> T1</label>
+          <label><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
+          <label><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
+          <label><input type="checkbox" name="tier" value="Tier 4"> T4</label>
+          <label><input type="checkbox" name="tier" value="Tier 5"> T5</label>
+        </div>
+      </div>
+      <div class="form-row full">
+        <label for="job_title">Job Title Filter</label>
+        <input type="text" id="job_title" placeholder="CEO, CTO, VP Engineering (comma-separated, contains match)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline Model -->
+  <div class="card" id="model_card">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      Pipeline Model
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="pipeline-actions" id="pipeline_actions" data-min-role="editor"></div>
+        <span id="model_loading" style="display:none;"><span class="loading-sm"></span></span>
+      </div>
+    </div>
+    <div id="pipeline_model">
+      <div class="model-placeholder">Select a batch to view the pipeline</div>
+    </div>
+  </div>
+
+  <!-- Active Runs -->
+  <div class="card progress-panel" id="progress_panel">
+    <div class="card-title">Active Runs</div>
+    <div id="runs_container"></div>
+  </div>
+
+  <!-- Execution History -->
+  <div class="card">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      Execution History
+      <button class="btn btn-sm" style="background:var(--surface-alt); color:var(--text-muted);" onclick="loadHistory()">Refresh</button>
+    </div>
+    <div id="history_content">
+      <div class="history-no-key">Set your n8n API key in Settings to view execution history.</div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleSettings()">
+      <span class="card-title" style="margin-bottom:0;">Settings</span>
+      <span class="chevron" id="settings_chevron">&#9660;</span>
+    </div>
+    <div class="settings-body" id="settings_body">
+      <div class="form-row">
+        <label for="api_key">n8n API Key</label>
+        <input type="password" id="api_key" placeholder="Enter your n8n API key" style="margin-top:6px;">
+      </div>
+      <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+        Used only for execution history. Stored in localStorage.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast_container"></div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const WEBHOOK_BASE = 'https://n8n.visionvolve.com/webhook';
+  const N8N_API_BASE = 'https://n8n.visionvolve.com/api/v1';
+  const LEADGEN_API = 'https://leadgen.visionvolve.com/api';
+  const WORKFLOW_ID = 'N00qr21DCnGoh32D';
+  const POLL_INTERVAL = 10000;
+  const MAX_POLL_DURATION = 2 * 60 * 60 * 1000;
+
+  function apiHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : (localStorage.getItem('lg_access_token') || '')),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  let pollTimer = null;
+  let pollStartedAt = null;
+  let durationTimers = {};
+  let batchData = [];
+  let ownerData = [];
+  let cachedStats = null;
+  let activeProgress = null; // most recent running progress
+  let stageStatus = {};       // per-stage status from Flask API {l1: {status,done,total,...}, ...}
+  let stagePollTimer = null;
+  var AVAILABLE_STAGES = { l1: true, l2: true, person: true, generate: true };
+  var COMING_SOON_STAGES = { review: true };
+  var activePipelineRun = null; // {run_id, status} from status endpoint
+
+  // ---- SVG Icon System ----
+  const NS = 'http://www.w3.org/2000/svg';
+  function svgEl(w, h, children) {
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('width', w); s.setAttribute('height', h);
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '2');
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    children.forEach(c => s.appendChild(c));
+    return s;
+  }
+  function svgPath(d) { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); return p; }
+  function svgCircle(cx, cy, r) { const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r); return c; }
+  function svgLine(x1, y1, x2, y2) { const l = document.createElementNS(NS, 'line'); l.setAttribute('x1', x1); l.setAttribute('y1', y1); l.setAttribute('x2', x2); l.setAttribute('y2', y2); return l; }
+
+  const ICONS = {
+    people: (w,h) => svgEl(w||20, h||20, [
+      svgPath('M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'),
+      svgCircle(9, 7, 4),
+      svgPath('M23 21v-2a4 4 0 0 0-3-3.87'),
+      svgPath('M16 3.13a4 4 0 0 1 0 7.75')
+    ]),
+    gear: (w,h) => svgEl(w||20, h||20, [
+      svgCircle(12, 12, 3),
+      svgPath('M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z')
+    ]),
+    funnel: (w,h) => svgEl(w||20, h||20, [svgPath('M22 3H2l8 9.46V19l4 2v-8.54L22 3z')]),
+    shield: (w,h) => svgEl(w||20, h||20, [
+      svgPath('M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'),
+      svgPath('M9 12l2 2 4-4')
+    ]),
+    sparkle: (w,h) => svgEl(w||20, h||20, [svgPath('M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z')]),
+    eye: (w,h) => svgEl(w||20, h||20, [
+      svgPath('M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'),
+      svgCircle(12, 12, 3)
+    ]),
+    rocket: (w,h) => svgEl(w||20, h||20, [
+      svgPath('M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z'),
+      svgPath('M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z'),
+      svgPath('M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0'),
+      svgPath('M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5')
+    ]),
+    check: (w,h) => { const s = svgEl(w||12, h||12, [svgPath('M20 6L9 17l-5-5')]); s.setAttribute('stroke-width','2.5'); return s; },
+    cross: (w,h) => { const s = svgEl(w||12, h||12, [svgLine(18,6,6,18), svgLine(6,6,18,18)]); s.setAttribute('stroke-width','2.5'); return s; },
+    alert: (w,h) => { const s = svgEl(w||12, h||12, [
+      svgPath('M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'),
+      svgLine(12,9,12,13), svgLine(12,17,12.01,17)
+    ]); return s; },
+    play: (w,h) => { const s = svgEl(w||10, h||10, [svgPath('M5 3l14 9-14 9V3z')]); s.setAttribute('fill','currentColor'); s.setAttribute('stroke','none'); return s; },
+    stop: (w,h) => { const s = svgEl(w||10, h||10, []); const r = document.createElementNS(NS,'rect'); r.setAttribute('x','4'); r.setAttribute('y','4'); r.setAttribute('width','16'); r.setAttribute('height','16'); r.setAttribute('rx','2'); r.setAttribute('fill','currentColor'); s.appendChild(r); s.setAttribute('stroke','none'); return s; }
+  };
+
+  // ---- Pipeline Stage Configuration ----
+  function computePipelineData(stats) {
+    const sc = stats.status_counts || {};
+    const scf = stats.status_counts_filtered || sc;
+    const ms = stats.message_status_counts || {};
+    const contactsTotal = stats.contacts_total || 0;
+    const companiesTotal = stats.companies_total || 0;
+    // Pre-L1 (unfiltered — tier is unknown before L1 runs)
+    const l1New = sc['New'] || 0;
+    const l1Failed = sc['Enrichment Failed'] || 0;
+    // Post-triage (tier-filtered)
+    const l1NeedsReview = scf['Needs Review'] || scf['Triage: Review'] || 0;
+    const triagePassed = scf['Triage: Passed'] || 0;
+    const disqualified = scf['Triage: Disqualified'] || scf['Disqualified'] || 0;
+    const enrichedL2 = scf['Enriched L2'] || 0;
+    const l2Failed = scf['Enrichment L2 Failed'] || 0;
+    const l1Processed = companiesTotal - l1New;
+    const l1PassedTriage = triagePassed + enrichedL2 + l2Failed;
+    const contactsInEnrichedCos = stats.contacts_in_enriched_cos || 0;
+    const personEnriched = stats.person_enriched_contacts || 0;
+    const personPending = contactsInEnrichedCos - personEnriched;
+    const msGenerated = (ms['pending_review']||0)+(ms['approved']||0)+(ms['sent']||0)+(ms['replied']||0);
+    const msFailed = ms['generation_failed'] || 0;
+    const msNoChannel = ms['no_channel'] || 0;
+    const msGenerating = ms['generating'] || 0;
+    const rvApproved = (ms['approved']||0)+(ms['sent']||0)+(ms['replied']||0);
+    const rvPending = ms['pending_review'] || 0;
+    return {
+      contactsTotal, companiesTotal,
+      l1New, l1Failed, l1NeedsReview, l1Processed, l1PassedTriage,
+      triagePassed, disqualified, enrichedL2, l2Failed,
+      l2Waiting: triagePassed, l2Enriched: enrichedL2,
+      contactsInEnrichedCos, personEnriched, personPending,
+      msGenerated, msFailed, msNoChannel, msGenerating,
+      rvApproved, rvPending,
+      rdReady: ms['approved']||0, rdSent: ms['sent']||0, rdReplied: ms['replied']||0
+    };
+  }
+
+  var STAGE_NODES = {
+    contacts: { id:'contacts', label:'CONTACTS', type:'terminal', icon:'people',
+      metrics: function(d){ return [{color:'#5A6170',count:d.contactsTotal,label:'contacts'}]; },
+      qc:null, dropoff:function(){return [];} },
+    l1: { id:'l1', label:'L1 ENRICH', type:'processor', icon:'gear',
+      metrics: function(d){ return [
+        {color:'#00B8CF',count:d.l1Processed,label:'processed'},
+        {color:'#F87171',count:d.l1Failed,label:'failed'},
+        {color:'#5A6170',count:d.l1New,label:'waiting'}
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    triage: { id:'triage', label:'TRIAGE', type:'gate', icon:'funnel',
+      metrics: function(d){ return [
+        {type:'pass',color:'var(--qc-pass)',count:d.l1PassedTriage,label:'passed',useIcon:true},
+        {type:'fail',color:'var(--qc-fail)',count:d.disqualified,label:'disqualified',useIcon:true},
+        {type:'review',color:'var(--qc-review)',count:d.l1NeedsReview,label:'review',useIcon:true}
+      ]; },
+      qc:null,
+      dropoff: function(d) {
+        var r=[];
+        if(d.disqualified>0)r.push({type:'fail',count:d.disqualified,label:'disq'});
+        if(d.l1NeedsReview>0)r.push({type:'review',count:d.l1NeedsReview,label:'review'});
+        return r;
+      } },
+    l2: { id:'l2', label:'L2 ENRICH', type:'processor', icon:'gear',
+      metrics: function(d){ return [
+        {color:'#34D399',count:d.l2Enriched,label:'enriched'},
+        {color:'#5A6170',count:d.l2Waiting,label:'waiting'}
+      ]; },
+      qc:{ label:'QC CHECK', icon:'shield', rows: function(d){ return [
+        {type:'pass',count:d.l2Enriched,label:'passed'},
+        {type:'fail',count:d.l2Failed,label:'failed'}
+      ]; }},
+      dropoff: function(d){ return d.l2Failed>0 ? [{type:'fail',count:d.l2Failed,label:'failed'}] : []; } },
+    person: { id:'person', label:'PERSON', type:'processor', icon:'gear',
+      metrics: function(d){ return [
+        {color:'#9B59B6',count:d.personEnriched,label:'enriched'},
+        {color:'#5A6170',count:d.personPending,label:'pending'}
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    generate: { id:'generate', label:'GENERATE', type:'processor', icon:'sparkle',
+      metrics: function(d){ return [
+        {color:'#F59E0B',count:d.msGenerated,label:'generated'},
+        {color:'#5A6170',count:d.msGenerating,label:'generating'}
+      ]; },
+      qc:{ label:'AUTO QC', icon:'shield', rows: function(d){ return [
+        {type:'pass',count:d.msGenerated,label:'passed QC'},
+        {type:'fail',count:d.msFailed,label:'rejected'},
+        {type:'review',count:d.msNoChannel,label:'no channel'}
+      ]; }},
+      dropoff: function(d) {
+        var r=[];
+        if(d.msFailed>0)r.push({type:'fail',count:d.msFailed,label:'rejected'});
+        if(d.msNoChannel>0)r.push({type:'review',count:d.msNoChannel,label:'no channel'});
+        return r;
+      } },
+    review: { id:'review', label:'REVIEW', type:'gate', icon:'eye',
+      metrics: function(d){ return [
+        {color:'#00B8CF',count:d.rvApproved,label:'approved'},
+        {color:'#FBBF24',count:d.rvPending,label:'pending'}
+      ]; },
+      qc:null, dropoff:function(){return [];} },
+    ready: { id:'ready', label:'READY', type:'terminal', icon:'rocket',
+      metrics: function(d){ return [
+        {color:'#34D399',count:d.rdReady,label:'ready'},
+        {color:'#00B8CF',count:d.rdSent,label:'sent'},
+        {color:'#34D399',count:d.rdReplied,label:'replied'}
+      ]; },
+      qc:null, dropoff:function(){return [];} }
+  };
+
+  var EDGE_MAP = {
+    'contacts->l1':      { count: function(d){return d.companiesTotal;},        domainSwitch: true,  domainLabel: 'companies' },
+    'contacts->triage':  { count: function(d){return d.companiesTotal;},        domainSwitch: true,  domainLabel: 'companies' },
+    'l1->triage':        { count: function(d){return d.l1Processed;},           domainSwitch: false, domainLabel: null },
+    'triage->l2':        { count: function(d){return d.l1PassedTriage;},        domainSwitch: false, domainLabel: null },
+    'triage->generate':  { count: function(d){return d.personEnriched;},        domainSwitch: true,  domainLabel: 'contacts' },
+    'l2->person':        { count: function(d){return d.contactsInEnrichedCos;}, domainSwitch: true,  domainLabel: 'contacts' },
+    'l2->generate':      { count: function(d){return d.contactsInEnrichedCos;}, domainSwitch: true,  domainLabel: 'contacts' },
+    'person->generate':  { count: function(d){return d.personEnriched;},        domainSwitch: false, domainLabel: null },
+    'generate->review':  { count: function(d){return d.msGenerated;},           domainSwitch: false, domainLabel: null },
+    'review->ready':     { count: function(d){return d.rvApproved;},            domainSwitch: false, domainLabel: null }
+  };
+
+  function buildActivePipeline(stages) {
+    var nodeOrder = ['contacts'];
+    if (!stages || stages.l1) nodeOrder.push('l1');
+    nodeOrder.push('triage');
+    if (!stages || stages.l2) nodeOrder.push('l2');
+    if (!stages || stages.person) nodeOrder.push('person');
+    nodeOrder.push('generate', 'review', 'ready');
+
+    var result = [];
+    for (var i = 0; i < nodeOrder.length; i++) {
+      if (i > 0) {
+        var edgeKey = nodeOrder[i-1] + '->' + nodeOrder[i];
+        var edgeCfg = EDGE_MAP[edgeKey];
+        if (edgeCfg) {
+          result.push({ edge:true, fromId:nodeOrder[i-1], toId:nodeOrder[i], count:edgeCfg.count, domainSwitch:edgeCfg.domainSwitch, domainLabel:edgeCfg.domainLabel });
+        }
+      }
+      result.push(STAGE_NODES[nodeOrder[i]]);
+    }
+    return result;
+  }
+
+  const STAGE_ORDER = ['contacts','l1','triage','l2','person','generate','review','ready'];
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => [...document.querySelectorAll(sel)];
+
+  // ---- LocalStorage ----
+  function save(k, v) { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch(e) {} }
+  function load(k, fb) { try { const r = localStorage.getItem(k); if (r === null) return fb; if (typeof fb === 'string') return r; return JSON.parse(r); } catch(e) { return fb; } }
+
+  // ---- Toast ----
+  function showToast(msg, type) {
+    const c = $('#toast_container'), t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 4000);
+  }
+
+  // ---- Form getters ----
+  function getBatch() { return $('#batch_name').value || ''; }
+  function getOwner() { return $('#owner_select').value || ''; }
+  function getTiers() { return $$('input[name="tier"]:checked').map(c => c.value); }
+  function getStages() { return { l1: true, l2: true, person: true }; }
+  function getJobTitle() { return ($('#job_title').value || '').trim(); }
+
+  // L2→Person dependency no longer needed (stages triggered per-node)
+
+  // ---- Restore + persist form state ----
+  function restoreState() {
+    const tiers = load('tier_filter', ['Tier 2', 'Tier 3']);
+    $$('input[name="tier"]').forEach(cb => { cb.checked = tiers.includes(cb.value); });
+    const apiKey = load('n8n_api_key', '');
+    if (apiKey) $('#api_key').value = apiKey;
+    const jt = load('job_title', '');
+    if (jt) $('#job_title').value = jt;
+  }
+
+  var _jobTitleTimer = null;
+
+  function bindPersistence() {
+    $('#batch_name').addEventListener('change', () => {
+      save('batch_name', getBatch());
+      updateBatchMeta();
+      loadBatchStats();
+      stageStatus = {};
+      stopStagePoll();
+      if (getBatch()) startStagePoll();
+    });
+    $('#owner_select').addEventListener('change', () => {
+      save('owner', getOwner());
+      loadBatchStats();
+    });
+    $$('input[name="tier"]').forEach(cb => {
+      cb.addEventListener('change', () => { save('tier_filter', getTiers()); renderPipelineModel(); loadBatchStats(); });
+    });
+    $('#job_title').addEventListener('input', () => {
+      save('job_title', getJobTitle());
+      clearTimeout(_jobTitleTimer);
+      _jobTitleTimer = setTimeout(() => loadBatchStats(), 500);
+    });
+    $('#api_key').addEventListener('input', () => save('n8n_api_key', $('#api_key').value));
+  }
+
+  // ---- Batch + Owner loading ----
+  async function loadBatches() {
+    const sel = $('#batch_name');
+    const ownerSel = $('#owner_select');
+    try {
+      const resp = await fetch(LEADGEN_API + '/batches', { headers: apiHeaders() });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      batchData = data.batches || [];
+      ownerData = data.owners || [];
+
+      // Populate batch dropdown
+      sel.innerHTML = '';
+      if (batchData.length === 0) {
+        sel.innerHTML = '<option value="" disabled selected>No batches found</option>';
+      } else {
+        batchData.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.name;
+          opt.textContent = b.name;
+          sel.appendChild(opt);
+        });
+        const saved = load('batch_name', '');
+        if (saved && batchData.some(b => b.name === saved)) sel.value = saved;
+        updateBatchMeta();
+      }
+
+      // Populate owner dropdown
+      ownerSel.innerHTML = '';
+      if (ownerData.length === 0) {
+        ownerSel.innerHTML = '<option value="">All</option>';
+      } else {
+        ownerData.forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.name;
+          opt.textContent = o.name;
+          ownerSel.appendChild(opt);
+        });
+        const savedOwner = load('owner', '');
+        if (savedOwner && ownerData.some(o => o.name === savedOwner)) ownerSel.value = savedOwner;
+      }
+
+      // Load stats for initial selection
+      if (getBatch()) loadBatchStats();
+    } catch (err) {
+      sel.innerHTML = '<option value="" disabled selected>Failed to load</option>';
+      ownerSel.innerHTML = '<option value="">-</option>';
+      console.warn('Batch list error:', err);
+    }
+  }
+
+  function updateBatchMeta() {
+    // Counts now shown in pipeline model via batch-stats API
+    $('#batch_meta').textContent = '';
+  }
+
+  // ---- Batch Stats ----
+  let statsAbort = null;
+
+  async function loadBatchStats() {
+    const batch = getBatch();
+    const owner = getOwner();
+    if (!batch) { cachedStats = null; renderPipelineModel(); return; }
+
+    if (statsAbort) statsAbort.abort();
+    statsAbort = new AbortController();
+    $('#model_loading').style.display = '';
+
+    try {
+      const resp = await fetch(LEADGEN_API + '/batch-stats', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ batch_name: batch, owner: owner, tier_filter: getTiers() }),
+        signal: statsAbort.signal
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      cachedStats = await resp.json();
+      renderPipelineModel();
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.warn('Stats error:', err);
+        cachedStats = null;
+        renderPipelineModel();
+      }
+    } finally {
+      $('#model_loading').style.display = 'none';
+    }
+  }
+
+  // ---- Pipeline Model Rendering (Control Room v4) ----
+
+  function getActiveStages() {
+    // Return set of stage IDs that are currently running (from Flask API status)
+    var active = {};
+    for (var sk in stageStatus) {
+      if (stageStatus[sk].status === 'running' || stageStatus[sk].status === 'stopping') {
+        active[sk] = true;
+      }
+    }
+    return active;
+  }
+
+  function getActiveStage(prog) {
+    // Legacy: single active stage from n8n progress
+    if (!prog || prog.status !== 'running') return null;
+    if ((prog.l1_done||0) < (prog.l1_total||0)) return 'l1';
+    if ((prog.l2_done||0) < (prog.l2_total||0)) return 'l2';
+    if ((prog.person_done||0) < (prog.person_total||0)) return 'person';
+    return null;
+  }
+
+  function getNodeState(stageId, activeStageId) {
+    // Check new multi-stage status first
+    var activeStages = getActiveStages();
+    if (Object.keys(activeStages).length > 0) {
+      if (activeStages[stageId]) return 'is-active';
+      var ss = stageStatus[stageId];
+      if (ss && (ss.status === 'completed' || ss.status === 'stopped')) return 'is-completed';
+      return '';
+    }
+    // Legacy single-stage fallback
+    if (!activeStageId) return '';
+    const si = STAGE_ORDER.indexOf(stageId);
+    const ai = STAGE_ORDER.indexOf(activeStageId);
+    if (si < ai) return 'is-completed';
+    if (si === ai) return 'is-active';
+    return 'is-upcoming';
+  }
+
+  function getPipeState(fromId, toId, activeStageId, edgeCount) {
+    // Check new multi-stage status first
+    var activeStages = getActiveStages();
+    if (Object.keys(activeStages).length > 0) {
+      var fromSs = stageStatus[fromId];
+      if (activeStages[fromId]) return 'active';
+      if (fromSs && (fromSs.status === 'completed' || fromSs.status === 'stopped')) return 'completed';
+      return edgeCount > 0 ? 'completed' : 'inactive';
+    }
+    // Legacy single-stage fallback
+    if (!activeStageId) return edgeCount > 0 ? 'completed' : 'inactive';
+    var ai = STAGE_ORDER.indexOf(activeStageId);
+    var fi = STAGE_ORDER.indexOf(fromId);
+    if (fi < ai) return 'completed';
+    if (fi === ai) return 'active';
+    return 'inactive';
+  }
+
+  function buildRow(metric) {
+    var row = document.createElement('div');
+    row.className = 'pipe-node__row';
+    if (metric.useIcon && metric.type) {
+      var iconWrap = document.createElement('span');
+      iconWrap.className = 'pipe-node__row-icon';
+      var iconName = metric.type === 'pass' ? 'check' : metric.type === 'fail' ? 'cross' : 'alert';
+      iconWrap.style.color = metric.color;
+      iconWrap.appendChild(ICONS[iconName]());
+      row.appendChild(iconWrap);
+    } else {
+      var dot = document.createElement('span');
+      dot.className = 'pipe-node__row-dot';
+      dot.style.background = metric.color;
+      row.appendChild(dot);
+    }
+    var ct = document.createElement('span');
+    ct.className = 'pipe-node__row-count';
+    ct.textContent = metric.count;
+    row.appendChild(ct);
+    var lb = document.createElement('span');
+    lb.className = 'pipe-node__row-label';
+    lb.textContent = metric.label;
+    row.appendChild(lb);
+    return row;
+  }
+
+  function buildQcRow(r) {
+    var row = document.createElement('div');
+    row.className = 'pipe-node__row';
+    var iconWrap = document.createElement('span');
+    iconWrap.className = 'pipe-node__row-icon';
+    var iconName = r.type === 'pass' ? 'check' : r.type === 'fail' ? 'cross' : 'alert';
+    var color = r.type === 'pass' ? 'var(--qc-pass)' : r.type === 'fail' ? 'var(--qc-fail)' : 'var(--qc-review)';
+    iconWrap.style.color = color;
+    iconWrap.appendChild(ICONS[iconName]());
+    row.appendChild(iconWrap);
+    var ct = document.createElement('span');
+    ct.className = 'pipe-node__row-count';
+    ct.textContent = r.count;
+    row.appendChild(ct);
+    var lb = document.createElement('span');
+    lb.className = 'pipe-node__row-label';
+    lb.textContent = r.label;
+    row.appendChild(lb);
+    return row;
+  }
+
+  function buildDropoff(items) {
+    var drop = document.createElement('div');
+    drop.className = 'pipe-dropoff';
+    var stem = document.createElement('div');
+    stem.className = 'pipe-dropoff__stem';
+    drop.appendChild(stem);
+    var badges = document.createElement('div');
+    badges.className = 'pipe-dropoff__badges';
+    items.forEach(function(item) {
+      var b = document.createElement('span');
+      b.className = 'pipe-dropoff__badge pipe-dropoff__badge--' + item.type;
+      b.textContent = item.count + ' ' + item.label;
+      badges.appendChild(b);
+    });
+    drop.appendChild(badges);
+    return drop;
+  }
+
+  function buildNode(cfg, data, stages, activeStageId, prog) {
+    var node = document.createElement('div');
+    var typeClass = cfg.type === 'terminal' ? 'pipe-node--terminal' : cfg.type === 'gate' ? 'pipe-node--gate' : 'pipe-node--processor';
+    var ss = stageStatus[cfg.id];
+    var isRunning = ss && (ss.status === 'running' || ss.status === 'stopping');
+    var stateClass = isRunning ? 'is-active' : getNodeState(cfg.id, activeStageId);
+
+    node.className = ['pipe-node', typeClass, stateClass].filter(Boolean).join(' ');
+    node.setAttribute('data-stage', cfg.id);
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.className = 'pipe-node__header';
+    var iconWrap = document.createElement('span');
+    iconWrap.className = 'pipe-node__icon';
+    iconWrap.appendChild(ICONS[cfg.icon]());
+    hdr.appendChild(iconWrap);
+    var lbl = document.createElement('span');
+    lbl.className = 'pipe-node__label';
+    lbl.textContent = cfg.label;
+    hdr.appendChild(lbl);
+
+    // Run button (for processor and gate nodes, not terminals)
+    if (cfg.type === 'processor' || cfg.type === 'gate') {
+      var showRunBtn = cfg.id !== 'triage'; // Triage is auto, no run button
+      if (showRunBtn) {
+        var runBtn = document.createElement('button');
+        runBtn.className = 'pipe-node__run-btn';
+        if (isRunning) runBtn.className += ' is-running';
+        if (COMING_SOON_STAGES[cfg.id]) runBtn.className += ' is-unavailable';
+        runBtn.setAttribute('data-stage', cfg.id);
+        runBtn.title = COMING_SOON_STAGES[cfg.id] ? 'Coming soon' : (isRunning ? 'Stop ' + cfg.label : 'Run ' + cfg.label);
+
+        var playIcon = document.createElement('span');
+        playIcon.className = 'run-play';
+        playIcon.appendChild(ICONS.play(10, 10));
+        runBtn.appendChild(playIcon);
+
+        var stopIcon = document.createElement('span');
+        stopIcon.className = 'run-stop';
+        stopIcon.appendChild(ICONS.stop(10, 10));
+        runBtn.appendChild(stopIcon);
+
+        runBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var stage = this.getAttribute('data-stage');
+          if (COMING_SOON_STAGES[stage]) return;
+          var info = stageStatus[stage];
+          if (info && (info.status === 'running' || info.status === 'stopping')) {
+            stopStage(info.run_id);
+          } else {
+            startStage(stage);
+          }
+        });
+        hdr.appendChild(runBtn);
+      } else {
+        // Triage: just show LED
+        var led = document.createElement('span');
+        led.className = 'pipe-node__led';
+        hdr.appendChild(led);
+      }
+    }
+    node.appendChild(hdr);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'pipe-node__body';
+    cfg.metrics(data).forEach(function(m) { body.appendChild(buildRow(m)); });
+    node.appendChild(body);
+
+    // Tier tags for triage node
+    if (cfg.id === 'triage') {
+      var activeTiers = getTiers();
+      var allTiers = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'];
+      var tf = document.createElement('div');
+      tf.className = 'pipe-node__tier-filter';
+      var tags = document.createElement('div');
+      tags.className = 'pipe-node__tier-tags';
+      allTiers.forEach(function(t) {
+        var tag = document.createElement('span');
+        var isActive = activeTiers.indexOf(t) >= 0;
+        tag.className = 'pipe-node__tier-tag' + (isActive ? ' pipe-node__tier-tag--active' : '');
+        tag.textContent = t.replace('Tier ', 'T');
+        tags.appendChild(tag);
+      });
+      tf.appendChild(tags);
+      node.appendChild(tf);
+    }
+
+    // QC section
+    if (cfg.qc) {
+      var divider = document.createElement('hr');
+      divider.className = 'pipe-node__divider';
+      node.appendChild(divider);
+      var qc = document.createElement('div');
+      qc.className = 'pipe-node__qc';
+      var qcHdr = document.createElement('div');
+      qcHdr.className = 'pipe-node__qc-header';
+      var qcIcon = document.createElement('span');
+      qcIcon.className = 'pipe-node__qc-icon';
+      qcIcon.appendChild(ICONS[cfg.qc.icon](14, 14));
+      qcHdr.appendChild(qcIcon);
+      qcHdr.appendChild(document.createTextNode(cfg.qc.label));
+      qc.appendChild(qcHdr);
+      cfg.qc.rows(data).forEach(function(r) { qc.appendChild(buildQcRow(r)); });
+      node.appendChild(qc);
+    }
+
+    // Per-node progress bar (from Flask API stage status)
+    if (ss && ss.total > 0 && (ss.status === 'running' || ss.status === 'stopping' || ss.status === 'completed' || ss.status === 'stopped' || ss.status === 'failed')) {
+      var stageKey = cfg.id;
+      var done = ss.done || 0;
+      var total = ss.total || 0;
+      var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      var pg = document.createElement('div');
+      pg.className = 'pipe-node__progress';
+      var track = document.createElement('div');
+      track.className = 'pipe-node__progress-track';
+      var fill = document.createElement('div');
+      fill.className = 'pipe-node__progress-fill ' + stageKey;
+      if (ss.status === 'running') fill.className += ' animated';
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      pg.appendChild(track);
+      node.appendChild(pg);
+      var txt = document.createElement('div');
+      txt.className = 'pipe-node__progress-text';
+      var costStr = ss.cost > 0 ? ' ($' + ss.cost.toFixed(3) + ')' : '';
+      txt.textContent = done + ' / ' + total + (ss.failed > 0 ? ' (' + ss.failed + ' failed)' : '') + costStr;
+      node.appendChild(txt);
+    }
+    // Legacy n8n progress (fallback for old orchestrator runs)
+    else if (prog && activeStageId === cfg.id) {
+      var stageKey2 = cfg.id;
+      var done2 = prog[stageKey2 + '_done'] || 0;
+      var total2 = prog[stageKey2 + '_total'] || 0;
+      if (total2 > 0) {
+        var pg2 = document.createElement('div');
+        pg2.className = 'pipe-node__progress';
+        var track2 = document.createElement('div');
+        track2.className = 'pipe-node__progress-track';
+        var fill2 = document.createElement('div');
+        fill2.className = 'pipe-node__progress-fill ' + stageKey2 + ' animated';
+        fill2.style.width = Math.round((done2 / total2) * 100) + '%';
+        track2.appendChild(fill2);
+        pg2.appendChild(track2);
+        node.appendChild(pg2);
+        var txt2 = document.createElement('div');
+        txt2.className = 'pipe-node__progress-text';
+        txt2.textContent = done2 + ' / ' + total2;
+        node.appendChild(txt2);
+      }
+    }
+
+    // Drop-offs
+    if (cfg.dropoff) {
+      var drops = cfg.dropoff(data);
+      if (drops.length > 0) node.appendChild(buildDropoff(drops));
+    }
+
+    return node;
+  }
+
+  function buildConnector(edgeCfg, data, activeStageId) {
+    var conn = document.createElement('div');
+    conn.className = 'pipe-connector' + (edgeCfg.domainSwitch ? ' pipe-connector--domain-switch' : '');
+    var count = edgeCfg.count(data);
+
+    // Badge
+    var badge = document.createElement('div');
+    badge.className = 'pipe-connector__badge';
+    badge.textContent = count;
+    conn.appendChild(badge);
+
+    // Pipe state
+    var pState = getPipeState(edgeCfg.fromId, edgeCfg.toId, activeStageId, count);
+
+    // Track + arrow wrapper
+    var wrap = document.createElement('div');
+    wrap.className = 'pipe-connector__track-wrap';
+    var track = document.createElement('div');
+    track.className = 'pipe-connector__track pipe-connector__track--' + pState;
+    if (pState === 'active') {
+      var particles = document.createElement('div');
+      particles.className = 'pipe-connector__particles';
+      track.appendChild(particles);
+    }
+    wrap.appendChild(track);
+    var arrow = document.createElement('div');
+    arrow.className = 'pipe-connector__arrow pipe-connector__arrow--' + pState;
+    wrap.appendChild(arrow);
+    conn.appendChild(wrap);
+
+    // Domain label
+    if (edgeCfg.domainLabel) {
+      var dl = document.createElement('div');
+      dl.className = 'pipe-connector__domain';
+      dl.textContent = edgeCfg.domainLabel;
+      conn.appendChild(dl);
+    }
+
+    return conn;
+  }
+
+  function renderPipelineModel() {
+    var container = $('#pipeline_model');
+    if (!cachedStats) {
+      container.textContent = '';
+      var ph = document.createElement('div');
+      ph.className = 'model-placeholder';
+      ph.textContent = 'Select a batch to view the pipeline';
+      container.appendChild(ph);
+      return;
+    }
+
+    var stats = cachedStats;
+    var stages = getStages();
+    var tiers = getTiers();
+    var prog = activeProgress;
+    var data = computePipelineData(stats);
+    var activeStageId = getActiveStage(prog);
+
+    container.textContent = '';
+    var flow = document.createElement('div');
+    flow.className = 'pipe-flow';
+
+    var pipelineStages = buildActivePipeline(stages);
+    pipelineStages.forEach(function(cfg) {
+      if (cfg.edge) {
+        flow.appendChild(buildConnector(cfg, data, activeStageId));
+      } else {
+        flow.appendChild(buildNode(cfg, data, stages, activeStageId, prog));
+      }
+    });
+    container.appendChild(flow);
+
+    // Status breakdown
+    var sc = stats.status_counts || {};
+    var bk = document.createElement('div');
+    bk.className = 'pipeline-breakdown';
+    [['New','#5A6170'],['Enrichment Failed','#F87171'],['Triage: Passed','#00B8CF'],
+     ['Needs Review','#FBBF24'],['Triage: Disqualified','#5A6170'],['Disqualified','#5A6170'],
+     ['Enriched L2','#34D399'],['Enrichment L2 Failed','#EF4444']].forEach(function(pair) {
+      var count = sc[pair[0]] || 0;
+      if (count > 0) {
+        var tag = document.createElement('div');
+        tag.className = 'breakdown-tag';
+        var dot = document.createElement('span');
+        dot.className = 'breakdown-dot';
+        dot.style.background = pair[1];
+        tag.appendChild(dot);
+        tag.appendChild(document.createTextNode(pair[0] + ': '));
+        var ct = document.createElement('span');
+        ct.className = 'breakdown-count';
+        ct.textContent = count;
+        tag.appendChild(ct);
+        bk.appendChild(tag);
+      }
+    });
+    container.appendChild(bk);
+
+    // Tier detail
+    var l2Tiers = stats.l2_eligible_by_tier || {};
+    var tierBreakdown = [];
+    for (var tier in l2Tiers) {
+      var active = tiers.some(function(t) { return tier.startsWith(t); });
+      tierBreakdown.push({ tier: tier, count: l2Tiers[tier], active: active });
+    }
+    tierBreakdown.sort(function(a, b) { return a.tier.localeCompare(b.tier); });
+    if (tierBreakdown.length > 0) {
+      var td = document.createElement('div');
+      td.className = 'tier-detail';
+      tierBreakdown.forEach(function(t) {
+        var sp = document.createElement('span');
+        sp.className = 'tier-tag' + (t.active ? ' active' : '');
+        sp.textContent = t.tier.replace(/ - .*/, '') + ': ' + t.count;
+        td.appendChild(sp);
+      });
+      container.appendChild(td);
+    }
+
+    // ETA bar — aggregate across all running stages
+    var runningStages = [];
+    var aggregateDone = 0, aggregateTotal = 0, aggregateCost = 0, earliestStart = null;
+    for (var sk in stageStatus) {
+      var ss = stageStatus[sk];
+      if (ss.status === 'running' || ss.status === 'stopping') {
+        runningStages.push(ss);
+        aggregateDone += (ss.done || 0);
+        aggregateTotal += (ss.total || 0);
+        aggregateCost += (ss.cost || 0);
+        if (ss.started_at) {
+          var t = new Date(ss.started_at).getTime();
+          if (!earliestStart || t < earliestStart) earliestStart = t;
+        }
+      }
+    }
+    // Also include cost from completed stages in this session
+    if (activePipelineRun && activePipelineRun.cost) {
+      aggregateCost = Math.max(aggregateCost, activePipelineRun.cost);
+    }
+
+    if (runningStages.length > 0) {
+      var elapsed = earliestStart ? (Date.now() - earliestStart) / 1000 : 0;
+      var pct = aggregateTotal > 0 ? aggregateDone / aggregateTotal : 0;
+      var etaSec = pct > 0.01 ? Math.round((elapsed / pct) * (1 - pct)) : null;
+      var costStr = '$' + aggregateCost.toFixed(3);
+      var stageLabel = runningStages.length > 1 ? runningStages.length + ' stages' : runningStages[0].run_id ? sk.toUpperCase() : '1 stage';
+      var eta = document.createElement('div');
+      eta.className = 'pipeline-eta';
+      eta.id = 'pipeline_eta';
+      eta.appendChild(crEtaItem('Elapsed:', fmtDur(elapsed), 'model_elapsed'));
+      if (etaSec !== null) eta.appendChild(crEtaItem('ETA:', '~' + fmtDur(etaSec)));
+      eta.appendChild(crEtaItem('Progress:', aggregateDone + '/' + aggregateTotal + ' (' + Math.round(pct * 100) + '%)'));
+      eta.appendChild(crEtaItem('Cost:', costStr));
+      container.appendChild(eta);
+    } else if (prog && prog.status === 'running') {
+      // Legacy n8n progress fallback
+      var elapsed2 = prog.started_at ? (Date.now() - new Date(prog.started_at).getTime()) / 1000 : 0;
+      var totalItems2 = (prog.l1_total||0) + (prog.l2_total||0) + (prog.person_total||0);
+      var doneItems2 = (prog.l1_done||0) + (prog.l2_done||0) + (prog.person_done||0);
+      var pct2 = totalItems2 > 0 ? doneItems2 / totalItems2 : 0;
+      var etaSec2 = pct2 > 0.01 ? Math.round((elapsed2 / pct2) * (1 - pct2)) : null;
+      var costStr2 = typeof prog.cost === 'number' ? '$' + prog.cost.toFixed(3) : '--';
+      var eta2 = document.createElement('div');
+      eta2.className = 'pipeline-eta';
+      eta2.id = 'pipeline_eta';
+      eta2.appendChild(crEtaItem('Elapsed:', fmtDur(elapsed2), 'model_elapsed'));
+      if (etaSec2 !== null) eta2.appendChild(crEtaItem('ETA:', '~' + fmtDur(etaSec2)));
+      eta2.appendChild(crEtaItem('Progress:', Math.round(pct2 * 100) + '%'));
+      eta2.appendChild(crEtaItem('Cost:', costStr2));
+      container.appendChild(eta2);
+    }
+  }
+
+  // -- DOM helper: ETA item --
+  function crEtaItem(label, value, id) {
+    var item = document.createElement('div');
+    item.className = 'eta-item';
+    var lbl = document.createElement('span');
+    lbl.className = 'eta-label';
+    lbl.textContent = label;
+    item.appendChild(lbl);
+    item.appendChild(document.createTextNode(' '));
+    var val = document.createElement('span');
+    val.className = 'eta-value';
+    val.textContent = value;
+    if (id) val.id = id;
+    item.appendChild(val);
+    return item;
+  }
+
+  function fmtDur(sec) {
+    sec = Math.max(0, Math.round(sec));
+    const h = Math.floor(sec / 3600);
+    sec %= 3600;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (h > 0) return h + 'h ' + pad(m) + 'm';
+    if (m > 0) return m + 'm ' + pad(s) + 's';
+    return s + 's';
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  // ---- Per-Stage Start/Stop ----
+  async function startStage(stage) {
+    var batch = getBatch();
+    if (!batch) { showToast('Select a batch first.', 'error'); return; }
+
+    var payload = {
+      stage: stage,
+      batch_name: batch,
+      owner: getOwner(),
+      tier_filter: getTiers()
+    };
+    var jt = getJobTitle();
+    if (jt) payload.job_title_filter = jt;
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/start', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify(payload)
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        if (data.error && data.error.indexOf('No eligible') !== -1) {
+          showToast('All done! You have no new items to process.', 'success');
+          return;
+        }
+        throw new Error(data.error || 'HTTP ' + resp.status);
+      }
+      showToast(stage.toUpperCase() + ' started (' + data.total + ' items)', 'success');
+      startStagePoll();
+    } catch (err) {
+      showToast('Failed to start ' + stage.toUpperCase() + ': ' + err.message, 'error');
+    }
+  }
+
+  async function stopStage(runId) {
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/stop', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ run_id: runId })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      showToast('Stop requested', 'info');
+    } catch (err) {
+      showToast('Failed to stop: ' + err.message, 'error');
+    }
+  }
+
+  // ---- Run All / Stop All ----
+  async function startRunAll() {
+    var batch = getBatch();
+    if (!batch) { showToast('Select a batch first.', 'error'); return; }
+
+    var payload = {
+      batch_name: batch,
+      owner: getOwner(),
+      tier_filter: getTiers()
+    };
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/run-all', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify(payload)
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      activePipelineRun = { run_id: data.pipeline_run_id, status: 'running', cost: 0 };
+      showToast('Pipeline started — all stages running', 'success');
+      startStagePoll();
+    } catch (err) {
+      showToast('Failed to start pipeline: ' + err.message, 'error');
+    }
+  }
+
+  async function stopRunAll() {
+    if (!activePipelineRun || !activePipelineRun.run_id) {
+      showToast('No active pipeline run to stop.', 'error');
+      return;
+    }
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/stop-all', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ pipeline_run_id: activePipelineRun.run_id })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+      showToast('Pipeline stop requested — stages will finish current items', 'info');
+    } catch (err) {
+      showToast('Failed to stop pipeline: ' + err.message, 'error');
+    }
+  }
+
+  function updatePipelineActions() {
+    var container = $('#pipeline_actions');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    var anyRunning = Object.values(stageStatus).some(function(s) {
+      return s.status === 'running' || s.status === 'stopping' || s.status === 'pending';
+    });
+    var pipelineRunning = activePipelineRun && (activePipelineRun.status === 'running' || activePipelineRun.status === 'stopping');
+
+    if (pipelineRunning) {
+      var stopBtn = document.createElement('button');
+      stopBtn.className = 'pipeline-actions__btn pipeline-actions__btn--stop';
+      stopBtn.appendChild(ICONS.stop(10, 10));
+      stopBtn.appendChild(document.createTextNode('Stop All'));
+      if (activePipelineRun.status === 'stopping') {
+        stopBtn.disabled = true;
+        stopBtn.textContent = 'Stopping...';
+      }
+      stopBtn.addEventListener('click', stopRunAll);
+      container.appendChild(stopBtn);
+    } else {
+      var runBtn = document.createElement('button');
+      runBtn.className = 'pipeline-actions__btn pipeline-actions__btn--run';
+      runBtn.appendChild(ICONS.play(10, 10));
+      runBtn.appendChild(document.createTextNode('Run All'));
+      if (anyRunning) runBtn.disabled = true;
+      runBtn.addEventListener('click', startRunAll);
+      container.appendChild(runBtn);
+    }
+  }
+
+  // ---- Stage Status Polling (Flask API) ----
+  function startStagePoll() {
+    if (stagePollTimer) return;
+    pollStageStatus();
+    stagePollTimer = setInterval(pollStageStatus, 5000);
+  }
+
+  function stopStagePoll() {
+    if (stagePollTimer) { clearInterval(stagePollTimer); stagePollTimer = null; }
+  }
+
+  async function pollStageStatus() {
+    var batch = getBatch();
+    if (!batch) return;
+
+    try {
+      var resp = await fetch(LEADGEN_API + '/pipeline/status?batch_name=' + encodeURIComponent(batch), {
+        headers: apiHeaders()
+      });
+      if (!resp.ok) return;
+      var data = await resp.json();
+      stageStatus = data.stages || {};
+
+      // Track pipeline run status (from enhanced status endpoint)
+      if (data.pipeline) {
+        activePipelineRun = {
+          run_id: data.pipeline.run_id,
+          status: data.pipeline.status,
+          cost: data.pipeline.cost || 0
+        };
+      } else if (activePipelineRun && activePipelineRun.status !== 'running' && activePipelineRun.status !== 'stopping') {
+        activePipelineRun = null;
+      }
+
+      updatePipelineActions();
+      renderPipelineModel();
+
+      // Check if any stage is running
+      var anyRunning = Object.values(stageStatus).some(function(s) {
+        return s.status === 'running' || s.status === 'stopping' || s.status === 'pending';
+      });
+
+      // If a run just completed, refresh batch stats
+      var anyJustCompleted = Object.values(stageStatus).some(function(s) {
+        return s.status === 'completed' || s.status === 'stopped' || s.status === 'failed';
+      });
+
+      if (!anyRunning && anyJustCompleted) {
+        loadBatchStats();
+        if (activePipelineRun && (activePipelineRun.status === 'completed' || activePipelineRun.status === 'stopped' || activePipelineRun.status === 'failed')) {
+          activePipelineRun = null;
+          updatePipelineActions();
+        }
+      }
+
+      // Keep polling as long as a batch is selected (cheap call)
+    } catch (err) {
+      console.warn('Stage poll error:', err);
+    }
+  }
+
+  // ---- Legacy Trigger (n8n orchestrator — kept for backward compat) ----
+  window.startEnrichment = async function() {
+    // Legacy: removed (per-node buttons replace this)
+    showToast('Use the play buttons on each pipeline node to start enrichment.', 'info');
+  };
+
+  // ---- Progress Polling ----
+  function startPolling() {
+    if (pollTimer) return;
+    pollStartedAt = Date.now();
+    pollProgress();
+    pollTimer = setInterval(() => {
+      if (Date.now() - pollStartedAt > MAX_POLL_DURATION) { stopPolling(); showToast('Polling timed out.', 'info'); return; }
+      pollProgress();
+    }, POLL_INTERVAL);
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    Object.values(durationTimers).forEach(t => clearInterval(t));
+    durationTimers = {};
+  }
+
+  async function pollProgress() {
+    try {
+      const resp = await fetch(WEBHOOK_BASE + '/pipeline-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' })
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+
+      if (data.ok && data.runs) {
+        renderRuns(data.runs);
+
+        // Find most recent running run for model overlay
+        const running = data.runs.find(r => r.status === 'running');
+        activeProgress = running || null;
+        renderPipelineModel();
+
+        const allDone = data.runs.length > 0 && data.runs.every(r => r.status === 'completed' || r.status === 'error');
+        if (allDone) {
+          stopPolling();
+          activeProgress = null;
+          renderPipelineModel();
+          loadHistory();
+          // Refresh stats after run completes
+          loadBatchStats();
+        }
+      }
+    } catch (err) {
+      console.warn('Poll error:', err);
+    }
+  }
+
+  function renderRuns(runs) {
+    const panel = $('#progress_panel');
+    const container = $('#runs_container');
+
+    if (!runs || runs.length === 0) { panel.classList.remove('visible'); return; }
+    panel.classList.add('visible');
+
+    const recent = runs.slice(0, 3);
+    container.innerHTML = recent.map((r, i) => renderRunBlock(r, i)).join('');
+
+    Object.values(durationTimers).forEach(t => clearInterval(t));
+    durationTimers = {};
+    recent.forEach((r, i) => {
+      if (r.status === 'running' && r.started_at) {
+        updateRunDuration(i, r.started_at);
+        durationTimers[i] = setInterval(() => updateRunDuration(i, r.started_at), 1000);
+      }
+    });
+  }
+
+  function renderRunBlock(run, idx) {
+    const statusClass = run.status === 'running' ? 'status-running' : run.status === 'completed' ? 'status-completed' : 'status-error';
+    const anim = run.status === 'running' ? ' animated' : '';
+
+    const l1Pct = run.l1_total > 0 ? Math.round((run.l1_done / run.l1_total) * 100) : 0;
+    const l2Pct = run.l2_total > 0 ? Math.round((run.l2_done / run.l2_total) * 100) : 0;
+    const pPct = run.person_total > 0 ? Math.round((run.person_done / run.person_total) * 100) : 0;
+    const cost = typeof run.cost === 'number' ? '$' + run.cost.toFixed(3) : '--';
+    const dur = run.started_at ? formatDuration(run.started_at, run.status === 'running' ? null : run.updated_at) : '--';
+
+    // ETA
+    let etaStr = '';
+    if (run.status === 'running' && run.started_at) {
+      const elapsed = (Date.now() - new Date(run.started_at).getTime()) / 1000;
+      const total = (run.l1_total || 0) + (run.l2_total || 0) + (run.person_total || 0);
+      const done = (run.l1_done || 0) + (run.l2_done || 0) + (run.person_done || 0);
+      const pct = total > 0 ? done / total : 0;
+      if (pct > 0.01) {
+        const etaSec = Math.round((elapsed / pct) * (1 - pct));
+        etaStr = '<div class="meta-item"><span class="meta-label">ETA:</span> ~' + fmtDur(etaSec) + '</div>';
+      }
+    }
+
+    return '<div class="run-block">' +
+      '<div class="run-header">' +
+        '<div class="run-batch-name">' + esc(run.batch_name || 'Run ' + (run.execution_id || '')) +
+        (run.owner ? ' <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem;">(' + esc(run.owner) + ')</span>' : '') + '</div>' +
+        '<span class="status-badge ' + statusClass + '">' + esc(run.status || 'unknown') + '</span>' +
+      '</div>' +
+      '<div class="run-meta">' +
+        '<div class="meta-item"><span class="meta-label">Duration:</span> <span id="rdur_' + idx + '">' + dur + '</span></div>' +
+        etaStr +
+        '<div class="meta-item"><span class="meta-label">Cost:</span> ' + cost + '</div>' +
+        '<div class="meta-item"><span class="meta-label">Cos:</span> ' + (run.total_companies || 0) + '</div>' +
+        '<div class="meta-item"><span class="meta-label">Ctc:</span> ' + (run.total_contacts || 0) + '</div>' +
+      '</div>' +
+      '<div class="progress-bars">' +
+        progressBar('L1', 'l1', run.l1_done || 0, run.l1_total || 0, l1Pct, anim) +
+        progressBar('L2', 'l2', run.l2_done || 0, run.l2_total || 0, l2Pct, anim) +
+        progressBar('Person', 'person', run.person_done || 0, run.person_total || 0, pPct, anim) +
+      '</div>' +
+    '</div>';
+  }
+
+  function progressBar(label, cls, done, total, pct, anim) {
+    return '<div class="progress-item">' +
+      '<span class="progress-label ' + cls + '">' + label + '</span>' +
+      '<div class="progress-track"><div class="progress-fill ' + cls + anim + '" style="width:' + (total > 0 ? pct : 0) + '%;"></div></div>' +
+      '<span class="progress-count">' + done + ' / ' + total + '</span>' +
+    '</div>';
+  }
+
+  function updateRunDuration(idx, startedAt) {
+    const el = document.getElementById('rdur_' + idx);
+    if (el) el.textContent = formatDuration(startedAt, null);
+  }
+
+  function formatDuration(startStr, endStr) {
+    try {
+      const s = new Date(startStr).getTime(), e = endStr ? new Date(endStr).getTime() : Date.now();
+      return fmtDur((e - s) / 1000);
+    } catch(e) { return '--'; }
+  }
+
+  // ---- Execution History ----
+  window.loadHistory = async function() {
+    const apiKey = ($('#api_key').value || '').trim();
+    const container = $('#history_content');
+    if (!apiKey) { container.innerHTML = '<div class="history-no-key">Set your n8n API key in Settings to view execution history.</div>'; return; }
+
+    container.innerHTML = '<div class="history-empty" style="padding:16px;">Loading...</div>';
+    try {
+      const resp = await fetch(N8N_API_BASE + '/executions?workflowId=' + WORKFLOW_ID + '&limit=10', { headers: { 'X-N8N-API-KEY': apiKey } });
+      if (!resp.ok) throw new Error(resp.status === 401 ? 'Invalid API key' : 'HTTP ' + resp.status);
+      const data = await resp.json();
+      const execs = data.data || data.results || data;
+      if (!Array.isArray(execs) || execs.length === 0) { container.innerHTML = '<div class="history-empty">No executions found.</div>'; return; }
+
+      let html = '<table class="history-table"><thead><tr><th>ID</th><th>Status</th><th>Started</th><th>Finished</th></tr></thead><tbody>';
+      execs.forEach(ex => {
+        const st = ex.status || (ex.finished ? 'success' : 'running');
+        const cls = st === 'success' ? 'status-completed' : st === 'error' ? 'status-error' : 'status-running';
+        const url = 'https://n8n.visionvolve.com/workflow/' + WORKFLOW_ID + '/executions/' + ex.id;
+        html += '<tr><td><a href="' + url + '" target="_blank">' + esc(String(ex.id)) + '</a></td>' +
+          '<td><span class="status-badge ' + cls + '">' + esc(st) + '</span></td>' +
+          '<td>' + fmtTime(ex.startedAt) + '</td><td>' + fmtTime(ex.stoppedAt || ex.finished) + '</td></tr>';
+      });
+      container.innerHTML = html + '</tbody></table>';
+    } catch (err) {
+      container.innerHTML = '<div class="history-empty" style="color:var(--error);">Error: ' + esc(err.message) + '</div>';
+    }
+  };
+
+  function fmtTime(iso) {
+    if (!iso) return '--';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' ' +
+             d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch(e) { return iso; }
+  }
+
+  // ---- Settings toggle ----
+  window.toggleSettings = function() {
+    $('#settings_body').classList.toggle('open');
+    $('#settings_chevron').classList.toggle('open');
+  };
+
+  // ---- Helpers ----
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ---- Init ----
+  function initDashboard() {
+    restoreState();
+    bindPersistence();
+    loadBatches().then(function() {
+      // Start stage status polling once batches are loaded
+      if (getBatch()) startStagePoll();
+    });
+    if (load('n8n_api_key', '')) loadHistory();
+    pollProgress().then(() => {
+      if ($('#progress_panel').classList.contains('visible')) startPolling();
+    });
+  }
+
+  function init() {
+    LeadgenAuth.init(initDashboard);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

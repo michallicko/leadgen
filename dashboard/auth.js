@@ -330,106 +330,10 @@
       gated[i].style.display = userLevel >= required ? '' : 'none';
     }
 
-    var nameEl = document.getElementById('auth_user_name');
-    if (nameEl && user) nameEl.textContent = user.display_name || user.email;
-
-    buildNamespaceSwitcher(user);
-    rewriteNavLinks(user);
-  }
-
-  // ---- Namespace-aware nav links ----
-
-  function rewriteNavLinks() {
-    var links = document.querySelectorAll('.top-nav__link');
-    for (var i = 0; i < links.length; i++) {
-      (function(link) {
-        link.addEventListener('click', function(e) {
-          var href = link.getAttribute('href');
-          if (!href || href === 'admin.html') return; // admin stays root-level
-          // Already namespace-prefixed? let it through
-          if (href.charAt(0) === '/' && href.indexOf('.') === -1) return;
-
-          var ns = getNamespace();
-          if (!ns) {
-            var switcher = document.getElementById('ns_switcher');
-            ns = switcher && switcher.value;
-          }
-          if (!ns) return; // no namespace available, follow default link
-
-          e.preventDefault();
-          var page = href.replace('.html', '').replace('index', '');
-          window.location.href = '/' + ns + '/' + page;
-        });
-      })(links[i]);
+    // Populate the shared nav component (nav.js)
+    if (window.LeadgenNav && window.LeadgenNav.applyAuth) {
+      window.LeadgenNav.applyAuth(user);
     }
-  }
-
-  // ---- Namespace switcher ----
-
-  function buildNamespaceSwitcher(user) {
-    if (!user) return;
-
-    // Remove existing switcher if present
-    var existing = document.getElementById('ns_switcher');
-    if (existing) existing.remove();
-
-    var roles = user.roles || {};
-    var namespaces = Object.keys(roles);
-    var showSwitcher = user.is_super_admin || namespaces.length > 1;
-    if (!showSwitcher) return;
-
-    var currentNs = getNamespace();
-
-    var select = el('select', { id: 'ns_switcher', className: 'ns-switcher' });
-
-    function populateSelect(slugs) {
-      while (select.firstChild) select.removeChild(select.firstChild);
-      slugs.forEach(function (slug) {
-        var opt = el('option', { value: slug, textContent: slug });
-        if (slug === currentNs) opt.selected = true;
-        select.appendChild(opt);
-      });
-    }
-
-    select.addEventListener('change', function () {
-      var newNs = select.value;
-      if (!newNs || newNs === currentNs) return;
-      // Preserve current sub-page (e.g. /old-ns/messages → /new-ns/messages)
-      var path = window.location.pathname;
-      var subPage = '';
-      if (currentNs) {
-        var prefix = '/' + currentNs;
-        if (path.indexOf(prefix) === 0) {
-          subPage = path.substring(prefix.length); // e.g. "/messages" or "/"
-        }
-      }
-      if (!subPage || subPage === '/index.html') subPage = '/';
-      window.location.href = '/' + newNs + subPage;
-    });
-
-    // Insert before the user name
-    var authUser = document.querySelector('.auth-user');
-    if (!authUser) return;
-    authUser.insertBefore(select, authUser.firstChild);
-
-    // Superadmin: fetch all namespaces from API
-    if (user.is_super_admin) {
-      var token = getAccessToken();
-      fetch(API_BASE + '/tenants', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (tenants) {
-        var slugs = tenants
-          .filter(function (t) { return t.is_active; })
-          .map(function (t) { return t.slug; });
-        if (slugs.length > 0) populateSelect(slugs);
-      })
-      .catch(function () { /* keep whatever we have */ });
-    }
-
-    // Populate with user's own namespaces initially
-    populateSelect(namespaces);
   }
 
   // ---- Logout ----
@@ -546,19 +450,6 @@
       '.auth-secure{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:24px;' +
         'font-family:"Work Sans",-apple-system,sans-serif;font-size:.72rem;letter-spacing:.04em;color:rgba(139,146,160,.45);}',
       '.auth-secure svg{opacity:.5;}',
-
-      /* ---- Nav auth user ---- */
-      '.auth-user{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.82rem;color:var(--text-muted,#8B92A0);}',
-      '.auth-logout{background:none;border:1px solid var(--border,rgba(110,44,139,.2));border-radius:4px;padding:3px 10px;' +
-        'color:var(--text-muted,#8B92A0);font-size:.78rem;cursor:pointer;transition:border-color .2s,color .2s;}',
-      '.auth-logout:hover{border-color:#F87171;color:#F87171;}',
-
-      /* ---- Namespace switcher ---- */
-      '.ns-switcher{background:var(--surface,rgba(20,23,30,.85));border:1px solid var(--border,rgba(110,44,139,.2));border-radius:4px;' +
-        'color:var(--text,#E8EAF0);font-family:var(--font-body,"Work Sans",-apple-system,sans-serif);font-size:.78rem;' +
-        'padding:3px 8px;cursor:pointer;outline:none;transition:border-color .2s;}',
-      '.ns-switcher:hover,.ns-switcher:focus{border-color:var(--accent,#6E2C8B);}',
-      '.ns-switcher option{background:#14171E;color:#E8EAF0;}',
 
       /* ---- Animations ---- */
       '@keyframes authMeshDrift{0%{transform:translate(-5%,-5%) rotate(0deg);}100%{transform:translate(5%,5%) rotate(8deg);}}',

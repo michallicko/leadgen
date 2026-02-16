@@ -15,8 +15,8 @@ echo "==> Deploying dashboard to VPS..."
 # 1. Create dashboard directory on VPS
 ssh -i "$VPS_KEY" "$VPS_HOST" "mkdir -p ${VPS_DIR}/dashboard"
 
-# 2. Copy dashboard files (HTML + JS + SVG assets)
-scp -i "$VPS_KEY" ${PROJECT_DIR}/dashboard/*.html ${PROJECT_DIR}/dashboard/*.js ${PROJECT_DIR}/dashboard/*.svg "${VPS_HOST}:${VPS_DIR}/dashboard/"
+# 2. Copy dashboard files (HTML + JS + CSS + SVG assets)
+scp -i "$VPS_KEY" ${PROJECT_DIR}/dashboard/*.html ${PROJECT_DIR}/dashboard/*.js ${PROJECT_DIR}/dashboard/*.css ${PROJECT_DIR}/dashboard/*.svg "${VPS_HOST}:${VPS_DIR}/dashboard/"
 echo "    Copied dashboard files"
 
 # 3. Add dashboard volume to Caddy if not already present
