@@ -18,15 +18,23 @@ from ..services.stage_registry import get_stage_labels
 
 enrich_bp = Blueprint("enrich", __name__)
 
-ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "registry"]
+ENRICHMENT_STAGES = [
+    "l1", "l2", "signals", "registry", "news",
+    "person", "social", "career", "contact_details", "qc",
+]
 
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
     "l1": 0.02,
     "l2": 0.08,
-    "person": 0.04,
-    "generate": 0.03,
+    "signals": 0.05,
     "registry": 0.00,
+    "news": 0.04,
+    "person": 0.04,
+    "social": 0.03,
+    "career": 0.03,
+    "contact_details": 0.01,
+    "qc": 0.00,
 }
 
 

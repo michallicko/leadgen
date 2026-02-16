@@ -63,7 +63,7 @@ body::after {
 }
 
 /* Layout */
-.container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
 
@@ -111,9 +111,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 }
 .form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
 
-/* Filter bar */
-.filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-.filter-bar .form-row { margin-bottom: 0; flex: 1; min-width: 140px; }
+/* Filter grid */
+.filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-items: end; }
+.filter-grid .form-row { margin-bottom: 0; }
+@media (max-width: 900px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
 
 /* Tier chips */
 .tier-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
@@ -208,6 +209,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   flex-wrap: wrap;
 }
 
+.dag-row-group { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.dag-row-label {
+  font-family: var(--font-title); font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px; padding: 2px 10px; margin-bottom: 10px;
+}
+
 /* SVG edge layer */
 .dag-edges {
   position: absolute;
@@ -263,6 +272,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.dag-node__desc {
+  font-size: 0.62rem;
+  font-style: italic;
+  color: var(--text-dim);
+  line-height: 1.35;
+  margin-bottom: 4px;
 }
 
 .dag-node__stats {
@@ -357,6 +374,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* ===== NODE STATES ===== */
 .dag-node[data-state="disabled"] { opacity: 0.25; pointer-events: none; }
+.dag-node[data-state="toggled-off"] { opacity: 0.4; }
 .dag-node[data-state="pending"] { border-style: dashed; border-color: var(--text-dim); }
 .dag-node[data-state="eligible"] { border-color: var(--accent); box-shadow: 0 0 12px -4px rgba(110,44,139,0.3); }
 .dag-node[data-state="running"] { border-color: var(--accent-cyan); box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); animation: nodeGlow 2s ease-in-out infinite; }
@@ -434,7 +452,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   .dag-node { max-width: 280px; width: 100%; }
   .dag-controls { flex-direction: column; text-align: center; }
   .dag-controls__actions { justify-content: center; }
-  .filter-bar { flex-direction: column; }
+  .filter-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) { .container { padding: 16px 8px; } }
@@ -454,16 +472,16 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   <div class="card">
     <div class="card-title">Filters</div>
     <div id="import_callout" class="callout hidden"></div>
-    <div class="filter-bar">
-      <div class="form-row" style="min-width:160px;">
+    <div class="filter-grid">
+      <div class="form-row">
         <label for="batch_select">Batch</label>
         <select id="batch_select"><option value="">Loading...</option></select>
       </div>
-      <div class="form-row" style="min-width:130px;">
+      <div class="form-row">
         <label for="owner_select">Owner</label>
         <select id="owner_select"><option value="">All owners</option></select>
       </div>
-      <div class="form-row" style="min-width:180px;">
+      <div class="form-row">
         <label>Tier Filter</label>
         <div class="tier-chips" id="tier_chips">
           <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
@@ -534,6 +552,21 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   };
 
   var STAGE_ORDER = ['l1', 'l2', 'signals', 'registry', 'news', 'person', 'social', 'career', 'contact_details', 'qc'];
+
+  var ROW_LABELS = { 0: 'Profiling', 1: 'Company Intelligence', 2: 'Contact Intelligence', 3: 'Validation' };
+
+  var STAGE_DESCRIPTIONS = {
+    l1: 'Basic company profiling: industry, size, business model, triage scoring',
+    l2: 'Deep AI-powered research: tech stack, pain points, opportunities',
+    signals: 'Funding rounds, M&A activity, hiring patterns, growth indicators',
+    registry: 'Official business registry data and legal entity verification',
+    news: 'Recent media mentions, press releases, and sentiment analysis',
+    person: 'Current role verification, reporting structure, employment status',
+    social: 'LinkedIn profile, Twitter/X presence, speaking engagements',
+    career: 'Previous roles, career trajectory, industry experience',
+    contact_details: 'Email verification, phone numbers, alternative contacts',
+    qc: 'Data completeness validation and quality flag detection'
+  };
 
   var HARD_DEPS = {
     l1: [], l2: ['l1'], signals: ['l1'], registry: ['l1'], news: ['l1'],
@@ -702,6 +735,11 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     // Build rows
     var rowKeys = Object.keys(rows).sort(function(a, b) { return Number(a) - Number(b); });
     rowKeys.forEach(function(rowIdx) {
+      var groupEl = mkEl('div', { className: 'dag-row-group' });
+      if (ROW_LABELS[rowIdx]) {
+        groupEl.appendChild(mkEl('span', { className: 'dag-row-label' }, ROW_LABELS[rowIdx]));
+      }
+
       var rowEl = mkEl('div', { className: 'dag-row' });
       rowEl.setAttribute('data-row', rowIdx);
 
@@ -718,7 +756,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         rowEl.appendChild(nodeEl);
       });
 
-      container.appendChild(rowEl);
+      groupEl.appendChild(rowEl);
+      container.appendChild(groupEl);
     });
 
     updateTotalCost();
@@ -770,6 +809,11 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     header.appendChild(toggle);
 
     nodeEl.appendChild(header);
+
+    // Description
+    if (STAGE_DESCRIPTIONS[code]) {
+      nodeEl.appendChild(mkEl('div', { className: 'dag-node__desc' }, STAGE_DESCRIPTIONS[code]));
+    }
 
     // Stats line
     var statsEl = mkEl('div', { className: 'dag-node__stats' });
@@ -926,7 +970,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     if (dagMode === 'configure') {
       if (!enabledStages[code]) {
-        nodeEl.setAttribute('data-state', 'disabled');
+        nodeEl.setAttribute('data-state', 'toggled-off');
       } else {
         var info = estimateData && estimateData.stages && estimateData.stages[code];
         var eligible = info ? (info.eligible_count || 0) : 0;
