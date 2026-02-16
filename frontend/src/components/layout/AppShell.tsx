@@ -35,7 +35,7 @@ export function AppShell() {
   return (
     <>
       <AppNav />
-      <div className="max-w-[920px] mx-auto px-4 py-8">
+      <div className="px-6 py-6">
         <Outlet />
       </div>
     </>

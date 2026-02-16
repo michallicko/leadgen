@@ -1,0 +1,177 @@
+import { useRef, useState, useEffect, useCallback, type ReactNode } from 'react'
+
+const ROW_HEIGHT = 41
+const BUFFER = 20
+
+export interface Column<T> {
+  key: string
+  label: string
+  sortKey?: string
+  render?: (item: T) => ReactNode
+  width?: string
+}
+
+interface DataTableProps<T> {
+  columns: Column<T>[]
+  data: T[]
+  sort?: { field: string; dir: 'asc' | 'desc' }
+  onSort?: (field: string, dir: 'asc' | 'desc') => void
+  onRowClick?: (item: T) => void
+  onLoadMore?: () => void
+  hasMore?: boolean
+  isLoading?: boolean
+  emptyIcon?: string
+  emptyText?: string
+}
+
+export function DataTable<T extends { id?: string }>({
+  columns,
+  data,
+  sort,
+  onSort,
+  onRowClick,
+  onLoadMore,
+  hasMore,
+  isLoading,
+  emptyText = 'No results match your filters.',
+}: DataTableProps<T>) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [containerHeight, setContainerHeight] = useState(0)
+
+  // Observe container resize
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height)
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Scroll handler with rAF
+  const rafId = useRef(0)
+  const handleScroll = useCallback(() => {
+    cancelAnimationFrame(rafId.current)
+    rafId.current = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        setScrollTop(containerRef.current.scrollTop)
+      }
+    })
+  }, [])
+
+  // Infinite load via IntersectionObserver
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !onLoadMore || !hasMore) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
+          onLoadMore()
+        }
+      },
+      { root: containerRef.current, rootMargin: '200px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [onLoadMore, hasMore, isLoading])
+
+  // Virtual window calculation
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER)
+  const endIndex = Math.min(data.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER)
+  const visibleData = data.slice(startIndex, endIndex)
+  const offsetY = startIndex * ROW_HEIGHT
+
+  const handleSort = (col: Column<T>) => {
+    if (!col.sortKey || !onSort) return
+    const newDir = sort?.field === col.sortKey && sort.dir === 'asc' ? 'desc' : 'asc'
+    onSort(col.sortKey, newDir)
+  }
+
+  if (!isLoading && data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-text-dim">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-3 opacity-50">
+          <path d="M3 7h18M3 12h18M3 17h18" />
+        </svg>
+        <p className="text-sm">{emptyText}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-auto border border-border-solid rounded-lg bg-surface"
+    >
+      <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+        <thead className="sticky top-0 z-10 bg-surface-alt">
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.key}
+                style={{ width: col.width }}
+                onClick={() => handleSort(col)}
+                className={`
+                  text-left text-xs font-medium text-text-muted px-3 py-2.5 border-b border-border-solid
+                  ${col.sortKey ? 'cursor-pointer hover:text-text select-none' : ''}
+                `}
+              >
+                <span className="flex items-center gap-1">
+                  {col.label}
+                  {col.sortKey && sort?.field === col.sortKey && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className={sort.dir === 'desc' ? 'rotate-180' : ''}>
+                      <path d="M6 3l3 4H3z" />
+                    </svg>
+                  )}
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {/* Top spacer */}
+          {offsetY > 0 && (
+            <tr><td colSpan={columns.length} style={{ height: offsetY, padding: 0, border: 0 }} /></tr>
+          )}
+          {visibleData.map((item, i) => (
+            <tr
+              key={item.id ?? startIndex + i}
+              onClick={() => onRowClick?.(item)}
+              className={`border-b border-border/30 ${onRowClick ? 'cursor-pointer hover:bg-surface-alt/50' : ''}`}
+              style={{ height: ROW_HEIGHT }}
+            >
+              {columns.map((col) => (
+                <td key={col.key} className="px-3 py-0 text-text truncate" style={{ width: col.width }}>
+                  {col.render
+                    ? col.render(item)
+                    : (item as Record<string, unknown>)[col.key] as ReactNode ?? '-'}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {/* Bottom spacer */}
+          {endIndex < data.length && (
+            <tr><td colSpan={columns.length} style={{ height: (data.length - endIndex) * ROW_HEIGHT, padding: 0, border: 0 }} /></tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Sentinel for infinite load */}
+      <div ref={sentinelRef} className="h-1" />
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-4">
+          <div className="w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
+          <span className="ml-2 text-sm text-text-muted">Loading...</span>
+        </div>
+      )}
+    </div>
+  )
+}

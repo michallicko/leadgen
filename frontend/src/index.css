@@ -27,6 +27,12 @@
   --radius-lg: 12px;
 }
 
+/* ---- Toast slide-in ---- */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ---- Login page animations ---- */
 @keyframes authMeshDrift {
   0% { transform: translate(-5%, -5%) rotate(0deg); }
