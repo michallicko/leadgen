@@ -490,6 +490,22 @@ class OAuthConnection(db.Model):
         }
 
 
+class ResearchAsset(db.Model):
+    __tablename__ = "research_assets"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    entity_type = db.Column(db.Text, nullable=False)
+    entity_id = db.Column(UUID(as_uuid=False), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    tool_name = db.Column(db.Text, nullable=False)
+    cost_usd = db.Column(db.Numeric(10, 6), default=0)
+    research_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    confidence_score = db.Column(db.Numeric(5, 2))
+    quality_score = db.Column(db.Numeric(5, 2))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class Message(db.Model):
     __tablename__ = "messages"
 

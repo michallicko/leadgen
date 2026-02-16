@@ -27,6 +27,19 @@ MODEL_PRICING = {
         "input": Decimal("3.00"),
         "output": Decimal("15.00"),
     },
+    # Perplexity models
+    "perplexity/sonar": {
+        "input": Decimal("1.00"),
+        "output": Decimal("1.00"),
+    },
+    "perplexity/sonar-pro": {
+        "input": Decimal("3.00"),
+        "output": Decimal("15.00"),
+    },
+    "perplexity/*": {
+        "input": Decimal("1.00"),
+        "output": Decimal("1.00"),
+    },
 }
 
 _ONE_MILLION = Decimal("1000000")

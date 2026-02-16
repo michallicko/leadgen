@@ -28,7 +28,7 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"ares"}
+DIRECT_STAGES = {"l1", "ares"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 
@@ -245,6 +245,9 @@ def _process_ares(company_id, tenant_id):
 def _process_entity(stage, entity_id, tenant_id=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     if stage in DIRECT_STAGES:
+        if stage == "l1":
+            from .l1_enricher import enrich_l1
+            return enrich_l1(entity_id, tenant_id)
         if stage == "ares":
             return _process_ares(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
@@ -256,7 +259,7 @@ def _process_entity(stage, entity_id, tenant_id=None):
 # ---------------------------------------------------------------------------
 
 def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
-    """Background thread: process entities through n8n workflow one at a time."""
+    """Background thread: process entities one at a time (native or n8n)."""
     with app.app_context():
         total_cost = 0.0
         failed = 0

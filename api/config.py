@@ -17,3 +17,7 @@ class Config:
 
     # Token encryption (Fernet key)
     OAUTH_ENCRYPTION_KEY = os.environ.get("OAUTH_ENCRYPTION_KEY", "")
+
+    # Perplexity API
+    PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY", "")
+    PERPLEXITY_BASE_URL = os.environ.get("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
