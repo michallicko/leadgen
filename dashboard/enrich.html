@@ -622,17 +622,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var currentPipelineRunId = null;
   var isSampleRun = false;
 
-  // --- Package definitions (BL-017 Company + BL-018 Contact modules) ---
+  // --- Package definitions ---
+  // Progressive value chain: each layer answers a deeper question.
+  //   1. WHO are they? (Profile)
+  //   2. Are they LEGIT? (Legal)
+  //   3. WHAT do they build? (Tech & Product)
+  //   4. Is the TIMING right? (Financial & Growth)
+  //   5. HOW to position? (Competitive)
+  //   6. WHAT to say? (News & Media)
+  // Contact packages: WHO to reach, HOW to personalize, WHERE to find them.
   var PACKAGES = {
-    // Company enrichment modules (BL-017)
+    // --- Company enrichment (progressive depth) ---
     l1: {
       name: 'Company Profile',
       icon: 'CP',
       color: 'var(--l1-color)',
       bgColor: 'rgba(0,184,207,0.12)',
-      desc: 'AI-powered company research via Perplexity. Identifies industry, headcount, what the company does, tech stack, founding year, HQ location, and website analysis. QC validation flags dubious results for human review.',
-      fields: ['Industry', 'Employees', 'Revenue', 'B2B Focus', 'HQ Location', 'Tech Stack', 'Founded', 'Summary', 'Tier'],
-      usecase: 'Best for: newly imported contacts that need initial qualification and tiering.',
+      desc: 'AI-powered company research via Perplexity. Identifies industry, headcount, what the company does, founding year, HQ location, and website analysis. QC validation flags dubious results for human review. The foundation for all subsequent enrichment.',
+      fields: ['Industry', 'Employees', 'Revenue Range', 'B2B Focus', 'HQ Location', 'Founded', 'Summary', 'Tier'],
+      usecase: 'Run first on every new batch. Answers: who are they and should we pursue them?',
       comingSoon: false,
       badge: null,
       category: 'company'
@@ -642,58 +650,82 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       icon: 'CZ',
       color: 'var(--ares-color)',
       bgColor: 'rgba(59,130,246,0.12)',
-      desc: 'Public business register lookup for official company data. Czech ARES integration retrieves ICO, DIC, legal form, directors, registered capital, NACE codes, and insolvency status. Free government API.',
-      fields: ['ICO', 'DIC', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Address'],
-      usecase: 'Best for: Czech companies needing legal verification and due diligence. Zero cost.',
+      desc: 'Public business register lookup for official company data. Czech ARES integration retrieves ICO, DIC, legal form, directors, registered capital, NACE activity codes, and insolvency status. Validates the company is real and solvent.',
+      fields: ['ICO', 'DIC', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Registered Address'],
+      usecase: 'Run on Czech companies after Profile. Answers: are they legitimate and solvent? Zero cost.',
       comingSoon: false,
       badge: 'Free',
       category: 'company'
     },
-    strategic_signals: {
-      name: 'Strategic Signals',
-      icon: 'SS',
+    tech_product: {
+      name: 'Tech & Product Intelligence',
+      icon: 'TP',
+      color: 'var(--l2-color)',
+      bgColor: 'rgba(139,71,168,0.12)',
+      desc: 'Deep-dive into the company\'s technology stack, product lines, integrations, and pricing model. Analyzes their website, job postings, and public repos to map their technical landscape. Determines ICP fit based on tech overlap.',
+      fields: ['Tech Stack', 'Product Lines', 'Integrations', 'Pricing Model', 'Engineering Size', 'Tech Maturity'],
+      usecase: 'Run on Tier 1-2 after Profile. Answers: do they use technology we can sell into?',
+      comingSoon: true,
+      badge: null,
+      category: 'company'
+    },
+    financial_growth: {
+      name: 'Financial & Growth Signals',
+      icon: 'FG',
       color: '#f59e0b',
       bgColor: 'rgba(245,158,11,0.12)',
-      desc: 'Tracks funding rounds, M&A activity, hiring patterns from job postings, partnerships, and growth indicators. Surfaces companies actively investing or expanding.',
-      fields: ['Funding Rounds', 'M&A Activity', 'Hiring Patterns', 'Partnerships', 'Growth Indicators'],
-      usecase: 'Best for: identifying companies in growth mode or with recent strategic changes.',
+      desc: 'Tracks funding rounds, revenue indicators, hiring velocity, office expansion, and M&A activity. Identifies companies actively investing and growing — the ones most likely to buy. Cross-references multiple signal sources for confidence scoring.',
+      fields: ['Funding History', 'Revenue Signals', 'Hiring Velocity', 'Office Expansion', 'M&A Activity', 'Growth Score'],
+      usecase: 'Run on qualified companies. Answers: is the timing right — are they growing and spending?',
       comingSoon: true,
       badge: null,
       category: 'company'
     },
-    news_pr: {
-      name: 'News & PR',
-      icon: 'NP',
+    competitive: {
+      name: 'Competitive Landscape',
+      icon: 'CL',
+      color: '#ec4899',
+      bgColor: 'rgba(236,72,153,0.12)',
+      desc: 'Maps direct competitors, market position, key differentiators, and win/loss patterns. Identifies what solutions they already use and where gaps exist. Gives you the ammunition to position against incumbents.',
+      fields: ['Competitors', 'Market Position', 'Current Solutions', 'Differentiators', 'Vendor Stack', 'Switch Signals'],
+      usecase: 'Run before outreach. Answers: who else are they talking to and how do we position?',
+      comingSoon: true,
+      badge: null,
+      category: 'company'
+    },
+    news_media: {
+      name: 'News & Media',
+      icon: 'NM',
       color: '#ef4444',
       bgColor: 'rgba(239,68,68,0.12)',
-      desc: 'Scans recent media mentions, press releases, social media presence, thought leadership content, and sentiment analysis. Provides conversation hooks for outreach.',
-      fields: ['Media Mentions', 'Press Releases', 'Social Presence', 'Thought Leadership', 'Sentiment'],
-      usecase: 'Best for: finding timely conversation starters and understanding public perception.',
+      desc: 'Scans recent media mentions, press releases, conference appearances, social media presence, and thought leadership. Surfaces timely conversation hooks and sentiment. The freshest layer — run closest to outreach.',
+      fields: ['Recent News', 'Press Releases', 'Events & Conferences', 'Social Presence', 'Thought Leadership', 'Sentiment'],
+      usecase: 'Run right before outreach. Answers: what can we talk about that feels timely and relevant?',
       comingSoon: true,
       badge: null,
       category: 'company'
     },
-    // Contact enrichment modules (BL-018)
+    // --- Contact enrichment (who, how, where) ---
     role_employment: {
       name: 'Role & Employment',
       icon: 'RE',
       color: 'var(--person-color)',
       bgColor: 'rgba(52,211,153,0.12)',
-      desc: 'Verifies current job title, identifies reporting structure, calculates tenure at current company. Confirms the contact is still at the expected company and role.',
-      fields: ['Title Verified', 'Reporting To', 'Tenure', 'Department', 'Seniority Level'],
-      usecase: 'Best for: verifying contact data is current before outreach.',
+      desc: 'Verifies current job title, identifies reporting structure, calculates tenure, and confirms the contact still works at the listed company. The essential check before any outreach — nothing wastes credibility like messaging someone who left 6 months ago.',
+      fields: ['Title Verified', 'Department', 'Seniority Level', 'Reporting To', 'Tenure', 'Still Employed'],
+      usecase: 'Run first on contacts. Answers: is this the right person, and are they still there?',
       comingSoon: true,
       badge: null,
       category: 'contact'
     },
     social_online: {
-      name: 'Social & Online',
+      name: 'Social & Online Presence',
       icon: 'SO',
       color: '#8b5cf6',
       bgColor: 'rgba(139,92,246,0.12)',
-      desc: 'Analyzes LinkedIn profile, Twitter/X presence, speaking engagements, and publications. Identifies topics of interest and professional activity patterns.',
-      fields: ['LinkedIn Profile', 'Twitter/X', 'Speaking Events', 'Publications', 'Topics of Interest'],
-      usecase: 'Best for: personalizing outreach with shared interests and recent activity.',
+      desc: 'Analyzes LinkedIn profile, Twitter/X presence, speaking engagements, blog posts, and publications. Identifies topics of interest, professional communities, and engagement patterns. Gives you personalization hooks that go beyond "I saw your company does X."',
+      fields: ['LinkedIn Activity', 'Twitter/X', 'Speaking Events', 'Publications', 'Communities', 'Topics of Interest'],
+      usecase: 'Run on high-priority contacts. Answers: what do they care about and where are they active?',
       comingSoon: true,
       badge: null,
       category: 'contact'
@@ -703,28 +735,28 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       icon: 'CH',
       color: '#06b6d4',
       bgColor: 'rgba(6,182,212,0.12)',
-      desc: 'Maps previous roles, companies, career trajectory, and industry experience. Identifies career patterns and potential pain points from past experience.',
-      fields: ['Previous Roles', 'Companies', 'Career Trajectory', 'Industry Experience', 'Years in Field'],
-      usecase: 'Best for: understanding decision-maker background and finding common ground.',
+      desc: 'Maps previous roles, companies, career trajectory, and industry experience. Identifies career patterns — someone who moved from competitor X to target Y likely brought a specific problem with them. Finds shared connections and common ground.',
+      fields: ['Previous Roles', 'Past Companies', 'Career Trajectory', 'Industry Experience', 'Shared Connections'],
+      usecase: 'Run on decision-makers. Answers: what\'s their background and what pain did they bring?',
       comingSoon: true,
       badge: null,
       category: 'contact'
     },
     contact_details: {
-      name: 'Contact Details',
+      name: 'Contact Details & Deliverability',
       icon: 'CD',
       color: '#10b981',
       bgColor: 'rgba(16,185,129,0.12)',
-      desc: 'Verifies and enriches direct contact information: email validation, phone numbers, and alternative contact methods. Ensures deliverability before outreach.',
-      fields: ['Email Verified', 'Phone', 'Alternative Email', 'LinkedIn DM', 'Contact Score'],
-      usecase: 'Best for: ensuring contact details are valid and deliverable before campaign launch.',
+      desc: 'Verifies email deliverability (MX + SMTP probe), finds direct phone numbers, validates LinkedIn DM availability, and checks alternative contact methods. Scores overall reachability. The last step before campaign launch — ensures your message actually arrives.',
+      fields: ['Email Verified', 'Deliverability Score', 'Direct Phone', 'LinkedIn DM', 'Alternative Email', 'Reachability Score'],
+      usecase: 'Run last, before campaign. Answers: can we actually reach them, and through which channel?',
       comingSoon: true,
       badge: null,
       category: 'contact'
     }
   };
 
-  var STAGE_ORDER = ['l1', 'ares', 'strategic_signals', 'news_pr', 'role_employment', 'social_online', 'career_history', 'contact_details'];
+  var STAGE_ORDER = ['l1', 'ares', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
 
   var estimateData = null;
   var enabledStages = {};
