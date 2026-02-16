@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router'
 import { useUpdateCompany, type CompanyDetail as CompanyDetailType } from '../../api/queries/useCompanies'
 import { useToast } from '../../components/ui/Toast'
 import { Badge } from '../../components/ui/Badge'
@@ -8,6 +7,8 @@ import {
   EditableSelect, EditableTextarea,
   CollapsibleSection, SectionDivider, MiniTable,
 } from '../../components/ui/DetailField'
+import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
+import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
   STATUS_DISPLAY, STATUS_REVERSE,
   TIER_DISPLAY, TIER_REVERSE,
@@ -20,12 +21,10 @@ import {
 
 interface Props {
   company: CompanyDetailType
-  namespace?: string
-  onClose: () => void
+  onNavigate: (type: 'company' | 'contact', id: string) => void
 }
 
-export function CompanyDetail({ company, namespace, onClose }: Props) {
-  const navigate = useNavigate()
+export function CompanyDetail({ company, onNavigate }: Props) {
   const { toast } = useToast()
   const mutation = useUpdateCompany()
 
@@ -80,6 +79,22 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
   const l2 = company.enrichment_l2 as Record<string, string | null> | null
   const reg = company.registry_data as Record<string, unknown> | null
 
+  // Source info helpers
+  const l1Source: SourceInfo = {
+    label: 'L1 Enrichment',
+    timestamp: company.updated_at,
+    cost: company.enrichment_cost_usd,
+  }
+  const l2Source: SourceInfo | undefined = l2 ? {
+    label: 'L2 Enrichment',
+    timestamp: (l2.enriched_at as string | null) ?? null,
+    cost: (l2.enrichment_cost_usd as number | null) ?? null,
+  } : undefined
+  const regSource: SourceInfo | undefined = reg ? {
+    label: 'Registry Lookup',
+    timestamp: (reg.enriched_at as string | null) ?? null,
+  } : undefined
+
   return (
     <div className="space-y-1">
       {/* Header */}
@@ -93,14 +108,14 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
       {/* Classification */}
       <SectionDivider title="Classification" />
       <FieldGrid>
-        <Field label="Business Model" value={company.business_model} />
-        <Field label="Company Size" value={company.company_size} />
-        <Field label="Ownership" value={company.ownership_type} />
-        <Field label="Geo Region" value={company.geo_region} />
-        <Field label="Industry" value={company.industry} />
-        <Field label="Industry Category" value={company.industry_category} />
-        <Field label="Revenue Range" value={company.revenue_range} />
-        <Field label="Business Type" value={company.business_type} />
+        <Field label="Business Model" value={company.business_model} source={l1Source} />
+        <Field label="Company Size" value={company.company_size} source={l1Source} />
+        <Field label="Ownership" value={company.ownership_type} source={l1Source} />
+        <Field label="Geo Region" value={company.geo_region} source={l1Source} />
+        <Field label="Industry" value={company.industry} source={l1Source} />
+        <Field label="Industry Category" value={company.industry_category} source={l1Source} />
+        <Field label="Revenue Range" value={company.revenue_range} source={l1Source} />
+        <Field label="Business Type" value={company.business_type} source={l1Source} />
       </FieldGrid>
 
       {/* Pipeline (editable) */}
@@ -153,26 +168,26 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
       {/* Scores */}
       <SectionDivider title="Scores" />
       <FieldGrid>
-        <Field label="Triage Score" value={company.triage_score?.toFixed(2)} />
-        <Field label="Pre Score" value={company.pre_score?.toFixed(2)} />
-        <Field label="Verified Revenue (EUR M)" value={company.verified_revenue_eur_m} />
-        <Field label="Verified Employees" value={company.verified_employees} />
-        <Field label="Enrichment Cost (USD)" value={company.enrichment_cost_usd?.toFixed(4)} />
-        <Field label="AI Adoption" value={company.ai_adoption} />
-        <Field label="News Confidence" value={company.news_confidence} />
+        <Field label="Triage Score" value={company.triage_score?.toFixed(2)} source={l1Source} />
+        <Field label="Pre Score" value={company.pre_score?.toFixed(2)} source={l1Source} />
+        <Field label="Verified Revenue (EUR M)" value={company.verified_revenue_eur_m} source={l1Source} />
+        <Field label="Verified Employees" value={company.verified_employees} source={l1Source} />
+        <Field label="Enrichment Cost (USD)" value={company.enrichment_cost_usd?.toFixed(4)} source={l1Source} />
+        <Field label="AI Adoption" value={company.ai_adoption} source={l1Source} />
+        <Field label="News Confidence" value={company.news_confidence} source={l1Source} />
       </FieldGrid>
 
       {/* Location */}
       <SectionDivider title="Location" />
       <FieldGrid>
-        <Field label="City" value={company.hq_city} />
-        <Field label="Country" value={company.hq_country} />
+        <Field label="City" value={company.hq_city} source={l1Source} />
+        <Field label="Country" value={company.hq_country} source={l1Source} />
       </FieldGrid>
 
       {/* Summary & Notes (editable) */}
       <SectionDivider title="Summary & Notes" />
       <div className="space-y-3">
-        <Field label="Summary" value={company.summary} className="col-span-full" />
+        <Field label="Summary" value={company.summary} className="col-span-full" source={l1Source} />
         <EditableTextarea
           label="Notes"
           name="notes"
@@ -223,29 +238,29 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
       {l2 && (
         <CollapsibleSection title="L2 Enrichment">
           <FieldGrid>
-            <Field label="Company Intel" value={l2.company_intel} className="col-span-full" />
-            <Field label="Recent News" value={l2.recent_news} className="col-span-full" />
-            <Field label="AI Opportunities" value={l2.ai_opportunities} className="col-span-full" />
-            <Field label="Pain Hypothesis" value={l2.pain_hypothesis} className="col-span-full" />
-            <Field label="Relevant Case Study" value={l2.relevant_case_study} className="col-span-full" />
-            <Field label="Digital Initiatives" value={l2.digital_initiatives} className="col-span-full" />
-            <Field label="Leadership Changes" value={l2.leadership_changes} />
-            <Field label="Hiring Signals" value={l2.hiring_signals} />
-            <Field label="Key Products" value={l2.key_products} />
-            <Field label="Customer Segments" value={l2.customer_segments} />
-            <Field label="Competitors" value={l2.competitors} />
-            <Field label="Tech Stack" value={l2.tech_stack} />
-            <Field label="Funding History" value={l2.funding_history} />
-            <Field label="EU Grants" value={l2.eu_grants} />
-            <Field label="Leadership Team" value={l2.leadership_team} />
-            <Field label="AI Hiring" value={l2.ai_hiring} />
-            <Field label="Tech Partnerships" value={l2.tech_partnerships} />
-            <Field label="Certifications" value={l2.certifications} />
-            <Field label="Quick Wins" value={l2.quick_wins} className="col-span-full" />
-            <Field label="Industry Pain Points" value={l2.industry_pain_points} className="col-span-full" />
-            <Field label="Cross-Functional Pain" value={l2.cross_functional_pain} className="col-span-full" />
-            <Field label="Adoption Barriers" value={l2.adoption_barriers} className="col-span-full" />
-            <Field label="Competitor AI Moves" value={l2.competitor_ai_moves} className="col-span-full" />
+            <Field label="Company Intel" value={l2.company_intel} className="col-span-full" source={l2Source} />
+            <Field label="Recent News" value={l2.recent_news} className="col-span-full" source={l2Source} />
+            <Field label="AI Opportunities" value={l2.ai_opportunities} className="col-span-full" source={l2Source} />
+            <Field label="Pain Hypothesis" value={l2.pain_hypothesis} className="col-span-full" source={l2Source} />
+            <Field label="Relevant Case Study" value={l2.relevant_case_study} className="col-span-full" source={l2Source} />
+            <Field label="Digital Initiatives" value={l2.digital_initiatives} className="col-span-full" source={l2Source} />
+            <Field label="Leadership Changes" value={l2.leadership_changes} source={l2Source} />
+            <Field label="Hiring Signals" value={l2.hiring_signals} source={l2Source} />
+            <Field label="Key Products" value={l2.key_products} source={l2Source} />
+            <Field label="Customer Segments" value={l2.customer_segments} source={l2Source} />
+            <Field label="Competitors" value={l2.competitors} source={l2Source} />
+            <Field label="Tech Stack" value={l2.tech_stack} source={l2Source} />
+            <Field label="Funding History" value={l2.funding_history} source={l2Source} />
+            <Field label="EU Grants" value={l2.eu_grants} source={l2Source} />
+            <Field label="Leadership Team" value={l2.leadership_team} source={l2Source} />
+            <Field label="AI Hiring" value={l2.ai_hiring} source={l2Source} />
+            <Field label="Tech Partnerships" value={l2.tech_partnerships} source={l2Source} />
+            <Field label="Certifications" value={l2.certifications} source={l2Source} />
+            <Field label="Quick Wins" value={l2.quick_wins} className="col-span-full" source={l2Source} />
+            <Field label="Industry Pain Points" value={l2.industry_pain_points} className="col-span-full" source={l2Source} />
+            <Field label="Cross-Functional Pain" value={l2.cross_functional_pain} className="col-span-full" source={l2Source} />
+            <Field label="Adoption Barriers" value={l2.adoption_barriers} className="col-span-full" source={l2Source} />
+            <Field label="Competitor AI Moves" value={l2.competitor_ai_moves} className="col-span-full" source={l2Source} />
           </FieldGrid>
         </CollapsibleSection>
       )}
@@ -258,23 +273,23 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
           ) : undefined}
         >
           <FieldGrid>
-            <Field label="Official Name" value={reg.official_name as string} />
-            <Field label="ICO" value={reg.ico as string} />
-            <Field label="DIC" value={reg.dic as string} />
-            <Field label="Legal Form" value={reg.legal_form_name as string} />
-            <Field label="Established" value={reg.date_established as string} />
-            <Field label="Dissolved" value={reg.date_dissolved as string} />
-            <Field label="Address" value={reg.registered_address as string} className="col-span-full" />
-            <Field label="City" value={reg.address_city as string} />
-            <Field label="Postal Code" value={reg.address_postal_code as string} />
-            <Field label="Registration Court" value={reg.registration_court as string} />
-            <Field label="Registration Number" value={reg.registration_number as string} />
-            <Field label="Registered Capital" value={reg.registered_capital as string} />
-            <Field label="Status" value={reg.registration_status as string} />
-            <Field label="Country" value={reg.registration_country as string} />
-            <Field label="Match Confidence" value={reg.match_confidence as number} />
-            <Field label="Match Method" value={reg.match_method as string} />
-            <Field label="Insolvency" value={reg.insolvency_flag ? 'Yes' : 'No'} />
+            <Field label="Official Name" value={reg.official_name as string} source={regSource} />
+            <Field label="ICO" value={reg.ico as string} source={regSource} />
+            <Field label="DIC" value={reg.dic as string} source={regSource} />
+            <Field label="Legal Form" value={reg.legal_form_name as string} source={regSource} />
+            <Field label="Established" value={reg.date_established as string} source={regSource} />
+            <Field label="Dissolved" value={reg.date_dissolved as string} source={regSource} />
+            <Field label="Address" value={reg.registered_address as string} className="col-span-full" source={regSource} />
+            <Field label="City" value={reg.address_city as string} source={regSource} />
+            <Field label="Postal Code" value={reg.address_postal_code as string} source={regSource} />
+            <Field label="Registration Court" value={reg.registration_court as string} source={regSource} />
+            <Field label="Registration Number" value={reg.registration_number as string} source={regSource} />
+            <Field label="Registered Capital" value={reg.registered_capital as string} source={regSource} />
+            <Field label="Status" value={reg.registration_status as string} source={regSource} />
+            <Field label="Country" value={reg.registration_country as string} source={regSource} />
+            <Field label="Match Confidence" value={reg.match_confidence as number} source={regSource} />
+            <Field label="Match Method" value={reg.match_method as string} source={regSource} />
+            <Field label="Insolvency" value={reg.insolvency_flag ? 'Yes' : 'No'} source={regSource} />
           </FieldGrid>
           {Array.isArray(reg.directors) && reg.directors.length > 0 && (
             <>
@@ -338,10 +353,7 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
               { key: 'contact_score', label: 'Score' },
             ]}
             data={company.contacts as unknown as Array<Record<string, unknown>>}
-            onRowClick={(c) => {
-              onClose()
-              navigate(`/${namespace}/contacts?open=${c.id}`)
-            }}
+            onRowClick={(c) => onNavigate('contact', c.id as string)}
           />
         </>
       )}
@@ -355,6 +367,22 @@ export function CompanyDetail({ company, namespace, onClose }: Props) {
           </div>
         </>
       )}
+
+      {/* Enrichment Timeline */}
+      <CollapsibleSection title="Enrichment Timeline">
+        <EnrichmentTimeline entries={[
+          { label: 'Created', timestamp: company.created_at },
+          { label: 'L1 Enrichment', timestamp: company.updated_at, cost: company.enrichment_cost_usd,
+            detail: company.triage_score != null ? `Triage score: ${company.triage_score.toFixed(2)}` : null },
+          ...(l2 && (l2.enriched_at as string) ? [{
+            label: 'L2 Enrichment', timestamp: l2.enriched_at as string,
+            cost: (l2.enrichment_cost_usd as number | null) ?? null,
+          }] : []),
+          ...(reg && (reg.enriched_at as string) ? [{
+            label: 'Registry Lookup', timestamp: reg.enriched_at as string,
+          }] : []),
+        ]} />
+      </CollapsibleSection>
 
       {/* Timestamps */}
       <SectionDivider title="Timestamps" />

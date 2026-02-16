@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router'
 import { useUpdateContact, type ContactDetail as ContactDetailType } from '../../api/queries/useContacts'
 import { useToast } from '../../components/ui/Toast'
 import { Badge } from '../../components/ui/Badge'
@@ -9,6 +8,8 @@ import {
   SectionDivider, MiniTable,
   CollapsibleSection,
 } from '../../components/ui/DetailField'
+import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
+import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
   SENIORITY_DISPLAY, SENIORITY_REVERSE,
   DEPARTMENT_DISPLAY, DEPARTMENT_REVERSE,
@@ -22,12 +23,10 @@ import {
 
 interface Props {
   contact: ContactDetailType
-  namespace?: string
-  onClose: () => void
+  onNavigate: (type: 'company' | 'contact', id: string) => void
 }
 
-export function ContactDetail({ contact, namespace, onClose }: Props) {
-  const navigate = useNavigate()
+export function ContactDetail({ contact, onNavigate }: Props) {
   const { toast } = useToast()
   const mutation = useUpdateContact()
 
@@ -78,6 +77,13 @@ export function ContactDetail({ contact, namespace, onClose }: Props) {
     }
   }
 
+  // Source info helpers
+  const personSource: SourceInfo | undefined = contact.enrichment ? {
+    label: 'Person Enrichment',
+    timestamp: contact.enrichment.enriched_at,
+    cost: contact.enrichment.enrichment_cost_usd,
+  } : undefined
+
   return (
     <div className="space-y-1">
       {/* Header */}
@@ -109,10 +115,7 @@ export function ContactDetail({ contact, namespace, onClose }: Props) {
         <>
           <SectionDivider title="Company" />
           <button
-            onClick={() => {
-              onClose()
-              navigate(`/${namespace}/companies?open=${contact.company!.id}`)
-            }}
+            onClick={() => contact.company && onNavigate('company', contact.company.id)}
             className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md bg-surface-alt border border-border-solid hover:border-accent/40 transition-colors"
           >
             <div className="flex-1 min-w-0">
@@ -197,9 +200,9 @@ export function ContactDetail({ contact, namespace, onClose }: Props) {
       {contact.enrichment && (
         <CollapsibleSection title="Person Enrichment" defaultOpen>
           <div className="space-y-3">
-            <Field label="Person Summary" value={contact.enrichment.person_summary} className="col-span-full" />
-            <Field label="LinkedIn Summary" value={contact.enrichment.linkedin_profile_summary} className="col-span-full" />
-            <Field label="Relationship Synthesis" value={contact.enrichment.relationship_synthesis} className="col-span-full" />
+            <Field label="Person Summary" value={contact.enrichment.person_summary} className="col-span-full" source={personSource} />
+            <Field label="LinkedIn Summary" value={contact.enrichment.linkedin_profile_summary} className="col-span-full" source={personSource} />
+            <Field label="Relationship Synthesis" value={contact.enrichment.relationship_synthesis} className="col-span-full" source={personSource} />
             <FieldGrid>
               <Field label="Enriched At" value={contact.enrichment.enriched_at ? new Date(contact.enrichment.enriched_at).toLocaleString() : null} />
               <Field label="Cost (USD)" value={contact.enrichment.enrichment_cost_usd?.toFixed(4)} />
@@ -282,6 +285,18 @@ export function ContactDetail({ contact, namespace, onClose }: Props) {
           {contact.error}
         </div>
       )}
+
+      {/* Enrichment Timeline */}
+      <CollapsibleSection title="Enrichment Timeline">
+        <EnrichmentTimeline entries={[
+          { label: 'Created', timestamp: contact.created_at },
+          ...(contact.enrichment?.enriched_at ? [{
+            label: 'Person Enrichment',
+            timestamp: contact.enrichment.enriched_at,
+            cost: contact.enrichment.enrichment_cost_usd,
+          }] : []),
+        ]} />
+      </CollapsibleSection>
 
       {/* Timestamps */}
       <SectionDivider title="Timestamps" />
