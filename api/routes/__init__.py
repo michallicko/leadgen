@@ -5,6 +5,7 @@ from .contact_routes import contacts_bp
 from .custom_field_routes import custom_fields_bp
 from .health import health_bp
 from .import_routes import imports_bp
+from .llm_usage_routes import llm_usage_bp
 from .message_routes import messages_bp
 from .pipeline_routes import pipeline_bp
 from .tenant_routes import tenants_bp
@@ -23,3 +24,4 @@ def register_blueprints(app):
     app.register_blueprint(contacts_bp)
     app.register_blueprint(imports_bp)
     app.register_blueprint(custom_fields_bp)
+    app.register_blueprint(llm_usage_bp)

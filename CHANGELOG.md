@@ -5,6 +5,13 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **LLM Cost Logging**: Per-call cost tracking for all LLM API usage with super admin dashboard
+  - `llm_usage_log` table with tenant/user attribution, token counts, cost (NUMERIC 10,6), duration, metadata
+  - Logger service with model-specific pricing (Sonnet, Haiku, Opus) and Decimal arithmetic
+  - CSV column mapping (Claude API) instrumented with timing and usage extraction
+  - Super admin API: `GET /api/llm-usage/summary` (aggregated totals, by_tenant, by_operation, time_series), `GET /api/llm-usage/logs` (paginated, filterable)
+  - LLM Costs dashboard page with Chart.js charts (daily cost, cost by operation), breakdown table, recent calls
+  - Migration 009, 21 new tests
 - **Contact List Import** (BL-006): CSV upload with AI-powered column mapping, dedup preview, and batch import
   - AI column mapping via Claude API (Sonnet) with confidence scores and manual override (ADR-002)
   - Contact dedup: LinkedIn URL → email → name+company hierarchy, 3 strategies (skip/update/create_new)

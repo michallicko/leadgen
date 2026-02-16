@@ -211,6 +211,11 @@ class TestCallClaudeForMapping:
             "combine_columns": [],
         })
 
+        mock_response.model = "claude-sonnet-4-5-20250929"
+        mock_response.usage = MagicMock()
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 50
+
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_response
 
@@ -219,11 +224,14 @@ class TestCallClaudeForMapping:
 
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
             from api.services.csv_mapper import call_claude_for_mapping
-            result = call_claude_for_mapping(["Name"], [{"Name": "John"}])
+            result, usage_info = call_claude_for_mapping(["Name"], [{"Name": "John"}])
 
         assert len(result["mappings"]) == 1
         assert result["mappings"][0]["target"] == "contact.full_name"
         assert result["warnings"] == []
+        assert usage_info["model"] == "claude-sonnet-4-5-20250929"
+        assert usage_info["input_tokens"] == 100
+        assert usage_info["output_tokens"] == 50
 
     def test_strips_markdown_fences(self):
         """Test that markdown code fences are stripped from response."""
@@ -233,6 +241,10 @@ class TestCallClaudeForMapping:
         mock_response = MagicMock()
         mock_response.content = [MagicMock()]
         mock_response.content[0].text = '```json\n{"mappings": [], "warnings": [], "combine_columns": []}\n```'
+        mock_response.model = "claude-sonnet-4-5-20250929"
+        mock_response.usage = MagicMock()
+        mock_response.usage.input_tokens = 80
+        mock_response.usage.output_tokens = 30
 
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_response
@@ -242,9 +254,10 @@ class TestCallClaudeForMapping:
 
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
             from api.services.csv_mapper import call_claude_for_mapping
-            result = call_claude_for_mapping(["Name"], [{"Name": "John"}])
+            result, usage_info = call_claude_for_mapping(["Name"], [{"Name": "John"}])
 
         assert result["mappings"] == []
+        assert usage_info["input_tokens"] == 80
 
 
 class TestApplyMappingCustomFields:

@@ -6,6 +6,7 @@ to Contact/Company fields with confidence scores and transforms.
 
 import json
 import os
+import time
 
 TARGET_FIELDS = {
     "contact": [
@@ -161,12 +162,15 @@ def call_claude_for_mapping(headers, sample_rows, custom_defs=None):
     )
     user_msg = build_mapping_prompt(headers, sample_rows)
 
+    start_ms = int(time.time() * 1000)
     response = client.messages.create(
         model="claude-sonnet-4-5-20250929",
         max_tokens=2048,
         system=system,
         messages=[{"role": "user", "content": user_msg}],
     )
+
+    end_ms = int(time.time() * 1000)
 
     text = response.content[0].text.strip()
     # Strip markdown fences if present
@@ -176,7 +180,14 @@ def call_claude_for_mapping(headers, sample_rows, custom_defs=None):
             text = text[:-3]
         text = text.strip()
 
-    return json.loads(text)
+    usage_info = {
+        "model": response.model,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+        "duration_ms": end_ms - start_ms,
+    }
+
+    return json.loads(text), usage_info
 
 
 def normalize_enum(field_name, value):

@@ -35,11 +35,18 @@ MOCK_MAPPING = {
     "combine_columns": [],
 }
 
+MOCK_USAGE_INFO = {
+    "model": "claude-sonnet-4-5-20250929",
+    "input_tokens": 500,
+    "output_tokens": 200,
+    "duration_ms": 1500,
+}
+
 
 class TestUploadCSV:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_upload_success(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -68,7 +75,7 @@ class TestUploadCSV:
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_upload_xlsx_success(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -110,7 +117,7 @@ class TestUploadCSV:
 class TestPreviewImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_preview_returns_dedup_results(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -138,7 +145,7 @@ class TestPreviewImport:
     def test_preview_detects_existing(self, mock_claude, client, seed_companies_contacts):
         """CSV with email matching existing contact should show duplicate."""
         csv = "Name,Email,Company,Title\nJohn Doe,john@acme.com,Acme Corp,CEO\n"
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -168,7 +175,7 @@ class TestPreviewImport:
 class TestExecuteImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_execute_creates_records(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -192,7 +199,7 @@ class TestExecuteImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_execute_idempotent(self, mock_claude, client, seed_companies_contacts):
         """Second execute should fail (already completed)."""
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -209,7 +216,7 @@ class TestExecuteImport:
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_execute_invalid_strategy(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -229,7 +236,7 @@ class TestExecuteImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_upload_xlsx_preview_and_execute(self, mock_claude, client, seed_companies_contacts):
         """Full XLSX flow: upload → preview → execute."""
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -271,7 +278,7 @@ class TestExecuteImport:
 class TestImportStatus:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_status_returns_job(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -289,7 +296,7 @@ class TestImportStatus:
 class TestListImports:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_list_returns_jobs(self, mock_claude, client, seed_companies_contacts):
-        mock_claude.return_value = MOCK_MAPPING
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -339,7 +346,7 @@ class TestCustomFieldImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_execute_creates_custom_field_defs(self, mock_claude, client, seed_companies_contacts):
         """Custom field definitions should be auto-created on execute."""
-        mock_claude.return_value = MOCK_MAPPING_WITH_CUSTOM
+        mock_claude.return_value = (MOCK_MAPPING_WITH_CUSTOM, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -366,7 +373,7 @@ class TestCustomFieldImport:
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_execute_stores_custom_field_values(self, mock_claude, client, seed_companies_contacts):
         """Custom field values should be stored in contacts/companies JSONB."""
-        mock_claude.return_value = MOCK_MAPPING_WITH_CUSTOM
+        mock_claude.return_value = (MOCK_MAPPING_WITH_CUSTOM, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -408,7 +415,7 @@ class TestCustomFieldImport:
         db.session.add(cfd)
         db.session.commit()
 
-        mock_claude.return_value = MOCK_MAPPING_WITH_CUSTOM
+        mock_claude.return_value = (MOCK_MAPPING_WITH_CUSTOM, MOCK_USAGE_INFO)
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 

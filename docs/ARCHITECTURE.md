@@ -53,7 +53,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 1. Dashboard (Static Frontend)
 - **Tech**: Vanilla HTML/JS/CSS, no build step
 - **Hosting**: Caddy file server at `leadgen.visionvolve.com`
-- **Pages**: `index.html` (Pipeline), `companies.html` (Companies), `contacts.html` (Contacts), `messages.html` (Messages), `import.html` (Import), `admin.html` (Admin)
+- **Pages**: `index.html` (Pipeline), `companies.html` (Companies), `contacts.html` (Contacts), `messages.html` (Messages), `import.html` (Import), `llm-costs.html` (LLM Costs, super admin), `admin.html` (Admin)
 - **Virtual scroll**: Companies and Contacts tables use DOM windowing — only ~60-80 rows rendered at any time regardless of dataset size. Data fetched via infinite scroll (IntersectionObserver), rendered via `renderWindow()` on scroll (see ADR-001)
 - **Auth**: JWT stored in localStorage, managed by `auth.js`
 - **Namespace routing**: `/{tenant-slug}/page` — Caddy strips prefix, JS reads namespace from URL
@@ -61,8 +61,8 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/imports/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication)
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/health`
+- **Services**: `pipeline_engine.py` (stage orchestration), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -78,7 +78,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
 - **Schema**: 17 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `007_import_jobs.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `009_llm_usage_log.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -138,6 +138,7 @@ tenants ─┬── owners
          │          └── task_activities
          ├── research_assets (polymorphic)
          ├── pipeline_runs
+         ├── llm_usage_log (per-call LLM cost tracking)
          └── audit_log
 
 users ── user_tenant_roles ── tenants

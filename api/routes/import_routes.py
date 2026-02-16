@@ -11,6 +11,7 @@ from ..auth import require_auth, resolve_tenant
 from ..models import Batch, CustomFieldDefinition, ImportJob, Owner, db
 from ..services.csv_mapper import apply_mapping, call_claude_for_mapping
 from ..services.dedup import dedup_preview, execute_import
+from ..services.llm_logger import log_llm_usage
 
 imports_bp = Blueprint("imports", __name__)
 
@@ -159,8 +160,9 @@ def upload_csv():
     custom_defs = [d.to_dict() for d in custom_defs_rows]
 
     # Call Claude for AI column mapping
+    usage_info = None
     try:
-        mapping_result = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
+        mapping_result, usage_info = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
     except Exception as e:
         mapping_result = {
             "mappings": [],
@@ -188,6 +190,25 @@ def upload_csv():
         status="mapped",
     )
     db.session.add(job)
+    db.session.flush()
+
+    # Log LLM usage if we got usage info from Claude
+    if usage_info:
+        log_llm_usage(
+            tenant_id=str(tenant_id),
+            operation="csv_column_mapping",
+            model=usage_info["model"],
+            input_tokens=usage_info["input_tokens"],
+            output_tokens=usage_info["output_tokens"],
+            user_id=str(user_id),
+            duration_ms=usage_info.get("duration_ms"),
+            metadata={
+                "import_job_id": str(job.id),
+                "filename": file.filename,
+                "headers_count": len(headers),
+            },
+        )
+
     db.session.commit()
 
     return jsonify({
