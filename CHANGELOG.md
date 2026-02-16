@@ -5,6 +5,17 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Unified Registry Module** (ADR-005): Merged 5 separate registry stages (ares, brreg, prh, recherche, isir) into single `registry` stage
+  - `RegistryOrchestrator`: Auto-detects applicable registers from hq_country/domain, runs adapters in dependency order
+  - `IsirAdapter`: Wraps standalone ISIR functions as supplementary adapter (depends on CZ/ARES for ICO)
+  - Adapter capability metadata: `provides_fields`, `requires_inputs`, `depends_on`, `is_supplementary`
+  - Credibility scorer (0-100): 6 weighted components (registration, status, insolvency, history, completeness, directors)
+  - `company_legal_profile` table: Unified storage for all registry + insolvency + credibility data (migration 016)
+  - Promoted columns on `companies`: official_name, tax_id, legal_form, registration_status, date_established, has_insolvency, credibility_score
+  - Legacy aliases: old stage names (`ares`, `brreg`, etc.) transparently resolve to `registry`
+  - Dashboard: Single "Legal & Registry" card replaces 5 package cards, credibility badge on company detail
+  - Data migration script: `scripts/migrate_registry_to_legal_profile.py` (idempotent backfill)
+  - 47 new tests (credibility scorer, orchestrator, route updates)
 - **Native L1 Enrichment** (ADR-003): Company enrichment via Perplexity sonar API, replacing n8n webhook
   - `l1_enricher.py`: Domain resolution, Perplexity API call, JSON parsing, field mapping, QC validation
   - 8 QC checks: name mismatch, incomplete research, revenue/employee sanity, low confidence, B2B unclear, short summary, source warning

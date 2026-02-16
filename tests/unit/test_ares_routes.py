@@ -71,7 +71,7 @@ class TestCompanyDetailRegistryData:
 class TestEnrichRegistry:
     """POST /api/companies/<id>/enrich-registry endpoint tests."""
 
-    @patch("api.services.ares.enrich_company")
+    @patch("api.services.registries.orchestrator.RegistryOrchestrator.enrich_company")
     def test_success_with_ico(self, mock_enrich, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
@@ -79,9 +79,11 @@ class TestEnrichRegistry:
 
         mock_enrich.return_value = {
             "status": "enriched",
-            "ico": "27074358",
-            "method": "ico_direct",
-            "confidence": 1.0,
+            "registration_id": "27074358",
+            "official_name": "Test s.r.o.",
+            "credibility_score": 85,
+            "adapters_run": ["CZ"],
+            "enrichment_cost_usd": 0,
         }
 
         resp = client.post(
@@ -92,12 +94,9 @@ class TestEnrichRegistry:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "enriched"
-        assert data["ico"] == "27074358"
         mock_enrich.assert_called_once()
-        call_kwargs = mock_enrich.call_args
-        assert call_kwargs.kwargs["ico"] == "27074358"
 
-    @patch("api.services.ares.enrich_company")
+    @patch("api.services.registries.orchestrator.RegistryOrchestrator.enrich_company")
     def test_success_without_ico(self, mock_enrich, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
@@ -105,9 +104,10 @@ class TestEnrichRegistry:
 
         mock_enrich.return_value = {
             "status": "enriched",
-            "ico": "11111111",
-            "method": "name_auto",
-            "confidence": 0.92,
+            "registration_id": "11111111",
+            "credibility_score": 70,
+            "adapters_run": ["CZ"],
+            "enrichment_cost_usd": 0,
         }
 
         resp = client.post(
@@ -118,7 +118,7 @@ class TestEnrichRegistry:
         assert resp.status_code == 200
         assert resp.get_json()["status"] == "enriched"
 
-    @patch("api.services.ares.enrich_company")
+    @patch("api.services.registries.orchestrator.RegistryOrchestrator.enrich_company")
     def test_ambiguous_result(self, mock_enrich, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
@@ -142,8 +142,8 @@ class TestEnrichRegistry:
         assert data["status"] == "ambiguous"
         assert len(data["candidates"]) == 2
 
-    @patch("api.services.ares.enrich_company")
-    def test_not_czech_skipped(self, mock_enrich, client, seed_companies_contacts):
+    @patch("api.services.registries.orchestrator.RegistryOrchestrator.enrich_company")
+    def test_no_applicable_registry(self, mock_enrich, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         # Epsilon SA is French
@@ -151,7 +151,8 @@ class TestEnrichRegistry:
 
         mock_enrich.return_value = {
             "status": "skipped",
-            "reason": "not_czech",
+            "reason": "no_applicable_registry",
+            "enrichment_cost_usd": 0,
         }
 
         resp = client.post(
@@ -238,10 +239,10 @@ class TestConfirmRegistry:
         assert resp.status_code == 401
 
 
-class TestAresInEnrichEstimate:
-    """ARES should appear in enrich estimate with $0.00 cost."""
+class TestRegistryInEnrichEstimate:
+    """Registry (legacy alias 'ares') should appear in estimate with $0.00 cost."""
 
-    def test_ares_estimate(self, client, db, seed_companies_contacts):
+    def test_registry_estimate_via_legacy_alias(self, client, db, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         batch_name = seed_companies_contacts["batches"][0].name
@@ -253,11 +254,12 @@ class TestAresInEnrichEstimate:
         )
         assert resp.status_code == 200
         data = resp.get_json()
-        assert "ares" in data["stages"]
-        assert data["stages"]["ares"]["cost_per_item"] == 0.00
-        assert data["stages"]["ares"]["estimated_cost"] == 0.00
+        # Legacy "ares" is resolved to "registry"
+        assert "registry" in data["stages"]
+        assert data["stages"]["registry"]["cost_per_item"] == 0.00
+        assert data["stages"]["registry"]["estimated_cost"] == 0.00
 
-    def test_ares_in_multi_stage_estimate(self, client, db, seed_companies_contacts):
+    def test_registry_in_multi_stage_estimate(self, client, db, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         batch_name = seed_companies_contacts["batches"][0].name
@@ -270,5 +272,5 @@ class TestAresInEnrichEstimate:
         assert resp.status_code == 200
         data = resp.get_json()
         assert "l1" in data["stages"]
-        assert "ares" in data["stages"]
-        assert data["stages"]["ares"]["cost_per_item"] == 0.00
+        assert "registry" in data["stages"]
+        assert data["stages"]["registry"]["cost_per_item"] == 0.00

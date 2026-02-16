@@ -62,7 +62,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
 - **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters: ARES/CZ, BRREG/NO, PRH/FI, recherche/FR — see ADR-004), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
+- **Services**: `pipeline_engine.py` (stage orchestration), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters + unified orchestrator — see ADR-004, ADR-005), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -76,9 +76,9 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 4. PostgreSQL (RDS)
 - **Instance**: AWS Lightsail managed PostgreSQL
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
-- **Schema**: 18 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
+- **Schema**: 19 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `013_registry_country.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `016_company_legal_profile.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -99,6 +99,12 @@ Pipeline Engine (pipeline_engine.py)
     │         → QC validation → triage_passed / needs_review
     │         → Research stored in research_assets
     │         → Cost tracked in llm_usage_log
+    │
+    ├──→ Registry: RegistryOrchestrator (ADR-005)
+    │         → Auto-detect country (hq_country > domain TLD)
+    │         → Run applicable adapters (CZ, NO, FI, FR + CZ_ISIR)
+    │         → Aggregate → credibility score (0-100)
+    │         → Store in company_legal_profile
     │
     ├──→ L2: n8n webhook (/webhook/l2-enrich) [coming soon]
     │
@@ -155,7 +161,9 @@ tenants ─┬── owners
          ├── import_jobs (CSV/Gmail import lifecycle tracking)
          ├── oauth_connections (Google OAuth tokens, Fernet-encrypted)
          ├── companies ─┬── company_enrichment_l2 (1:1)
-         │              ├── company_registry_data (1:1, ARES)
+         │              ├── company_legal_profile (1:1, unified registry+insolvency+credibility)
+         │              ├── company_registry_data (1:1, legacy ARES)
+         │              ├── company_insolvency_data (1:1, legacy ISIR)
          │              └── company_tags (1:∞)
          ├── contacts ──── contact_enrichment (1:1)
          ├── messages
@@ -185,12 +193,12 @@ users ── user_tenant_roles ── tenants
 ## External Dependencies
 
 - **Airtable**: Data store for n8n workflows (dashboard APIs migrated to PG)
-- **EU Government Registries** (all free, no auth): Company registry adapters under `api/services/registries/` with shared `BaseRegistryAdapter` pattern (ADR-004):
-  - **ARES (ares.gov.cz)**: Czech Republic — ICO/DIC, legal form, directors, capital, NACE codes, insolvency. Stage: `ares`
-  - **BRREG (data.brreg.no)**: Norway — organisasjonsnummer, legal form, NACE codes, capital, bankruptcy flags. Stage: `brreg`
-  - **PRH (avoindata.prh.fi)**: Finland — Y-tunnus, company form, TOL codes, trade register status. Stage: `prh`
-  - **recherche-entreprises (api.gouv.fr)**: France — SIREN, nature juridique, NAF codes, directors, administrative status. Stage: `recherche`
-- **ISIR (isir.justice.cz)**: Czech Insolvency Register — SOAP/XML API via CUZK endpoint. Checks for active/historical insolvency proceedings by ICO. Separate `company_insolvency_data` table. Stage: `isir`
+- **EU Government Registries** (all free, no auth): Unified `registry` stage via `RegistryOrchestrator` (ADR-005). Auto-detects country and runs applicable adapters. Results stored in `company_legal_profile` with credibility scoring.
+  - **ARES (ares.gov.cz)**: Czech Republic — ICO/DIC, legal form, directors, capital, NACE codes, insolvency
+  - **BRREG (data.brreg.no)**: Norway — organisasjonsnummer, legal form, NACE codes, capital, bankruptcy flags
+  - **PRH (avoindata.prh.fi)**: Finland — Y-tunnus, company form, TOL codes, trade register status
+  - **recherche-entreprises (api.gouv.fr)**: France — SIREN, nature juridique, NAF codes, directors, administrative status
+  - **ISIR (isir.justice.cz)**: Czech Insolvency Register — SOAP/XML, supplementary to ARES (requires ICO)
 - **Google APIs**: OAuth 2.0 (identity), People API (contacts), Gmail API (email scan)
 - **Perplexity API**: L1/L2 company research
 - **Anthropic API**: AI analysis, message generation, email signature extraction (Haiku)
