@@ -158,9 +158,10 @@ def list_connections():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    connections = OAuthConnection.query.filter_by(
-        user_id=g.current_user.id,
-        tenant_id=str(tenant_id),
+    connections = OAuthConnection.query.filter(
+        OAuthConnection.user_id == g.current_user.id,
+        OAuthConnection.tenant_id == str(tenant_id),
+        OAuthConnection.status != "revoked",
     ).order_by(OAuthConnection.created_at.desc()).all()
 
     return jsonify({
@@ -185,7 +186,6 @@ def delete_connection(connection_id):
         return jsonify({"error": "Connection not found"}), 404
 
     revoke_connection(conn)
-    db.session.delete(conn)
     db.session.commit()
 
     return jsonify({"status": "disconnected"})
