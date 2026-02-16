@@ -22,11 +22,10 @@ N8N_WEBHOOK_PATHS = {
     "l1": "/webhook/l1-enrich",
     "l2": "/webhook/l2-enrich",
     "person": "/webhook/person-enrich",
-    "generate": "/webhook/generate-messages",
 }
 
 # Stages that have workflows wired up (n8n or direct Python)
-AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "registry"}
+AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
 DIRECT_STAGES = {"l1", "registry"}
 # Stages that are manual gates (not executable)
@@ -42,7 +41,6 @@ STAGE_PREDECESSORS = {
     "l1": [],           # L1 has no predecessor — processes fixed set
     "l2": ["l1"],       # L2 watches L1 (triage is auto-output of L1)
     "person": ["l2"],   # Person watches L2
-    "generate": ["person"],  # Generate watches Person
     "registry": [],     # Unified registry — independent, auto-detects country
 }
 
@@ -72,15 +70,6 @@ ELIGIBILITY_QUERIES = {
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
-    """,
-    "generate": """
-        SELECT ct.id FROM contacts ct
-        JOIN companies c ON ct.company_id = c.id
-        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
-          AND ct.processed_enrich = true
-          AND (ct.message_status IS NULL OR ct.message_status = 'not_started')
-          {owner_clause}
-        ORDER BY ct.contact_score DESC NULLS LAST
     """,
     "registry": """
         SELECT c.id FROM companies c
@@ -115,7 +104,7 @@ def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None
 
     owner_clause = ""
     if owner_id:
-        if stage in ("person", "generate"):
+        if stage in ("person", "social", "career", "contact_details"):
             owner_clause = "AND ct.owner_id = :owner_id"
         else:
             owner_clause = "AND c.owner_id = :owner_id"
@@ -147,7 +136,7 @@ def count_eligible(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
 
     owner_clause = ""
     if owner_id:
-        if stage in ("person", "generate"):
+        if stage in ("person", "social", "career", "contact_details"):
             owner_clause = "AND ct.owner_id = :owner_id"
         else:
             owner_clause = "AND c.owner_id = :owner_id"
@@ -223,13 +212,13 @@ def _extract_cost(result):
 
 def _data_key_for_stage(stage):
     """Get the JSON key name for the entity ID sent to n8n."""
-    return "contact_id" if stage in ("person", "generate") else "company_id"
+    return "contact_id" if stage in ("person", "social", "career", "contact_details") else "company_id"
 
 
 def _get_entity_name(stage, entity_id, tenant_id):
     """Look up a display name for the entity being processed."""
     try:
-        if stage in ("person", "generate"):
+        if stage in ("person", "social", "career", "contact_details"):
             row = db.session.execute(
                 text("SELECT first_name, last_name FROM contacts WHERE id = :id AND tenant_id = :t"),
                 {"id": entity_id, "t": str(tenant_id)},
@@ -615,7 +604,7 @@ def start_pipeline_threads(app, pipeline_run_id, stages_to_run,
     """Spawn reactive stage threads for all stages + coordinator thread.
 
     Args:
-        stages_to_run: list of stage names to run (e.g. ["l1", "l2", "person", "generate"])
+        stages_to_run: list of stage names to run (e.g. ["l1", "l2", "person"])
         stage_run_ids: dict of stage_name → stage_run_id (pre-created)
         sample_size: optional limit on how many entities to process per stage
     """

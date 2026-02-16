@@ -39,9 +39,9 @@ class TestGetStagesForEntityType:
         assert "l1" in codes
         assert "l2" in codes
         assert "registry" in codes
+        assert "news" in codes
         assert "qc" in codes
         assert "person" not in codes
-        assert "generate" not in codes
 
     def test_contact_stages(self):
         from api.services.stage_registry import get_stages_for_entity_type
@@ -49,7 +49,10 @@ class TestGetStagesForEntityType:
         contact_stages = get_stages_for_entity_type("contact")
         codes = {s["code"] for s in contact_stages}
         assert "person" in codes
-        assert "generate" in codes
+        assert "social" in codes
+        assert "career" in codes
+        assert "contact_details" in codes
+        assert "generate" not in codes
         assert "l1" not in codes
 
 
@@ -68,11 +71,11 @@ class TestTopoSort:
     def test_full_pipeline(self):
         from api.services.stage_registry import topo_sort
 
-        stages = ["l1", "l2", "person", "generate"]
+        stages = ["l1", "l2", "person", "registry"]
         result = topo_sort(stages)
         assert result.index("l1") < result.index("l2")
         assert result.index("l1") < result.index("person")
-        assert result.index("person") < result.index("generate")
+        assert result.index("l1") < result.index("registry")
 
     def test_parallel_after_l1(self):
         """L2, signals, and registry are all after L1 but parallel to each other."""
@@ -205,7 +208,7 @@ class TestCountryGate:
     def test_non_registry_stages_no_gate(self):
         from api.services.stage_registry import get_stage
 
-        for code in ["l1", "l2", "signals", "person", "generate", "qc"]:
+        for code in ["l1", "l2", "signals", "news", "person", "social", "career", "contact_details", "qc"]:
             stage = get_stage(code)
             assert stage["country_gate"] is None, f"{code} should not have country_gate"
 

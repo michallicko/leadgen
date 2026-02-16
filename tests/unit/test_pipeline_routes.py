@@ -163,25 +163,21 @@ class TestPipelineStart:
         assert data["total"] == 3  # 3 contacts not yet processed
         mock_thread.assert_called_once()
 
-    def test_start_generate_success(self, client, seed_pipeline_data):
-        """Generate stage should find contacts with processed_enrich=true and not_started."""
+    def test_start_generate_rejected(self, client, seed_pipeline_data):
+        """Generate stage was removed — should be rejected as invalid."""
         headers = auth_header(client)
         headers["X-Namespace"] = seed_pipeline_data["tenant"].slug
 
-        with patch("api.routes.pipeline_routes.start_stage_thread") as mock_thread:
-            resp = client.post(
-                "/api/pipeline/start",
-                json={
-                    "stage": "generate",
-                    "batch_name": "batch-test",
-                },
-                headers=headers,
-            )
+        resp = client.post(
+            "/api/pipeline/start",
+            json={
+                "stage": "generate",
+                "batch_name": "batch-test",
+            },
+            headers=headers,
+        )
 
-        assert resp.status_code == 201
-        data = resp.get_json()
-        assert data["total"] == 1  # 1 contact with processed=true, status=not_started
-        mock_thread.assert_called_once()
+        assert resp.status_code == 400
 
     def test_start_missing_stage(self, client, seed_pipeline_data):
         headers = auth_header(client)

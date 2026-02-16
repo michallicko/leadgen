@@ -79,7 +79,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
         db.session.add(ct)
         contacts_person.append(ct)
 
-    # 1 contact eligible for generate stage (processed, not_started)
+    # 1 additional contact (processed, scored)
     ct_gen = Contact(
         tenant_id=seed_tenant.id,
         first_name="Gen",
@@ -114,7 +114,7 @@ class TestEnrichEstimate:
             "/api/enrich/estimate",
             json={
                 "batch_name": "enrich-batch",
-                "stages": ["l1", "l2", "person", "generate"],
+                "stages": ["l1", "l2", "person"],
             },
             headers=headers,
         )
@@ -141,13 +141,8 @@ class TestEnrichEstimate:
         assert data["stages"]["person"]["cost_per_item"] == 0.04
         assert data["stages"]["person"]["estimated_cost"] == 0.12
 
-        # Generate: 1 eligible at $0.03 = $0.03
-        assert data["stages"]["generate"]["eligible_count"] == 1
-        assert data["stages"]["generate"]["cost_per_item"] == 0.03
-        assert data["stages"]["generate"]["estimated_cost"] == 0.03
-
-        # Total: 0.10 + 0.16 + 0.12 + 0.03 = 0.41
-        assert data["total_estimated_cost"] == pytest.approx(0.41, abs=0.01)
+        # Total: 0.10 + 0.16 + 0.12 = 0.38
+        assert data["total_estimated_cost"] == pytest.approx(0.38, abs=0.01)
 
     def test_estimate_single_stage(self, client, seed_enrich_data):
         headers = auth_header(client)
@@ -299,14 +294,14 @@ class TestEnrichStart:
                 "/api/enrich/start",
                 json={
                     "batch_name": "enrich-batch",
-                    "stages": ["l1", "l2", "person", "generate"],
+                    "stages": ["l1", "l2", "person", "registry"],
                 },
                 headers=headers,
             )
 
         assert resp.status_code == 201
         data = resp.get_json()
-        assert set(data["stage_run_ids"].keys()) == {"l1", "l2", "person", "generate"}
+        assert set(data["stage_run_ids"].keys()) == {"l1", "l2", "person", "registry"}
 
     def test_start_with_sample_size(self, client, db, seed_enrich_data):
         """Sample size should be stored in config."""
