@@ -815,8 +815,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var statsEl = mkEl('div', { className: 'dag-node__stats' });
     statsEl.setAttribute('data-stats', code);
     if (isAvailable) {
-      var cpi = (info && info.cost_per_item != null) ? info.cost_per_item : 0;
-      var statText = eligible + ' eligible \u00B7 ' + (cpi === 0 ? 'free' : fmt$(cpi) + '/item');
+      var statText = eligible + ' eligible';
+      if (info) {
+        statText += ' \u00B7 ' + (info.cost_per_item === 0 ? 'free' : fmt$(info.cost_per_item) + '/item');
+      }
       statsEl.textContent = statText;
     } else {
       statsEl.textContent = 'Coming soon';
@@ -906,8 +908,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       // Update stats
       var statsEl = document.querySelector('[data-stats="' + code + '"]');
       if (statsEl && dagMode === 'configure') {
-        var cpi = (info.cost_per_item != null) ? info.cost_per_item : 0;
-        var statText = eligible + ' eligible \u00B7 ' + (cpi === 0 ? 'free' : fmt$(cpi) + '/item');
+        var statText = eligible + ' eligible \u00B7 ' + (info.cost_per_item === 0 ? 'free' : fmt$(info.cost_per_item) + '/item');
         statsEl.textContent = statText;
       }
 
