@@ -108,18 +108,140 @@ STAGE_REGISTRY = {
     },
 }
 
-STAGE_FIELDS = {
-    "l1": ["Industry", "Business Model", "Revenue", "Employees", "Summary", "Triage Score"],
-    "l2": ["Company Intel", "News", "AI Opportunities", "Tech Stack", "Pain Hypothesis"],
-    "registry": ["Official Name", "Legal Form", "Registration Status", "Credibility Score", "Insolvency"],
-    "signals": ["Funding", "M&A Activity", "Hiring Patterns", "Growth Indicators"],
-    "news": ["Media Mentions", "Press Releases", "Sentiment", "Thought Leadership"],
-    "person": ["Current Title", "Reporting Structure", "Tenure", "Employment Status"],
-    "social": ["LinkedIn Profile", "Twitter/X", "Speaking Engagements", "Publications"],
-    "career": ["Previous Roles", "Career Trajectory", "Industry Experience"],
-    "contact_details": ["Email Status", "Phone", "Alternative Contacts"],
-    "qc": ["Quality Flags", "Data Completeness"],
+STAGE_FIELDS: Dict[str, List[dict]] = {
+    "l1": [
+        {"key": "summary", "label": "Summary", "type": "text", "table": "companies"},
+        {"key": "industry", "label": "Industry", "type": "enum", "table": "companies"},
+        {"key": "business_model", "label": "B2B/B2C", "type": "enum", "table": "companies"},
+        {"key": "business_type", "label": "Business Type", "type": "enum", "table": "companies"},
+        {"key": "ownership_type", "label": "Ownership", "type": "enum", "table": "companies"},
+        {"key": "verified_revenue_eur_m", "label": "Revenue (EUR M)", "type": "number", "table": "companies"},
+        {"key": "revenue_range", "label": "Revenue Range", "type": "enum", "table": "companies"},
+        {"key": "verified_employees", "label": "Employees", "type": "number", "table": "companies"},
+        {"key": "company_size", "label": "Company Size", "type": "enum", "table": "companies"},
+        {"key": "hq_city", "label": "HQ City", "type": "text", "table": "companies"},
+        {"key": "hq_country", "label": "HQ Country", "type": "text", "table": "companies"},
+        {"key": "geo_region", "label": "Region", "type": "enum", "table": "companies"},
+        {"key": "triage_score", "label": "Triage Score", "type": "number", "table": "companies"},
+        {"key": "pre_score", "label": "Pre-Score", "type": "number", "table": "companies"},
+    ],
+    "l2": [
+        {"key": "company_intel", "label": "Company Intel", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "recent_news", "label": "Recent News", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "ai_opportunities", "label": "AI Opportunities", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "pain_hypothesis", "label": "Pain Hypothesis", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "tech_stack", "label": "Tech Stack", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "key_products", "label": "Key Products", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "customer_segments", "label": "Customers", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "competitors", "label": "Competitors", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "leadership_team", "label": "Leadership", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "leadership_changes", "label": "Leadership Changes", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "funding_history", "label": "Funding", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "hiring_signals", "label": "Hiring Signals", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "ai_hiring", "label": "AI Hiring", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "digital_initiatives", "label": "Digital Initiatives", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "tech_partnerships", "label": "Tech Partners", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "certifications", "label": "Certifications", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "eu_grants", "label": "EU Grants", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "relevant_case_study", "label": "Case Studies", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "industry_pain_points", "label": "Industry Pains", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "adoption_barriers", "label": "Adoption Barriers", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "quick_wins", "label": "Quick Wins", "type": "json", "table": "company_enrichment_l2"},
+    ],
+    "registry": [
+        {"key": "registration_id", "label": "Registration ID", "type": "text", "table": "company_legal_profile"},
+        {"key": "registration_country", "label": "Registry Country", "type": "text", "table": "company_legal_profile"},
+        {"key": "tax_id", "label": "Tax ID", "type": "text", "table": "company_legal_profile"},
+        {"key": "official_name", "label": "Official Name", "type": "text", "table": "company_legal_profile"},
+        {"key": "legal_form", "label": "Legal Form", "type": "text", "table": "company_legal_profile"},
+        {"key": "legal_form_name", "label": "Legal Form Name", "type": "text", "table": "company_legal_profile"},
+        {"key": "registration_status", "label": "Reg. Status", "type": "text", "table": "company_legal_profile"},
+        {"key": "date_established", "label": "Established", "type": "date", "table": "company_legal_profile"},
+        {"key": "date_dissolved", "label": "Dissolved", "type": "date", "table": "company_legal_profile"},
+        {"key": "registered_address", "label": "Address", "type": "text", "table": "company_legal_profile"},
+        {"key": "address_city", "label": "City", "type": "text", "table": "company_legal_profile"},
+        {"key": "address_postal_code", "label": "Postal Code", "type": "text", "table": "company_legal_profile"},
+        {"key": "nace_codes", "label": "NACE Codes", "type": "json", "table": "company_legal_profile"},
+        {"key": "directors", "label": "Directors", "type": "json", "table": "company_legal_profile"},
+        {"key": "registered_capital", "label": "Capital", "type": "text", "table": "company_legal_profile"},
+        {"key": "registration_court", "label": "Reg. Court", "type": "text", "table": "company_legal_profile"},
+        {"key": "registration_number", "label": "Reg. Number", "type": "text", "table": "company_legal_profile"},
+        {"key": "insolvency_flag", "label": "Insolvency", "type": "boolean", "table": "company_legal_profile"},
+        {"key": "insolvency_details", "label": "Insolvency Details", "type": "json", "table": "company_legal_profile"},
+        {"key": "active_insolvency_count", "label": "Active Insolvencies", "type": "number", "table": "company_legal_profile"},
+        {"key": "match_confidence", "label": "Match Confidence", "type": "number", "table": "company_legal_profile"},
+        {"key": "credibility_score", "label": "Credibility Score", "type": "number", "table": "company_legal_profile"},
+        {"key": "credibility_factors", "label": "Credibility Factors", "type": "json", "table": "company_legal_profile"},
+    ],
+    "signals": [
+        {"key": "funding_history", "label": "Funding Rounds", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "hiring_signals", "label": "Hiring Patterns", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "ai_hiring", "label": "AI Hiring Signals", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "digital_initiatives", "label": "Growth Indicators", "type": "text", "table": "company_enrichment_l2"},
+        {"key": "competitor_ai_moves", "label": "Competitor AI Moves", "type": "text", "table": "company_enrichment_l2"},
+    ],
+    "news": [
+        {"key": "media_mentions", "label": "Media Mentions", "type": "json", "table": "company_news"},
+        {"key": "press_releases", "label": "Press Releases", "type": "json", "table": "company_news"},
+        {"key": "sentiment_score", "label": "Sentiment", "type": "number", "table": "company_news"},
+        {"key": "thought_leadership", "label": "Thought Leadership", "type": "text", "table": "company_news"},
+        {"key": "news_summary", "label": "News Summary", "type": "text", "table": "company_news"},
+    ],
+    "person": [
+        {"key": "job_title", "label": "Current Title", "type": "text", "table": "contacts"},
+        {"key": "seniority_level", "label": "Seniority", "type": "enum", "table": "contacts"},
+        {"key": "department", "label": "Department", "type": "enum", "table": "contacts"},
+        {"key": "location_city", "label": "City", "type": "text", "table": "contacts"},
+        {"key": "location_country", "label": "Country", "type": "text", "table": "contacts"},
+        {"key": "linkedin_url", "label": "LinkedIn", "type": "text", "table": "contacts"},
+        {"key": "email_address", "label": "Email", "type": "text", "table": "contacts"},
+        {"key": "phone_number", "label": "Phone", "type": "text", "table": "contacts"},
+        {"key": "language", "label": "Language", "type": "enum", "table": "contacts"},
+        {"key": "ai_champion", "label": "AI Champion", "type": "boolean", "table": "contacts"},
+        {"key": "ai_champion_score", "label": "Champion Score", "type": "number", "table": "contacts"},
+        {"key": "authority_score", "label": "Authority Score", "type": "number", "table": "contacts"},
+        {"key": "contact_score", "label": "Contact Score", "type": "number", "table": "contacts"},
+        {"key": "icp_fit", "label": "ICP Fit", "type": "enum", "table": "contacts"},
+        {"key": "person_summary", "label": "Person Summary", "type": "text", "table": "contact_enrichment"},
+        {"key": "linkedin_profile_summary", "label": "LinkedIn Summary", "type": "text", "table": "contact_enrichment"},
+        {"key": "relationship_synthesis", "label": "Relationship Fit", "type": "text", "table": "contact_enrichment"},
+    ],
+    "social": [
+        {"key": "linkedin_url", "label": "LinkedIn Profile", "type": "text", "table": "contacts"},
+        {"key": "twitter_url", "label": "Twitter/X", "type": "text", "table": "contact_social"},
+        {"key": "speaking_engagements", "label": "Speaking Events", "type": "json", "table": "contact_social"},
+        {"key": "publications", "label": "Publications", "type": "json", "table": "contact_social"},
+        {"key": "github_url", "label": "GitHub", "type": "text", "table": "contact_social"},
+    ],
+    "career": [
+        {"key": "previous_roles", "label": "Previous Roles", "type": "json", "table": "contact_career"},
+        {"key": "career_trajectory", "label": "Career Trajectory", "type": "text", "table": "contact_career"},
+        {"key": "industry_experience", "label": "Industry Experience", "type": "json", "table": "contact_career"},
+        {"key": "total_experience_years", "label": "Experience Years", "type": "number", "table": "contact_career"},
+    ],
+    "contact_details": [
+        {"key": "email_address", "label": "Email", "type": "text", "table": "contacts"},
+        {"key": "phone_number", "label": "Phone", "type": "text", "table": "contacts"},
+        {"key": "linkedin_url", "label": "LinkedIn", "type": "text", "table": "contacts"},
+        {"key": "profile_photo_url", "label": "Photo URL", "type": "text", "table": "contacts"},
+    ],
+    "qc": [
+        {"key": "error_message", "label": "Quality Flags", "type": "text", "table": "companies"},
+        {"key": "status", "label": "Data Status", "type": "enum", "table": "companies"},
+    ],
 }
+
+VALID_FIELD_TYPES = {"text", "number", "boolean", "enum", "json", "date"}
+
+
+def get_stage_labels(stage_code: str) -> List[str]:
+    """Return just the display labels for a stage (backward-compat with old flat list)."""
+    return [f["label"] for f in STAGE_FIELDS.get(stage_code, [])]
+
+
+def get_stage_field_defs(stage_code: str) -> List[dict]:
+    """Return full typed field definitions for a stage."""
+    return STAGE_FIELDS.get(stage_code, [])
 
 
 def get_stage(code: str) -> Optional[dict]:

@@ -225,14 +225,105 @@ class TestStageFields:
         for code in STAGE_REGISTRY:
             assert code in STAGE_FIELDS, f"STAGE_FIELDS missing entry for {code}"
 
-    def test_l1_fields(self):
+    def test_every_field_has_required_keys(self):
         from api.services.stage_registry import STAGE_FIELDS
 
-        assert "Industry" in STAGE_FIELDS["l1"]
-        assert "Summary" in STAGE_FIELDS["l1"]
+        required = {"key", "label", "type", "table"}
+        for stage, fields in STAGE_FIELDS.items():
+            for field in fields:
+                missing = required - set(field.keys())
+                assert not missing, f"{stage}.{field.get('key', '?')} missing: {missing}"
 
-    def test_registry_fields(self):
+    def test_field_types_are_valid(self):
+        from api.services.stage_registry import STAGE_FIELDS, VALID_FIELD_TYPES
+
+        for stage, fields in STAGE_FIELDS.items():
+            for field in fields:
+                assert field["type"] in VALID_FIELD_TYPES, (
+                    f"{stage}.{field['key']} has invalid type '{field['type']}'"
+                )
+
+    def test_field_keys_are_snake_case(self):
+        import re
         from api.services.stage_registry import STAGE_FIELDS
 
-        assert "Official Name" in STAGE_FIELDS["registry"]
-        assert "Insolvency" in STAGE_FIELDS["registry"]
+        pattern = re.compile(r"^[a-z][a-z0-9_]*$")
+        for stage, fields in STAGE_FIELDS.items():
+            for field in fields:
+                assert pattern.match(field["key"]), (
+                    f"{stage}.{field['key']} is not snake_case"
+                )
+
+    def test_field_counts(self):
+        """Verify expected field counts per stage to catch accidental drops."""
+        from api.services.stage_registry import STAGE_FIELDS
+
+        expected_min = {
+            "l1": 14,
+            "l2": 21,
+            "registry": 23,
+            "signals": 5,
+            "news": 5,
+            "person": 17,
+            "social": 5,
+            "career": 4,
+            "contact_details": 4,
+            "qc": 2,
+        }
+        for stage, min_count in expected_min.items():
+            actual = len(STAGE_FIELDS[stage])
+            assert actual >= min_count, (
+                f"{stage}: expected >= {min_count} fields, got {actual}"
+            )
+
+
+class TestGetStageLabels:
+    def test_returns_list_of_strings(self):
+        from api.services.stage_registry import get_stage_labels
+
+        labels = get_stage_labels("l1")
+        assert isinstance(labels, list)
+        assert all(isinstance(lbl, str) for lbl in labels)
+
+    def test_backward_compat_l1(self):
+        from api.services.stage_registry import get_stage_labels
+
+        labels = get_stage_labels("l1")
+        assert "Industry" in labels
+        assert "Summary" in labels
+        assert "Triage Score" in labels
+
+    def test_backward_compat_registry(self):
+        from api.services.stage_registry import get_stage_labels
+
+        labels = get_stage_labels("registry")
+        assert "Official Name" in labels
+        assert "Insolvency" in labels
+        assert "Credibility Score" in labels
+
+    def test_unknown_stage_returns_empty(self):
+        from api.services.stage_registry import get_stage_labels
+
+        assert get_stage_labels("nonexistent") == []
+
+
+class TestGetStageFieldDefs:
+    def test_returns_list_of_dicts(self):
+        from api.services.stage_registry import get_stage_field_defs
+
+        defs = get_stage_field_defs("l2")
+        assert isinstance(defs, list)
+        assert all(isinstance(d, dict) for d in defs)
+        assert defs[0]["key"] == "company_intel"
+
+    def test_unknown_stage_returns_empty(self):
+        from api.services.stage_registry import get_stage_field_defs
+
+        assert get_stage_field_defs("nonexistent") == []
+
+    def test_person_spans_multiple_tables(self):
+        from api.services.stage_registry import get_stage_field_defs
+
+        tables = {f["table"] for f in get_stage_field_defs("person")}
+        assert "contacts" in tables
+        assert "contact_enrichment" in tables
