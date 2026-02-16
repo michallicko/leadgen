@@ -84,15 +84,17 @@ Enrichment modules for individual contacts, plugging into the modular framework 
 
 Depth selection: "basics" (role + email) vs "full profile" (all modules). Credit cost scales with depth.
 
-### BL-030: Resend Email Integration
+### BL-030: Resend Email Integration (Dual-Mode)
 **Status**: Idea | **Effort**: M | **Spec**: —
 **Depends on**: — | **Theme**: Platform Foundation
 
-Integrate Resend as the unified email sending infrastructure for two use cases:
-- **Transactional/system emails**: Enrichment complete notifications, import status updates, staleness alerts, weekly contact health digests, account notifications (password reset, invite). Branded HTML templates.
-- **Outreach delivery**: Send personalized outreach emails to contacts directly from the platform. Complements/replaces Lemlist for users who want native email sending. Tracks opens, clicks, bounces.
+Unified email sending via Resend with two delivery modes:
+- **Platform mode**: Tenant verifies a sending subdomain (e.g., `outreach.acme.com`) on our Resend Scale account. We manage sending, they add 2 DNS records. Good for users without existing Resend.
+- **BYOK mode**: If tenant's root domain is already claimed in another Resend account, they connect their own Resend API key. We validate their domain is verified, then send through their account directly. Zero cost to us, full root-domain sending for them.
 
-Resend API key per tenant, domain verification, sender reputation management. Free tier (100 emails/day) works for early customers.
+Two use cases: (1) **Transactional** — enrichment notifications, import status, staleness alerts, weekly digests, account emails. (2) **Outreach delivery** — personalized emails to contacts, tracks opens/clicks/bounces, complements Lemlist.
+
+Data model: `tenant_email_configs` table (mode, domain, subdomain, encrypted API key, verification status). Send logic checks mode and uses the appropriate Resend API key. Domain conflict auto-detected on registration attempt.
 
 ## Should Have
 
