@@ -88,11 +88,21 @@ def enrich_estimate():
     owner_name = body.get("owner_name", "")
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
+    limit = body.get("limit")
 
     if not batch_name:
         return jsonify({"error": "batch_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
+
+    # Sanitise limit
+    if limit is not None:
+        try:
+            limit = int(limit)
+            if limit < 1:
+                limit = None
+        except (TypeError, ValueError):
+            limit = None
 
     # Resolve legacy stage names
     stages = [_LEGACY_STAGE_ALIASES.get(s, s) for s in stages]
@@ -114,6 +124,8 @@ def enrich_estimate():
 
     for stage in stages:
         eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
+        if limit is not None:
+            eligible = min(eligible, limit)
         cost_per_item = _get_cost_per_item(tenant_id, stage)
         estimated_cost = round(eligible * cost_per_item, 2)
         total_cost += estimated_cost

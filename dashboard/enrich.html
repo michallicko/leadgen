@@ -361,7 +361,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* ===== NODE STATES ===== */
 .dag-node[data-state="disabled"] { opacity: 0.25; pointer-events: none; }
-.dag-node[data-state="toggled-off"] { opacity: 0.4; }
 .dag-node[data-state="pending"] { border-style: dashed; border-color: var(--text-dim); }
 .dag-node[data-state="eligible"] { border-color: var(--accent); box-shadow: 0 0 12px -4px rgba(110,44,139,0.3); }
 .dag-node[data-state="running"] { border-color: var(--accent-cyan); box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); animation: nodeGlow 2s ease-in-out infinite; }
@@ -956,7 +955,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     if (dagMode === 'configure') {
       if (!enabledStages[code]) {
-        nodeEl.setAttribute('data-state', 'toggled-off');
+        nodeEl.setAttribute('data-state', 'pending');
       } else {
         var info = estimateData && estimateData.stages && estimateData.stages[code];
         var eligible = info ? (info.eligible_count || 0) : 0;
