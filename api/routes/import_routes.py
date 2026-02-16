@@ -5,9 +5,10 @@ import io
 import json
 
 from flask import Blueprint, jsonify, request
+from openpyxl import load_workbook
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Batch, ImportJob, Owner, db
+from ..models import Batch, CustomFieldDefinition, ImportJob, Owner, db
 from ..services.csv_mapper import apply_mapping, call_claude_for_mapping
 from ..services.dedup import dedup_preview, execute_import
 
@@ -16,12 +17,90 @@ imports_bp = Blueprint("imports", __name__)
 MAX_CSV_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+def _auto_create_custom_field_defs(tenant_id, mapping):
+    """Scan mapping for custom.* targets and auto-create missing definitions.
+
+    Also checks suggested_custom_field on mappings and creates definitions for those.
+    """
+    needed = {}  # (entity_type, field_key) → field_label
+
+    for m in mapping.get("mappings", []):
+        target = m.get("target")
+        if target:
+            # e.g. "contact.custom.email_secondary"
+            parts = target.split(".", 2)
+            if len(parts) == 3 and parts[1] == "custom":
+                entity_type, _, field_key = parts
+                label = m.get("csv_header", field_key.replace("_", " ").title())
+                needed[(entity_type, field_key)] = {
+                    "label": label,
+                    "field_type": "text",
+                }
+
+        # Handle suggested_custom_field for unmapped columns
+        suggestion = m.get("suggested_custom_field")
+        if suggestion and not target:
+            et = suggestion.get("entity_type", "contact")
+            fk = suggestion.get("field_key", "")
+            if et and fk:
+                needed[(et, fk)] = {
+                    "label": suggestion.get("field_label", fk.replace("_", " ").title()),
+                    "field_type": suggestion.get("field_type", "text"),
+                }
+
+    for (entity_type, field_key), info in needed.items():
+        existing = CustomFieldDefinition.query.filter_by(
+            tenant_id=tenant_id, entity_type=entity_type, field_key=field_key,
+        ).first()
+        if existing:
+            if not existing.is_active:
+                existing.is_active = True
+            continue
+        cfd = CustomFieldDefinition(
+            tenant_id=tenant_id,
+            entity_type=entity_type,
+            field_key=field_key,
+            field_label=info["label"],
+            field_type=info["field_type"],
+        )
+        db.session.add(cfd)
+
+    if needed:
+        db.session.flush()
+
+
 def _parse_csv_text(text):
     """Parse CSV text, return (headers, rows) where rows are list of dicts."""
     reader = csv.DictReader(io.StringIO(text))
     headers = reader.fieldnames or []
     rows = list(reader)
     return headers, rows
+
+
+def _parse_xlsx_bytes(raw):
+    """Parse XLSX bytes (first sheet), return (headers, rows) where rows are list of dicts."""
+    wb = load_workbook(filename=io.BytesIO(raw), read_only=True, data_only=True)
+    ws = wb.active
+    rows_iter = ws.iter_rows(values_only=True)
+    header_row = next(rows_iter, None)
+    if not header_row:
+        wb.close()
+        return [], []
+    headers = [str(h) if h is not None else "" for h in header_row]
+    rows = []
+    for row in rows_iter:
+        rows.append({headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)})
+    wb.close()
+    return headers, rows
+
+
+def _rows_to_csv_text(headers, rows):
+    """Convert headers + list-of-dicts to CSV text for storage."""
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
 
 
 @imports_bp.route("/api/imports/upload", methods=["POST"])
@@ -47,30 +126,41 @@ def upload_csv():
     if not file.filename:
         return jsonify({"error": "No file selected"}), 400
 
-    if not file.filename.lower().endswith(".csv"):
-        return jsonify({"error": "Only CSV files are supported"}), 400
+    filename_lower = file.filename.lower()
+    if not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
+        return jsonify({"error": "Only CSV and XLSX files are supported"}), 400
 
     raw = file.read()
     if len(raw) > MAX_CSV_SIZE:
         return jsonify({"error": f"File too large (max {MAX_CSV_SIZE // (1024*1024)} MB)"}), 400
 
-    # Try UTF-8 first, fall back to latin-1
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        text = raw.decode("latin-1")
+    if filename_lower.endswith(".xlsx"):
+        headers, rows = _parse_xlsx_bytes(raw)
+        text = _rows_to_csv_text(headers, rows)
+    else:
+        # Try UTF-8 first, fall back to latin-1
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("latin-1")
+        headers, rows = _parse_csv_text(text)
 
-    headers, rows = _parse_csv_text(text)
     if not headers:
-        return jsonify({"error": "Could not parse CSV headers"}), 400
+        return jsonify({"error": "Could not parse file headers"}), 400
 
     sample_rows = []
     for row in rows[:5]:
         sample_rows.append({h: row.get(h, "") for h in headers})
 
+    # Fetch existing custom field definitions for AI context
+    custom_defs_rows = CustomFieldDefinition.query.filter_by(
+        tenant_id=str(tenant_id), is_active=True,
+    ).all()
+    custom_defs = [d.to_dict() for d in custom_defs_rows]
+
     # Call Claude for AI column mapping
     try:
-        mapping_result = call_claude_for_mapping(headers, sample_rows)
+        mapping_result = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
     except Exception as e:
         mapping_result = {
             "mappings": [],
@@ -216,6 +306,10 @@ def execute_import_job(job_id):
     try:
         # Parse all rows and apply mapping
         mapping = json.loads(job.column_mapping) if isinstance(job.column_mapping, str) else job.column_mapping
+
+        # Auto-create custom field definitions for any custom.* targets
+        _auto_create_custom_field_defs(str(tenant_id), mapping)
+
         _headers, all_rows = _parse_csv_text(job.raw_csv)
         parsed = [apply_mapping(row, mapping) for row in all_rows]
 

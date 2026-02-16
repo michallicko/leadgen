@@ -67,7 +67,7 @@ map each CSV column to the most appropriate target field.
 
 Target contact fields: {contact_fields}
 Target company fields: {company_fields}
-
+{custom_fields_section}
 Respond with ONLY valid JSON (no markdown fences). The JSON must be an object with:
 - "mappings": array of objects, each with:
   - "csv_header": the original CSV column name
@@ -77,6 +77,9 @@ Respond with ONLY valid JSON (no markdown fences). The JSON must be an object wi
     - "combine_first_last" (for first_name column that should combine with last_name into full_name)
     - "extract_domain" (for company URL/website → domain)
     - "normalize_enum" (for free text → DB enum value)
+  - "suggested_custom_field": (optional) if target is null and the column has useful data, suggest a new
+    custom field: {{"entity_type": "contact"|"company", "field_key": "snake_case_key",
+    "field_label": "Display Name", "field_type": "text"|"number"|"url"|"email"|"date"|"select"}}
 - "warnings": array of strings for any issues (missing required fields, ambiguous mappings, etc.)
 - "combine_columns": array of objects describing columns to combine, each with:
   - "sources": array of csv_header names to combine
@@ -89,7 +92,11 @@ Rules:
 - Company name is required if any company fields are present.
 - If a column clearly contains a website URL, map to company.domain with transform "extract_domain".
 - Prefer exact matches over fuzzy matches.
-- Leave unmappable columns as target: null.
+- For columns that don't match any standard or existing custom field, suggest a new custom field.
+  Use entity_type "contact" for person-level data, "company" for org-level data.
+  Custom field targets use the prefix "contact.custom." or "company.custom."
+  (e.g., "contact.custom.email_secondary").
+- If a column matches an existing custom field, map it using the custom field target.
 """
 
 
@@ -102,8 +109,36 @@ def build_mapping_prompt(headers, sample_rows):
     return "\n".join(lines)
 
 
-def call_claude_for_mapping(headers, sample_rows):
+def _build_custom_fields_section(custom_defs):
+    """Build the custom fields section for the system prompt."""
+    if not custom_defs:
+        return ""
+    contact_custom = []
+    company_custom = []
+    for d in custom_defs:
+        entry = f"contact.custom.{d['field_key']}" if d["entity_type"] == "contact" \
+            else f"company.custom.{d['field_key']}"
+        label = d.get("field_label", d["field_key"])
+        ft = d.get("field_type", "text")
+        contact_custom.append(entry) if d["entity_type"] == "contact" \
+            else company_custom.append(entry)
+
+    lines = ["\nExisting custom fields for this tenant:"]
+    if contact_custom:
+        lines.append(f"Contact custom fields: {', '.join(contact_custom)}")
+    if company_custom:
+        lines.append(f"Company custom fields: {', '.join(company_custom)}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def call_claude_for_mapping(headers, sample_rows, custom_defs=None):
     """Call Claude API to get column mapping suggestions.
+
+    Args:
+        headers: list of CSV column names
+        sample_rows: list of dicts (up to 5 sample rows)
+        custom_defs: optional list of custom field definition dicts
 
     Returns dict with 'mappings', 'warnings', and 'combine_columns'.
     Raises RuntimeError if API call fails.
@@ -122,6 +157,7 @@ def call_claude_for_mapping(headers, sample_rows):
     system = SYSTEM_PROMPT.format(
         contact_fields=", ".join(TARGET_FIELDS["contact"]),
         company_fields=", ".join(TARGET_FIELDS["company"]),
+        custom_fields_section=_build_custom_fields_section(custom_defs),
     )
     user_msg = build_mapping_prompt(headers, sample_rows)
 
@@ -181,7 +217,8 @@ def apply_mapping(row, mapping_result):
         mapping_result: the result from call_claude_for_mapping
 
     Returns:
-        dict with keys 'contact' and 'company', each a dict of mapped fields
+        dict with keys 'contact' and 'company', each a dict of mapped fields.
+        Custom field values are stored in '_custom_fields' sub-dict on each entity.
     """
     contact = {}
     company = {}
@@ -225,7 +262,12 @@ def apply_mapping(row, mapping_result):
         elif transform == "normalize_enum":
             value = normalize_enum(field, value)
 
-        if entity == "contact":
+        # Route custom.* fields to _custom_fields sub-dict
+        if field.startswith("custom."):
+            custom_key = field.split(".", 1)[1]
+            bucket = contact if entity == "contact" else company
+            bucket.setdefault("_custom_fields", {})[custom_key] = value
+        elif entity == "contact":
             contact[field] = value
         else:
             company[field] = value

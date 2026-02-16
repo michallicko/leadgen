@@ -247,6 +247,75 @@ class TestCallClaudeForMapping:
         assert result["mappings"] == []
 
 
+class TestApplyMappingCustomFields:
+    def test_custom_contact_field(self):
+        row = {"Name": "John", "Alt Email": "alt@test.com"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.8, "transform": None},
+            ],
+            "combine_columns": [],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["contact"]["full_name"] == "John"
+        assert result["contact"]["_custom_fields"]["email_secondary"] == "alt@test.com"
+
+    def test_custom_company_field(self):
+        row = {"Company": "Acme", "Tax ID": "DE123456"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Company", "target": "company.name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Tax ID", "target": "company.custom.tax_id", "confidence": 0.8, "transform": None},
+            ],
+            "combine_columns": [],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["name"] == "Acme"
+        assert result["company"]["_custom_fields"]["tax_id"] == "DE123456"
+
+    def test_multiple_custom_fields(self):
+        row = {"Name": "Jane", "Notes": "VIP", "Source ID": "ext-42"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Notes", "target": "contact.custom.internal_notes", "confidence": 0.7, "transform": None},
+                {"csv_header": "Source ID", "target": "contact.custom.source_id", "confidence": 0.7, "transform": None},
+            ],
+            "combine_columns": [],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["contact"]["_custom_fields"]["internal_notes"] == "VIP"
+        assert result["contact"]["_custom_fields"]["source_id"] == "ext-42"
+
+    def test_empty_custom_field_skipped(self):
+        row = {"Name": "John", "Notes": ""}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Notes", "target": "contact.custom.notes", "confidence": 0.7, "transform": None},
+            ],
+            "combine_columns": [],
+        }
+        result = apply_mapping(row, mapping)
+        assert "_custom_fields" not in result["contact"]
+
+    def test_mixed_standard_and_custom(self):
+        row = {"Name": "Jane", "Email": "jane@test.com", "Priority": "High"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
+                {"csv_header": "Priority", "target": "contact.custom.priority", "confidence": 0.7, "transform": None},
+            ],
+            "combine_columns": [],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["contact"]["full_name"] == "Jane"
+        assert result["contact"]["email_address"] == "jane@test.com"
+        assert result["contact"]["_custom_fields"]["priority"] == "High"
+
+
 class TestTargetFields:
     def test_contact_fields_present(self):
         assert "full_name" in TARGET_FIELDS["contact"]

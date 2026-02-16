@@ -99,6 +99,7 @@ def update_empty_fields(existing, new_data, fields):
     """Fill empty fields on an existing record from new_data dict.
 
     Only updates fields that are currently NULL/empty on the existing record.
+    Also merges _custom_fields if present.
     Returns list of field names that were updated.
     """
     updated = []
@@ -109,6 +110,19 @@ def update_empty_fields(existing, new_data, fields):
         if not current:
             setattr(existing, field, new_data[field])
             updated.append(field)
+
+    # Merge custom fields
+    if "_custom_fields" in new_data and new_data["_custom_fields"]:
+        import json
+        existing_cf = getattr(existing, "custom_fields", None) or {}
+        if isinstance(existing_cf, str):
+            existing_cf = json.loads(existing_cf)
+        for k, v in new_data["_custom_fields"].items():
+            if k not in existing_cf or not existing_cf[k]:
+                existing_cf[k] = v
+        existing.custom_fields = existing_cf
+        updated.append("custom_fields")
+
     return updated
 
 
@@ -292,6 +306,7 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                         hq_country=company_data.get("hq_country"),
                         company_size=company_data.get("company_size"),
                         business_model=company_data.get("business_model"),
+                        custom_fields=company_data.get("_custom_fields") or {},
                         import_job_id=str(import_job_id),
                     )
                     db.session.add(new_co)
@@ -366,6 +381,7 @@ def _create_contact(tenant_id, contact_data, company_id, batch_id,
         department=contact_data.get("department"),
         contact_source=contact_data.get("contact_source"),
         language=contact_data.get("language"),
+        custom_fields=contact_data.get("_custom_fields") or {},
         import_job_id=str(import_job_id),
     )
     db.session.add(ct)
