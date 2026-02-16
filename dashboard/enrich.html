@@ -63,7 +63,7 @@ body::after {
 }
 
 /* Layout */
-.container { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
+.container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
 
@@ -219,12 +219,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* ===== DAG NODE ===== */
 .dag-node {
-  width: 220px;
-  max-width: 260px;
+  width: 180px;
+  max-width: 200px;
   background: var(--surface-alt);
   border: 1px solid var(--border-solid);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 10px 12px;
   transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
   position: relative;
 }
@@ -246,7 +246,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 .dag-node__name {
   font-family: var(--font-title);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   flex: 1;
   min-width: 0;
@@ -521,29 +521,32 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
   // --- Stage definitions for vertical DAG ---
   var DAG_STAGES = {
-    l1:       { row: 0, icon: 'L1', color: '#00B8CF', bg: 'rgba(0,184,207,0.12)',    name: 'L1 Company Profile',   available: true },
-    l2:       { row: 1, icon: 'L2', color: '#8B47A8', bg: 'rgba(139,71,168,0.12)',    name: 'L2 Deep Research',     available: true },
-    signals:  { row: 1, icon: 'SS', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',    name: 'Strategic Signals',    available: false },
-    registry: { row: 1, icon: 'LR', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'Legal & Registry',     available: true },
-    person:   { row: 2, icon: 'PE', color: '#34D399', bg: 'rgba(52,211,153,0.12)',    name: 'Person Enrichment',    available: true },
-    generate: { row: 3, icon: 'MG', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',    name: 'Message Generation',   available: true },
-    qc:       { row: 4, icon: 'QC', color: '#8B92A0', bg: 'rgba(139,146,160,0.12)',   name: 'Quality Check',        available: false }
+    l1:              { row: 0, icon: 'CP', color: '#00B8CF', bg: 'rgba(0,184,207,0.12)',    name: 'Company Profile',    available: true },
+    l2:              { row: 1, icon: 'DR', color: '#8B47A8', bg: 'rgba(139,71,168,0.12)',    name: 'Deep Research',      available: true },
+    signals:         { row: 1, icon: 'SS', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',    name: 'Strategic Signals',  available: false },
+    registry:        { row: 1, icon: 'LR', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'Legal & Registry',   available: true },
+    news:            { row: 1, icon: 'NP', color: '#EC4899', bg: 'rgba(236,72,153,0.12)',    name: 'News & PR',          available: false },
+    person:          { row: 2, icon: 'RE', color: '#34D399', bg: 'rgba(52,211,153,0.12)',    name: 'Role & Employment',  available: true },
+    social:          { row: 2, icon: 'SO', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)',   name: 'Social & Online',    available: false },
+    career:          { row: 2, icon: 'CH', color: '#FB923C', bg: 'rgba(251,146,60,0.12)',    name: 'Career History',     available: false },
+    contact_details: { row: 2, icon: 'CD', color: '#38BDF8', bg: 'rgba(56,189,248,0.12)',    name: 'Contact Details',    available: false },
+    qc:              { row: 3, icon: 'QC', color: '#8B92A0', bg: 'rgba(139,146,160,0.12)',   name: 'Quality Check',      available: false }
   };
 
-  var STAGE_ORDER = ['l1', 'l2', 'signals', 'registry', 'person', 'generate', 'qc'];
+  var STAGE_ORDER = ['l1', 'l2', 'signals', 'registry', 'news', 'person', 'social', 'career', 'contact_details', 'qc'];
 
   var HARD_DEPS = {
-    l1: [], l2: ['l1'], signals: ['l1'], registry: ['l1'],
-    person: ['l1'], generate: ['person'], qc: []
+    l1: [], l2: ['l1'], signals: ['l1'], registry: ['l1'], news: ['l1'],
+    person: ['l1'], social: ['l1'], career: ['l1'], contact_details: ['l1'], qc: []
   };
   var SOFT_DEPS = {
-    l1: [], l2: [], signals: [], registry: [],
-    person: ['l2', 'signals'], generate: ['l2', 'signals'], qc: []
+    l1: [], l2: [], signals: [], registry: [], news: [],
+    person: ['l2', 'signals'], social: ['l2', 'signals'], career: ['l2'], contact_details: [], qc: []
   };
 
   // State
   var enabledStages = {};
-  var softDepsConfig = { person: true, generate: true };
+  var softDepsConfig = { person: true, social: true, career: true };
   var estimateData = null;
   var batchList = [];
   var stageStatus = {};
