@@ -757,6 +757,7 @@ var importSource = 'csv';
   // Google-specific state
   var activeConnectionId = null;
   var scanPollTimer = null;
+  var scanJobId = null;
 
   // ---- Helpers ----
 
@@ -856,6 +857,7 @@ var importSource = 'csv';
     document.getElementById('success_panel').style.display = 'none';
     document.getElementById('scan_progress').style.display = 'none';
     if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+    scanJobId = null;
     goToStep(1);
     loadPastImports();
   };
@@ -1707,8 +1709,8 @@ var importSource = 'csv';
       toast('Found ' + result.data.total_contacts + ' contacts', 'success');
 
       if (alsoScanGmail) {
-        // Start Gmail scan separately after contacts fetch
-        startGmailScan();
+        // Start Gmail scan in background — contacts job stays as currentJobId
+        startGmailScan(true);
       } else {
         runGooglePreview();
       }
@@ -1720,7 +1722,7 @@ var importSource = 'csv';
     });
   }
 
-  function startGmailScan() {
+  function startGmailScan(hasContactsJob) {
     var spinner = document.getElementById('google_spinner');
     document.getElementById('google_spinner_text').textContent = 'Starting Gmail scan...';
     spinner.style.display = '';
@@ -1748,25 +1750,32 @@ var importSource = 'csv';
       if (!result.ok) {
         toast(result.data.error || 'Scan start failed', 'error');
         document.getElementById('btn_google_fetch').disabled = false;
+        if (hasContactsJob) runGooglePreview();
         return;
       }
-      currentJobId = result.data.job_id;
+      if (!hasContactsJob) {
+        // Gmail-only mode: scan job is the primary job
+        currentJobId = result.data.job_id;
+      }
+      scanJobId = result.data.job_id;
       goToStep(3);
-      pollScanProgress();
+      pollScanProgress(hasContactsJob);
     })
     .catch(function(err) {
       spinner.style.display = 'none';
       document.getElementById('btn_google_fetch').disabled = false;
       toast('Scan failed: ' + err.message, 'error');
+      if (hasContactsJob) runGooglePreview();
     });
   }
 
-  function pollScanProgress() {
+  function pollScanProgress(hasContactsJob) {
     var progressEl = document.getElementById('scan_progress');
     progressEl.style.display = '';
+    var pollId = scanJobId || currentJobId;
 
     scanPollTimer = setInterval(function() {
-      apiFetch(API_BASE + '/gmail/scan/' + currentJobId + '/status')
+      apiFetch(API_BASE + '/gmail/scan/' + pollId + '/status')
         .then(function(data) {
           var progress = data.scan_progress || {};
           var bar = document.getElementById('scan_progress_bar');
@@ -1783,10 +1792,25 @@ var importSource = 'csv';
             scanPollTimer = null;
             progressEl.style.display = 'none';
             if (data.status === 'error') {
-              toast('Scan failed: ' + (data.error || 'unknown error'), 'error');
+              toast('Gmail scan failed: ' + (data.error || 'unknown error'), 'error');
+              // If we also fetched contacts, preview those instead
+              if (hasContactsJob) {
+                runGooglePreview();
+              }
             } else {
-              toast('Scan complete! Found ' + (progress.contacts_found || 0) + ' contacts', 'success');
-              runGooglePreview();
+              var found = progress.contacts_found || 0;
+              if (found > 0 && !hasContactsJob) {
+                // Gmail-only: preview the scan results
+                toast('Scan complete! Found ' + found + ' contacts', 'success');
+                currentJobId = pollId;
+                runGooglePreview();
+              } else if (hasContactsJob) {
+                // Both sources: preview contacts job (currentJobId already set)
+                toast('Scan complete. Previewing contacts.', 'success');
+                runGooglePreview();
+              } else {
+                toast('Gmail scan found 0 contacts', 'info');
+              }
             }
           }
         })
@@ -1807,10 +1831,14 @@ var importSource = 'csv';
       headers: h,
       body: '{}'
     })
-    .then(function(resp) { return resp.json(); })
-    .then(function(data) {
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
       spinner.style.display = 'none';
-      renderPreview(data);
+      if (!result.ok) {
+        toast(result.data.error || 'Preview failed', 'error');
+        return;
+      }
+      renderPreview(result.data);
     })
     .catch(function(err) {
       spinner.style.display = 'none';

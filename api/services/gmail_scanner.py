@@ -136,6 +136,7 @@ class GmailScanner:
         query = " ".join(query_parts) if query_parts else None
         page_token = None
 
+        first_request = True
         while self.messages_scanned < max_messages:
             try:
                 # List messages first, then get headers
@@ -146,6 +147,7 @@ class GmailScanner:
                     list_kwargs["pageToken"] = page_token
 
                 results = service.users().messages().list(**list_kwargs).execute()
+                first_request = False
                 messages = results.get("messages", [])
 
                 if not messages:
@@ -179,6 +181,9 @@ class GmailScanner:
 
             except Exception as e:
                 logger.error("Gmail list error: %s", e)
+                if first_request:
+                    # First API call failed — likely auth/scope error, surface it
+                    raise
                 break
 
     def _process_message_headers(self, message, exclude_domains):
