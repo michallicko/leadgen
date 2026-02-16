@@ -963,7 +963,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         batch_name: batch,
         owner_name: owner || undefined,
         tier_filter: tiers,
-        stages: STAGE_ORDER
+        stages: STAGE_ORDER.filter(function(s) { return !PACKAGES[s].comingSoon; })
       })
     }).then(function(data) {
       estimateData = data;
