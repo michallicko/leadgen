@@ -66,7 +66,7 @@ Framework for modular, depth-selectable enrichment — the core of "AI company d
 
 Four enrichment module packs for companies, each runnable independently via the modular framework (BL-016):
 - **Company Profile**: Industry, size/headcount, what they do, tech stack, founding year, HQ, website analysis
-- **Legal & Registry**: ~~Company registration number, directors/officers, filings, incorporation status, registered address, jurisdictions~~ **V1 done** — Czech ARES (ADR-003), Norway BRREG, Finland PRH, France recherche-entreprises (ADR-004). Registry adapter pattern with 4 country adapters.
+- **Legal & Registry**: ~~Company registration number, directors/officers, filings, incorporation status, registered address, jurisdictions~~ **V1 done** — Czech ARES (ADR-003), Norway BRREG, Finland PRH, France recherche-entreprises (ADR-004). Registry adapter pattern with 4 country adapters. **ISIR** — Czech Insolvency Register (insolvency proceedings check via SOAP API).
 - **Strategic Signals**: Funding rounds, M&A activity, hiring patterns (job postings), partnerships, growth indicators
 - **News & PR**: Recent media mentions, press releases, social presence, thought leadership, sentiment
 

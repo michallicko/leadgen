@@ -16,7 +16,7 @@ from ..services.pipeline_engine import (
 
 enrich_bp = Blueprint("enrich", __name__)
 
-ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche"]
+ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche", "isir"]
 
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
@@ -28,6 +28,7 @@ STATIC_COST_DEFAULTS = {
     "brreg": 0.00,
     "prh": 0.00,
     "recherche": 0.00,
+    "isir": 0.00,
 }
 
 

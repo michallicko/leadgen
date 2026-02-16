@@ -190,6 +190,7 @@ users ── user_tenant_roles ── tenants
   - **BRREG (data.brreg.no)**: Norway — organisasjonsnummer, legal form, NACE codes, capital, bankruptcy flags. Stage: `brreg`
   - **PRH (avoindata.prh.fi)**: Finland — Y-tunnus, company form, TOL codes, trade register status. Stage: `prh`
   - **recherche-entreprises (api.gouv.fr)**: France — SIREN, nature juridique, NAF codes, directors, administrative status. Stage: `recherche`
+- **ISIR (isir.justice.cz)**: Czech Insolvency Register — SOAP/XML API via CUZK endpoint. Checks for active/historical insolvency proceedings by ICO. Separate `company_insolvency_data` table. Stage: `isir`
 - **Google APIs**: OAuth 2.0 (identity), People API (contacts), Gmail API (email scan)
 - **Perplexity API**: L1/L2 company research
 - **Anthropic API**: AI analysis, message generation, email signature extraction (Haiku)

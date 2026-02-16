@@ -27,6 +27,13 @@ All notable changes to the Leadgen Pipeline project.
   - Dashboard: 4 registry modules in enrichment wizard
   - Backward-compatible import shim for existing `api/services/ares.py` references
   - 62 new tests (adapters + parsers + routes)
+- **ISIR Insolvency Check** (BL-017 partial): Czech Insolvency Register via SOAP/XML CUZK web service
+  - `api/services/registries/isir.py`: SOAP client for isir.justice.cz:8443, XML parsing, proceeding status mapping
+  - `company_insolvency_data` table (migration 014): stores proceedings, active/historical status, case numbers, court info
+  - Pipeline integration: `isir` stage in enrichment wizard, runs on Czech companies with ICO
+  - 11 proceeding statuses mapped: pending, moratorium, insolvency_declared, bankruptcy, reorganization, debt_relief, etc.
+  - Zero cost ($0.00/lookup), no authentication required
+  - 27 unit tests covering SOAP parsing, query, enrichment, and storage
 - **Gmail Contact Extraction** (BL-025 + BL-026): Google OAuth integration, Google Contacts import, and Gmail email scan
   - Google OAuth 2.0 flow with Fernet-encrypted token storage (`oauth_connections` table, migration 011)
   - Google Contacts import via People API — structured field mapping, flows into existing dedup engine

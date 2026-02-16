@@ -205,6 +205,24 @@ class CompanyRegistryData(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+class CompanyInsolvencyData(db.Model):
+    __tablename__ = "company_insolvency_data"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), nullable=False)
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    ico = db.Column(db.Text)
+    has_insolvency = db.Column(db.Boolean, default=False)
+    proceedings = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    total_proceedings = db.Column(db.Integer, default=0)
+    active_proceedings = db.Column(db.Integer, default=0)
+    last_checked_at = db.Column(db.DateTime(timezone=True))
+    raw_response = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class CompanyTag(db.Model):
     __tablename__ = "company_tags"
 

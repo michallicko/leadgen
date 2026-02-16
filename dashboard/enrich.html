@@ -694,6 +694,18 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       badge: 'Free',
       category: 'company'
     },
+    isir: {
+      name: 'Insolvency Check (ISIR)',
+      icon: 'IS',
+      color: '#ef4444',
+      bgColor: 'rgba(239,68,68,0.12)',
+      desc: 'Czech Insolvency Register (isir.justice.cz). Checks for active and historical insolvency proceedings — bankruptcy, reorganization, debt relief. Critical risk signal for due diligence on Czech companies with ICO.',
+      fields: ['Has Insolvency', 'Case Number', 'Court', 'Status', 'Start Date', 'Detail URL'],
+      usecase: 'Run on Czech companies after ARES. Answers: is this company in insolvency?',
+      comingSoon: false,
+      badge: 'Free',
+      category: 'company'
+    },
     tech_product: {
       name: 'Tech & Product Intelligence',
       icon: 'TP',
@@ -793,7 +805,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     }
   };
 
-  var STAGE_ORDER = ['l1', 'ares', 'brreg', 'prh', 'recherche', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
+  var STAGE_ORDER = ['l1', 'ares', 'brreg', 'prh', 'recherche', 'isir', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
 
   var estimateData = null;
   var enabledStages = {};

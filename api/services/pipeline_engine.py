@@ -121,6 +121,15 @@ ELIGIBILITY_QUERIES = {
           {owner_clause}
         ORDER BY c.name
     """,
+    "isir": """
+        SELECT c.id FROM companies c
+        LEFT JOIN company_insolvency_data cid ON cid.company_id = c.id
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND cid.company_id IS NULL
+          AND c.ico IS NOT NULL
+          {owner_clause}
+        ORDER BY c.name
+    """,
 }
 
 
