@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
@@ -60,8 +61,6 @@ class BaseRegistryAdapter(ABC):
 
         Returns dict with status, method, confidence, etc.
         """
-        import time
-
         result = None
         method = None
         confidence = 0.0
