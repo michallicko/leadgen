@@ -191,16 +191,20 @@ def _is_czech_company(ico, hq_country, domain):
 
 
 def _parse_basic_response(data):
-    """Extract fields from ARES basic response."""
+    """Extract fields from ARES basic response.
+
+    Handles the real ARES API format where:
+    - pravniForma is a string code (e.g. "121"), not a dict
+    - czNace is a flat list of code strings, not objects
+    - seznamRegistraci has stavZdroje* keys (e.g. stavZdrojeIsir: "AKTIVNI")
+    """
     sidlo = data.get("sidlo", {}) or {}
     seznamRegistraci = data.get("seznamRegistraci", {}) or {}
 
-    # Check insolvency from registry list
+    # Check insolvency — real API uses stavZdrojeIsir/stavZdrojeNrpzs keys
     insolvency_flag = False
-    for reg in seznamRegistraci.get("registrace", []):
-        if reg.get("registr") == "ISIR":
-            insolvency_flag = True
-            break
+    if seznamRegistraci.get("stavZdrojeIsir") == "AKTIVNI":
+        insolvency_flag = True
 
     # Determine registration status
     status = "unknown"
@@ -209,20 +213,29 @@ def _parse_basic_response(data):
     elif data.get("datumVzniku"):
         status = "active"
 
-    # Parse NACE codes
+    # Parse NACE codes — real API returns flat list of code strings
     nace_codes = []
     for nace in data.get("czNace", []):
-        nace_codes.append({
-            "code": nace.get("kod"),
-            "description": nace.get("nazev"),
-        })
+        if isinstance(nace, str):
+            nace_codes.append({"code": nace, "description": None})
+        elif isinstance(nace, dict):
+            nace_codes.append({"code": nace.get("kod"), "description": nace.get("nazev")})
+
+    # Legal form — real API returns string code, not dict
+    pravni_forma = data.get("pravniForma")
+    if isinstance(pravni_forma, dict):
+        legal_form = str(pravni_forma.get("kod", ""))
+        legal_form_name = pravni_forma.get("nazev", "")
+    else:
+        legal_form = str(pravni_forma) if pravni_forma else ""
+        legal_form_name = ""
 
     return {
         "ico": data.get("ico"),
         "dic": data.get("dic"),
         "official_name": data.get("obchodniJmeno"),
-        "legal_form": str(data.get("pravniForma", {}).get("kod", "")) if isinstance(data.get("pravniForma"), dict) else str(data.get("pravniForma", "")),
-        "legal_form_name": data.get("pravniForma", {}).get("nazev", "") if isinstance(data.get("pravniForma"), dict) else "",
+        "legal_form": legal_form,
+        "legal_form_name": legal_form_name,
         "date_established": data.get("datumVzniku"),
         "date_dissolved": data.get("datumZaniku"),
         "registered_address": sidlo.get("textovaAdresa"),
@@ -237,41 +250,105 @@ def _parse_basic_response(data):
 
 
 def _parse_vr_response(data):
-    """Extract directors and capital from VR response."""
-    directors = []
-    for organ in data.get("statutarniOrgany", []):
-        for clen in organ.get("clenove", []):
-            osoba = clen.get("osoba", {}) or {}
-            director = {
-                "name": _build_person_name(osoba),
-                "role": organ.get("nazev", ""),
-                "since": clen.get("datumVzniku"),
-            }
-            if director["name"]:
-                directors.append(director)
+    """Extract directors and capital from VR response.
 
-    # Extract capital
+    Real API wraps everything in a `zaznamy` array. Each zaznam has
+    statutarniOrgany, zakladniKapital, spisovaZnacka etc.
+    """
+    # Unwrap zaznamy — real API nests data here; tests may pass flat
+    zaznamy = data.get("zaznamy", [data])  # fallback to data itself for flat input
+
+    directors = []
     capital = None
-    kapital = data.get("zakladniKapital")
-    if kapital:
-        if isinstance(kapital, dict):
-            amount = kapital.get("vyse", {}).get("hodnota")
-            currency = kapital.get("vyse", {}).get("mena", "CZK")
+    court = None
+    reg_number = None
+
+    for zaznam in zaznamy:
+        # Directors from statutory organs
+        for organ in zaznam.get("statutarniOrgany", []):
+            organ_name = organ.get("nazevOrganu") or organ.get("nazev", "")
+            for clen in organ.get("clenoveOrganu", organ.get("clenove", [])):
+                # Skip removed members (have datumVymazu)
+                if clen.get("datumVymazu"):
+                    continue
+                osoba = clen.get("fyzickaOsoba") or clen.get("osoba", {}) or {}
+                # Member start date — nested in clenstvi or direct
+                since = None
+                clenstvi = clen.get("clenstvi", {})
+                if isinstance(clenstvi, dict):
+                    inner = clenstvi.get("clenstvi", {})
+                    if isinstance(inner, dict):
+                        since = inner.get("vznikClenstvi")
+                if not since:
+                    since = clen.get("datumVzniku")
+                director = {
+                    "name": _build_person_name(osoba),
+                    "role": organ_name,
+                    "since": since,
+                }
+                if director["name"]:
+                    directors.append(director)
+
+        # Capital — real API returns array of historical records; take latest (no datumVymazu)
+        kapital_list = zaznam.get("zakladniKapital")
+        if isinstance(kapital_list, list):
+            for kap in kapital_list:
+                if kap.get("datumVymazu"):
+                    continue  # historical entry
+                vklad = kap.get("vklad", {})
+                if isinstance(vklad, dict):
+                    raw_val = vklad.get("hodnota", "")
+                    # ARES uses semicolons: "113277000;00" → "113277000"
+                    amount = str(raw_val).split(";")[0] if raw_val else None
+                    if amount:
+                        capital = f"{amount} CZK"
+                        break
+        elif isinstance(kapital_list, dict):
+            amount = kapital_list.get("vyse", {}).get("hodnota")
+            currency = kapital_list.get("vyse", {}).get("mena", "CZK")
             if amount is not None:
                 capital = f"{amount} {currency}"
-        elif isinstance(kapital, (int, float)):
-            capital = f"{kapital} CZK"
+        elif isinstance(kapital_list, (int, float)):
+            capital = f"{kapital_list} CZK"
 
-    # Extract court and file reference
-    spisova = data.get("spisovaZnacka", {}) or {}
+        # Court and file reference — real API returns array
+        spisova = zaznam.get("spisovaZnacka")
+        if isinstance(spisova, list) and spisova:
+            sp = spisova[0]
+            soud_code = sp.get("soud", "")
+            oddil = sp.get("oddil", "")
+            vlozka = sp.get("vlozka", "")
+            court = _resolve_court_name(soud_code) if soud_code else None
+            if oddil and vlozka:
+                reg_number = f"{oddil} {vlozka}"
+        elif isinstance(spisova, dict):
+            court = spisova.get("soud")
+            reg_number = spisova.get("znacka") or spisova.get("spisZn")
 
     return {
         "directors": directors,
         "registered_capital": capital,
-        "registration_court": spisova.get("soud"),
-        "registration_number": spisova.get("znacka") or spisova.get("spisZn"),
+        "registration_court": court,
+        "registration_number": reg_number,
         "_raw": data,
     }
+
+
+# ARES court codes → human-readable names
+_COURT_NAMES = {
+    "MSPH": "Městský soud v Praze",
+    "KSOS": "Krajský soud v Ostravě",
+    "KSBR": "Krajský soud v Brně",
+    "KSPL": "Krajský soud v Plzni",
+    "KSUL": "Krajský soud v Ústí nad Labem",
+    "KSHK": "Krajský soud v Hradci Králové",
+    "KSCB": "Krajský soud v Českých Budějovicích",
+}
+
+
+def _resolve_court_name(code):
+    """Resolve ARES court code to human-readable name."""
+    return _COURT_NAMES.get(code, code)
 
 
 def _build_person_name(osoba):

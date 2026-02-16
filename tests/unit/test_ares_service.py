@@ -18,49 +18,79 @@ from api.services.ares import (
 )
 
 
-# --- Fixtures ---
+# --- Fixtures (real ARES API format) ---
 
 ARES_BASIC_RESPONSE = {
-    "ico": "27074358",
-    "dic": "CZ27074358",
+    "ico": "27082440",
+    "dic": "CZ27082440",
     "obchodniJmeno": "Alza.cz a.s.",
-    "pravniForma": {"kod": "121", "nazev": "Akciová společnost"},
-    "datumVzniku": "2003-10-15",
+    "pravniForma": "121",
+    "datumVzniku": "2003-08-26",
     "datumZaniku": None,
     "sidlo": {
-        "textovaAdresa": "Jateční 33a, 170 00 Praha 7",
+        "textovaAdresa": "Jankovcova 1522/53, Holešovice, 17000 Praha 7",
         "nazevObce": "Praha",
         "psc": 17000,
     },
-    "czNace": [
-        {"kod": "47910", "nazev": "Retail sale via mail order houses or via Internet"},
-    ],
+    "czNace": ["47250", "620", "461"],
     "seznamRegistraci": {
-        "registrace": [
-            {"registr": "OR"},
-        ]
+        "stavZdrojeVr": "AKTIVNI",
+        "stavZdrojeRos": "AKTIVNI",
+        "stavZdrojeIsir": "NEEXISTUJICI",
     },
-    "datumAktualizace": "2024-01-15",
+    "datumAktualizace": "2026-01-30",
 }
 
 ARES_VR_RESPONSE = {
-    "statutarniOrgany": [
-        {
-            "nazev": "Představenstvo",
-            "clenove": [
-                {
-                    "osoba": {"jmeno": "Aleš", "prijmeni": "Zavoral"},
-                    "datumVzniku": "2018-06-01",
-                },
-                {
-                    "osoba": {"jmeno": "Petr", "prijmeni": "Bena"},
-                    "datumVzniku": "2020-01-01",
-                },
-            ],
-        }
-    ],
-    "zakladniKapital": {"vyse": {"hodnota": 2000000, "mena": "CZK"}},
-    "spisovaZnacka": {"soud": "Městský soud v Praze", "znacka": "B 9740"},
+    "icoId": "27082440",
+    "zaznamy": [{
+        "statutarniOrgany": [
+            {
+                "nazevOrganu": "Statutární orgán - představenstvo",
+                "clenoveOrganu": [
+                    {
+                        "fyzickaOsoba": {"jmeno": "ALEŠ", "prijmeni": "ZAVORAL"},
+                        "clenstvi": {
+                            "clenstvi": {"vznikClenstvi": "2022-11-09"},
+                            "funkce": {"nazev": "předseda představenstva"},
+                        },
+                    },
+                    {
+                        "fyzickaOsoba": {"jmeno": "PETR", "prijmeni": "BENA"},
+                        "clenstvi": {
+                            "clenstvi": {"vznikClenstvi": "2025-03-31"},
+                            "funkce": {"nazev": "člen představenstva"},
+                        },
+                    },
+                    {
+                        "fyzickaOsoba": {"jmeno": "JAN", "prijmeni": "NOVÁK"},
+                        "datumVymazu": "2022-01-01",
+                        "clenstvi": {
+                            "clenstvi": {
+                                "vznikClenstvi": "2018-06-01",
+                                "zanikClenstvi": "2022-01-01",
+                            },
+                        },
+                    },
+                ],
+            }
+        ],
+        "zakladniKapital": [
+            {
+                "datumZapisu": "2017-05-23",
+                "vklad": {"typObnos": "KORUNY", "hodnota": "2000000;00"},
+                "splaceni": {"typObnos": "PROCENTA", "hodnota": "100"},
+            },
+            {
+                "datumZapisu": "2003-08-06",
+                "datumVymazu": "2017-05-23",
+                "vklad": {"typObnos": "KORUNY", "hodnota": "100000;00"},
+            },
+        ],
+        "spisovaZnacka": [
+            {"soud": "MSPH", "oddil": "B", "vlozka": 8573},
+        ],
+    }],
 }
 
 
@@ -69,20 +99,21 @@ ARES_VR_RESPONSE = {
 class TestParseBasicResponse:
     def test_parse_full_response(self):
         result = _parse_basic_response(ARES_BASIC_RESPONSE)
-        assert result["ico"] == "27074358"
-        assert result["dic"] == "CZ27074358"
+        assert result["ico"] == "27082440"
+        assert result["dic"] == "CZ27082440"
         assert result["official_name"] == "Alza.cz a.s."
         assert result["legal_form"] == "121"
-        assert result["legal_form_name"] == "Akciová společnost"
-        assert result["date_established"] == "2003-10-15"
+        assert result["legal_form_name"] == ""  # real API doesn't include name
+        assert result["date_established"] == "2003-08-26"
         assert result["date_dissolved"] is None
-        assert result["registered_address"] == "Jateční 33a, 170 00 Praha 7"
+        assert result["registered_address"] == "Jankovcova 1522/53, Holešovice, 17000 Praha 7"
         assert result["address_city"] == "Praha"
         assert result["address_postal_code"] == "17000"
         assert result["registration_status"] == "active"
         assert result["insolvency_flag"] is False
-        assert len(result["nace_codes"]) == 1
-        assert result["nace_codes"][0]["code"] == "47910"
+        assert len(result["nace_codes"]) == 3
+        assert result["nace_codes"][0]["code"] == "47250"
+        assert result["nace_codes"][0]["description"] is None  # real API: code only
         assert result["_raw"] is ARES_BASIC_RESPONSE
 
     def test_parse_dissolved_company(self):
@@ -93,7 +124,7 @@ class TestParseBasicResponse:
 
     def test_parse_insolvency_flag(self):
         data = dict(ARES_BASIC_RESPONSE)
-        data["seznamRegistraci"] = {"registrace": [{"registr": "ISIR"}]}
+        data["seznamRegistraci"] = {"stavZdrojeIsir": "AKTIVNI"}
         result = _parse_basic_response(data)
         assert result["insolvency_flag"] is True
 
@@ -103,17 +134,26 @@ class TestParseBasicResponse:
         assert result["registration_status"] == "unknown"
         assert result["nace_codes"] == []
 
+    def test_parse_dict_pravni_forma(self):
+        """Backward compat: some responses may use dict format."""
+        data = dict(ARES_BASIC_RESPONSE)
+        data["pravniForma"] = {"kod": "112", "nazev": "s.r.o."}
+        result = _parse_basic_response(data)
+        assert result["legal_form"] == "112"
+        assert result["legal_form_name"] == "s.r.o."
+
 
 class TestParseVrResponse:
     def test_parse_full_vr(self):
         result = _parse_vr_response(ARES_VR_RESPONSE)
+        # Should have 2 current directors (Jan Novák has datumVymazu → filtered out)
         assert len(result["directors"]) == 2
-        assert result["directors"][0]["name"] == "Aleš Zavoral"
-        assert result["directors"][0]["role"] == "Představenstvo"
-        assert result["directors"][0]["since"] == "2018-06-01"
+        assert result["directors"][0]["name"] == "ALEŠ ZAVORAL"
+        assert "představenstvo" in result["directors"][0]["role"].lower()
+        assert result["directors"][0]["since"] == "2022-11-09"
         assert result["registered_capital"] == "2000000 CZK"
         assert result["registration_court"] == "Městský soud v Praze"
-        assert result["registration_number"] == "B 9740"
+        assert result["registration_number"] == "B 8573"
 
     def test_parse_empty_vr(self):
         result = _parse_vr_response({})
@@ -124,6 +164,18 @@ class TestParseVrResponse:
         data = {"zakladniKapital": 500000}
         result = _parse_vr_response(data)
         assert result["registered_capital"] == "500000 CZK"
+
+    def test_removed_directors_filtered(self):
+        """Directors with datumVymazu should be excluded."""
+        result = _parse_vr_response(ARES_VR_RESPONSE)
+        names = [d["name"] for d in result["directors"]]
+        assert "JAN NOVÁK" not in names
+
+    def test_historical_capital_skipped(self):
+        """Capital entries with datumVymazu should use latest only."""
+        result = _parse_vr_response(ARES_VR_RESPONSE)
+        # Latest is 2000000, historical was 100000
+        assert result["registered_capital"] == "2000000 CZK"
 
 
 # --- Name matching tests ---
@@ -194,8 +246,8 @@ class TestLookupByIco:
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        result = lookup_by_ico("27074358")
-        assert result["ico"] == "27074358"
+        result = lookup_by_ico("27082440")
+        assert result["ico"] == "27082440"
         assert result["official_name"] == "Alza.cz a.s."
         mock_get.assert_called_once()
 
@@ -213,7 +265,7 @@ class TestLookupByIco:
         import requests as req
         mock_get.side_effect = req.ConnectionError("Network error")
 
-        result = lookup_by_ico("27074358")
+        result = lookup_by_ico("27082440")
         assert result is None
 
 
@@ -226,7 +278,7 @@ class TestLookupVr:
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        result = lookup_vr("27074358")
+        result = lookup_vr("27082440")
         assert len(result["directors"]) == 2
         assert result["registered_capital"] == "2000000 CZK"
 
@@ -244,7 +296,7 @@ class TestSearchByName:
 
         result = search_by_name("Alza")
         assert len(result) == 1
-        assert result[0]["ico"] == "27074358"
+        assert result[0]["ico"] == "27082440"
         assert "similarity" in result[0]
 
     @patch("api.services.ares.requests.post")
