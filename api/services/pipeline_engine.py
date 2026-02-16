@@ -26,11 +26,16 @@ N8N_WEBHOOK_PATHS = {
 }
 
 # Stages that have workflows wired up (n8n or direct Python)
-AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche", "isir"}
+AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "ares", "brreg", "prh", "recherche", "isir"}
+DIRECT_STAGES = {"l1", "registry"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
+# Legacy aliases for backward compat with old API calls
+_LEGACY_STAGE_ALIASES = {
+    "ares": "registry", "brreg": "registry", "prh": "registry",
+    "recherche": "registry", "isir": "registry",
+}
 
 # Stage predecessors for reactive pipeline (which stage feeds into which)
 STAGE_PREDECESSORS = {
@@ -38,11 +43,7 @@ STAGE_PREDECESSORS = {
     "l2": ["l1"],       # L2 watches L1 (triage is auto-output of L1)
     "person": ["l2"],   # Person watches L2
     "generate": ["person"],  # Generate watches Person
-    "ares": [],         # ARES is independent — no prerequisites
-    "brreg": [],        # BRREG is independent
-    "prh": [],          # PRH is independent
-    "recherche": [],    # recherche is independent
-    "isir": [],         # ISIR insolvency check — independent
+    "registry": [],     # Unified registry — independent, auto-detects country
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
@@ -81,52 +82,22 @@ ELIGIBILITY_QUERIES = {
           {owner_clause}
         ORDER BY ct.contact_score DESC NULLS LAST
     """,
-    "ares": """
+    "registry": """
         SELECT c.id FROM companies c
-        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
+        LEFT JOIN company_legal_profile clp ON clp.company_id = c.id
         WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
-          AND crd.company_id IS NULL
-          AND (c.hq_country = 'CZ' OR c.hq_country = 'Czech Republic'
-               OR c.domain LIKE '%%.cz' OR c.ico IS NOT NULL)
-          {owner_clause}
-        ORDER BY c.name
-    """,
-    "brreg": """
-        SELECT c.id FROM companies c
-        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
-          AND crd.company_id IS NULL
-          AND (c.hq_country IN ('Norway', 'NO', 'Norge')
-               OR c.domain LIKE '%%.no')
-          {owner_clause}
-        ORDER BY c.name
-    """,
-    "prh": """
-        SELECT c.id FROM companies c
-        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
-          AND crd.company_id IS NULL
-          AND (c.hq_country IN ('Finland', 'FI', 'Suomi')
-               OR c.domain LIKE '%%.fi')
-          {owner_clause}
-        ORDER BY c.name
-    """,
-    "recherche": """
-        SELECT c.id FROM companies c
-        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
-          AND crd.company_id IS NULL
-          AND (c.hq_country IN ('France', 'FR')
-               OR c.domain LIKE '%%.fr')
-          {owner_clause}
-        ORDER BY c.name
-    """,
-    "isir": """
-        SELECT c.id FROM companies c
-        LEFT JOIN company_insolvency_data cid ON cid.company_id = c.id
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
-          AND cid.company_id IS NULL
-          AND c.ico IS NOT NULL
+          AND clp.company_id IS NULL
+          AND (
+            c.hq_country IN ('CZ', 'Czech Republic', 'Czechia',
+                             'NO', 'Norway', 'Norge',
+                             'FI', 'Finland', 'Suomi',
+                             'FR', 'France')
+            OR c.domain LIKE '%%.cz'
+            OR c.domain LIKE '%%.no'
+            OR c.domain LIKE '%%.fi'
+            OR c.domain LIKE '%%.fr'
+            OR c.ico IS NOT NULL
+          )
           {owner_clause}
         ORDER BY c.name
     """,
@@ -135,6 +106,7 @@ ELIGIBILITY_QUERIES = {
 
 def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
     """Query PG for eligible company/contact IDs for a given stage."""
+    stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
     template = ELIGIBILITY_QUERIES.get(stage)
     if not template:
         return []
@@ -166,6 +138,7 @@ def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None
 
 def count_eligible(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
     """Count eligible entities for a stage without loading IDs into memory."""
+    stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
     template = ELIGIBILITY_QUERIES.get(stage)
     if not template:
         return 0
@@ -307,42 +280,9 @@ def _update_current_item(run_id, entity_name, status="processing"):
 # Entity processing dispatch
 # ---------------------------------------------------------------------------
 
-def _process_ares(company_id, tenant_id):
-    """Process a single company through ARES enrichment (direct Python)."""
-    from .ares import enrich_company
-
-    # Fetch company data needed for ARES lookup
-    row = db.session.execute(
-        text("""
-            SELECT name, ico, hq_country, domain
-            FROM companies WHERE id = :id AND tenant_id = :t
-        """),
-        {"id": company_id, "t": str(tenant_id)},
-    ).fetchone()
-
-    if not row:
-        return {"status": "error", "error": "Company not found", "enrichment_cost_usd": 0}
-
-    result = enrich_company(
-        company_id=company_id,
-        tenant_id=str(tenant_id),
-        name=row[0],
-        ico=row[1],
-        hq_country=row[2],
-        domain=row[3],
-    )
-    # ARES is free — always $0
-    result["enrichment_cost_usd"] = 0
-    return result
-
-
-def _process_registry(company_id, tenant_id, adapter_code):
-    """Process a company through a registry adapter (generic)."""
-    from .registries import get_adapter
-
-    adapter = get_adapter(adapter_code)
-    if not adapter:
-        return {"status": "error", "error": f"No adapter for {adapter_code}", "enrichment_cost_usd": 0}
+def _process_registry_unified(company_id, tenant_id):
+    """Process a company through the unified registry orchestrator."""
+    from .registries.orchestrator import RegistryOrchestrator
 
     row = db.session.execute(
         text("""
@@ -355,7 +295,8 @@ def _process_registry(company_id, tenant_id, adapter_code):
     if not row:
         return {"status": "error", "error": "Company not found", "enrichment_cost_usd": 0}
 
-    result = adapter.enrich_company(
+    orchestrator = RegistryOrchestrator()
+    result = orchestrator.enrich_company(
         company_id=company_id,
         tenant_id=str(tenant_id),
         name=row[0],
@@ -363,41 +304,21 @@ def _process_registry(company_id, tenant_id, adapter_code):
         hq_country=row[2],
         domain=row[3],
     )
-    result["enrichment_cost_usd"] = 0
+    result.setdefault("enrichment_cost_usd", 0)
     return result
-
-
-_STAGE_TO_ADAPTER = {"brreg": "NO", "prh": "FI", "recherche": "FR"}
-
-
-def _process_isir(company_id, tenant_id):
-    """Process a company through ISIR insolvency check."""
-    from .registries.isir import enrich_company as isir_enrich
-
-    row = db.session.execute(
-        text("SELECT ico FROM companies WHERE id = :id AND tenant_id = :t"),
-        {"id": company_id, "t": str(tenant_id)},
-    ).fetchone()
-
-    if not row or not row[0]:
-        return {"status": "skipped", "reason": "no_ico", "enrichment_cost_usd": 0}
-
-    return isir_enrich(company_id, str(tenant_id), row[0])
 
 
 def _process_entity(stage, entity_id, tenant_id=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
+    # Resolve legacy stage names
+    stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
+
     if stage in DIRECT_STAGES:
         if stage == "l1":
             from .l1_enricher import enrich_l1
             return enrich_l1(entity_id, tenant_id)
-        if stage == "ares":
-            return _process_ares(entity_id, tenant_id)
-        if stage == "isir":
-            return _process_isir(entity_id, tenant_id)
-        adapter_code = _STAGE_TO_ADAPTER.get(stage)
-        if adapter_code:
-            return _process_registry(entity_id, tenant_id, adapter_code)
+        if stage == "registry":
+            return _process_registry_unified(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
     return call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
 

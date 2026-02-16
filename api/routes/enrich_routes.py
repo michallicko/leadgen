@@ -9,6 +9,7 @@ from ..auth import require_auth, resolve_tenant
 from ..models import PipelineRun, StageRun, db
 from ..services.pipeline_engine import (
     AVAILABLE_STAGES,
+    _LEGACY_STAGE_ALIASES,
     count_eligible,
     start_pipeline_threads,
     _process_entity,
@@ -16,7 +17,7 @@ from ..services.pipeline_engine import (
 
 enrich_bp = Blueprint("enrich", __name__)
 
-ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche", "isir"]
+ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "registry"]
 
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
@@ -24,11 +25,7 @@ STATIC_COST_DEFAULTS = {
     "l2": 0.08,
     "person": 0.04,
     "generate": 0.03,
-    "ares": 0.00,
-    "brreg": 0.00,
-    "prh": 0.00,
-    "recherche": 0.00,
-    "isir": 0.00,
+    "registry": 0.00,
 }
 
 
@@ -88,6 +85,10 @@ def enrich_estimate():
     if not stages:
         return jsonify({"error": "stages is required"}), 400
 
+    # Resolve legacy stage names
+    stages = [_LEGACY_STAGE_ALIASES.get(s, s) for s in stages]
+    stages = list(dict.fromkeys(stages))  # deduplicate preserving order
+
     # Validate stages
     invalid = [s for s in stages if s not in ENRICHMENT_STAGES]
     if invalid:
@@ -137,6 +138,10 @@ def enrich_start():
         return jsonify({"error": "batch_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
+
+    # Resolve legacy stage names
+    stages = [_LEGACY_STAGE_ALIASES.get(s, s) for s in stages]
+    stages = list(dict.fromkeys(stages))  # deduplicate preserving order
 
     # Validate stages
     invalid = [s for s in stages if s not in ENRICHMENT_STAGES]

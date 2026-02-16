@@ -882,15 +882,53 @@ textarea:focus { outline: none; border-color: var(--accent); }
       });
     }
 
-    // Registry Data (ARES)
+    // Legal & Registry Data
     if (c.registry_data) {
-      var reg = section('Registry Data (ARES)', true);
-      var regContent = el('div', { className: 'l2-content', style: { display: 'none' } });
       var rd = c.registry_data;
+      var countryLabel = rd.registration_country ? ' (' + rd.registration_country + ')' : '';
+      var reg = section('Legal & Registry' + countryLabel, true);
+      var regContent = el('div', { className: 'l2-content', style: { display: 'none' } });
+
+      // Credibility score badge
+      if (rd.credibility_score != null) {
+        var score = rd.credibility_score;
+        var scoreColor = score >= 70 ? '#34D399' : score >= 40 ? '#FBBF24' : '#EF4444';
+        var scoreBadge = el('div', { style: {
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '6px 12px', borderRadius: '8px', marginBottom: '12px',
+          background: 'rgba(' + (score >= 70 ? '52,211,153' : score >= 40 ? '251,191,36' : '239,68,68') + ',0.15)',
+          border: '1px solid ' + scoreColor, fontSize: '0.85rem'
+        }});
+        scoreBadge.appendChild(el('span', { style: { fontWeight: '700', fontSize: '1.1rem', color: scoreColor } }, String(score)));
+        scoreBadge.appendChild(el('span', { style: { color: 'var(--text-dim)' } }, '/ 100 Credibility'));
+        regContent.appendChild(scoreBadge);
+
+        // Factor breakdown (expandable)
+        if (rd.credibility_factors) {
+          var factors = rd.credibility_factors;
+          var fBlock = el('div', { className: 'l2-block', style: { marginBottom: '12px' } });
+          fBlock.appendChild(el('label', null, 'Score Breakdown'));
+          var factorNames = {
+            registration_verified: 'Registration verified',
+            active_status: 'Active status',
+            no_insolvency: 'No insolvency',
+            business_history: 'Business history',
+            data_completeness: 'Data completeness',
+            directors_known: 'Directors known'
+          };
+          Object.keys(factors).forEach(function(key) {
+            var maxPts = key === 'registration_verified' ? 25 : key === 'active_status' ? 20 :
+              key === 'no_insolvency' ? 20 : key === 'business_history' ? 15 : 10;
+            fBlock.appendChild(el('div', { className: 'l2-text', style: { fontSize: '0.8rem' } },
+              (factorNames[key] || key) + ': ' + factors[key] + '/' + maxPts));
+          });
+          regContent.appendChild(fBlock);
+        }
+      }
 
       var regFields = [
-        { label: 'ICO', value: rd.ico },
-        { label: 'DIC', value: rd.dic },
+        { label: 'Registration ID', value: rd.ico },
+        { label: 'Tax ID', value: rd.dic },
         { label: 'Official Name', value: rd.official_name },
         { label: 'Legal Form', value: rd.legal_form_name || rd.legal_form },
         { label: 'Established', value: rd.date_established },
@@ -910,6 +948,20 @@ textarea:focus { outline: none; border-color: var(--accent); }
         }
       });
 
+      // Insolvency details
+      if (rd.insolvency_details && rd.insolvency_details.length > 0) {
+        var iBlock = el('div', { className: 'l2-block' });
+        iBlock.appendChild(el('label', { style: { color: '#EF4444' } }, 'Insolvency Proceedings (' + rd.insolvency_details.length + ')'));
+        rd.insolvency_details.forEach(function(p) {
+          var activeTag = p.is_active ? ' [ACTIVE]' : '';
+          iBlock.appendChild(el('div', { className: 'l2-text', style: { fontSize: '0.8rem' } },
+            (p.case_number || 'Unknown') + ' — ' + (p.status || '') + activeTag +
+            (p.court ? ' | ' + p.court : '') +
+            (p.started_at ? ' | Started: ' + p.started_at : '')));
+        });
+        regContent.appendChild(iBlock);
+      }
+
       if (rd.directors && rd.directors.length > 0) {
         var dBlock = el('div', { className: 'l2-block' });
         dBlock.appendChild(el('label', null, 'Directors'));
@@ -928,7 +980,6 @@ textarea:focus { outline: none; border-color: var(--accent); }
         regContent.appendChild(nBlock);
       }
 
-      var matchColor = rd.match_method === 'ico_direct' ? '#34D399' : rd.match_method === 'name_auto' ? '#FBBF24' : '#F97316';
       regContent.appendChild(el('div', { style: { fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' } },
         'Match: ' + (rd.match_method || 'unknown') +
         (rd.match_confidence != null ? ' (' + (rd.match_confidence * 100).toFixed(0) + '%)' : '') +

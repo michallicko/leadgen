@@ -12,6 +12,7 @@ from ..models import PipelineRun, StageRun, db
 from ..services.pipeline_engine import (
     AVAILABLE_STAGES,
     COMING_SOON_STAGES,
+    _LEGACY_STAGE_ALIASES,
     get_eligible_ids,
     start_pipeline_threads,
     start_stage_thread,
@@ -19,7 +20,7 @@ from ..services.pipeline_engine import (
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
-ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review", "ares", "brreg", "prh", "recherche", "isir"]
+ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review", "registry"]
 PIPELINE_STAGES = ["l1", "l2", "person", "generate"]  # stages run by run-all
 
 
@@ -67,6 +68,8 @@ def pipeline_start():
 
     if not stage:
         return jsonify({"error": "stage is required"}), 400
+    # Resolve legacy stage names (ares→registry, brreg→registry, etc.)
+    stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
     if stage not in AVAILABLE_STAGES:
         if stage in COMING_SOON_STAGES:
             return jsonify({"error": f"Stage '{stage}' is not yet available"}), 400

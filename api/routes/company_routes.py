@@ -289,48 +289,94 @@ def get_company(company_id):
     else:
         company["enrichment_l2"] = None
 
-    # Registry data (ARES)
-    reg_row = db.session.execute(
+    # Legal profile (unified registry data)
+    lp_row = db.session.execute(
         db.text("""
-            SELECT ico, dic, official_name, legal_form, legal_form_name,
-                   date_established, date_dissolved, registered_address,
-                   address_city, address_postal_code, nace_codes,
-                   registration_court, registration_number, registered_capital,
-                   directors, registration_status, insolvency_flag,
-                   match_confidence, match_method, ares_updated_at,
-                   enriched_at
-            FROM company_registry_data
+            SELECT registration_id, tax_id, official_name, legal_form,
+                   legal_form_name, date_established, date_dissolved,
+                   registered_address, address_city, address_postal_code,
+                   nace_codes, registration_court, registration_number,
+                   registered_capital, directors, registration_status,
+                   insolvency_flag, insolvency_details, active_insolvency_count,
+                   match_confidence, match_method, enriched_at,
+                   registration_country, credibility_score, credibility_factors
+            FROM company_legal_profile
             WHERE company_id = :id
         """),
         {"id": company_id},
     ).fetchone()
 
-    if reg_row:
+    if lp_row:
         company["registry_data"] = {
-            "ico": reg_row[0],
-            "dic": reg_row[1],
-            "official_name": reg_row[2],
-            "legal_form": reg_row[3],
-            "legal_form_name": reg_row[4],
-            "date_established": str(reg_row[5]) if reg_row[5] else None,
-            "date_dissolved": str(reg_row[6]) if reg_row[6] else None,
-            "registered_address": reg_row[7],
-            "address_city": reg_row[8],
-            "address_postal_code": reg_row[9],
-            "nace_codes": _parse_jsonb(reg_row[10]),
-            "registration_court": reg_row[11],
-            "registration_number": reg_row[12],
-            "registered_capital": reg_row[13],
-            "directors": _parse_jsonb(reg_row[14]),
-            "registration_status": reg_row[15],
-            "insolvency_flag": reg_row[16],
-            "match_confidence": float(reg_row[17]) if reg_row[17] is not None else None,
-            "match_method": reg_row[18],
-            "ares_updated_at": str(reg_row[19]) if reg_row[19] else None,
-            "enriched_at": _iso(reg_row[20]),
+            "ico": lp_row[0],
+            "dic": lp_row[1],
+            "official_name": lp_row[2],
+            "legal_form": lp_row[3],
+            "legal_form_name": lp_row[4],
+            "date_established": str(lp_row[5]) if lp_row[5] else None,
+            "date_dissolved": str(lp_row[6]) if lp_row[6] else None,
+            "registered_address": lp_row[7],
+            "address_city": lp_row[8],
+            "address_postal_code": lp_row[9],
+            "nace_codes": _parse_jsonb(lp_row[10]),
+            "registration_court": lp_row[11],
+            "registration_number": lp_row[12],
+            "registered_capital": lp_row[13],
+            "directors": _parse_jsonb(lp_row[14]),
+            "registration_status": lp_row[15],
+            "insolvency_flag": lp_row[16],
+            "insolvency_details": _parse_jsonb(lp_row[17]),
+            "active_insolvency_count": lp_row[18] or 0,
+            "match_confidence": float(lp_row[19]) if lp_row[19] is not None else None,
+            "match_method": lp_row[20],
+            "enriched_at": _iso(lp_row[21]),
+            "registration_country": lp_row[22],
+            "credibility_score": lp_row[23],
+            "credibility_factors": _parse_jsonb(lp_row[24]),
         }
     else:
-        company["registry_data"] = None
+        # Fallback: read from legacy company_registry_data table
+        reg_row = db.session.execute(
+            db.text("""
+                SELECT ico, dic, official_name, legal_form, legal_form_name,
+                       date_established, date_dissolved, registered_address,
+                       address_city, address_postal_code, nace_codes,
+                       registration_court, registration_number, registered_capital,
+                       directors, registration_status, insolvency_flag,
+                       match_confidence, match_method, ares_updated_at,
+                       enriched_at, registry_country
+                FROM company_registry_data
+                WHERE company_id = :id
+            """),
+            {"id": company_id},
+        ).fetchone()
+
+        if reg_row:
+            company["registry_data"] = {
+                "ico": reg_row[0],
+                "dic": reg_row[1],
+                "official_name": reg_row[2],
+                "legal_form": reg_row[3],
+                "legal_form_name": reg_row[4],
+                "date_established": str(reg_row[5]) if reg_row[5] else None,
+                "date_dissolved": str(reg_row[6]) if reg_row[6] else None,
+                "registered_address": reg_row[7],
+                "address_city": reg_row[8],
+                "address_postal_code": reg_row[9],
+                "nace_codes": _parse_jsonb(reg_row[10]),
+                "registration_court": reg_row[11],
+                "registration_number": reg_row[12],
+                "registered_capital": reg_row[13],
+                "directors": _parse_jsonb(reg_row[14]),
+                "registration_status": reg_row[15],
+                "insolvency_flag": reg_row[16],
+                "match_confidence": float(reg_row[17]) if reg_row[17] is not None else None,
+                "match_method": reg_row[18],
+                "enriched_at": _iso(reg_row[20]),
+                "registration_country": reg_row[21],
+            }
+        else:
+            company["registry_data"] = None
 
     # Tags
     tag_rows = db.session.execute(
@@ -415,7 +461,7 @@ def update_company(company_id):
 @companies_bp.route("/api/companies/<company_id>/enrich-registry", methods=["POST"])
 @require_auth
 def enrich_registry(company_id):
-    """On-demand ARES registry lookup for a single company."""
+    """On-demand unified registry lookup for a single company."""
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
@@ -431,12 +477,13 @@ def enrich_registry(company_id):
     body = request.get_json(silent=True) or {}
     ico_override = body.get("ico")
 
-    from ..services.ares import enrich_company
-    result = enrich_company(
+    from ..services.registries.orchestrator import RegistryOrchestrator
+    orchestrator = RegistryOrchestrator()
+    result = orchestrator.enrich_company(
         company_id=company_id,
         tenant_id=str(tenant_id),
         name=row[0],
-        ico=ico_override or row[1],
+        reg_id=ico_override or row[1],
         hq_country=row[2],
         domain=row[3],
     )
