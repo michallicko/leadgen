@@ -1,14 +1,15 @@
-import { useState, useMemo, useCallback } from 'react'
-import { useSearchParams, useParams } from 'react-router'
-import { useContacts, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
+import { useMemo, useCallback } from 'react'
+import { useContacts, useContact, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
+import { useCompany } from '../../api/queries/useCompanies'
 import { useBatches } from '../../api/queries/useBatches'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
+import { useEntityStack } from '../../hooks/useEntityStack'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
 import { Badge } from '../../components/ui/Badge'
 import { ContactDetail } from './ContactDetail'
+import { CompanyDetail } from '../companies/CompanyDetail'
 import { DetailModal } from '../../components/ui/DetailModal'
-import { useContact } from '../../api/queries/useContacts'
 import {
   ICP_FIT_DISPLAY,
   MESSAGE_STATUS_DISPLAY,
@@ -16,8 +17,10 @@ import {
 } from '../../lib/display'
 
 export function ContactsPage() {
-  const { namespace } = useParams<{ namespace: string }>()
-  const [searchParams, setSearchParams] = useSearchParams()
+  // namespace extracted from URL by useEntityStack
+
+  // Entity stack for cross-entity modal navigation
+  const stack = useEntityStack('contact')
 
   const [search, setSearch] = useLocalStorage('ct_filter_search', '')
   const [batchName, setBatchName] = useLocalStorage('ct_filter_batch', '')
@@ -26,19 +29,6 @@ export function ContactsPage() {
   const [msgStatus, setMsgStatus] = useLocalStorage('ct_filter_msg_status', '')
   const [sortField, setSortField] = useLocalStorage('ct_sort_field', 'last_name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('ct_sort_dir', 'asc')
-
-  const openId = searchParams.get('open')
-  const [selectedId, setSelectedId] = useState<string | null>(openId)
-
-  const handleOpenDetail = useCallback((id: string | null) => {
-    setSelectedId(id)
-    if (id) {
-      setSearchParams({ open: id }, { replace: true })
-    } else {
-      searchParams.delete('open')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
 
   const { data: batchesData } = useBatches()
 
@@ -66,7 +56,15 @@ export function ContactsPage() {
   )
   const total = data?.pages[0]?.total ?? 0
 
-  const { data: contactDetail, isLoading: isDetailLoading } = useContact(selectedId)
+  // Fetch detail for whichever entity type is at the top of stack
+  const isContactOpen = stack.current?.type === 'contact'
+  const isCompanyOpen = stack.current?.type === 'company'
+  const { data: contactDetail, isLoading: isContactLoading } = useContact(
+    isContactOpen ? stack.current!.id : null
+  )
+  const { data: companyDetail, isLoading: isCompanyLoading } = useCompany(
+    isCompanyOpen ? stack.current!.id : null
+  )
 
   const handleFilterChange = useCallback((key: string, value: string) => {
     switch (key) {
@@ -119,7 +117,7 @@ export function ContactsPage() {
         data={allContacts}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={(c) => handleOpenDetail(c.id)}
+        onRowClick={(c) => stack.open('contact', c.id)}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}
@@ -127,18 +125,20 @@ export function ContactsPage() {
       />
 
       <DetailModal
-        isOpen={!!selectedId}
-        onClose={() => handleOpenDetail(null)}
-        title={contactDetail?.full_name ?? 'Contact'}
-        subtitle={contactDetail?.job_title ?? undefined}
-        isLoading={isDetailLoading}
+        isOpen={!!stack.current}
+        onClose={stack.close}
+        title={isContactOpen ? (contactDetail?.full_name ?? 'Contact') : isCompanyOpen ? (companyDetail?.name ?? 'Company') : ''}
+        subtitle={isContactOpen ? (contactDetail?.job_title ?? undefined) : isCompanyOpen ? (companyDetail?.domain ?? undefined) : undefined}
+        isLoading={isContactOpen ? isContactLoading : isCompanyLoading}
+        canGoBack={stack.depth > 1}
+        onBack={stack.pop}
+        breadcrumb={stack.depth > 1 ? 'Back' : undefined}
       >
-        {contactDetail && (
-          <ContactDetail
-            contact={contactDetail}
-            namespace={namespace}
-            onClose={() => handleOpenDetail(null)}
-          />
+        {isContactOpen && contactDetail && (
+          <ContactDetail contact={contactDetail} onNavigate={stack.push} />
+        )}
+        {isCompanyOpen && companyDetail && (
+          <CompanyDetail company={companyDetail} onNavigate={stack.push} />
         )}
       </DetailModal>
     </div>

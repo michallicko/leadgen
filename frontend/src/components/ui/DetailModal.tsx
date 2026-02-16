@@ -6,16 +6,28 @@ interface DetailModalProps {
   title: string
   subtitle?: string
   isLoading?: boolean
+  /** Show a back arrow when true (for stack navigation). */
+  canGoBack?: boolean
+  /** Called when back arrow is clicked. */
+  onBack?: () => void
+  /** Breadcrumb text shown as a link above the title. */
+  breadcrumb?: string
   children: ReactNode
 }
 
-export function DetailModal({ isOpen, onClose, title, subtitle, isLoading, children }: DetailModalProps) {
+export function DetailModal({ isOpen, onClose, title, subtitle, isLoading, canGoBack, onBack, breadcrumb, children }: DetailModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        if (canGoBack && onBack) {
+          onBack()
+        } else {
+          onClose()
+        }
+      }
     }
     document.addEventListener('keydown', handler)
     document.body.style.overflow = 'hidden'
@@ -23,7 +35,7 @@ export function DetailModal({ isOpen, onClose, title, subtitle, isLoading, child
       document.removeEventListener('keydown', handler)
       document.body.style.overflow = ''
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, canGoBack, onBack])
 
   if (!isOpen) return null
 
@@ -39,6 +51,17 @@ export function DetailModal({ isOpen, onClose, title, subtitle, isLoading, child
         {/* Sticky header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-surface rounded-t-lg border-b border-border-solid">
           <div className="min-w-0">
+            {canGoBack && breadcrumb && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-1 text-xs text-accent-cyan hover:underline mb-1"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M7.5 2.5L4 6l3.5 3.5" />
+                </svg>
+                {breadcrumb}
+              </button>
+            )}
             <h2 className="text-lg font-semibold font-title text-text truncate">{title}</h2>
             {subtitle && <p className="text-sm text-text-muted truncate">{subtitle}</p>}
           </div>
