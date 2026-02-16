@@ -5,6 +5,15 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Enrichment DAG Model** (BL-015, BL-016, ADR-005): Replace linear `company.status` routing with DAG-based stage completion tracking
+  - `entity_stage_completions` table: per-entity, per-stage completion records with cost and error tracking (migration 016)
+  - Stage registry (`stage_registry.py`): 11 configurable stages with hard/soft dependencies, country gates, execution modes
+  - DAG executor (`dag_executor.py`): eligibility builder replacing hardcoded `ELIGIBILITY_QUERIES`, cross-entity-type dependency resolution, country-gate auto-skip, reactive polling threads
+  - QC checker (`qc_checker.py`): end-of-pipeline quality checks — registry name mismatch, HQ country conflict, active insolvency, dissolved status, data completeness, low registry confidence
+  - Interactive DAG dashboard (`enrich.html`): 2-step wizard with column-based DAG visualization, SVG bezier edges, 6 node states, soft dependency toggles, 5s polling
+  - API endpoints: `POST /pipeline/dag-run`, `GET /pipeline/dag-status`, `POST /pipeline/dag-stop`
+  - Backward compatible: old `/pipeline/start` and `/enrich/start` endpoints still work
+  - 88 new unit tests (stage registry, completions model, DAG executor, QC checker)
 - **Native L1 Enrichment** (ADR-003): Company enrichment via Perplexity sonar API, replacing n8n webhook
   - `l1_enricher.py`: Domain resolution, Perplexity API call, JSON parsing, field mapping, QC validation
   - 8 QC checks: name mismatch, incomplete research, revenue/employee sanity, low confidence, B2B unclear, short summary, source warning

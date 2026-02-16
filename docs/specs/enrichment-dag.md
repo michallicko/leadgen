@@ -1,6 +1,6 @@
 # Enrichment DAG: Status Redesign + Orchestration Platform
 
-**Status**: In Progress | **Phase**: 1 of 6 | **Backlog**: BL-015, BL-016
+**Status**: In Progress | **Phase**: 4 of 6 (Phases 1-4 complete) | **Backlog**: BL-015, BL-016
 
 ## Purpose
 
@@ -66,13 +66,31 @@ The current system encodes pipeline position in a single `company.status` enum (
 
 ## Acceptance Criteria
 
-### Phase 1
-- [ ] Migration 016 creates `entity_stage_completions` with correct schema and indexes
-- [ ] Backfill populates completions from existing status/registry data
-- [ ] `topo_sort()` returns correct topological ordering for all stage combinations
-- [ ] `get_stage()` returns correct config for each stage code
-- [ ] EntityStageCompletion model works with SQLite test DB
-- [ ] Existing pipeline tests still pass (no behavior change)
+### Phase 1 (Complete)
+- [x] Migration 016 creates `entity_stage_completions` with correct schema and indexes
+- [x] Backfill populates completions from existing status/registry data
+- [x] `topo_sort()` returns correct topological ordering for all stage combinations
+- [x] `get_stage()` returns correct config for each stage code
+- [x] EntityStageCompletion model works with SQLite test DB
+- [x] Existing pipeline tests still pass (no behavior change)
+
+### Phase 2 (Complete)
+- [x] Generic eligibility query builder replaces `ELIGIBILITY_QUERIES`
+- [x] Cross-entity-type dependency handling (contact→company)
+- [x] Country-gate auto-skip inserts skipped rows
+- [x] DAG API endpoints: dag-run, dag-status, dag-stop
+- [x] Old endpoints continue working (backward compatible)
+
+### Phase 3 (Complete)
+- [x] 2-step DAG wizard with column-based layout
+- [x] 6 node states (disabled/pending/eligible/running/completed/failed)
+- [x] SVG bezier edge rendering with animation states
+- [x] Soft dependency toggle UI
+- [x] Run controls + 5s polling
+
+### Phase 4 (Complete)
+- [x] QC checker with 6 cross-source quality checks
+- [x] 36 unit tests covering all checks + DB integration
 
 ## Data Model
 

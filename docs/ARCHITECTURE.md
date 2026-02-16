@@ -62,7 +62,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
 - **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters: ARES/CZ, BRREG/NO, PRH/FI, recherche/FR — see ADR-004), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
+- **Services**: `pipeline_engine.py` (stage orchestration), `dag_executor.py` (DAG-based executor with completion-record eligibility, see ADR-005), `stage_registry.py` (configurable DAG of enrichment stages), `qc_checker.py` (end-of-pipeline quality checks), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters: ARES/CZ, BRREG/NO, PRH/FI, recherche/FR — see ADR-004), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -76,9 +76,9 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 4. PostgreSQL (RDS)
 - **Instance**: AWS Lightsail managed PostgreSQL
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
-- **Schema**: 18 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
+- **Schema**: 19 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `013_registry_country.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `016_entity_stage_completions.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -88,23 +88,46 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 
 ## Data Flow
 
-### Enrichment Pipeline
+### Enrichment Pipeline (DAG Model)
+
+The enrichment pipeline uses a configurable DAG of stages with per-entity completion tracking.
+
 ```
-POST /api/enrich/start
+                    ┌──→ [L2 Deep Research]         ──┐
+[L1 Company] ──────┼──→ [Strategic Signals]          ──┼──→ [Person] ──→ [Generate] ──→ [QC]
+                    ├──→ [ARES] (CZ companies)        │
+                    ├──→ [BRREG] (NO companies)       │
+                    ├──→ [PRH] (FI companies)         │
+                    ├──→ [Recherche] (FR companies)   │
+                    └──→ [ISIR] (CZ w/ ICO)           ┘
+```
+
+**Stage Registry** (`stage_registry.py`): 11 stages with hard/soft dependencies, country gates, and execution modes.
+
+**DAG Executor** (`dag_executor.py`): Eligibility determined by `entity_stage_completions` records. Each stage thread polls for eligible entities. Cross-entity-type deps supported (contact stages check company completions).
+
+**QC Checker** (`qc_checker.py`): End-of-pipeline checks — registry name mismatch, HQ country conflict, active insolvency, dissolved status, data completeness, low registry confidence.
+
+**API endpoints**:
+- `POST /api/pipeline/dag-run`: Start DAG execution with stage list + soft dep config
+- `GET /api/pipeline/dag-status`: Per-stage status + DAG structure + completion counts
+- `POST /api/pipeline/dag-stop`: Stop entire DAG run
+- Legacy endpoints (`/api/enrich/start`, `/api/pipeline/run-all`) still work via old executor
+
+```
+POST /api/pipeline/dag-run {stages, soft_deps, batch_name, ...}
     │
     ▼
-Pipeline Engine (pipeline_engine.py)
+DAG Executor → spawns thread per stage
     │
     ├──→ L1: Native Python (l1_enricher.py → Perplexity sonar)
-    │         → QC validation → triage_passed / needs_review
-    │         → Research stored in research_assets
-    │         → Cost tracked in llm_usage_log
-    │
-    ├──→ L2: n8n webhook (/webhook/l2-enrich) [coming soon]
-    │
-    ├──→ Person: n8n webhook (/webhook/person-enrich) [coming soon]
-    │
-    └──→ Generate: n8n webhook (/webhook/generate-messages) [coming soon]
+    ├──→ Registries: Native Python (ARES/BRREG/PRH/recherche/ISIR)
+    ├──→ L2: n8n webhook
+    ├──→ Person: n8n webhook
+    ├──→ Generate: n8n webhook
+    └──→ QC: Native Python (qc_checker.py)
+
+Each completion → INSERT entity_stage_completions → unblocks downstream
 ```
 
 ### Authentication Flow
@@ -165,7 +188,8 @@ tenants ─┬── owners
          ├── tasks ─┬── task_contacts
          │          └── task_activities
          ├── research_assets (polymorphic)
-         ├── pipeline_runs
+         ├── pipeline_runs ── stage_runs
+         ├── entity_stage_completions (DAG completion tracking)
          ├── llm_usage_log (per-call LLM cost tracking)
          └── audit_log
 
