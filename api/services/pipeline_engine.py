@@ -26,9 +26,9 @@ N8N_WEBHOOK_PATHS = {
 }
 
 # Stages that have workflows wired up (n8n or direct Python)
-AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares"}
+AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "ares"}
+DIRECT_STAGES = {"l1", "ares", "brreg", "prh", "recherche"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 
@@ -39,6 +39,9 @@ STAGE_PREDECESSORS = {
     "person": ["l2"],   # Person watches L2
     "generate": ["person"],  # Generate watches Person
     "ares": [],         # ARES is independent — no prerequisites
+    "brreg": [],        # BRREG is independent
+    "prh": [],          # PRH is independent
+    "recherche": [],    # recherche is independent
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
@@ -84,6 +87,36 @@ ELIGIBILITY_QUERIES = {
           AND crd.company_id IS NULL
           AND (c.hq_country = 'CZ' OR c.hq_country = 'Czech Republic'
                OR c.domain LIKE '%%.cz' OR c.ico IS NOT NULL)
+          {owner_clause}
+        ORDER BY c.name
+    """,
+    "brreg": """
+        SELECT c.id FROM companies c
+        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND crd.company_id IS NULL
+          AND (c.hq_country IN ('Norway', 'NO', 'Norge')
+               OR c.domain LIKE '%%.no')
+          {owner_clause}
+        ORDER BY c.name
+    """,
+    "prh": """
+        SELECT c.id FROM companies c
+        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND crd.company_id IS NULL
+          AND (c.hq_country IN ('Finland', 'FI', 'Suomi')
+               OR c.domain LIKE '%%.fi')
+          {owner_clause}
+        ORDER BY c.name
+    """,
+    "recherche": """
+        SELECT c.id FROM companies c
+        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND crd.company_id IS NULL
+          AND (c.hq_country IN ('France', 'FR')
+               OR c.domain LIKE '%%.fr')
           {owner_clause}
         ORDER BY c.name
     """,
@@ -242,6 +275,40 @@ def _process_ares(company_id, tenant_id):
     return result
 
 
+def _process_registry(company_id, tenant_id, adapter_code):
+    """Process a company through a registry adapter (generic)."""
+    from .registries import get_adapter
+
+    adapter = get_adapter(adapter_code)
+    if not adapter:
+        return {"status": "error", "error": f"No adapter for {adapter_code}", "enrichment_cost_usd": 0}
+
+    row = db.session.execute(
+        text("""
+            SELECT name, ico, hq_country, domain
+            FROM companies WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": company_id, "t": str(tenant_id)},
+    ).fetchone()
+
+    if not row:
+        return {"status": "error", "error": "Company not found", "enrichment_cost_usd": 0}
+
+    result = adapter.enrich_company(
+        company_id=company_id,
+        tenant_id=str(tenant_id),
+        name=row[0],
+        reg_id=row[1],
+        hq_country=row[2],
+        domain=row[3],
+    )
+    result["enrichment_cost_usd"] = 0
+    return result
+
+
+_STAGE_TO_ADAPTER = {"brreg": "NO", "prh": "FI", "recherche": "FR"}
+
+
 def _process_entity(stage, entity_id, tenant_id=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     if stage in DIRECT_STAGES:
@@ -250,6 +317,9 @@ def _process_entity(stage, entity_id, tenant_id=None):
             return enrich_l1(entity_id, tenant_id)
         if stage == "ares":
             return _process_ares(entity_id, tenant_id)
+        adapter_code = _STAGE_TO_ADAPTER.get(stage)
+        if adapter_code:
+            return _process_registry(entity_id, tenant_id, adapter_code)
         raise ValueError(f"No direct processor for stage: {stage}")
     return call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
 

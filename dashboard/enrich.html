@@ -646,13 +646,49 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       category: 'company'
     },
     ares: {
-      name: 'Legal & Registry',
+      name: 'Czech Registry (ARES)',
       icon: 'CZ',
       color: 'var(--ares-color)',
       bgColor: 'rgba(59,130,246,0.12)',
-      desc: 'Public business register lookup for official company data. Czech ARES integration retrieves ICO, DIC, legal form, directors, registered capital, NACE activity codes, and insolvency status. Validates the company is real and solvent.',
+      desc: 'Czech public business register (ares.gov.cz). Retrieves ICO, DIC, legal form, directors, registered capital, NACE activity codes, and insolvency status. Validates the company is real and solvent.',
       fields: ['ICO', 'DIC', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Registered Address'],
       usecase: 'Run on Czech companies after Profile. Answers: are they legitimate and solvent? Zero cost.',
+      comingSoon: false,
+      badge: 'Free',
+      category: 'company'
+    },
+    brreg: {
+      name: 'Norway Registry (BRREG)',
+      icon: 'NO',
+      color: 'var(--ares-color)',
+      bgColor: 'rgba(59,130,246,0.12)',
+      desc: 'Norwegian business register (data.brreg.no). Retrieves organisasjonsnummer, legal form, NACE codes, registered capital, bankruptcy and winding-up status.',
+      fields: ['Org Nr', 'Legal Form', 'NACE Codes', 'Capital', 'Bankruptcy', 'Address'],
+      usecase: 'Run on Norwegian companies. Free government data.',
+      comingSoon: false,
+      badge: 'Free',
+      category: 'company'
+    },
+    prh: {
+      name: 'Finland Registry (PRH)',
+      icon: 'FI',
+      color: 'var(--ares-color)',
+      bgColor: 'rgba(59,130,246,0.12)',
+      desc: 'Finnish Patent and Registration Office (avoindata.prh.fi). Retrieves Y-tunnus, company form, TOL/NACE codes, and trade register status.',
+      fields: ['Y-tunnus', 'Company Form', 'TOL Codes', 'Trade Register Status', 'Address'],
+      usecase: 'Run on Finnish companies. Free government data.',
+      comingSoon: false,
+      badge: 'Free',
+      category: 'company'
+    },
+    recherche: {
+      name: 'France Registry (INSEE)',
+      icon: 'FR',
+      color: 'var(--ares-color)',
+      bgColor: 'rgba(59,130,246,0.12)',
+      desc: 'French company register (recherche-entreprises.api.gouv.fr). Retrieves SIREN, nature juridique, NAF codes, directors, and administrative status.',
+      fields: ['SIREN', 'Legal Form', 'NAF Codes', 'Directors', 'Status', 'Address'],
+      usecase: 'Run on French companies. Free government data.',
       comingSoon: false,
       badge: 'Free',
       category: 'company'
@@ -756,7 +792,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     }
   };
 
-  var STAGE_ORDER = ['l1', 'ares', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
+  var STAGE_ORDER = ['l1', 'ares', 'brreg', 'prh', 'recherche', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
 
   var estimateData = null;
   var enabledStages = {};
