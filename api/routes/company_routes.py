@@ -187,7 +187,8 @@ def get_company(company_id):
                 c.enrichment_cost_usd, c.pre_score,
                 c.lemlist_synced, c.error_message, c.notes, c.custom_fields,
                 c.created_at, c.updated_at,
-                o.name AS owner_name, b.name AS batch_name
+                o.name AS owner_name, b.name AS batch_name,
+                c.ico
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
             LEFT JOIN batches b ON c.batch_id = b.id
@@ -236,6 +237,7 @@ def get_company(company_id):
         "updated_at": _iso(row[33]),
         "owner_name": row[34],
         "batch_name": row[35],
+        "ico": row[36],
     }
 
     # L2 enrichment
@@ -286,6 +288,49 @@ def get_company(company_id):
         }
     else:
         company["enrichment_l2"] = None
+
+    # Registry data (ARES)
+    reg_row = db.session.execute(
+        db.text("""
+            SELECT ico, dic, official_name, legal_form, legal_form_name,
+                   date_established, date_dissolved, registered_address,
+                   address_city, address_postal_code, nace_codes,
+                   registration_court, registration_number, registered_capital,
+                   directors, registration_status, insolvency_flag,
+                   match_confidence, match_method, ares_updated_at,
+                   enriched_at
+            FROM company_registry_data
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+
+    if reg_row:
+        company["registry_data"] = {
+            "ico": reg_row[0],
+            "dic": reg_row[1],
+            "official_name": reg_row[2],
+            "legal_form": reg_row[3],
+            "legal_form_name": reg_row[4],
+            "date_established": str(reg_row[5]) if reg_row[5] else None,
+            "date_dissolved": str(reg_row[6]) if reg_row[6] else None,
+            "registered_address": reg_row[7],
+            "address_city": reg_row[8],
+            "address_postal_code": reg_row[9],
+            "nace_codes": _parse_jsonb(reg_row[10]),
+            "registration_court": reg_row[11],
+            "registration_number": reg_row[12],
+            "registered_capital": reg_row[13],
+            "directors": _parse_jsonb(reg_row[14]),
+            "registration_status": reg_row[15],
+            "insolvency_flag": reg_row[16],
+            "match_confidence": float(reg_row[17]) if reg_row[17] is not None else None,
+            "match_method": reg_row[18],
+            "ares_updated_at": str(reg_row[19]) if reg_row[19] else None,
+            "enriched_at": _iso(reg_row[20]),
+        }
+    else:
+        company["registry_data"] = None
 
     # Tags
     tag_rows = db.session.execute(
@@ -365,3 +410,68 @@ def update_company(company_id):
     db.session.commit()
 
     return jsonify({"ok": True})
+
+
+@companies_bp.route("/api/companies/<company_id>/enrich-registry", methods=["POST"])
+@require_auth
+def enrich_registry(company_id):
+    """On-demand ARES registry lookup for a single company."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify company belongs to tenant
+    row = db.session.execute(
+        db.text("SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": tenant_id},
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    ico_override = body.get("ico")
+
+    from ..services.ares import enrich_company
+    result = enrich_company(
+        company_id=company_id,
+        tenant_id=str(tenant_id),
+        name=row[0],
+        ico=ico_override or row[1],
+        hq_country=row[2],
+        domain=row[3],
+    )
+
+    return jsonify(result)
+
+
+@companies_bp.route("/api/companies/<company_id>/confirm-registry", methods=["POST"])
+@require_auth
+def confirm_registry(company_id):
+    """Confirm an ARES match from a list of candidates by providing the ICO."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("SELECT name, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": tenant_id},
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    ico = body.get("ico")
+    if not ico:
+        return jsonify({"error": "ico is required"}), 400
+
+    from ..services.ares import enrich_company
+    result = enrich_company(
+        company_id=company_id,
+        tenant_id=str(tenant_id),
+        name=row[0],
+        ico=ico,
+        hq_country=row[1],
+        domain=row[2],
+    )
+
+    return jsonify(result)

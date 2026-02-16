@@ -25,8 +25,10 @@ N8N_WEBHOOK_PATHS = {
     "generate": "/webhook/generate-messages",
 }
 
-# Stages that have n8n workflows wired up
-AVAILABLE_STAGES = {"l1", "l2", "person", "generate"}
+# Stages that have workflows wired up (n8n or direct Python)
+AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares"}
+# Stages that call Python directly instead of n8n
+DIRECT_STAGES = {"ares"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 
@@ -36,6 +38,7 @@ STAGE_PREDECESSORS = {
     "l2": ["l1"],       # L2 watches L1 (triage is auto-output of L1)
     "person": ["l2"],   # Person watches L2
     "generate": ["person"],  # Generate watches Person
+    "ares": [],         # ARES is independent — no prerequisites
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
@@ -73,6 +76,16 @@ ELIGIBILITY_QUERIES = {
           AND (ct.message_status IS NULL OR ct.message_status = 'not_started')
           {owner_clause}
         ORDER BY ct.contact_score DESC NULLS LAST
+    """,
+    "ares": """
+        SELECT c.id FROM companies c
+        LEFT JOIN company_registry_data crd ON crd.company_id = c.id
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND crd.company_id IS NULL
+          AND (c.hq_country = 'CZ' OR c.hq_country = 'Czech Republic'
+               OR c.domain LIKE '%%.cz' OR c.ico IS NOT NULL)
+          {owner_clause}
+        ORDER BY c.name
     """,
 }
 
@@ -197,10 +210,52 @@ def _data_key_for_stage(stage):
 
 
 # ---------------------------------------------------------------------------
+# Entity processing dispatch
+# ---------------------------------------------------------------------------
+
+def _process_ares(company_id, tenant_id):
+    """Process a single company through ARES enrichment (direct Python)."""
+    from .ares import enrich_company
+
+    # Fetch company data needed for ARES lookup
+    row = db.session.execute(
+        text("""
+            SELECT name, ico, hq_country, domain
+            FROM companies WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": company_id, "t": str(tenant_id)},
+    ).fetchone()
+
+    if not row:
+        return {"status": "error", "error": "Company not found", "enrichment_cost_usd": 0}
+
+    result = enrich_company(
+        company_id=company_id,
+        tenant_id=str(tenant_id),
+        name=row[0],
+        ico=row[1],
+        hq_country=row[2],
+        domain=row[3],
+    )
+    # ARES is free — always $0
+    result["enrichment_cost_usd"] = 0
+    return result
+
+
+def _process_entity(stage, entity_id, tenant_id=None):
+    """Dispatch entity processing to the right backend (n8n or direct Python)."""
+    if stage in DIRECT_STAGES:
+        if stage == "ares":
+            return _process_ares(entity_id, tenant_id)
+        raise ValueError(f"No direct processor for stage: {stage}")
+    return call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
+
+
+# ---------------------------------------------------------------------------
 # Single-stage execution (existing — for individual stage buttons)
 # ---------------------------------------------------------------------------
 
-def run_stage(app, run_id, stage, entity_ids):
+def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
     """Background thread: process entities through n8n workflow one at a time."""
     with app.app_context():
         total_cost = 0.0
@@ -215,7 +270,7 @@ def run_stage(app, run_id, stage, entity_ids):
                 return
 
             try:
-                result = call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
+                result = _process_entity(stage, entity_id, tenant_id)
                 total_cost += _extract_cost(result)
                 update_run(run_id, done=i + 1, cost_usd=total_cost, failed=failed)
             except Exception as e:
@@ -230,11 +285,12 @@ def run_stage(app, run_id, stage, entity_ids):
                      run_id, final_status, len(entity_ids), failed, total_cost)
 
 
-def start_stage_thread(app, run_id, stage, entity_ids):
+def start_stage_thread(app, run_id, stage, entity_ids, tenant_id=None):
     """Spawn a background thread to run a pipeline stage."""
     t = threading.Thread(
         target=run_stage,
         args=(app, run_id, stage, entity_ids),
+        kwargs={"tenant_id": tenant_id},
         daemon=True,
         name=f"stage-{stage}-{run_id}",
     )
@@ -315,9 +371,7 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
 
                     processed_ids.add(entity_id)
                     try:
-                        result = call_n8n_webhook(
-                            stage, {_data_key_for_stage(stage): entity_id}
-                        )
+                        result = _process_entity(stage, entity_id, tenant_id)
                         total_cost += _extract_cost(result)
                         done_count += 1
                         update_run(run_id, done=done_count, cost_usd=total_cost,

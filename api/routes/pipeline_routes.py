@@ -19,7 +19,7 @@ from ..services.pipeline_engine import (
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
-ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review"]
+ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review", "ares"]
 PIPELINE_STAGES = ["l1", "l2", "person", "generate"]  # stages run by run-all
 
 
@@ -119,7 +119,7 @@ def pipeline_start():
     run_id = str(run.id)
 
     # Spawn background thread
-    start_stage_thread(current_app._get_current_object(), run_id, stage, entity_ids)
+    start_stage_thread(current_app._get_current_object(), run_id, stage, entity_ids, tenant_id=tenant_id)
 
     return jsonify({"run_id": run_id, "total": len(entity_ids)}), 201
 
