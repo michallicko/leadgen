@@ -295,12 +295,14 @@ def scan_status(job_id):
         return jsonify({"error": "Import job not found"}), 404
 
     # Detect orphaned scans (thread killed by deploy/restart)
-    if job.status == "scanning" and job.created_at:
-        age = (datetime.now(timezone.utc) - job.created_at.replace(tzinfo=timezone.utc)).total_seconds()
-        if age > 120:  # 2 minutes with no completion
-            job.status = "error"
-            job.error = "Scan timed out (server may have restarted). Please try again."
-            db.session.commit()
+    if job.status == "scanning":
+        check_time = job.updated_at or job.created_at
+        if check_time:
+            age = (datetime.now(timezone.utc) - check_time.replace(tzinfo=timezone.utc)).total_seconds()
+            if age > 300:  # 5 minutes with no progress update
+                job.status = "error"
+                job.error = "Scan timed out (server may have restarted). Please try again."
+                db.session.commit()
 
     progress_raw = job.scan_progress
     progress = json.loads(progress_raw) if isinstance(progress_raw, str) else (progress_raw or {})

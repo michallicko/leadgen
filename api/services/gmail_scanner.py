@@ -87,6 +87,8 @@ class GmailScanner:
 
     def _update_progress(self, phase, percent, contacts_found=None):
         """Update scan_progress JSONB on ImportJob."""
+        from datetime import datetime, timezone
+
         job = db.session.get(ImportJob, self.job_id)
         if not job:
             return
@@ -97,6 +99,7 @@ class GmailScanner:
             "contacts_found": contacts_found or len(self.contacts),
         }
         job.scan_progress = json.dumps(progress)
+        job.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
     def _update_status(self, status, error=None):
@@ -175,7 +178,7 @@ class GmailScanner:
                     break
 
                 # Update progress periodically
-                if self.messages_scanned % 100 == 0:
+                if self.messages_scanned % 20 == 0:
                     pct = min(45, int(self.messages_scanned / max_messages * 45))
                     self._update_progress("scanning_headers", pct)
 
