@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { Badge } from './Badge'
+import { SourceTooltip, type SourceInfo } from './SourceTooltip'
+
+export type { SourceInfo } from './SourceTooltip'
 
 /* ---- FieldGrid: 2-column responsive layout ---- */
 
@@ -13,9 +16,10 @@ interface FieldProps {
   label: string
   value: string | number | boolean | null | undefined
   className?: string
+  source?: SourceInfo
 }
 
-export function Field({ label, value, className = '' }: FieldProps) {
+export function Field({ label, value, className = '', source }: FieldProps) {
   const display = value === null || value === undefined || value === ''
     ? '-'
     : typeof value === 'boolean'
@@ -24,7 +28,7 @@ export function Field({ label, value, className = '' }: FieldProps) {
 
   return (
     <div className={className}>
-      <dt className="text-xs text-text-muted mb-0.5">{label}</dt>
+      <dt className="text-xs text-text-muted mb-0.5">{label}{source && <SourceTooltip source={source} />}</dt>
       <dd className="text-sm text-text">{display}</dd>
     </div>
   )
