@@ -622,66 +622,109 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var currentPipelineRunId = null;
   var isSampleRun = false;
 
-  // --- Package definitions ---
+  // --- Package definitions (BL-017 Company + BL-018 Contact modules) ---
   var PACKAGES = {
+    // Company enrichment modules (BL-017)
     l1: {
-      name: 'Company Research',
-      icon: 'L1',
+      name: 'Company Profile',
+      icon: 'CP',
       color: 'var(--l1-color)',
       bgColor: 'rgba(0,184,207,0.12)',
-      desc: 'AI-powered company profile research via Perplexity. Identifies what the company does, its size, revenue range, B2B focus, and headquarters. QC validation flags dubious results for human review.',
-      fields: ['Industry', 'Employees', 'Revenue', 'B2B Focus', 'HQ Location', 'Summary', 'Tier'],
+      desc: 'AI-powered company research via Perplexity. Identifies industry, headcount, what the company does, tech stack, founding year, HQ location, and website analysis. QC validation flags dubious results for human review.',
+      fields: ['Industry', 'Employees', 'Revenue', 'B2B Focus', 'HQ Location', 'Tech Stack', 'Founded', 'Summary', 'Tier'],
       usecase: 'Best for: newly imported contacts that need initial qualification and tiering.',
       comingSoon: false,
-      badge: null
+      badge: null,
+      category: 'company'
     },
     ares: {
-      name: 'Legal & Registers (ARES)',
+      name: 'Legal & Registry',
       icon: 'CZ',
       color: 'var(--ares-color)',
       bgColor: 'rgba(59,130,246,0.12)',
-      desc: 'Czech public business register lookup via ARES (ares.gov.cz). Retrieves official company data including registration number, directors, registered capital, and insolvency status. Free government API.',
+      desc: 'Public business register lookup for official company data. Czech ARES integration retrieves ICO, DIC, legal form, directors, registered capital, NACE codes, and insolvency status. Free government API.',
       fields: ['ICO', 'DIC', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Address'],
       usecase: 'Best for: Czech companies needing legal verification and due diligence. Zero cost.',
       comingSoon: false,
-      badge: 'Free'
+      badge: 'Free',
+      category: 'company'
     },
-    l2: {
-      name: 'Deep Company Research',
-      icon: 'L2',
-      color: 'var(--l2-color)',
-      bgColor: 'rgba(139,71,168,0.12)',
-      desc: 'In-depth competitive analysis: market position, tech stack, recent funding, key partnerships, and strategic direction. Builds on L1 research with deeper investigation.',
-      fields: ['Tech Stack', 'Funding', 'Competitors', 'Market Position', 'Partnerships'],
-      usecase: 'Best for: companies that passed triage and need detailed research before outreach.',
+    strategic_signals: {
+      name: 'Strategic Signals',
+      icon: 'SS',
+      color: '#f59e0b',
+      bgColor: 'rgba(245,158,11,0.12)',
+      desc: 'Tracks funding rounds, M&A activity, hiring patterns from job postings, partnerships, and growth indicators. Surfaces companies actively investing or expanding.',
+      fields: ['Funding Rounds', 'M&A Activity', 'Hiring Patterns', 'Partnerships', 'Growth Indicators'],
+      usecase: 'Best for: identifying companies in growth mode or with recent strategic changes.',
       comingSoon: true,
-      badge: null
+      badge: null,
+      category: 'company'
     },
-    person: {
-      name: 'Person Enrichment',
-      icon: 'PE',
+    news_pr: {
+      name: 'News & PR',
+      icon: 'NP',
+      color: '#ef4444',
+      bgColor: 'rgba(239,68,68,0.12)',
+      desc: 'Scans recent media mentions, press releases, social media presence, thought leadership content, and sentiment analysis. Provides conversation hooks for outreach.',
+      fields: ['Media Mentions', 'Press Releases', 'Social Presence', 'Thought Leadership', 'Sentiment'],
+      usecase: 'Best for: finding timely conversation starters and understanding public perception.',
+      comingSoon: true,
+      badge: null,
+      category: 'company'
+    },
+    // Contact enrichment modules (BL-018)
+    role_employment: {
+      name: 'Role & Employment',
+      icon: 'RE',
       color: 'var(--person-color)',
       bgColor: 'rgba(52,211,153,0.12)',
-      desc: 'Contact-level enrichment: verifies current role, finds direct contact details, analyzes LinkedIn profile, identifies reporting structure and tenure.',
-      fields: ['Role Verified', 'Email', 'Phone', 'LinkedIn', 'Reporting To', 'Tenure'],
-      usecase: 'Best for: contacts at enriched companies, before outreach message generation.',
+      desc: 'Verifies current job title, identifies reporting structure, calculates tenure at current company. Confirms the contact is still at the expected company and role.',
+      fields: ['Title Verified', 'Reporting To', 'Tenure', 'Department', 'Seniority Level'],
+      usecase: 'Best for: verifying contact data is current before outreach.',
       comingSoon: true,
-      badge: null
+      badge: null,
+      category: 'contact'
     },
-    generate: {
-      name: 'Message Generation',
-      icon: 'AI',
-      color: 'var(--generate-color)',
-      bgColor: 'rgba(251,191,36,0.12)',
-      desc: 'AI-crafted personalized outreach messages using company research, contact profile, and campaign context. Generates subject lines, opening hooks, and value propositions.',
-      fields: ['Subject Line', 'Email Body', 'Follow-up', 'LinkedIn Message'],
-      usecase: 'Best for: fully enriched contacts ready for campaign launch.',
+    social_online: {
+      name: 'Social & Online',
+      icon: 'SO',
+      color: '#8b5cf6',
+      bgColor: 'rgba(139,92,246,0.12)',
+      desc: 'Analyzes LinkedIn profile, Twitter/X presence, speaking engagements, and publications. Identifies topics of interest and professional activity patterns.',
+      fields: ['LinkedIn Profile', 'Twitter/X', 'Speaking Events', 'Publications', 'Topics of Interest'],
+      usecase: 'Best for: personalizing outreach with shared interests and recent activity.',
       comingSoon: true,
-      badge: null
+      badge: null,
+      category: 'contact'
+    },
+    career_history: {
+      name: 'Career History',
+      icon: 'CH',
+      color: '#06b6d4',
+      bgColor: 'rgba(6,182,212,0.12)',
+      desc: 'Maps previous roles, companies, career trajectory, and industry experience. Identifies career patterns and potential pain points from past experience.',
+      fields: ['Previous Roles', 'Companies', 'Career Trajectory', 'Industry Experience', 'Years in Field'],
+      usecase: 'Best for: understanding decision-maker background and finding common ground.',
+      comingSoon: true,
+      badge: null,
+      category: 'contact'
+    },
+    contact_details: {
+      name: 'Contact Details',
+      icon: 'CD',
+      color: '#10b981',
+      bgColor: 'rgba(16,185,129,0.12)',
+      desc: 'Verifies and enriches direct contact information: email validation, phone numbers, and alternative contact methods. Ensures deliverability before outreach.',
+      fields: ['Email Verified', 'Phone', 'Alternative Email', 'LinkedIn DM', 'Contact Score'],
+      usecase: 'Best for: ensuring contact details are valid and deliverable before campaign launch.',
+      comingSoon: true,
+      badge: null,
+      category: 'contact'
     }
   };
 
-  var STAGE_ORDER = ['l1', 'ares', 'l2', 'person', 'generate'];
+  var STAGE_ORDER = ['l1', 'ares', 'strategic_signals', 'news_pr', 'role_employment', 'social_online', 'career_history', 'contact_details'];
 
   var estimateData = null;
   var enabledStages = {};
@@ -905,7 +948,20 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     // Reset enabled stages
     enabledStages = {};
 
+    var lastCategory = '';
+
     STAGE_ORDER.forEach(function(stage) {
+      var pkg = PACKAGES[stage];
+
+      // Category header
+      if (pkg.category !== lastCategory) {
+        lastCategory = pkg.category;
+        var catLabel = pkg.category === 'company' ? 'Company Enrichment' : 'Contact Enrichment';
+        var catEl = mkEl('div', {
+          style: 'font-family:var(--font-title);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);padding:8px 0 2px;' + (pkg.category === 'contact' ? 'margin-top:8px;border-top:1px solid var(--border);padding-top:16px;' : '')
+        }, catLabel);
+        container.appendChild(catEl);
+      }
       var pkg = PACKAGES[stage];
       var info = data.stages[stage] || {};
       var eligible = info.eligible_count || 0;
