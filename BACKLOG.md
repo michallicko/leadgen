@@ -13,10 +13,10 @@ Structured backlog for the leadgen-pipeline project. Items are prioritized using
 Dashboard screens for browsing, filtering, and viewing contacts and companies from the PostgreSQL database. Replaces direct Airtable access for day-to-day operations. Includes search, status filters, detail views, infinite scroll with virtual DOM windowing.
 
 ### BL-002: L1 Workflow Postgres Migration
-**Status**: In Progress | **Effort**: M | **Spec**: `docs/specs/l1-native-enrichment.md`
+**Status**: Done | **Effort**: M | **Spec**: `docs/specs/l1-native-enrichment.md`
 **Depends on**: — | **Theme**: Platform Foundation
 
-Migrate the L1 Company enrichment from n8n to native Python. L1 enricher implemented (`l1_enricher.py`) with Perplexity sonar API, QC validation, research storage, and review workflow. Branch: `feature/l1-native-enrichment`. Pending: deploy + production QC.
+Migrate the L1 Company enrichment from n8n to native Python. L1 enricher (`l1_enricher.py`) with Perplexity sonar API, QC validation (8 checks), research storage, review workflow, LinkedIn context. Deployed and QC'd against real data. PR #1 merged 2026-02-16.
 
 ### BL-003: Full Workflow Migration (L2/Person/Orchestrator)
 **Status**: Idea | **Effort**: XL | **Spec**: —
@@ -216,6 +216,9 @@ _No items yet._
 
 ### BL-001: Contacts & Companies Screens (Done 2026-02-13)
 Dashboard screens with infinite scroll, virtual DOM windowing, filters, detail modals, inline editing. ADR-001.
+
+### BL-002: L1 Workflow Postgres Migration (Done 2026-02-16)
+Native Python L1 enrichment via Perplexity sonar API, replacing n8n webhook. 8 QC checks, research storage, review workflow, LinkedIn context. 105 enricher + 32 route tests. ADR-003, PR #1.
 
 ### BL-006: Contact List Import & Cleanup — Phase 1 (Done 2026-02-13)
 CSV upload with AI column mapping, dedup preview, batch import. 80 unit tests. ADR-002.
