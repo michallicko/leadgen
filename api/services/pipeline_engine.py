@@ -219,7 +219,8 @@ def update_run(run_id, **kwargs):
         params[key] = value
 
     if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
-        set_parts.append("completed_at = now()")
+        set_parts.append("completed_at = :completed_at")
+        params["completed_at"] = datetime.now(timezone.utc).isoformat()
 
     if not set_parts:
         return
@@ -597,7 +598,8 @@ def _update_pipeline_run(pipeline_run_id, **kwargs):
         params[key] = value
 
     if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
-        set_parts.append("completed_at = now()")
+        set_parts.append("completed_at = :completed_at")
+        params["completed_at"] = datetime.now(timezone.utc).isoformat()
 
     if not set_parts:
         return

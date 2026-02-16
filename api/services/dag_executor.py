@@ -5,6 +5,7 @@ eligibility builder. Each stage's eligible entities are determined by checking t
 all required dependencies (hard + activated soft) have 'completed' rows.
 """
 
+import datetime
 import logging
 import threading
 import time
@@ -41,6 +42,7 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
         "status": status,
         "cost_usd": cost_usd or 0,
         "error": str(error)[:500] if error else None,
+        "_now": datetime.datetime.utcnow().isoformat(),
     }
     try:
         # Try PG upsert first
@@ -53,7 +55,7 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
                         :entity_id, :stage, :status, :cost_usd, :error)
                 ON CONFLICT (pipeline_run_id, entity_id, stage) DO UPDATE
                 SET status = EXCLUDED.status, cost_usd = EXCLUDED.cost_usd,
-                    error = EXCLUDED.error, completed_at = now()
+                    error = EXCLUDED.error, completed_at = :_now
             """),
             params,
         )
@@ -367,7 +369,8 @@ def _update_stage_run(run_id, **kwargs):
         params[key] = value
 
     if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
-        set_parts.append("completed_at = now()")
+        set_parts.append("completed_at = :completed_at")
+        params["completed_at"] = datetime.datetime.utcnow().isoformat()
 
     if not set_parts:
         return
@@ -555,7 +558,8 @@ def _update_pipeline_run(pipeline_run_id, **kwargs):
         params[key] = value
 
     if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
-        set_parts.append("completed_at = now()")
+        set_parts.append("completed_at = :completed_at")
+        params["completed_at"] = datetime.datetime.utcnow().isoformat()
 
     if not set_parts:
         return
