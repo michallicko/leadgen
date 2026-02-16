@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
 db = SQLAlchemy()
 
@@ -265,6 +265,10 @@ class ImportJob(db.Model):
     enrichment_depth = db.Column(db.Text)
     estimated_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     actual_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    source = db.Column(db.Text, default="csv")
+    oauth_connection_id = db.Column(UUID(as_uuid=False), db.ForeignKey("oauth_connections.id"))
+    scan_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    scan_progress = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     dedup_strategy = db.Column(db.Text, default="skip")
     dedup_results = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     status = db.Column(db.Text, default="uploaded")
@@ -416,6 +420,39 @@ class LlmUsageLog(db.Model):
             "cost_usd": float(self.cost_usd) if self.cost_usd else 0,
             "duration_ms": self.duration_ms,
             "metadata": self.extra or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class OAuthConnection(db.Model):
+    __tablename__ = "oauth_connections"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    provider = db.Column(db.Text, nullable=False)
+    provider_account_id = db.Column(db.Text)
+    provider_email = db.Column(db.Text)
+    access_token_enc = db.Column(db.Text)
+    refresh_token_enc = db.Column(db.Text)
+    token_expiry = db.Column(db.DateTime(timezone=True))
+    scopes = db.Column(ARRAY(db.Text))
+    status = db.Column(db.Text, nullable=False, default="active")
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "tenant_id", "provider", "provider_account_id",
+                            name="uq_oauth_user_provider_account"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "provider": self.provider,
+            "provider_email": self.provider_email,
+            "status": self.status,
+            "scopes": self.scopes if isinstance(self.scopes, list) else [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gmail Import — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+select, input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+select option { background: var(--bg); color: var(--text); }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label:first-child { display: block; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8B47A8, #6E2C8B); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #3aa372; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
+.btn-google {
+  background: #fff; color: #3c4043; font-weight: 600;
+  border: 1px solid #dadce0; border-radius: 6px; padding: 10px 20px;
+  display: inline-flex; align-items: center; gap: 10px;
+  cursor: pointer; transition: box-shadow 0.2s;
+}
+.btn-google:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.btn-google svg { flex-shrink: 0; }
+
+/* Top nav */
+.top-nav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 0; margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand { display: flex; align-items: center; gap: 10px; }
+.top-nav__title { font-family: var(--font-title); font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.top-nav__links { display: flex; gap: 2px; margin-left: 24px; }
+.top-nav__link {
+  color: var(--text-muted); text-decoration: none;
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
+  padding: 6px 14px; border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover { color: var(--text); background: rgba(110,44,139,0.08); }
+.top-nav__link.active { color: var(--accent-cyan); font-weight: 600; background: rgba(0,184,207,0.08); }
+
+/* Toast */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: #fff; opacity: 0; transform: translateX(40px); transition: opacity 0.3s, transform 0.3s; max-width: 360px; }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--accent-cyan); }
+
+.loading-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Wizard steps */
+.wizard-steps {
+  display: flex; gap: 0; margin-bottom: 24px; position: relative;
+}
+.wizard-step {
+  flex: 1; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 0.82rem; color: var(--text-dim);
+  transition: all 0.3s ease;
+}
+.wizard-step:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+.wizard-step:last-child { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.wizard-step:not(:first-child) { border-left: none; }
+.wizard-step .step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-title); font-size: 0.75rem; font-weight: 700;
+  background: var(--surface-alt); color: var(--text-dim);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+.wizard-step .step-label { font-weight: 500; }
+.wizard-step.active { color: var(--text); background: var(--surface-alt); }
+.wizard-step.active .step-num { background: var(--accent); color: #fff; }
+.wizard-step.done { color: var(--success); }
+.wizard-step.done .step-num { background: rgba(52,211,153,0.15); color: var(--success); }
+
+/* Wizard sections */
+.wizard-section { display: none; animation: fadeSlideIn 0.3s ease; }
+.wizard-section.visible { display: block; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Spinner */
+.spinner-overlay {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 32px; color: var(--text-muted); font-size: 0.9rem;
+}
+.spinner-lg {
+  width: 24px; height: 24px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+
+/* Connected account */
+.connected-account {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-radius: var(--radius);
+  background: var(--surface-alt); margin-bottom: 16px;
+}
+.connected-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0;
+}
+.connected-email { font-weight: 500; flex: 1; }
+.connected-actions { display: flex; gap: 8px; }
+
+/* Source cards */
+.source-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 600px) { .source-cards { grid-template-columns: 1fr; } }
+.source-card {
+  padding: 20px; border-radius: var(--radius-lg);
+  border: 2px solid var(--border-solid);
+  cursor: pointer; transition: all 0.2s;
+  text-align: center;
+}
+.source-card:hover { border-color: var(--accent); background: rgba(110,44,139,0.04); }
+.source-card.selected { border-color: var(--accent-cyan); background: rgba(0,184,207,0.06); }
+.source-icon { font-size: 2rem; margin-bottom: 10px; }
+.source-title { font-family: var(--font-title); font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+.source-desc { font-size: 0.78rem; color: var(--text-muted); }
+
+/* Preview table */
+.preview-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.preview-table th {
+  text-align: left; padding: 8px 10px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.preview-table td {
+  padding: 8px 10px; border-bottom: 1px solid rgba(35,29,48,0.3);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Dedup badges */
+.dedup-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+}
+.dedup-badge.new { background: rgba(52,211,153,0.15); color: var(--success); }
+.dedup-badge.duplicate { background: rgba(248,113,113,0.15); color: var(--error); }
+.dedup-badge.existing { background: rgba(251,191,36,0.15); color: var(--warning); }
+
+/* Summary bar */
+.summary-bar {
+  display: flex; gap: 24px; flex-wrap: wrap;
+  padding: 14px 18px; border-radius: var(--radius);
+  background: var(--surface-alt); margin-bottom: 16px;
+}
+.summary-stat { text-align: center; }
+.summary-stat .num {
+  font-family: var(--font-title); font-size: 1.4rem; font-weight: 700;
+  display: block; line-height: 1;
+}
+.summary-stat .num.green { color: var(--success); }
+.summary-stat .num.yellow { color: var(--warning); }
+.summary-stat .num.red { color: var(--error); }
+.summary-stat .label {
+  font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin-top: 4px;
+}
+
+/* Radio group */
+.radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.radio-option {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 6px;
+  border: 1px solid var(--border); cursor: pointer;
+  font-size: 0.82rem; color: var(--text-muted);
+  transition: all 0.2s;
+}
+.radio-option:hover { border-color: var(--accent); color: var(--text); }
+.radio-option.selected { border-color: var(--accent); color: var(--text); background: rgba(110,44,139,0.08); }
+.radio-option input { display: none; }
+
+/* Success panel */
+.success-panel { text-align: center; padding: 32px; }
+.success-panel .check-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(52,211,153,0.12); color: var(--success);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; margin-bottom: 16px;
+}
+.success-panel h2 {
+  font-family: var(--font-title); font-size: 1.15rem; font-weight: 600;
+  margin-bottom: 8px;
+}
+.success-panel p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
+.success-counts { display: flex; gap: 24px; justify-content: center; margin-bottom: 24px; }
+
+.preview-scroll { max-height: 400px; overflow: auto; }
+.preview-scroll thead { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+
+/* Scan config */
+.scan-config { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+@media (max-width: 600px) { .scan-config { grid-template-columns: 1fr; } }
+
+/* Progress bar */
+.progress-wrap { margin: 20px 0; }
+.progress-bar-bg {
+  height: 8px; border-radius: 4px; background: var(--surface-alt);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan));
+  transition: width 0.5s ease;
+  width: 0%;
+}
+.progress-text {
+  font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;
+  display: flex; justify-content: space-between;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link">Pipeline</a>
+      <a href="companies.html" class="top-nav__link">Companies</a>
+      <a href="contacts.html" class="top-nav__link">Contacts</a>
+      <a href="messages.html" class="top-nav__link">Messages</a>
+      <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
+      <a href="gmail-import.html" class="top-nav__link active" data-min-role="editor">Gmail</a>
+      <a href="enrich.html" class="top-nav__link" data-min-role="editor">Enrich</a>
+      <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
+      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+
+  <h1>Gmail &amp; Google Contacts Import</h1>
+
+  <!-- Wizard Steps -->
+  <div class="wizard-steps">
+    <div class="wizard-step active" data-step="1">
+      <span class="step-num">1</span>
+      <span class="step-label">Connect</span>
+    </div>
+    <div class="wizard-step" data-step="2">
+      <span class="step-num">2</span>
+      <span class="step-label">Source</span>
+    </div>
+    <div class="wizard-step" data-step="3">
+      <span class="step-num">3</span>
+      <span class="step-label">Preview</span>
+    </div>
+    <div class="wizard-step" data-step="4">
+      <span class="step-num">4</span>
+      <span class="step-label">Import</span>
+    </div>
+  </div>
+
+  <!-- Step 1: Connect Google Account -->
+  <div id="section_connect" class="wizard-section visible">
+    <div class="card">
+      <div class="card-title">Google Account</div>
+
+      <div id="no_connections" style="text-align:center; padding: 24px 0;">
+        <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.9rem;">
+          Connect your Google account to import contacts from Gmail or Google Contacts.
+        </p>
+        <button class="btn-google" onclick="connectGoogle()">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Sign in with Google
+        </button>
+      </div>
+
+      <div id="connections_list" style="display:none;"></div>
+
+      <div id="connect_spinner" class="spinner-overlay" style="display:none;">
+        <div class="spinner-lg"></div>
+        <span>Connecting...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Choose Source -->
+  <div id="section_source" class="wizard-section">
+    <div class="card">
+      <div class="card-title">Choose Import Source</div>
+
+      <div class="source-cards">
+        <div class="source-card" id="source_contacts" onclick="selectSource('contacts')">
+          <div class="source-icon">&#128101;</div>
+          <div class="source-title">Google Contacts</div>
+          <div class="source-desc">Import from your Google Contacts address book. Structured data, no AI needed.</div>
+        </div>
+        <div class="source-card" id="source_gmail" onclick="selectSource('gmail')">
+          <div class="source-icon">&#128231;</div>
+          <div class="source-title">Gmail Emails</div>
+          <div class="source-desc">Scan email headers and signatures. AI extracts job titles, companies, phone numbers.</div>
+        </div>
+      </div>
+
+      <!-- Gmail scan config -->
+      <div id="gmail_config" style="display:none;">
+        <div class="scan-config">
+          <div class="form-row">
+            <label>Date Range</label>
+            <select id="scan_date_range">
+              <option value="30">Last 30 days</option>
+              <option value="90" selected>Last 90 days</option>
+              <option value="180">Last 180 days</option>
+              <option value="0">All time</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Exclude Domains (comma-separated)</label>
+            <input type="text" id="scan_exclude_domains" placeholder="gmail.com, yahoo.com">
+          </div>
+        </div>
+      </div>
+
+      <!-- Import config -->
+      <div class="scan-config" style="margin-top:16px;">
+        <div class="form-row">
+          <label>Batch Name</label>
+          <input type="text" id="batch_name" placeholder="auto-generated">
+        </div>
+        <div class="form-row">
+          <label>Owner</label>
+          <select id="owner_select"><option value="">None</option></select>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="goToStep(1)">Back</button>
+        <button class="btn btn-primary" id="btn_fetch" onclick="fetchContacts()" disabled>Fetch Contacts</button>
+      </div>
+
+      <div id="fetch_spinner" class="spinner-overlay" style="display:none;">
+        <div class="spinner-lg"></div>
+        <span id="fetch_spinner_text">Fetching contacts from Google...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Preview & Import -->
+  <div id="section_preview" class="wizard-section">
+    <div class="card">
+      <div class="card-title">Preview</div>
+
+      <div id="preview_summary" class="summary-bar" style="display:none;"></div>
+
+      <div id="preview_spinner" class="spinner-overlay" style="display:none;">
+        <div class="spinner-lg"></div>
+        <span>Running dedup analysis...</span>
+      </div>
+
+      <!-- Gmail scan progress -->
+      <div id="scan_progress" style="display:none;">
+        <div class="progress-wrap">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="scan_progress_bar"></div>
+          </div>
+          <div class="progress-text">
+            <span id="scan_progress_phase">Scanning...</span>
+            <span id="scan_progress_count"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-scroll">
+        <table class="preview-table">
+          <thead id="preview_thead"></thead>
+          <tbody id="preview_body"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="form-row">
+          <label>Duplicate Strategy</label>
+          <div class="radio-group" id="dedup_strategy">
+            <label class="radio-option selected" data-val="skip">
+              <input type="radio" name="dedup" value="skip" checked>
+              Skip duplicates
+            </label>
+            <label class="radio-option" data-val="update">
+              <input type="radio" name="dedup" value="update">
+              Update empty fields
+            </label>
+            <label class="radio-option" data-val="create_new">
+              <input type="radio" name="dedup" value="create_new">
+              Create new anyway
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="goToStep(2)">Back</button>
+        <button class="btn btn-success" id="btn_import" onclick="executeImport()">Import Contacts</button>
+      </div>
+    </div>
+
+    <!-- Success panel -->
+    <div id="success_panel" class="card" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast_container"></div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = 'https://leadgen.visionvolve.com/api';
+  var currentJobId = null;
+  var selectedSource = null;
+  var activeConnectionId = null;
+  var owners = [];
+  var scanPollTimer = null;
+
+  // ---- Helpers ----
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  function authHeaders() {
+    return {
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : (localStorage.getItem('lg_access_token') || '')),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  function apiFetch(url, opts) {
+    var options = Object.assign({ headers: authHeaders() }, opts || {});
+    return fetch(url, options).then(function(resp) {
+      if (resp.status === 401) throw new Error('Authentication failed');
+      if (!resp.ok) return resp.text().then(function(t) { throw new Error('HTTP ' + resp.status + ': ' + t); });
+      return resp.json();
+    });
+  }
+
+  function toast(msg, type) {
+    var container = document.getElementById('toast_container');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    container.appendChild(t);
+    setTimeout(function() { t.classList.add('show'); }, 10);
+    setTimeout(function() {
+      t.classList.remove('show');
+      setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
+    }, 4000);
+  }
+
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  // ---- Wizard navigation ----
+
+  window.goToStep = function(step) {
+    var sections = ['section_connect', 'section_source', 'section_preview'];
+    sections.forEach(function(id, i) {
+      var el = document.getElementById(id);
+      el.classList.toggle('visible', i === step - 1);
+    });
+    document.querySelectorAll('.wizard-step').forEach(function(el) {
+      var s = parseInt(el.getAttribute('data-step'));
+      el.classList.toggle('active', s === step);
+      el.classList.toggle('done', s < step);
+    });
+  };
+
+  // ---- Step 1: Connect ----
+
+  function loadConnections() {
+    apiFetch(API_BASE + '/oauth/connections').then(function(data) {
+      var conns = data.connections || [];
+      var listEl = document.getElementById('connections_list');
+      var noEl = document.getElementById('no_connections');
+
+      if (conns.length === 0) {
+        noEl.style.display = '';
+        listEl.style.display = 'none';
+        return;
+      }
+
+      noEl.style.display = 'none';
+      listEl.style.display = 'block';
+      clearChildren(listEl);
+
+      conns.forEach(function(c) {
+        if (c.status !== 'active') return;
+        activeConnectionId = c.id;
+        var row = document.createElement('div');
+        row.className = 'connected-account';
+
+        var dot = document.createElement('span');
+        dot.className = 'connected-dot';
+        row.appendChild(dot);
+
+        var email = document.createElement('span');
+        email.className = 'connected-email';
+        email.textContent = c.provider_email;
+        row.appendChild(email);
+
+        var provider = document.createElement('span');
+        provider.style.cssText = 'font-size:0.78rem; color:var(--text-dim);';
+        provider.textContent = c.provider;
+        row.appendChild(provider);
+
+        var actions = document.createElement('div');
+        actions.className = 'connected-actions';
+
+        var continueBtn = document.createElement('button');
+        continueBtn.className = 'btn btn-primary btn-sm';
+        continueBtn.textContent = 'Continue';
+        continueBtn.addEventListener('click', function() { goToStep(2); });
+        actions.appendChild(continueBtn);
+
+        var disconnectBtn = document.createElement('button');
+        disconnectBtn.className = 'btn btn-ghost btn-sm';
+        disconnectBtn.textContent = 'Disconnect';
+        disconnectBtn.setAttribute('data-conn-id', c.id);
+        disconnectBtn.addEventListener('click', function() {
+          disconnectAccount(this.getAttribute('data-conn-id'));
+        });
+        actions.appendChild(disconnectBtn);
+
+        row.appendChild(actions);
+        listEl.appendChild(row);
+      });
+
+      // Button to connect another account
+      var addDiv = document.createElement('div');
+      addDiv.style.cssText = 'margin-top:12px; text-align:center;';
+      var addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-ghost btn-sm';
+      addBtn.textContent = 'Connect another account';
+      addBtn.addEventListener('click', function() { connectGoogle(); });
+      addDiv.appendChild(addBtn);
+      listEl.appendChild(addDiv);
+    }).catch(function(err) {
+      toast('Failed to load connections: ' + err.message, 'error');
+    });
+  }
+
+  window.connectGoogle = function() {
+    var scopeParam = 'both';
+    var returnUrl = window.location.href;
+    apiFetch(API_BASE + '/oauth/google/auth-url?scopes=' + scopeParam + '&return_url=' + encodeURIComponent(returnUrl))
+      .then(function(data) {
+        window.location.href = data.auth_url;
+      })
+      .catch(function(err) {
+        toast('Failed to start OAuth: ' + err.message, 'error');
+      });
+  };
+
+  function disconnectAccount(id) {
+    if (!confirm('Disconnect this Google account?')) return;
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+    fetch(API_BASE + '/oauth/connections/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: h
+    }).then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    }).then(function() {
+      toast('Account disconnected', 'success');
+      activeConnectionId = null;
+      loadConnections();
+    }).catch(function(err) {
+      toast('Disconnect failed: ' + err.message, 'error');
+    });
+  }
+
+  // ---- Step 2: Source ----
+
+  window.selectSource = function(source) {
+    selectedSource = source;
+    document.getElementById('source_contacts').classList.toggle('selected', source === 'contacts');
+    document.getElementById('source_gmail').classList.toggle('selected', source === 'gmail');
+    document.getElementById('gmail_config').style.display = source === 'gmail' ? '' : 'none';
+    document.getElementById('btn_fetch').disabled = false;
+    document.getElementById('btn_fetch').textContent = source === 'contacts' ? 'Fetch Contacts' : 'Start Scan';
+  };
+
+  // ---- Step 2: Fetch ----
+
+  window.fetchContacts = function() {
+    if (!activeConnectionId) {
+      toast('No Google account connected', 'error');
+      return;
+    }
+    if (selectedSource === 'contacts') {
+      fetchGoogleContacts();
+    } else if (selectedSource === 'gmail') {
+      startGmailScan();
+    }
+  };
+
+  function fetchGoogleContacts() {
+    var spinner = document.getElementById('fetch_spinner');
+    document.getElementById('fetch_spinner_text').textContent = 'Fetching contacts from Google...';
+    spinner.style.display = '';
+    document.getElementById('btn_fetch').disabled = true;
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/contacts/fetch', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ connection_id: activeConnectionId })
+    })
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
+      spinner.style.display = 'none';
+      if (!result.ok) {
+        toast(result.data.error || 'Fetch failed', 'error');
+        document.getElementById('btn_fetch').disabled = false;
+        return;
+      }
+      currentJobId = result.data.job_id;
+      toast('Found ' + result.data.total_contacts + ' contacts', 'success');
+      runPreview();
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      document.getElementById('btn_fetch').disabled = false;
+      toast('Fetch failed: ' + err.message, 'error');
+    });
+  }
+
+  function startGmailScan() {
+    var spinner = document.getElementById('fetch_spinner');
+    document.getElementById('fetch_spinner_text').textContent = 'Starting Gmail scan...';
+    spinner.style.display = '';
+    document.getElementById('btn_fetch').disabled = true;
+
+    var dateRange = document.getElementById('scan_date_range').value;
+    var excludeDomains = document.getElementById('scan_exclude_domains').value;
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/scan/start', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        connection_id: activeConnectionId,
+        date_range: parseInt(dateRange) || null,
+        exclude_domains: excludeDomains ? excludeDomains.split(',').map(function(s) { return s.trim(); }) : [],
+        max_messages: 5000
+      })
+    })
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
+      spinner.style.display = 'none';
+      if (!result.ok) {
+        toast(result.data.error || 'Scan start failed', 'error');
+        document.getElementById('btn_fetch').disabled = false;
+        return;
+      }
+      currentJobId = result.data.job_id;
+      goToStep(3);
+      pollScanProgress();
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      document.getElementById('btn_fetch').disabled = false;
+      toast('Scan failed: ' + err.message, 'error');
+    });
+  }
+
+  function pollScanProgress() {
+    var progressEl = document.getElementById('scan_progress');
+    progressEl.style.display = '';
+
+    scanPollTimer = setInterval(function() {
+      apiFetch(API_BASE + '/gmail/scan/' + currentJobId + '/status')
+        .then(function(data) {
+          var progress = data.scan_progress || {};
+          var bar = document.getElementById('scan_progress_bar');
+          var phase = document.getElementById('scan_progress_phase');
+          var count = document.getElementById('scan_progress_count');
+
+          var pct = progress.percent || 0;
+          bar.style.width = pct + '%';
+          phase.textContent = (progress.phase || 'scanning').replace(/_/g, ' ');
+          count.textContent = (progress.contacts_found || 0) + ' contacts found';
+
+          if (data.status === 'extracted' || data.status === 'error') {
+            clearInterval(scanPollTimer);
+            progressEl.style.display = 'none';
+            if (data.status === 'error') {
+              toast('Scan failed: ' + (data.error || 'unknown error'), 'error');
+            } else {
+              toast('Scan complete! Found ' + (progress.contacts_found || 0) + ' contacts', 'success');
+              runPreview();
+            }
+          }
+        })
+        .catch(function() {});
+    }, 3000);
+  }
+
+  // ---- Step 3: Preview ----
+
+  function runPreview() {
+    goToStep(3);
+    var spinner = document.getElementById('preview_spinner');
+    spinner.style.display = '';
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/contacts/' + currentJobId + '/preview', {
+      method: 'POST',
+      headers: h,
+      body: '{}'
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      spinner.style.display = 'none';
+      renderPreview(data);
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      toast('Preview failed: ' + err.message, 'error');
+    });
+  }
+
+  function renderPreview(data) {
+    var summary = data.summary || {};
+    var rows = data.preview_rows || [];
+
+    // Summary bar
+    var summaryEl = document.getElementById('preview_summary');
+    summaryEl.style.display = '';
+    clearChildren(summaryEl);
+
+    var stats = [
+      { num: data.total_rows, label: 'Total', cls: '' },
+      { num: summary.new_contacts, label: 'New', cls: 'green' },
+      { num: summary.duplicate_contacts, label: 'Duplicate', cls: 'red' },
+      { num: summary.new_companies, label: 'New Co.', cls: 'green' },
+      { num: summary.existing_companies, label: 'Existing Co.', cls: 'yellow' }
+    ];
+    stats.forEach(function(s) {
+      var stat = document.createElement('div');
+      stat.className = 'summary-stat';
+      var numEl = document.createElement('span');
+      numEl.className = 'num' + (s.cls ? ' ' + s.cls : '');
+      numEl.textContent = s.num;
+      stat.appendChild(numEl);
+      var labelEl = document.createElement('span');
+      labelEl.className = 'label';
+      labelEl.textContent = s.label;
+      stat.appendChild(labelEl);
+      summaryEl.appendChild(stat);
+    });
+
+    // Table
+    var thead = document.getElementById('preview_thead');
+    var tbody = document.getElementById('preview_body');
+    clearChildren(thead);
+    clearChildren(tbody);
+
+    var headerRow = document.createElement('tr');
+    ['Name', 'Email', 'Company', 'Job Title', 'Contact', 'Company'].forEach(function(h) {
+      var th = document.createElement('th');
+      th.textContent = h;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+
+    rows.forEach(function(r) {
+      var tr = document.createElement('tr');
+      var ct = r.contact || {};
+      var co = r.company || {};
+
+      var nameTd = document.createElement('td');
+      nameTd.textContent = ((ct.first_name || '') + ' ' + (ct.last_name || '')).trim();
+      tr.appendChild(nameTd);
+
+      var emailTd = document.createElement('td');
+      emailTd.textContent = ct.email_address || '';
+      tr.appendChild(emailTd);
+
+      var coTd = document.createElement('td');
+      coTd.textContent = co.name || co.domain || '';
+      tr.appendChild(coTd);
+
+      var titleTd = document.createElement('td');
+      titleTd.textContent = ct.job_title || '';
+      tr.appendChild(titleTd);
+
+      var ctBadgeTd = document.createElement('td');
+      var ctBadge = document.createElement('span');
+      ctBadge.className = 'dedup-badge ' + (r.contact_status === 'new' ? 'new' : 'duplicate');
+      ctBadge.textContent = r.contact_status === 'new' ? 'New' : 'Dup';
+      ctBadgeTd.appendChild(ctBadge);
+      tr.appendChild(ctBadgeTd);
+
+      var coBadgeTd = document.createElement('td');
+      var coBadge = document.createElement('span');
+      coBadge.className = 'dedup-badge ' + (r.company_status === 'new' ? 'new' : 'existing');
+      coBadge.textContent = r.company_status === 'new' ? 'New' : 'Existing';
+      coBadgeTd.appendChild(coBadge);
+      tr.appendChild(coBadgeTd);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- Step 4: Execute Import ----
+
+  window.executeImport = function() {
+    if (!currentJobId) return;
+    var btn = document.getElementById('btn_import');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    var strategy = document.querySelector('input[name="dedup"]:checked').value;
+    var batchName = document.getElementById('batch_name').value || ('gmail-import-' + new Date().toISOString().slice(0, 10));
+    var ownerId = document.getElementById('owner_select').value;
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    var body = { batch_name: batchName, dedup_strategy: strategy };
+    if (ownerId) body.owner_id = ownerId;
+
+    fetch(API_BASE + '/gmail/contacts/' + currentJobId + '/execute', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify(body)
+    })
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
+      btn.disabled = false;
+      btn.textContent = 'Import Contacts';
+      if (!result.ok) {
+        toast(result.data.error || 'Import failed', 'error');
+        return;
+      }
+
+      var counts = result.data.counts || {};
+      var panel = document.getElementById('success_panel');
+      panel.style.display = '';
+      clearChildren(panel);
+
+      var wrap = document.createElement('div');
+      wrap.className = 'success-panel';
+
+      var icon = document.createElement('div');
+      icon.className = 'check-icon';
+      icon.textContent = '\u2713';
+      wrap.appendChild(icon);
+
+      var h2 = document.createElement('h2');
+      h2.textContent = 'Import Complete';
+      wrap.appendChild(h2);
+
+      var p = document.createElement('p');
+      p.textContent = 'Your contacts have been imported from ' + (selectedSource === 'gmail' ? 'Gmail' : 'Google Contacts') + '.';
+      wrap.appendChild(p);
+
+      var countsDiv = document.createElement('div');
+      countsDiv.className = 'success-counts';
+      [
+        { n: counts.contacts_created || 0, l: 'Created', c: 'green' },
+        { n: counts.contacts_updated || 0, l: 'Updated', c: 'yellow' },
+        { n: counts.contacts_skipped || 0, l: 'Skipped', c: '' },
+        { n: counts.companies_created || 0, l: 'New Co.', c: 'green' }
+      ].forEach(function(s) {
+        var stat = document.createElement('div');
+        stat.className = 'summary-stat';
+        var numEl = document.createElement('span');
+        numEl.className = 'num' + (s.c ? ' ' + s.c : '');
+        numEl.textContent = s.n;
+        stat.appendChild(numEl);
+        var labelEl = document.createElement('span');
+        labelEl.className = 'label';
+        labelEl.textContent = s.l;
+        stat.appendChild(labelEl);
+        countsDiv.appendChild(stat);
+      });
+      wrap.appendChild(countsDiv);
+
+      var viewBtn = document.createElement('button');
+      viewBtn.className = 'btn btn-primary';
+      viewBtn.textContent = 'View Contacts';
+      viewBtn.addEventListener('click', function() { window.location.href = 'contacts.html'; });
+      wrap.appendChild(viewBtn);
+
+      var spacer = document.createTextNode('\u00a0\u00a0');
+      wrap.appendChild(spacer);
+
+      var moreBtn = document.createElement('button');
+      moreBtn.className = 'btn btn-ghost';
+      moreBtn.textContent = 'Import More';
+      moreBtn.addEventListener('click', function() { resetWizard(); });
+      wrap.appendChild(moreBtn);
+
+      panel.appendChild(wrap);
+      toast('Import complete!', 'success');
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Import Contacts';
+      toast('Import failed: ' + err.message, 'error');
+    });
+  };
+
+  window.resetWizard = function() {
+    currentJobId = null;
+    selectedSource = null;
+    document.getElementById('source_contacts').classList.remove('selected');
+    document.getElementById('source_gmail').classList.remove('selected');
+    document.getElementById('gmail_config').style.display = 'none';
+    document.getElementById('btn_fetch').disabled = true;
+    clearChildren(document.getElementById('preview_body'));
+    clearChildren(document.getElementById('preview_thead'));
+    document.getElementById('preview_summary').style.display = 'none';
+    document.getElementById('success_panel').style.display = 'none';
+    document.getElementById('scan_progress').style.display = 'none';
+    if (scanPollTimer) clearInterval(scanPollTimer);
+    goToStep(1);
+  };
+
+  // ---- Dedup radio group ----
+
+  document.querySelectorAll('.radio-option').forEach(function(opt) {
+    opt.addEventListener('click', function() {
+      document.querySelectorAll('.radio-option').forEach(function(o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+      opt.querySelector('input').checked = true;
+    });
+  });
+
+  // ---- Load owners ----
+
+  function loadOwners() {
+    apiFetch(API_BASE + '/batches').then(function(data) {
+      owners = data.owners || [];
+      var sel = document.getElementById('owner_select');
+      owners.forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = o.name;
+        sel.appendChild(opt);
+      });
+    }).catch(function() {});
+  }
+
+  // ---- Init ----
+
+  LeadgenAuth.protect();
+  loadConnections();
+  loadOwners();
+
+})();
+</script>
+</body>
+</html>

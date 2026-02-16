@@ -9,3 +9,11 @@ class Config:
     JWT_REFRESH_EXPIRY = 7 * 24 * 3600  # 7 days
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
     N8N_BASE_URL = os.environ.get("N8N_BASE_URL", "https://n8n.visionvolve.com")
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "")
+
+    # Token encryption (Fernet key)
+    OAUTH_ENCRYPTION_KEY = os.environ.get("OAUTH_ENCRYPTION_KEY", "")
