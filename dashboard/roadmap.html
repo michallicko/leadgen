@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leadgen — Roadmap & Backlog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --surface-hover: #1F2330;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+
+  /* Theme colors */
+  --theme-ci: #00B8CF;
+  --theme-ci-bg: rgba(0,184,207,0.08);
+  --theme-ci-border: rgba(0,184,207,0.2);
+  --theme-pf: #9B59B6;
+  --theme-pf-bg: rgba(155,89,182,0.08);
+  --theme-pf-border: rgba(155,89,182,0.2);
+  --theme-oe: #F59E0B;
+  --theme-oe-bg: rgba(245,158,11,0.08);
+  --theme-oe-border: rgba(245,158,11,0.2);
+  --theme-cla: #34D399;
+  --theme-cla-bg: rgba(52,211,153,0.08);
+  --theme-cla-border: rgba(52,211,153,0.2);
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan), var(--accent));
+  z-index: 100;
+}
+
+/* ─── Layout ─── */
+.page { max-width: 1400px; margin: 0 auto; padding: 40px 32px 80px; }
+
+.page-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.page-header h1 {
+  font-family: var(--font-title);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.page-header .tag {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
+  background: rgba(0,184,207,0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 15px;
+  margin-bottom: 40px;
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* ─── Stats row ─── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-align: center;
+}
+
+.stat-card .value {
+  font-family: var(--font-title);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-card .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.stat-card.ci .value { color: var(--theme-ci); }
+.stat-card.pf .value { color: var(--theme-pf); }
+.stat-card.done .value { color: var(--success); }
+.stat-card.progress .value { color: var(--warning); }
+.stat-card.total .value { color: var(--text); }
+
+/* ─── Section headers ─── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  margin-top: 56px;
+}
+
+.section-header h2 {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.section-header .line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-solid);
+}
+
+.section-header .count {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface-alt);
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* ─── Roadmap Timeline ─── */
+.roadmap {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.roadmap-months {
+  display: grid;
+  grid-template-columns: 200px repeat(6, 1fr);
+  gap: 0;
+  margin-bottom: 0;
+}
+
+.month-header {
+  padding: 12px 16px;
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--border-solid);
+  text-align: center;
+}
+
+.month-header:first-child {
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.month-header.current {
+  color: var(--accent-cyan);
+  border-bottom-color: var(--accent-cyan);
+}
+
+.roadmap-lane {
+  display: grid;
+  grid-template-columns: 200px repeat(6, 1fr);
+  gap: 0;
+  border-bottom: 1px solid rgba(35,29,48,0.5);
+}
+
+.lane-label {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lane-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.lane-cell {
+  padding: 8px 4px;
+  min-height: 60px;
+  border-left: 1px solid rgba(35,29,48,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.lane-cell.current-month {
+  background: rgba(0,184,207,0.03);
+}
+
+.rm-item {
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: default;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.rm-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.rm-item.ci { background: var(--theme-ci-bg); border: 1px solid var(--theme-ci-border); color: var(--theme-ci); }
+.rm-item.pf { background: var(--theme-pf-bg); border: 1px solid var(--theme-pf-border); color: var(--theme-pf); }
+.rm-item.oe { background: var(--theme-oe-bg); border: 1px solid var(--theme-oe-border); color: var(--theme-oe); }
+.rm-item.cla { background: var(--theme-cla-bg); border: 1px solid var(--theme-cla-border); color: var(--theme-cla); }
+
+.rm-item.done { opacity: 0.5; text-decoration: line-through; }
+
+.rm-item .bl-id {
+  font-weight: 700;
+  margin-right: 3px;
+}
+
+/* Span items across months */
+.rm-span {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  padding: 8px 4px;
+  border-left: 1px solid rgba(35,29,48,0.3);
+}
+
+.rm-span .rm-item {
+  width: 100%;
+}
+
+/* ─── Dependency chains ─── */
+.dep-chains {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dep-chain {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 12px;
+}
+
+.dep-node {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-family: var(--font-title);
+  font-size: 11px;
+}
+
+.dep-node.ci { background: var(--theme-ci-bg); border: 1px solid var(--theme-ci-border); color: var(--theme-ci); }
+.dep-node.pf { background: var(--theme-pf-bg); border: 1px solid var(--theme-pf-border); color: var(--theme-pf); }
+
+.dep-arrow {
+  color: var(--text-dim);
+  font-size: 16px;
+  margin: 0 4px;
+}
+
+/* ─── Backlog cards ─── */
+.moscow-section { margin-bottom: 32px; }
+
+.moscow-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-title);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  padding: 6px 14px;
+  border-radius: 6px;
+}
+
+.moscow-label.must { background: rgba(248,113,113,0.1); color: var(--error); }
+.moscow-label.should { background: rgba(251,191,36,0.1); color: var(--warning); }
+.moscow-label.could { background: rgba(139,146,160,0.1); color: var(--text-muted); }
+
+.backlog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.bl-card {
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.bl-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.bl-card.ci::before { background: var(--theme-ci); }
+.bl-card.pf::before { background: var(--theme-pf); }
+.bl-card.oe::before { background: var(--theme-oe); }
+.bl-card.cla::before { background: var(--theme-cla); }
+
+.bl-card:hover {
+  border-color: rgba(110,44,139,0.3);
+  transform: translateY(-2px);
+}
+
+.bl-card.done-card { opacity: 0.45; }
+
+.bl-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.bl-card-id {
+  font-family: var(--font-title);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.bl-card-title {
+  font-family: var(--font-title);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.bl-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.bl-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.bl-badge.status-done { background: rgba(52,211,153,0.15); color: var(--success); }
+.bl-badge.status-progress { background: rgba(251,191,36,0.15); color: var(--warning); }
+.bl-badge.status-refined { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.bl-badge.status-idea { background: rgba(139,146,160,0.1); color: var(--text-dim); }
+
+.bl-badge.effort-s { background: rgba(52,211,153,0.1); color: var(--success); }
+.bl-badge.effort-m { background: rgba(0,184,207,0.1); color: var(--accent-cyan); }
+.bl-badge.effort-l { background: rgba(251,191,36,0.1); color: var(--warning); }
+.bl-badge.effort-xl { background: rgba(248,113,113,0.1); color: var(--error); }
+
+.bl-badge.theme-ci { background: var(--theme-ci-bg); color: var(--theme-ci); }
+.bl-badge.theme-pf { background: var(--theme-pf-bg); color: var(--theme-pf); }
+.bl-badge.theme-oe { background: var(--theme-oe-bg); color: var(--theme-oe); }
+.bl-badge.theme-cla { background: var(--theme-cla-bg); color: var(--theme-cla); }
+
+.bl-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bl-card-deps {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(35,29,48,0.5);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.bl-card-deps span { color: var(--text-muted); font-weight: 600; }
+
+/* ─── Theme legend ─── */
+.theme-legend {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legend-dot.ci { background: var(--theme-ci); }
+.legend-dot.pf { background: var(--theme-pf); }
+.legend-dot.oe { background: var(--theme-oe); }
+.legend-dot.cla { background: var(--theme-cla); }
+
+/* ─── Tabs ─── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-solid);
+  margin-bottom: 32px;
+}
+
+.tab {
+  padding: 12px 24px;
+  font-family: var(--font-title);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s, border-color 0.2s;
+  user-select: none;
+}
+
+.tab:hover { color: var(--text-muted); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent-cyan); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ─── Focus area ─── */
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.focus-card {
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.focus-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 80px; height: 80px;
+  border-radius: 0 0 0 80px;
+  opacity: 0.04;
+}
+
+.focus-card.f1::after { background: var(--theme-pf); }
+.focus-card.f2::after { background: var(--theme-ci); }
+.focus-card.f3::after { background: var(--theme-ci); }
+
+.focus-num {
+  font-family: var(--font-title);
+  font-size: 48px;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1;
+  margin-bottom: 8px;
+  opacity: 0.3;
+}
+
+.focus-title {
+  font-family: var(--font-title);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.focus-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.focus-items {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .page { padding: 24px 16px 60px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .backlog-grid { grid-template-columns: 1fr; }
+  .roadmap { overflow-x: auto; }
+  .roadmap-months, .roadmap-lane { min-width: 900px; }
+  .focus-grid { grid-template-columns: 1fr; }
+  .dep-chains { flex-direction: column; gap: 12px; }
+}
+
+/* ─── Animations ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bl-card, .stat-card, .focus-card {
+  animation: fadeUp 0.4s ease both;
+}
+
+.stats-row .stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stats-row .stat-card:nth-child(2) { animation-delay: 0.1s; }
+.stats-row .stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stats-row .stat-card:nth-child(4) { animation-delay: 0.2s; }
+.stats-row .stat-card:nth-child(5) { animation-delay: 0.25s; }
+
+/* Generated timestamp */
+.gen-stamp {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 60px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-solid);
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Leadgen Pipeline</h1>
+    <span class="tag">Roadmap & Backlog</span>
+  </div>
+  <p class="page-subtitle">
+    E2E GTM engineering platform for small companies, freelancers, and startups.
+    Contact Intelligence is the current focus &mdash; ingest, clean, enrich, keep fresh.
+  </p>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card total"><div class="value">30</div><div class="label">Total Items</div></div>
+    <div class="stat-card done"><div class="value">2</div><div class="label">Completed</div></div>
+    <div class="stat-card progress"><div class="value">2</div><div class="label">In Progress</div></div>
+    <div class="stat-card ci"><div class="value">20</div><div class="label">Contact Intel</div></div>
+    <div class="stat-card pf"><div class="value">6</div><div class="label">Platform</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="roadmap">Quarterly Roadmap</div>
+    <div class="tab" data-tab="backlog">Full Backlog</div>
+    <div class="tab" data-tab="deps">Dependencies</div>
+  </div>
+
+  <!-- ═══ TAB 1: ROADMAP ═══ -->
+  <div class="tab-content active" id="tab-roadmap">
+
+    <div class="section-header" style="margin-top:0">
+      <h2>Q1 2026 Focus</h2>
+      <div class="line"></div>
+    </div>
+
+    <div class="focus-grid">
+      <div class="focus-card f1">
+        <div class="focus-num">01</div>
+        <div class="focus-title">Platform Foundation</div>
+        <div class="focus-desc">Eliminate Airtable dependency. Migrate L1 workflow to PostgreSQL (BL-002), then expand to full workflow migration (BL-003). Foundation for everything else.</div>
+        <div class="focus-items">
+          <span class="rm-item pf"><span class="bl-id">002</span>L1 PG Migration</span>
+          <span class="rm-item pf"><span class="bl-id">003</span>Full Migration</span>
+          <span class="rm-item pf"><span class="bl-id">015</span>Pipeline Engine</span>
+        </div>
+      </div>
+      <div class="focus-card f2">
+        <div class="focus-num">02</div>
+        <div class="focus-title">Contact Intelligence</div>
+        <div class="focus-desc">Expand ingestion beyond CSV. XLSX support, LinkedIn imports, email validation. Make it easy and fast to get contacts into the system from any source.</div>
+        <div class="focus-items">
+          <span class="rm-item ci"><span class="bl-id">012</span>XLSX</span>
+          <span class="rm-item ci"><span class="bl-id">013</span>Email Validation</span>
+          <span class="rm-item ci"><span class="bl-id">011</span>Import Phase 2</span>
+        </div>
+      </div>
+      <div class="focus-card f3">
+        <div class="focus-num">03</div>
+        <div class="focus-title">Data Quality</div>
+        <div class="focus-desc">Clean and deduplicate existing data. Normalize company names and job titles. Detect stale contacts. Build the "keep contacts current" value prop.</div>
+        <div class="focus-items">
+          <span class="rm-item ci"><span class="bl-id">021</span>Normalization</span>
+          <span class="rm-item ci"><span class="bl-id">022</span>Bulk Dedup</span>
+          <span class="rm-item ci"><span class="bl-id">023</span>Staleness</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="section-header">
+      <h2>Timeline</h2>
+      <div class="line"></div>
+      <span class="count">Feb &ndash; Jul 2026</span>
+    </div>
+
+    <div class="theme-legend">
+      <div class="legend-item"><div class="legend-dot ci"></div>Contact Intelligence</div>
+      <div class="legend-item"><div class="legend-dot pf"></div>Platform Foundation</div>
+      <div class="legend-item"><div class="legend-dot cla"></div>Closed-Loop Analytics</div>
+      <div class="legend-item"><div class="legend-dot oe"></div>Outreach Engine</div>
+    </div>
+
+    <div class="roadmap">
+      <!-- Month headers -->
+      <div class="roadmap-months">
+        <div class="month-header">Theme</div>
+        <div class="month-header current">Feb</div>
+        <div class="month-header">Mar</div>
+        <div class="month-header">Apr</div>
+        <div class="month-header">May</div>
+        <div class="month-header">Jun</div>
+        <div class="month-header">Jul</div>
+      </div>
+
+      <!-- Platform Foundation lane -->
+      <div class="roadmap-lane">
+        <div class="lane-label"><div class="lane-dot" style="background:var(--theme-pf)"></div>Platform</div>
+        <div class="lane-cell current-month">
+          <div class="rm-item pf"><span class="bl-id">002</span> L1 PG Migration</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item pf"><span class="bl-id">003</span> Full Migration</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item pf"><span class="bl-id">015</span> Pipeline Engine</div>
+          <div class="rm-item pf"><span class="bl-id">030</span> Resend</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item pf"><span class="bl-id">015</span> Engine cont.</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item pf"><span class="bl-id">007</span> CRM Framework</div>
+        </div>
+        <div class="lane-cell"></div>
+      </div>
+
+      <!-- Contact Intelligence lane -->
+      <div class="roadmap-lane">
+        <div class="lane-label"><div class="lane-dot" style="background:var(--theme-ci)"></div>Contact Intel</div>
+        <div class="lane-cell current-month">
+          <div class="rm-item ci"><span class="bl-id">004</span> LinkedIn CSV</div>
+          <div class="rm-item ci"><span class="bl-id">012</span> XLSX</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">011</span> Import Ph.2</div>
+          <div class="rm-item ci"><span class="bl-id">013</span> Email Valid.</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">021</span> Normalize</div>
+          <div class="rm-item ci"><span class="bl-id">022</span> Bulk Dedup</div>
+          <div class="rm-item ci"><span class="bl-id">023</span> Staleness</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">016</span> Mod. Framework</div>
+          <div class="rm-item ci"><span class="bl-id">020</span> LinkedIn DL</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">017</span> Co. Modules</div>
+          <div class="rm-item ci"><span class="bl-id">018</span> Contact Mod.</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">014</span> On-Demand</div>
+          <div class="rm-item ci"><span class="bl-id">019</span> Employ. Verif.</div>
+        </div>
+      </div>
+
+      <!-- Integrations lane -->
+      <div class="roadmap-lane">
+        <div class="lane-label"><div class="lane-dot" style="background:var(--theme-ci)"></div>Integrations</div>
+        <div class="lane-cell current-month"></div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">024</span> Google Drive</div>
+          <div class="rm-item ci"><span class="bl-id">025</span> Gmail</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">026</span> Gmail Scan</div>
+          <div class="rm-item ci"><span class="bl-id">027</span> Outlook</div>
+        </div>
+        <div class="lane-cell">
+          <div class="rm-item ci"><span class="bl-id">008</span> HubSpot</div>
+          <div class="rm-item ci"><span class="bl-id">009</span> Pipedrive</div>
+          <div class="rm-item ci"><span class="bl-id">010</span> Notion</div>
+        </div>
+      </div>
+
+      <!-- Closed-Loop Analytics lane -->
+      <div class="roadmap-lane">
+        <div class="lane-label"><div class="lane-dot" style="background:var(--theme-cla)"></div>Analytics</div>
+        <div class="lane-cell current-month">
+          <div class="rm-item cla"><span class="bl-id">005</span> Stage Runs</div>
+        </div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell"></div>
+        <div class="lane-cell"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB 2: BACKLOG ═══ -->
+  <div class="tab-content" id="tab-backlog">
+
+    <!-- Must Have -->
+    <div class="moscow-section">
+      <div class="moscow-label must">Must Have <span class="count" style="margin-left:4px;font-size:10px;background:rgba(248,113,113,0.15);padding:2px 6px;border-radius:8px">12</span></div>
+      <div class="backlog-grid">
+        <div class="bl-card done-card" style="--delay:0.05s">
+          <div class="bl-card-header"><span class="bl-card-id">BL-001</span><span class="bl-card-title">Contacts & Companies Screens</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-done">Done</span><span class="bl-badge effort-l">L</span></div>
+          <div class="bl-card-desc">Dashboard screens with infinite scroll, virtual DOM windowing, filters, detail modals, inline editing.</div>
+        </div>
+
+        <div class="bl-card pf">
+          <div class="bl-card-header"><span class="bl-card-id">BL-002</span><span class="bl-card-title">L1 Workflow Postgres Migration</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-refined">Refined</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-pf">Platform</span></div>
+          <div class="bl-card-desc">Migrate L1 Company enrichment n8n workflow to write directly to PostgreSQL. First step in eliminating Airtable dependency.</div>
+        </div>
+
+        <div class="bl-card pf">
+          <div class="bl-card-header"><span class="bl-card-id">BL-003</span><span class="bl-card-title">Full Workflow Migration</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-xl">XL</span><span class="bl-badge theme-pf">Platform</span></div>
+          <div class="bl-card-desc">Migrate L2 Company, L2 Person, Orchestrator to PostgreSQL. Completes Airtable-to-Postgres transition.</div>
+          <div class="bl-card-deps">Depends on <span>BL-002</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-011</span><span class="bl-card-title">Import Phase 2 &mdash; Enrichment & Export</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Enrichment depth selection, credit cost estimation, CSV/XLSX export. Go from raw CSV to enriched contacts in one flow.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-012</span><span class="bl-card-title">XLSX Import Support</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-s">S</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Add XLSX parsing alongside CSV. Reuses existing AI column mapper and dedup engine.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-013</span><span class="bl-card-title">Email Validation</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Format check, MX verification, disposable domain detection, SMTP deliverability probe. At import and on-demand.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-014</span><span class="bl-card-title">On-Demand Contact Enrichment</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Select contacts from dashboard, trigger enrichment with credit cost estimate. First feature on the Python pipeline engine.</div>
+          <div class="bl-card-deps">Depends on <span>BL-015</span></div>
+        </div>
+
+        <div class="bl-card pf">
+          <div class="bl-card-header"><span class="bl-card-id">BL-015</span><span class="bl-card-title">Python Pipeline Engine</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-pf">Platform</span></div>
+          <div class="bl-card-desc">Port enrichment stages from n8n to Python classes. DB-backed job queue, credit tracking, tenant isolation. Replaces n8n.</div>
+          <div class="bl-card-deps">Depends on <span>BL-002</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-016</span><span class="bl-card-title">Modular Enrichment Framework</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Pluggable enrichment modules with depth selection. Users choose what to research and how deep. Credit cost estimation.</div>
+          <div class="bl-card-deps">Depends on <span>BL-015</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-017</span><span class="bl-card-title">Company Enrichment Modules</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Company Profile, Legal & Registry, Strategic Signals, News & PR. Four module packs via Perplexity + Claude.</div>
+          <div class="bl-card-deps">Depends on <span>BL-016</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-018</span><span class="bl-card-title">Contact Enrichment Modules</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Role & Employment, Social & Online, Career History, Contact Details. Depth from basics to full profile.</div>
+          <div class="bl-card-deps">Depends on <span>BL-016</span></div>
+        </div>
+
+        <div class="bl-card pf">
+          <div class="bl-card-header"><span class="bl-card-id">BL-030</span><span class="bl-card-title">Resend Email Integration</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-pf">Platform</span></div>
+          <div class="bl-card-desc">Dual-mode Resend: platform subdomain sending or BYOK (bring your own API key). Transactional + outreach delivery.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Should Have -->
+    <div class="moscow-section">
+      <div class="moscow-label should">Should Have <span class="count" style="margin-left:4px;font-size:10px;background:rgba(251,191,36,0.15);padding:2px 6px;border-radius:8px">16</span></div>
+      <div class="backlog-grid">
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-004</span><span class="bl-card-title">LinkedIn CSV Ingestion</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-progress">In Progress</span><span class="bl-badge effort-s">S</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Import LinkedIn Sales Navigator CSV exports. Dedup by LinkedIn URL.</div>
+        </div>
+
+        <div class="bl-card cla">
+          <div class="bl-card-header"><span class="bl-card-id">BL-005</span><span class="bl-card-title">Stage Runs Tracking</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-progress">In Progress</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-cla">Analytics</span></div>
+          <div class="bl-card-desc">Track individual pipeline stage executions with timing, status, errors, and cost.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-006</span><span class="bl-card-title">Contact List Import & Cleanup</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-done">Phase 1 Done</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">CSV upload, AI column mapping, dedup preview, batch import. 80 unit tests.</div>
+        </div>
+
+        <div class="bl-card pf">
+          <div class="bl-card-header"><span class="bl-card-id">BL-007</span><span class="bl-card-title">CRM Integration Framework</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-pf">Platform</span></div>
+          <div class="bl-card-desc">Bi-directional sync infrastructure. OAuth2, field mapping, sync scheduler, conflict resolution.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-008</span><span class="bl-card-title">HubSpot CRM</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Bi-directional sync with HubSpot Free/Starter via API v3.</div>
+          <div class="bl-card-deps">Depends on <span>BL-007</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-009</span><span class="bl-card-title">Pipedrive CRM</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Bi-directional sync with Pipedrive REST API.</div>
+          <div class="bl-card-deps">Depends on <span>BL-007</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-010</span><span class="bl-card-title">Notion CRM</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Bi-directional sync with Notion databases via API.</div>
+          <div class="bl-card-deps">Depends on <span>BL-007</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-019</span><span class="bl-card-title">Employment Verification</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Two-tier: email bounce check then AI research. Confidence score + evidence.</div>
+          <div class="bl-card-deps">Depends on <span>BL-013, BL-015</span></div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-020</span><span class="bl-card-title">Personal LinkedIn Import</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-s">S</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Import from LinkedIn "Download your data" archive (connections.csv).</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-021</span><span class="bl-card-title">Data Normalization</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Standardize company names, job titles, locations. AI-assisted with manual override.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-022</span><span class="bl-card-title">Bulk Dedup</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Find and merge duplicates across existing data with similarity scoring.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-023</span><span class="bl-card-title">Staleness Detection</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-s">S</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Flag contacts not updated in 30/60/90 days. Visual indicators + filters.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-024</span><span class="bl-card-title">Google Drive Import</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Import from Google Sheets via OAuth2. Browse Drive, import directly.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-025</span><span class="bl-card-title">Gmail Contacts Import</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Import from Google Contacts via People API. Dedup by email.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-026</span><span class="bl-card-title">Gmail Email History Scan</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Extract contacts from email headers, signatures, footers. AI signature parsing.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-027</span><span class="bl-card-title">Outlook / Microsoft 365</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Import via Microsoft Graph API. Shares extraction logic with Gmail scan.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Could Have -->
+    <div class="moscow-section">
+      <div class="moscow-label could">Could Have <span class="count" style="margin-left:4px;font-size:10px;background:rgba(139,146,160,0.15);padding:2px 6px;border-radius:8px">2</span></div>
+      <div class="backlog-grid">
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-028</span><span class="bl-card-title">Influencer Signal Ingest</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-l">L</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Monitor engagement on LinkedIn posts. Capture commenters/likers as warm leads.</div>
+        </div>
+
+        <div class="bl-card ci">
+          <div class="bl-card-header"><span class="bl-card-id">BL-029</span><span class="bl-card-title">Smart Contact Refresh</span></div>
+          <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span><span class="bl-badge theme-ci">Contact Intel</span></div>
+          <div class="bl-card-desc">Two-tier cron: cheap probes first (email, LinkedIn delta), deep refresh only on detected changes.</div>
+          <div class="bl-card-deps">Depends on <span>BL-013, BL-015, BL-023</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB 3: DEPENDENCIES ═══ -->
+  <div class="tab-content" id="tab-deps">
+    <div class="section-header" style="margin-top:0">
+      <h2>Critical Path</h2>
+      <div class="line"></div>
+    </div>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px">
+      BL-002 is the single most critical item &mdash; it unblocks the entire pipeline engine chain
+      which feeds modular enrichment, on-demand enrichment, and automated refresh.
+    </p>
+
+    <div class="dep-chains">
+      <div class="dep-chain">
+        <div class="dep-node pf">BL-002</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node pf">BL-003</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node pf">BL-002</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node pf">BL-015</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-016</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-017</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node pf">BL-002</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node pf">BL-015</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-016</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-018</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node pf">BL-015</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-014</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node ci">BL-013</div>
+        <div class="dep-arrow">+</div>
+        <div class="dep-node pf">BL-015</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-019</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node pf">BL-007</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-008</div>
+        <div class="dep-arrow">,</div>
+        <div class="dep-node ci">BL-009</div>
+        <div class="dep-arrow">,</div>
+        <div class="dep-node ci">BL-010</div>
+      </div>
+      <div class="dep-chain">
+        <div class="dep-node ci">BL-013</div>
+        <div class="dep-arrow">+</div>
+        <div class="dep-node pf">BL-015</div>
+        <div class="dep-arrow">+</div>
+        <div class="dep-node ci">BL-023</div>
+        <div class="dep-arrow">&rarr;</div>
+        <div class="dep-node ci">BL-029</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2>Unblocked Items</h2>
+      <div class="line"></div>
+      <span class="count">Ready to start</span>
+    </div>
+
+    <div class="backlog-grid" style="margin-top:16px">
+      <div class="bl-card pf">
+        <div class="bl-card-header"><span class="bl-card-id">BL-002</span><span class="bl-card-title">L1 Workflow Postgres Migration</span></div>
+        <div class="bl-card-meta"><span class="bl-badge status-refined">Refined</span><span class="bl-badge effort-m">M</span></div>
+        <div class="bl-card-desc">Has spec. Ready to start. Unblocks BL-003, BL-015, and the entire pipeline chain.</div>
+      </div>
+      <div class="bl-card ci">
+        <div class="bl-card-header"><span class="bl-card-id">BL-012</span><span class="bl-card-title">XLSX Import</span></div>
+        <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-s">S</span></div>
+        <div class="bl-card-desc">No dependencies. Small effort. Quick win.</div>
+      </div>
+      <div class="bl-card ci">
+        <div class="bl-card-header"><span class="bl-card-id">BL-013</span><span class="bl-card-title">Email Validation</span></div>
+        <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span></div>
+        <div class="bl-card-desc">No dependencies. Unblocks BL-019 and BL-029.</div>
+      </div>
+      <div class="bl-card ci">
+        <div class="bl-card-header"><span class="bl-card-id">BL-020</span><span class="bl-card-title">Personal LinkedIn Import</span></div>
+        <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-s">S</span></div>
+        <div class="bl-card-desc">No dependencies. Small effort. Standalone value.</div>
+      </div>
+      <div class="bl-card pf">
+        <div class="bl-card-header"><span class="bl-card-id">BL-030</span><span class="bl-card-title">Resend Email Integration</span></div>
+        <div class="bl-card-meta"><span class="bl-badge status-idea">Idea</span><span class="bl-badge effort-m">M</span></div>
+        <div class="bl-card-desc">No dependencies. Enables transactional emails immediately.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="gen-stamp">
+    Generated 2026-02-16 &middot; Leadgen Pipeline &middot; E2E GTM Engineering Platform
+  </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Stagger card animations within each visible grid
+function staggerCards() {
+  document.querySelectorAll('.tab-content.active .bl-card').forEach((card, i) => {
+    card.style.animationDelay = (i * 0.03) + 's';
+  });
+}
+staggerCards();
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => setTimeout(staggerCards, 10));
+});
+</script>
+</body>
+</html>
