@@ -290,6 +290,15 @@ select option { background: var(--bg); color: var(--text); }
   font-size: 0.82rem; color: var(--warning);
 }
 
+/* Custom field badge */
+.cf-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; vertical-align: middle; margin-left: 6px;
+}
+.cf-badge.new { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.cf-badge.custom { background: rgba(110,44,139,0.15); color: var(--accent-hover); }
+
 /* Section transitions */
 .wizard-section { display: none; animation: fadeSlideIn 0.3s ease; }
 .wizard-section.visible { display: block; }
@@ -390,13 +399,13 @@ select option { background: var(--bg); color: var(--text); }
   <!-- Section 1: Upload -->
   <div id="section_upload" class="wizard-section visible">
     <div class="card">
-      <div class="card-title">Upload CSV File</div>
+      <div class="card-title">Upload File</div>
 
       <div class="drop-zone" id="drop_zone">
-        <input type="file" id="file_input" accept=".csv">
+        <input type="file" id="file_input" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="drop-icon">&#128196;</div>
-        <div class="drop-text">Drop your CSV file here or click to browse</div>
-        <div class="drop-hint">Max 10 MB. UTF-8 or Latin-1 encoding.</div>
+        <div class="drop-text">Drop your file here or click to browse</div>
+        <div class="drop-hint">Max 10 MB. CSV (UTF-8/Latin-1) or Excel (.xlsx).</div>
       </div>
 
       <div class="upload-config">
@@ -514,6 +523,7 @@ select option { background: var(--bg); color: var(--text); }
   var currentJobId = null;
   var currentMapping = null;
   var owners = [];
+  var customFieldDefs = [];
 
   // ---- Helpers ----
 
@@ -619,11 +629,13 @@ select option { background: var(--bg); color: var(--text); }
     { value: 'company.business_model', label: 'Business Model', group: 'Company' },
   ];
 
-  function buildTargetSelect(selectedValue) {
+  function buildTargetSelect(selectedValue, suggestedCustomField) {
     var sel = document.createElement('select');
     sel.className = 'mapping-select';
     var currentGroup = '';
     var optgroup = null;
+
+    // Standard target options
     TARGET_OPTIONS.forEach(function(opt) {
       if (opt.group && opt.group !== currentGroup) {
         optgroup = document.createElement('optgroup');
@@ -637,6 +649,57 @@ select option { background: var(--bg); color: var(--text); }
       if (opt.value === selectedValue) o.selected = true;
       (optgroup || sel).appendChild(o);
     });
+
+    // Existing custom field definitions grouped by entity type
+    var contactCustom = customFieldDefs.filter(function(d) { return d.entity_type === 'contact'; });
+    var companyCustom = customFieldDefs.filter(function(d) { return d.entity_type === 'company'; });
+
+    if (contactCustom.length) {
+      optgroup = document.createElement('optgroup');
+      optgroup.label = 'Custom \u2014 Contact';
+      contactCustom.forEach(function(d) {
+        var o = document.createElement('option');
+        o.value = 'contact.custom.' + d.field_key;
+        o.textContent = d.field_label;
+        if (o.value === selectedValue) o.selected = true;
+        optgroup.appendChild(o);
+      });
+      sel.appendChild(optgroup);
+    }
+
+    if (companyCustom.length) {
+      optgroup = document.createElement('optgroup');
+      optgroup.label = 'Custom \u2014 Company';
+      companyCustom.forEach(function(d) {
+        var o = document.createElement('option');
+        o.value = 'company.custom.' + d.field_key;
+        o.textContent = d.field_label;
+        if (o.value === selectedValue) o.selected = true;
+        optgroup.appendChild(o);
+      });
+      sel.appendChild(optgroup);
+    }
+
+    // If AI suggested a new custom field that doesn't exist yet, add it as an option
+    if (suggestedCustomField && selectedValue && selectedValue.indexOf('.custom.') !== -1) {
+      var alreadyExists = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === selectedValue) { alreadyExists = true; break; }
+      }
+      if (!alreadyExists) {
+        var entity = suggestedCustomField.entity_type || selectedValue.split('.')[0];
+        var grpLabel = 'Custom \u2014 ' + (entity === 'contact' ? 'Contact' : 'Company') + ' (New)';
+        optgroup = document.createElement('optgroup');
+        optgroup.label = grpLabel;
+        var newOpt = document.createElement('option');
+        newOpt.value = selectedValue;
+        newOpt.textContent = suggestedCustomField.field_label || selectedValue.split('.').pop();
+        newOpt.selected = true;
+        optgroup.appendChild(newOpt);
+        sel.appendChild(optgroup);
+      }
+    }
+
     return sel;
   }
 
@@ -667,8 +730,8 @@ select option { background: var(--bg); color: var(--text); }
   }
 
   function handleFile(file) {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast('Only CSV files are supported', 'error');
+    if (!/\.(csv|xlsx)$/i.test(file.name)) {
+      toast('Only CSV and XLSX files are supported', 'error');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -678,7 +741,7 @@ select option { background: var(--bg); color: var(--text); }
 
     var nameInput = document.getElementById('batch_name');
     if (!nameInput.value) {
-      var baseName = file.name.replace(/\.csv$/i, '').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+      var baseName = file.name.replace(/\.(csv|xlsx)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
       nameInput.value = 'import-' + baseName;
     }
 
@@ -748,6 +811,16 @@ select option { background: var(--bg); color: var(--text); }
 
       var conf = m.confidence || 0;
       var confClass = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
+      var target = m.target || '';
+      var suggestedCF = m.suggested_custom_field || null;
+
+      // If AI suggested a custom field for an unmapped column, auto-select it
+      if (!target && suggestedCF) {
+        target = (suggestedCF.entity_type || 'contact') + '.custom.' + suggestedCF.field_key;
+      }
+
+      var isCustom = target.indexOf('.custom.') !== -1;
+      var isNewCustom = isCustom && suggestedCF;
 
       var tr = document.createElement('tr');
 
@@ -762,9 +835,15 @@ select option { background: var(--bg); color: var(--text); }
       tr.appendChild(td2);
 
       var td3 = document.createElement('td');
-      var sel = buildTargetSelect(m.target || '');
+      var sel = buildTargetSelect(target, suggestedCF);
       sel.setAttribute('data-header', m.csv_header);
       td3.appendChild(sel);
+      // Badge for new or existing custom field
+      if (isNewCustom) {
+        td3.appendChild(mkEl('span', { className: 'cf-badge new' }, 'New'));
+      } else if (isCustom) {
+        td3.appendChild(mkEl('span', { className: 'cf-badge custom' }, 'Custom'));
+      }
       tr.appendChild(td3);
 
       var td4 = document.createElement('td');
@@ -785,15 +864,23 @@ select option { background: var(--bg); color: var(--text); }
     var btnPreview = document.getElementById('btn_preview');
     btnPreview.disabled = true;
 
-    // Collect user-adjusted mapping
+    // Collect user-adjusted mapping, preserving suggested_custom_field from original
+    var originalMappings = (currentMapping && currentMapping.mappings) || [];
     var adjustedMappings = [];
     document.querySelectorAll('.mapping-select').forEach(function(sel) {
-      adjustedMappings.push({
-        csv_header: sel.getAttribute('data-header'),
-        target: sel.value || null,
-        confidence: 1.0,
-        transform: null,
-      });
+      var header = sel.getAttribute('data-header');
+      var target = sel.value || null;
+      var entry = { csv_header: header, target: target, confidence: 1.0, transform: null };
+      // Preserve suggested_custom_field if target is a custom field
+      if (target && target.indexOf('.custom.') !== -1) {
+        for (var i = 0; i < originalMappings.length; i++) {
+          if (originalMappings[i].csv_header === header && originalMappings[i].suggested_custom_field) {
+            entry.suggested_custom_field = originalMappings[i].suggested_custom_field;
+            break;
+          }
+        }
+      }
+      adjustedMappings.push(entry);
     });
 
     var adjustedMapping = Object.assign({}, currentMapping, { mappings: adjustedMappings });
@@ -998,6 +1085,8 @@ select option { background: var(--bg); color: var(--text); }
       owners.forEach(function(o) {
         sel.appendChild(mkEl('option', { value: o.id }, o.name));
       });
+      // Store custom field definitions for dynamic target options
+      customFieldDefs = data.custom_fields || [];
     }).catch(function() {});
   }
 

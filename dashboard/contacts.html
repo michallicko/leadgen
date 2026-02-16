@@ -788,6 +788,27 @@ textarea:focus { outline: none; border-color: var(--accent); }
     notesSec.appendChild(ng);
     body.appendChild(notesSec);
 
+    // Custom Fields (editable)
+    if (c.custom_fields && Object.keys(c.custom_fields).length > 0) {
+      var cfSec = section('Custom Fields');
+      var cfGrid = el('div', { className: 'detail-grid' });
+      Object.keys(c.custom_fields).sort().forEach(function(key) {
+        var val = c.custom_fields[key];
+        if (val == null || val === '') return;
+        var cfDiv = el('div', { className: 'detail-field' });
+        cfDiv.appendChild(el('label', null, key.replace(/_/g, ' ')));
+        var ta = el('textarea', {
+          className: 'detail-textarea',
+          rows: '1',
+        }, String(val));
+        ta.setAttribute('data-cf', key);
+        cfDiv.appendChild(ta);
+        cfGrid.appendChild(cfDiv);
+      });
+      cfSec.appendChild(cfGrid);
+      body.appendChild(cfSec);
+    }
+
     // Save button
     var saveRow = el('div', { style: { display: 'flex', gap: '8px', marginBottom: '24px' } });
     var saveBtn = el('button', { className: 'btn btn-sm btn-success', id: 'save_contact_btn', onClick: function() { saveContact(c.id); } }, 'Save Changes');
@@ -919,6 +940,15 @@ textarea:focus { outline: none; border-color: var(--accent); }
         fields[k] = reverseMap[k][fields[k]];
       }
     });
+
+    // Collect custom field edits
+    var customFields = {};
+    document.querySelectorAll('#modal_body textarea[data-cf]').forEach(function(ta) {
+      customFields[ta.getAttribute('data-cf')] = ta.value || null;
+    });
+    if (Object.keys(customFields).length > 0) {
+      fields.custom_fields = customFields;
+    }
 
     var statusEl = $('#save_status');
     statusEl.textContent = 'Saving...';
