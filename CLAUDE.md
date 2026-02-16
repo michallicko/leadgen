@@ -45,6 +45,39 @@
 - **Listing active worktrees**: `git worktree list`
 - **Cleanup after merge**: `git worktree remove .worktrees/{feature-name}`
 
+### 2a. Merging to Main (Pull Requests Only)
+- **NEVER merge locally to `main`.** Multiple Claude instances work in parallel — local merges cause conflicts and corrupt `main`.
+- When a feature is complete, **push the branch and create a Pull Request** via `gh pr create`.
+- The PR process:
+  ```bash
+  # From your worktree, push the feature branch
+  git push -u origin feature/{name}
+
+  # Create PR targeting main
+  gh pr create --title "Short description" --body "$(cat <<'EOF'
+  ## Summary
+  - bullet points
+
+  ## Test plan
+  - [ ] verification steps
+  EOF
+  )"
+  ```
+- **Do NOT run `git merge` on `main`** — not even "just this once". Always use PRs.
+- After the PR is merged (by the user or CI), clean up:
+  ```bash
+  git worktree remove .worktrees/{feature-name}
+  git branch -d feature/{feature-name}
+  ```
+- If the PR has merge conflicts, rebase the feature branch onto `main` **in the worktree**, not on `main` itself:
+  ```bash
+  cd .worktrees/{feature-name}
+  git fetch origin
+  git rebase origin/main
+  # resolve conflicts, then force-push the feature branch
+  git push --force-with-lease
+  ```
+
 ### 3. Test-Driven Verification
 - **E2E tests** (`tests/e2e/`): Cover key specs and user flows. Written against the spec before implementation.
 - **Unit tests** (`tests/unit/`): Prevent regression on business logic, utilities, API routes.
@@ -72,7 +105,7 @@ Every feature must pass ALL of these before it is considered complete:
 3. **Security audit**: Check for OWASP top 10 (XSS, injection, auth bypass, etc.). Validate at system boundaries. Never trust client input.
 4. **Documentation**: ARCHITECTURE.md, CHANGELOG.md, ADR (if applicable), spec updates.
 5. **Backlog**: Update `BACKLOG.md` — mark completed items, add new items discovered during work. Use `/backlog` to manage.
-6. **Commit + push**: All work committed and pushed to remote.
+6. **Commit + push + PR**: All work committed, pushed to remote, and a Pull Request created targeting `main`. Never merge locally.
 
 ### 7. Architecture Decision Records (ADR)
 - Location: `docs/adr/NNN-title.md`

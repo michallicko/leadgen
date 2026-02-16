@@ -18,7 +18,7 @@ from flask import current_app
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-from ..models import ImportJob, db
+from ..models import ImportJob, OAuthConnection, db
 from .google_oauth import get_valid_token
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,8 @@ SIG_LINE_PATTERNS = [
 class GmailScanner:
     """Scans Gmail messages and extracts contact information."""
 
-    def __init__(self, oauth_connection, job_id, config):
-        self.oauth_connection = oauth_connection
+    def __init__(self, connection_id, job_id, config):
+        self.connection_id = connection_id
         self.job_id = job_id
         self.config = config or {}
         self.contacts = {}  # email -> aggregated contact data
@@ -111,7 +111,11 @@ class GmailScanner:
 
     def _get_gmail_service(self):
         """Build Gmail API service with fresh token."""
-        access_token = get_valid_token(self.oauth_connection)
+        conn = db.session.get(OAuthConnection, self.connection_id)
+        if not conn:
+            raise RuntimeError(f"OAuth connection {self.connection_id} not found")
+        access_token = get_valid_token(conn)
+        db.session.commit()
         creds = Credentials(token=access_token)
         return build("gmail", "v1", credentials=creds)
 
@@ -507,7 +511,7 @@ class GmailScanner:
 
 def start_gmail_scan(app, oauth_connection, job_id, config):
     """Spawn a background thread to run the Gmail scan."""
-    scanner = GmailScanner(oauth_connection, job_id, config)
+    scanner = GmailScanner(str(oauth_connection.id), job_id, config)
     t = threading.Thread(
         target=scanner.run,
         args=(app._get_current_object(),),
