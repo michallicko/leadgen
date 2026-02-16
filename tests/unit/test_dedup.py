@@ -275,7 +275,7 @@ class TestExecuteImport:
 
         # John Doe has job_title "CEO" — import with different title
         parsed = [
-            {"contact": {"full_name": "John Doe", "email_address": "john@acme.com", "job_title": "CRO"}, "company": {"name": "Acme Corp"}},
+            {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com", "job_title": "CRO"}, "company": {"name": "Acme Corp"}},
         ]
         result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",

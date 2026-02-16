@@ -70,7 +70,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
     for i in range(3):
         ct = Contact(
             tenant_id=seed_tenant.id,
-            full_name=f"Person Contact {i}",
+            first_name=f"Person Contact {i}",
             company_id=c_enriched.id,
             batch_id=batch.id,
             owner_id=owner.id,
@@ -82,7 +82,8 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
     # 1 contact eligible for generate stage (processed, not_started)
     ct_gen = Contact(
         tenant_id=seed_tenant.id,
-        full_name="Gen Contact",
+        first_name="Gen",
+        last_name="Contact",
         company_id=c_enriched.id,
         batch_id=batch.id,
         owner_id=owner.id,
