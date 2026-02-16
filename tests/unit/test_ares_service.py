@@ -238,7 +238,7 @@ class TestIsCzechCompany:
 # --- HTTP lookup tests (mocked) ---
 
 class TestLookupByIco:
-    @patch("api.services.ares.requests.get")
+    @patch("api.services.registries.ares.requests.get")
     def test_success(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -251,7 +251,7 @@ class TestLookupByIco:
         assert result["official_name"] == "Alza.cz a.s."
         mock_get.assert_called_once()
 
-    @patch("api.services.ares.requests.get")
+    @patch("api.services.registries.ares.requests.get")
     def test_not_found(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 404
@@ -260,7 +260,7 @@ class TestLookupByIco:
         result = lookup_by_ico("99999999")
         assert result is None
 
-    @patch("api.services.ares.requests.get")
+    @patch("api.services.registries.ares.requests.get")
     def test_request_error(self, mock_get):
         import requests as req
         mock_get.side_effect = req.ConnectionError("Network error")
@@ -270,7 +270,7 @@ class TestLookupByIco:
 
 
 class TestLookupVr:
-    @patch("api.services.ares.requests.get")
+    @patch("api.services.registries.ares.requests.get")
     def test_success(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -284,7 +284,7 @@ class TestLookupVr:
 
 
 class TestSearchByName:
-    @patch("api.services.ares.requests.post")
+    @patch("api.services.registries.ares.requests.post")
     def test_success(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -299,7 +299,7 @@ class TestSearchByName:
         assert result[0]["ico"] == "27082440"
         assert "similarity" in result[0]
 
-    @patch("api.services.ares.requests.post")
+    @patch("api.services.registries.ares.requests.post")
     def test_empty_results(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -314,10 +314,13 @@ class TestSearchByName:
 # --- Enrich company integration tests (mocked) ---
 
 class TestEnrichCompany:
-    @patch("api.services.ares.lookup_vr")
-    @patch("api.services.ares.lookup_by_ico")
-    @patch("api.services.ares._store_result")
-    def test_ico_direct_lookup(self, mock_store, mock_lookup, mock_vr):
+    @patch("api.services.registries.ares.time")
+    @patch("api.services.registries.ares.AresAdapter._update_vr_data")
+    @patch("api.services.registries.ares.AresAdapter.lookup_vr")
+    @patch("api.services.registries.ares.AresAdapter.lookup_by_id")
+    @patch("api.services.registries.base.BaseRegistryAdapter.store_result")
+    def test_ico_direct_lookup(self, mock_store, mock_lookup, mock_vr, mock_update_vr, mock_time):
+        mock_time.sleep = MagicMock()
         mock_lookup.return_value = {
             "ico": "27074358",
             "official_name": "Alza.cz a.s.",
@@ -356,12 +359,14 @@ class TestEnrichCompany:
         assert result["status"] == "skipped"
         assert result["reason"] == "not_czech"
 
-    @patch("api.services.ares.search_by_name")
-    @patch("api.services.ares._store_result")
-    @patch("api.services.ares.lookup_vr")
-    @patch("api.services.ares.time")
-    def test_name_search_auto_match(self, mock_time, mock_vr, mock_store, mock_search):
-        mock_time.sleep = MagicMock()
+    @patch("api.services.registries.ares.time")
+    @patch("api.services.registries.ares.AresAdapter.search_by_name")
+    @patch("api.services.registries.base.BaseRegistryAdapter.store_result")
+    @patch("api.services.registries.ares.AresAdapter.lookup_vr")
+    @patch("api.services.registries.base.time")
+    def test_name_search_auto_match(self, mock_base_time, mock_vr, mock_store, mock_search, mock_ares_time):
+        mock_base_time.sleep = MagicMock()
+        mock_ares_time.sleep = MagicMock()
         mock_search.return_value = [{
             "ico": "12345678",
             "official_name": "Firma Test s.r.o.",
@@ -383,8 +388,8 @@ class TestEnrichCompany:
         assert result["method"] == "name_auto"
         assert result["confidence"] == 0.92
 
-    @patch("api.services.ares.search_by_name")
-    @patch("api.services.ares.time")
+    @patch("api.services.registries.ares.AresAdapter.search_by_name")
+    @patch("api.services.registries.base.time")
     def test_name_search_ambiguous(self, mock_time, mock_search):
         mock_time.sleep = MagicMock()
         mock_search.return_value = [
@@ -404,8 +409,8 @@ class TestEnrichCompany:
         assert result["status"] == "ambiguous"
         assert len(result["candidates"]) == 2
 
-    @patch("api.services.ares.search_by_name")
-    @patch("api.services.ares.time")
+    @patch("api.services.registries.ares.AresAdapter.search_by_name")
+    @patch("api.services.registries.base.time")
     def test_name_search_no_match(self, mock_time, mock_search):
         mock_time.sleep = MagicMock()
         mock_search.return_value = []
