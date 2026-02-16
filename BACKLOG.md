@@ -177,13 +177,13 @@ Flag contacts not updated in 30/60/90 days with visual indicators in the dashboa
 Import contacts from Google Drive spreadsheets (Sheets). OAuth2 integration with Google APIs. User connects their Google account, browses Drive for contact lists, and imports directly. Reuses existing AI column mapper and dedup engine. Eliminates the "export to CSV, then upload" step.
 
 ### BL-025: Gmail Contacts Import
-**Status**: Idea | **Effort**: M | **Spec**: —
+**Status**: In Progress | **Effort**: M | **Spec**: —
 **Depends on**: — | **Theme**: Contact Intelligence
 
 Import contacts from Google Contacts (People API). OAuth2 via same Google integration as BL-024. Pulls name, email, company, phone, notes. Maps to contact/company schema. Dedup by email. Many freelancers and small teams use Gmail as their de facto CRM — this captures their existing network.
 
 ### BL-026: Gmail Email History Scan
-**Status**: Idea | **Effort**: L | **Spec**: —
+**Status**: In Progress | **Effort**: L | **Spec**: —
 **Depends on**: — | **Theme**: Contact Intelligence
 
 Scan Gmail inbox/sent for contacts not in the database. Extract contact info from email headers (From/To/CC), signatures (title, phone, company), and email footers. AI-powered extraction for unstructured signature parsing. Surfaces "hidden" contacts the user has been emailing but never added to any CRM.
