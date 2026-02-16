@@ -244,7 +244,7 @@ def remap_import(job_id):
     custom_defs = [d.to_dict() for d in custom_defs_rows]
 
     try:
-        mapping_result, _usage = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
+        mapping_result, usage_info = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
     except Exception as e:
         return jsonify({"error": f"AI mapping failed: {str(e)}"}), 500
 
@@ -255,6 +255,25 @@ def remap_import(job_id):
     job.column_mapping = json.dumps(mapping_result)
     job.mapping_confidence = round(avg_confidence, 2)
     job.status = "mapped"
+    db.session.flush()
+
+    if usage_info:
+        from flask import g
+        log_llm_usage(
+            tenant_id=str(tenant_id),
+            operation="csv_column_remap",
+            model=usage_info["model"],
+            input_tokens=usage_info["input_tokens"],
+            output_tokens=usage_info["output_tokens"],
+            user_id=str(g.current_user.id),
+            duration_ms=usage_info.get("duration_ms"),
+            metadata={
+                "import_job_id": str(job.id),
+                "filename": job.filename,
+                "headers_count": len(headers),
+            },
+        )
+
     db.session.commit()
 
     return jsonify({
