@@ -242,6 +242,57 @@ def _data_key_for_stage(stage):
     return "contact_id" if stage in ("person", "generate") else "company_id"
 
 
+def _get_entity_name(stage, entity_id, tenant_id):
+    """Look up a display name for the entity being processed."""
+    try:
+        if stage in ("person", "generate"):
+            row = db.session.execute(
+                text("SELECT first_name, last_name FROM contacts WHERE id = :id AND tenant_id = :t"),
+                {"id": entity_id, "t": str(tenant_id)},
+            ).fetchone()
+            if row:
+                return f"{row[0] or ''} {row[1] or ''}".strip() or entity_id
+        else:
+            row = db.session.execute(
+                text("SELECT name FROM companies WHERE id = :id AND tenant_id = :t"),
+                {"id": entity_id, "t": str(tenant_id)},
+            ).fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception:
+        pass
+    return entity_id
+
+
+def _update_current_item(run_id, entity_name, status="processing"):
+    """Store the current item being processed in the stage_run config."""
+    try:
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(run_id)},
+        ).fetchone()
+        if row:
+            import json as _json
+            config = _json.loads(row[0] or "{}")
+            config["current_item"] = {"name": entity_name, "status": status}
+
+            # Keep a rolling log of last 20 items
+            recent = config.get("recent_items", [])
+            if status != "processing":
+                recent.append({"name": entity_name, "status": status})
+                if len(recent) > 20:
+                    recent = recent[-20:]
+                config["recent_items"] = recent
+
+            db.session.execute(
+                text("UPDATE stage_runs SET config = :config WHERE id = :id"),
+                {"id": str(run_id), "config": _json.dumps(config)},
+            )
+            db.session.commit()
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Entity processing dispatch
 # ---------------------------------------------------------------------------
@@ -342,12 +393,17 @@ def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
                 logger.info("Stage run %s stopped at item %d/%d", run_id, i, len(entity_ids))
                 return
 
+            entity_name = _get_entity_name(stage, entity_id, tenant_id)
+            _update_current_item(run_id, entity_name, "processing")
+
             try:
                 result = _process_entity(stage, entity_id, tenant_id)
                 total_cost += _extract_cost(result)
+                _update_current_item(run_id, entity_name, "ok")
                 update_run(run_id, done=i + 1, cost_usd=total_cost, failed=failed)
             except Exception as e:
                 failed += 1
+                _update_current_item(run_id, entity_name, "failed")
                 logger.warning("Stage %s item %s failed: %s", stage, entity_id, e)
                 update_run(run_id, done=i + 1, failed=failed, cost_usd=total_cost,
                            error=str(e)[:500])
@@ -443,14 +499,19 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
                         return
 
                     processed_ids.add(entity_id)
+                    entity_name = _get_entity_name(stage, entity_id, tenant_id)
+                    _update_current_item(run_id, entity_name, "processing")
+
                     try:
                         result = _process_entity(stage, entity_id, tenant_id)
                         total_cost += _extract_cost(result)
                         done_count += 1
+                        _update_current_item(run_id, entity_name, "ok")
                         update_run(run_id, done=done_count, cost_usd=total_cost,
                                    failed=failed_count)
                     except Exception as e:
                         failed_count += 1
+                        _update_current_item(run_id, entity_name, "failed")
                         logger.warning("Reactive stage %s item %s failed: %s",
                                        stage, entity_id, e)
                         update_run(run_id, done=done_count, failed=failed_count,

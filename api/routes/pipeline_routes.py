@@ -184,7 +184,7 @@ def pipeline_status():
         row = db.session.execute(
             text("""
                 SELECT id, status, total, done, failed, cost_usd, error,
-                       started_at, completed_at, updated_at
+                       started_at, completed_at, updated_at, config
                 FROM stage_runs
                 WHERE tenant_id = :t AND batch_id = :b AND stage = :s
                 ORDER BY started_at DESC
@@ -196,7 +196,7 @@ def pipeline_status():
         if not row:
             stages[stage_name] = {"status": "idle"}
         else:
-            stages[stage_name] = {
+            stage_data = {
                 "run_id": str(row[0]),
                 "status": row[1],
                 "total": row[2] or 0,
@@ -208,6 +208,18 @@ def pipeline_status():
                 "completed_at": _fmt_dt(row[8]),
                 "updated_at": _fmt_dt(row[9]),
             }
+            # Include per-item progress from config
+            config_raw = row[10]
+            if config_raw:
+                try:
+                    config = json.loads(config_raw) if isinstance(config_raw, str) else config_raw
+                    if config.get("current_item"):
+                        stage_data["current_item"] = config["current_item"]
+                    if config.get("recent_items"):
+                        stage_data["recent_items"] = config["recent_items"]
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            stages[stage_name] = stage_data
 
     # Include pipeline run status if one exists for this batch
     pipeline_obj = None
@@ -366,13 +378,28 @@ def pipeline_stop_all():
 
     if not row:
         return jsonify({"error": "Pipeline run not found"}), 404
-    if row[0] not in ("running",):
-        return jsonify({"error": f"Cannot stop pipeline with status '{row[0]}'"}), 400
+    if row[0] in ("completed", "failed", "stopped"):
+        return jsonify({"error": f"Pipeline already finished with status '{row[0]}'"}), 400
 
-    # Set pipeline to stopping — coordinator thread will propagate to stage_runs
+    # Force-kill: set pipeline + all its stages to stopped immediately
+    # Works even if threads are dead (e.g., after container restart)
     db.session.execute(
-        text("UPDATE pipeline_runs SET status = 'stopping' WHERE id = :id"),
+        text("""
+            UPDATE pipeline_runs SET status = 'stopped', completed_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        """),
         {"id": pipeline_run_id},
+    )
+
+    # Also force-stop all non-terminal stage_runs for this pipeline
+    db.session.execute(
+        text("""
+            UPDATE stage_runs SET status = 'stopped', completed_at = CURRENT_TIMESTAMP,
+                   error = 'Force-stopped by user'
+            WHERE CAST(config AS TEXT) LIKE :pattern
+              AND status NOT IN ('completed', 'failed', 'stopped')
+        """),
+        {"pattern": f"%{pipeline_run_id}%"},
     )
     db.session.commit()
 

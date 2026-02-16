@@ -560,12 +560,12 @@ class TestPipelineStopAll:
         assert resp.status_code == 200
         assert resp.get_json()["ok"] is True
 
-        # Verify pipeline status changed to stopping
+        # Verify pipeline status changed to stopped (force-kill)
         row = db.session.execute(
             db.text("SELECT status FROM pipeline_runs WHERE id = :id"),
             {"id": pipeline_id},
         ).fetchone()
-        assert row[0] == "stopping"
+        assert row[0] == "stopped"
 
     def test_stop_all_completed_fails(self, client, db, seed_pipeline_data):
         headers = auth_header(client)
@@ -591,7 +591,7 @@ class TestPipelineStopAll:
             headers=headers,
         )
         assert resp.status_code == 400
-        assert "Cannot stop" in resp.get_json()["error"]
+        assert "already finished" in resp.get_json()["error"]
 
     def test_stop_all_missing_id(self, client, seed_pipeline_data):
         headers = auth_header(client)

@@ -467,6 +467,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   margin-right: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 /* Responsive */
 @media (max-width: 640px) {
@@ -1208,6 +1209,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       row.appendChild(etaEl);
       row.appendChild(statusEl);
       container.appendChild(row);
+
+      // Current item indicator below progress bar
+      var itemRow = mkEl('div', {
+        style: 'display:flex;align-items:center;gap:8px;padding:2px 0 8px 92px;font-size:0.72rem;color:var(--text-dim);border-bottom:1px solid var(--border);min-height:20px;'
+      });
+      itemRow.setAttribute('data-current-item', stage);
+      container.appendChild(itemRow);
     });
 
     var reviewContainer = mkEl('div', { className: 'hidden', id: 'review_list_container' });
@@ -1284,6 +1292,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         var st = s.status || 'pending';
         pillEl.className = 'pill pill-' + st;
         pillEl.textContent = st.toUpperCase();
+      }
+
+      // Per-item progress indicator
+      var itemEl = document.querySelector('[data-current-item="' + stage + '"]');
+      if (itemEl) {
+        clearChildren(itemEl);
+        if (s.status === 'running' && s.current_item) {
+          var ci = s.current_item;
+          var dot = mkEl('span', { style: 'width:6px;height:6px;border-radius:50%;background:var(--accent-cyan);display:inline-block;animation:pulse 1.2s infinite;' });
+          itemEl.appendChild(dot);
+          itemEl.appendChild(mkEl('span', {}, ci.name));
+        } else if (s.recent_items && s.recent_items.length > 0) {
+          var last = s.recent_items[s.recent_items.length - 1];
+          var statusIcon = last.status === 'ok' ? '\u2713' : '\u2717';
+          var statusColor = last.status === 'ok' ? 'var(--success)' : 'var(--error)';
+          itemEl.appendChild(mkEl('span', { style: 'color:' + statusColor }, statusIcon));
+          itemEl.appendChild(mkEl('span', {}, last.name));
+        }
+        itemEl.style.display = (s.status === 'running' || (s.recent_items && s.recent_items.length > 0)) ? 'flex' : 'none';
       }
 
       totalCost += (s.cost || 0);
