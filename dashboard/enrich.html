@@ -745,8 +745,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       rows[rowIdx].forEach(function(code) {
         var stage = DAG_STAGES[code];
-        var info = (data && data.stages && data.stages[code]) || {};
-        var eligible = info.eligible_count || 0;
+        var info = (data && data.stages && data.stages[code]) || null;
+        var eligible = (info && info.eligible_count) || 0;
         var isAvailable = stage.available;
         var hasEligible = eligible > 0 && isAvailable;
 

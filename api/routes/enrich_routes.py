@@ -61,17 +61,21 @@ def _resolve_owner(tenant_id, owner_name):
 
 
 def _get_cost_per_item(tenant_id, stage):
-    """Get average cost per item from historical stage_runs, falling back to static default."""
+    """Get average cost per item from historical stage_runs, falling back to static default.
+
+    Requires at least 5 completed runs before trusting the historical average,
+    to avoid unreliable estimates from early test runs.
+    """
     row = db.session.execute(
         text("""
-            SELECT AVG(cost_usd / NULLIF(done, 0))
+            SELECT AVG(cost_usd / NULLIF(done, 0)), COUNT(*)
             FROM stage_runs
             WHERE tenant_id = :t AND stage = :s
               AND status = 'completed' AND done > 0 AND cost_usd > 0
         """),
         {"t": str(tenant_id), "s": stage},
     ).fetchone()
-    if row and row[0] is not None:
+    if row and row[0] is not None and row[1] >= 5:
         return round(float(row[0]), 4)
     return STATIC_COST_DEFAULTS.get(stage, 0.05)
 
