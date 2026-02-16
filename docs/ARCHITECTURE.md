@@ -1,6 +1,6 @@
 # Leadgen Pipeline - Architecture
 
-> Last updated: 2026-02-13
+> Last updated: 2026-02-16
 
 ## System Overview
 
@@ -62,7 +62,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
 - **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking)
+- **Services**: `pipeline_engine.py` (stage orchestration), `ares.py` (Czech ARES registry lookups), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -76,9 +76,9 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 4. PostgreSQL (RDS)
 - **Instance**: AWS Lightsail managed PostgreSQL
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
-- **Schema**: 17 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
+- **Schema**: 18 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `009_llm_usage_log.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `012_company_registry_data.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -128,6 +128,7 @@ tenants ─┬── owners
          ├── batches
          ├── import_jobs (CSV import lifecycle tracking)
          ├── companies ─┬── company_enrichment_l2 (1:1)
+         │              ├── company_registry_data (1:1, ARES)
          │              └── company_tags (1:∞)
          ├── contacts ──── contact_enrichment (1:1)
          ├── messages
@@ -156,6 +157,7 @@ users ── user_tenant_roles ── tenants
 ## External Dependencies
 
 - **Airtable**: Data store for n8n workflows (dashboard APIs migrated to PG)
+- **ARES (ares.gov.cz)**: Czech public business register — ICO/DIC lookup, name search, commercial register (directors, capital). Free government API, no authentication. Used by the `ares` pipeline stage for Czech company enrichment.
 - **Perplexity API**: L1/L2 company research
 - **Anthropic API**: AI analysis, message generation
 - **Lemlist**: Outreach campaign delivery

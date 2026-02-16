@@ -5,6 +5,13 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **ARES Registry Enrichment** (BL-017 partial): Czech public register data for companies via ares.gov.cz
+  - `company_registry_data` table: ICO, DIC, official name, legal form, directors, capital, NACE codes, insolvency flags
+  - ARES service (`api/services/ares.py`): ICO lookup, name search with fuzzy matching (Czech suffix stripping), VR (commercial register) for directors/capital
+  - Pipeline stage `ares`: direct Python HTTP calls (no n8n), $0.00 cost, integrated into pipeline engine with `DIRECT_STAGES` dispatch pattern
+  - On-demand endpoints: `POST /api/companies/<id>/enrich-registry`, `POST /api/companies/<id>/confirm-registry`
+  - Dashboard: "Legal & Registers (ARES)" module in enrichment wizard, registry data section in company detail
+  - Migration 012, ADR-003, 50 new tests
 - **LLM Cost Logging**: Per-call cost tracking for all LLM API usage with super admin dashboard
   - `llm_usage_log` table with tenant/user attribution, token counts, cost (NUMERIC 10,6), duration, metadata
   - Logger service with model-specific pricing (Sonnet, Haiku, Opus) and Decimal arithmetic

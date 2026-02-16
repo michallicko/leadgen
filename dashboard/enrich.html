@@ -34,6 +34,7 @@
   --l2-color: #8B47A8;
   --person-color: #34D399;
   --generate-color: #FBBF24;
+  --ares-color: #3B82F6;
 }
 
 body {
@@ -472,11 +473,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     l1: { name: 'L1 Company Research', color: 'var(--l1-color)' },
     l2: { name: 'L2 Deep Research', color: 'var(--l2-color)' },
     person: { name: 'Person Enrichment', color: 'var(--person-color)' },
-    generate: { name: 'Message Generation', color: 'var(--generate-color)' }
+    generate: { name: 'Message Generation', color: 'var(--generate-color)' },
+    ares: { name: 'Legal & Registers (ARES)', color: 'var(--ares-color)' }
   };
 
   var estimateData = null;
-  var enabledStages = { l1: true, l2: true, person: true, generate: true };
+  var enabledStages = { l1: true, l2: true, person: true, generate: true, ares: true };
   var batchList = [];
   var ownerList = [];
 
@@ -608,7 +610,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function fetchEstimate(callback) {
     var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
-    var stages = ['l1', 'l2', 'person', 'generate'];
+    var stages = ['l1', 'l2', 'person', 'generate', 'ares'];
 
     apiFetch(API_BASE + '/enrich/estimate', {
       method: 'POST',
@@ -628,7 +630,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function buildStageCards(data) {
     var container = $('#stage_cards');
     clearChildren(container);
-    var stages = ['l1', 'l2', 'person', 'generate'];
+    var stages = ['l1', 'l2', 'person', 'generate', 'ares'];
 
     stages.forEach(function(stage) {
       var info = data.stages[stage] || {};
@@ -684,7 +686,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function updateTotalCost() {
     if (!estimateData) return;
     var total = 0;
-    ['l1', 'l2', 'person', 'generate'].forEach(function(stage) {
+    ['l1', 'l2', 'person', 'generate', 'ares'].forEach(function(stage) {
       var info = estimateData.stages[stage] || {};
       var stageCost = enabledStages[stage] ? (info.estimated_cost || 0) : 0;
       total += stageCost;
@@ -707,7 +709,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getEnabledStages() {
-    return ['l1', 'l2', 'person', 'generate'].filter(function(s) { return enabledStages[s]; });
+    return ['l1', 'l2', 'person', 'generate', 'ares'].filter(function(s) { return enabledStages[s]; });
   }
 
   // --- Step 3: Start pipeline and poll ---

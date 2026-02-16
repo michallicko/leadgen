@@ -61,12 +61,12 @@ Port enrichment pipeline stages from n8n to Python classes (L1Enrichment, L2Enri
 Framework for modular, depth-selectable enrichment — the core of "AI company due diligence." Users choose which enrichment modules to run (company profile, legal, signals, news) and at what depth (quick scan vs full DD). Includes: module registry (pluggable enrichment stages), depth selector UI in dashboard, credit cost estimation before execution, progress tracking per module, and results viewer. Each module is a Python pipeline stage (via BL-015) that can be run independently or in combination.
 
 ### BL-017: Company Enrichment Modules
-**Status**: Idea | **Effort**: L | **Spec**: —
+**Status**: In Progress | **Effort**: L | **Spec**: `docs/specs/ares-enrichment.md`
 **Depends on**: BL-016 | **Theme**: Contact Intelligence
 
 Four enrichment module packs for companies, each runnable independently via the modular framework (BL-016):
 - **Company Profile**: Industry, size/headcount, what they do, tech stack, founding year, HQ, website analysis
-- **Legal & Registry**: Company registration number, directors/officers, filings, incorporation status, registered address, jurisdictions
+- **Legal & Registry**: ~~Company registration number, directors/officers, filings, incorporation status, registered address, jurisdictions~~ **V1 done** — Czech ARES integration (ICO, DIC, legal form, directors, capital, NACE codes, insolvency). ADR-003.
 - **Strategic Signals**: Funding rounds, M&A activity, hiring patterns (job postings), partnerships, growth indicators
 - **News & PR**: Recent media mentions, press releases, social presence, thought leadership, sentiment
 

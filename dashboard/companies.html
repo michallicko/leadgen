@@ -882,6 +882,74 @@ textarea:focus { outline: none; border-color: var(--accent); }
       });
     }
 
+    // Registry Data (ARES)
+    if (c.registry_data) {
+      var reg = section('Registry Data (ARES)', true);
+      var regContent = el('div', { className: 'l2-content', style: { display: 'none' } });
+      var rd = c.registry_data;
+
+      var regFields = [
+        { label: 'ICO', value: rd.ico },
+        { label: 'DIC', value: rd.dic },
+        { label: 'Official Name', value: rd.official_name },
+        { label: 'Legal Form', value: rd.legal_form_name || rd.legal_form },
+        { label: 'Established', value: rd.date_established },
+        { label: 'Status', value: rd.registration_status },
+        { label: 'Address', value: rd.registered_address },
+        { label: 'City', value: rd.address_city },
+        { label: 'Capital', value: rd.registered_capital },
+        { label: 'Court / File', value: (rd.registration_court || '') + (rd.registration_number ? ' / ' + rd.registration_number : '') },
+        { label: 'Insolvency', value: rd.insolvency_flag ? 'YES' : 'No' }
+      ];
+      regFields.forEach(function(f) {
+        if (f.value) {
+          var block = el('div', { className: 'l2-block' });
+          block.appendChild(el('label', null, f.label));
+          block.appendChild(el('div', { className: 'l2-text' }, String(f.value)));
+          regContent.appendChild(block);
+        }
+      });
+
+      if (rd.directors && rd.directors.length > 0) {
+        var dBlock = el('div', { className: 'l2-block' });
+        dBlock.appendChild(el('label', null, 'Directors'));
+        rd.directors.forEach(function(d) {
+          dBlock.appendChild(el('div', { className: 'l2-text' }, d.name + (d.role ? ' (' + d.role + ')' : '') + (d.since ? ' since ' + d.since : '')));
+        });
+        regContent.appendChild(dBlock);
+      }
+
+      if (rd.nace_codes && rd.nace_codes.length > 0) {
+        var nBlock = el('div', { className: 'l2-block' });
+        nBlock.appendChild(el('label', null, 'NACE Codes'));
+        rd.nace_codes.forEach(function(n) {
+          nBlock.appendChild(el('div', { className: 'l2-text' }, typeof n === 'object' ? (n.code + ': ' + (n.name || '')) : String(n)));
+        });
+        regContent.appendChild(nBlock);
+      }
+
+      var matchColor = rd.match_method === 'ico_direct' ? '#34D399' : rd.match_method === 'name_auto' ? '#FBBF24' : '#F97316';
+      regContent.appendChild(el('div', { style: { fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px' } },
+        'Match: ' + (rd.match_method || 'unknown') +
+        (rd.match_confidence != null ? ' (' + (rd.match_confidence * 100).toFixed(0) + '%)' : '') +
+        (rd.enriched_at ? ' | Enriched: ' + new Date(rd.enriched_at).toLocaleDateString() : '')));
+
+      reg.appendChild(regContent);
+      body.appendChild(reg);
+
+      reg.querySelector('.detail-section-title').addEventListener('click', function() {
+        var content = reg.querySelector('.l2-content');
+        var chev = reg.querySelector('.chevron');
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          if (chev) chev.classList.remove('collapsed');
+        } else {
+          content.style.display = 'none';
+          if (chev) chev.classList.add('collapsed');
+        }
+      });
+    }
+
     // Tags
     if (c.tags && c.tags.length > 0) {
       var tags = section('Tags');
