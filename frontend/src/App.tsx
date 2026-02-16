@@ -35,7 +35,7 @@ export default function App() {
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="import" element={<PlaceholderPage title="Import Contacts" />} />
-              <Route path="enrich" element={<PlaceholderPage title="Enrich Contacts" />} />
+              {/* enrich is served as vanilla HTML by Caddy — not handled by React */}
               <Route path="messages" element={<MessagesPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="playbook" element={<PlaceholderPage title="ICP Summary" />} />
