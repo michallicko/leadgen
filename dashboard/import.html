@@ -1117,14 +1117,14 @@ select option { background: var(--bg); color: var(--text); }
 
         var statusClass = job.status === 'completed' ? 'completed' :
                           job.status === 'error' ? 'error' :
-                          job.status === 'mapped' ? 'mapped' : 'uploaded';
+                          (job.status === 'mapped' || job.status === 'previewed') ? 'mapped' : 'uploaded';
         row.appendChild(mkEl('span', { className: 'status-pill ' + statusClass }, job.status));
 
         if (job.status === 'completed') {
           row.appendChild(mkEl('span', { className: 'meta' },
             (job.contacts_created || 0) + ' created, ' + (job.contacts_skipped || 0) + ' skipped'));
         }
-        if (job.status === 'uploaded' || job.status === 'mapped') {
+        if (job.status === 'uploaded' || job.status === 'mapped' || job.status === 'previewed') {
           var resumeBtn = mkEl('button', { className: 'btn-resume' }, 'Resume');
           resumeBtn.addEventListener('click', (function(jobId) {
             return function() { resumeImport(jobId); };

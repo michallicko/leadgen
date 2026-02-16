@@ -358,7 +358,7 @@ def import_status(job_id):
     if not job:
         return jsonify({"error": "Import job not found"}), 404
 
-    include_data = job.status in ("uploaded", "mapped")
+    include_data = job.status in ("uploaded", "mapped", "previewed")
     return jsonify(job.to_dict(include_data=include_data))
 
 
