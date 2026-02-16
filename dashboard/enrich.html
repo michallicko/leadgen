@@ -1044,7 +1044,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     var fromEnabled = enabledStages[fromCode];
     var toEnabled = enabledStages[toCode];
-    if (!fromEnabled && !toEnabled) return;
+    if (!fromEnabled || !toEnabled) return;
 
     var fromRect = fromNode.getBoundingClientRect();
     var toRect = toNode.getBoundingClientRect();
@@ -1115,7 +1115,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     if (owner) body.owner = owner;
     if (tiers.length > 0) body.tier_filter = tiers;
     var limit = getLimit();
-    if (limit) body.limit = limit;
+    if (limit) body.sample_size = limit;
 
     $('#btn_run').disabled = true;
     $('#btn_run').textContent = 'Starting...';
