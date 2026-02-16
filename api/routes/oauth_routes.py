@@ -59,9 +59,9 @@ def google_auth_url():
     return_url = request.args.get("return_url", "")
 
     scopes = []
-    if "contacts" in scope_param:
+    if scope_param == "both" or "contacts" in scope_param:
         scopes.extend(GOOGLE_CONTACTS_SCOPES)
-    if "gmail" in scope_param:
+    if scope_param == "both" or "gmail" in scope_param:
         scopes.extend(GOOGLE_GMAIL_SCOPES)
     if not scopes:
         scopes = GOOGLE_CONTACTS_SCOPES

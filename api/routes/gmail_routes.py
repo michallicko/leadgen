@@ -85,7 +85,18 @@ def preview_contacts(job_id):
     raw = job.raw_csv
     parsed_rows = json.loads(raw) if isinstance(raw, str) else raw
     if not parsed_rows:
-        return jsonify({"error": "No contacts to preview"}), 400
+        return jsonify({
+            "job_id": str(job.id),
+            "preview_rows": [],
+            "total_rows": 0,
+            "preview_count": 0,
+            "summary": {
+                "new_contacts": 0,
+                "duplicate_contacts": 0,
+                "new_companies": 0,
+                "existing_companies": 0,
+            },
+        })
 
     preview_rows = parsed_rows[:25]
     dedup_results = dedup_preview(str(tenant_id), preview_rows)
