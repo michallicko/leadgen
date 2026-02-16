@@ -132,6 +132,7 @@ class Company(db.Model):
     lemlist_synced = db.Column(db.Boolean, default=False)
     error_message = db.Column(db.Text)
     notes = db.Column(db.Text)
+    custom_fields = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -227,6 +228,7 @@ class Contact(db.Model):
     duplicity_detail = db.Column(db.Text)
     notes = db.Column(db.Text)
     error = db.Column(db.Text)
+    custom_fields = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -327,6 +329,42 @@ class PipelineRun(db.Model):
     started_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     completed_at = db.Column(db.DateTime(timezone=True))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CustomFieldDefinition(db.Model):
+    __tablename__ = "custom_field_definitions"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    entity_type = db.Column(db.Text, nullable=False)
+    field_key = db.Column(db.Text, nullable=False)
+    field_label = db.Column(db.Text, nullable=False)
+    field_type = db.Column(db.Text, nullable=False, default="text")
+    options = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    is_active = db.Column(db.Boolean, default=True)
+    display_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    __table_args__ = (
+        db.UniqueConstraint("tenant_id", "entity_type", "field_key", name="uq_cfd_tenant_entity_key"),
+    )
+
+    def to_dict(self):
+        opts = self.options or []
+        if isinstance(opts, str):
+            import json
+            opts = json.loads(opts)
+        return {
+            "id": str(self.id),
+            "entity_type": self.entity_type,
+            "field_key": self.field_key,
+            "field_label": self.field_label,
+            "field_type": self.field_type,
+            "options": opts,
+            "is_active": self.is_active,
+            "display_order": self.display_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class Message(db.Model):
