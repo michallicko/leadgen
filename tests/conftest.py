@@ -207,23 +207,24 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
     # Contacts
     contacts = []
     contact_data = [
-        ("John", "Doe", "CEO", companies[0].id, owner1.id, batch1.id, 85, "strong_fit", "not_started", "john@acme.com"),
-        ("Jane", "Smith", "CTO", companies[0].id, owner1.id, batch1.id, 90, "strong_fit", "approved", "jane@acme.com"),
-        ("Bob", "Wilson", "VP Engineering", companies[1].id, owner1.id, batch1.id, 75, "moderate_fit", "not_started", "bob@beta.io"),
-        ("Carol", "Lee", "Director of AI", companies[1].id, owner1.id, batch1.id, 80, "strong_fit", "pending_review", "carol@beta.io"),
-        ("Dave", "Brown", "Manager", companies[2].id, owner2.id, batch1.id, 60, "weak_fit", "not_started", None),
-        ("Eve", "Green", "CFO", companies[3].id, owner1.id, batch2.id, 70, "moderate_fit", "approved", "eve@delta.de"),
-        ("Frank", "Black", "CIO", companies[3].id, owner1.id, batch2.id, 88, "strong_fit", "sent", "frank@delta.de"),
-        ("Grace", "White", "Sales Director", companies[4].id, owner2.id, batch2.id, 45, "weak_fit", "not_started", None),
-        ("Hank", "Grey", "Intern", companies[4].id, owner2.id, batch2.id, 20, "unknown", "not_started", None),
-        ("Ivy", "Blue", "Product Manager", companies[2].id, owner2.id, batch1.id, 65, "moderate_fit", "generating", "ivy@gamma.co"),
+        ("John", "Doe", "CEO", companies[0].id, owner1.id, batch1.id, 85, "strong_fit", "not_started", "john@acme.com", "https://www.linkedin.com/in/johndoe"),
+        ("Jane", "Smith", "CTO", companies[0].id, owner1.id, batch1.id, 90, "strong_fit", "approved", "jane@acme.com", "https://www.linkedin.com/in/janesmith"),
+        ("Bob", "Wilson", "VP Engineering", companies[1].id, owner1.id, batch1.id, 75, "moderate_fit", "not_started", "bob@beta.io", "https://www.linkedin.com/in/bobwilson"),
+        ("Carol", "Lee", "Director of AI", companies[1].id, owner1.id, batch1.id, 80, "strong_fit", "pending_review", "carol@beta.io", "https://www.linkedin.com/in/carollee"),
+        ("Dave", "Brown", "Manager", companies[2].id, owner2.id, batch1.id, 60, "weak_fit", "not_started", None, "https://www.linkedin.com/in/davebrown"),
+        ("Eve", "Green", "CFO", companies[3].id, owner1.id, batch2.id, 70, "moderate_fit", "approved", "eve@delta.de", "https://www.linkedin.com/in/evegreen"),
+        ("Frank", "Black", "CIO", companies[3].id, owner1.id, batch2.id, 88, "strong_fit", "sent", "frank@delta.de", None),
+        ("Grace", "White", "Sales Director", companies[4].id, owner2.id, batch2.id, 45, "weak_fit", "not_started", None, None),
+        ("Hank", "Grey", "Intern", companies[4].id, owner2.id, batch2.id, 20, "unknown", "not_started", None, None),
+        ("Ivy", "Blue", "Product Manager", companies[2].id, owner2.id, batch1.id, 65, "moderate_fit", "generating", "ivy@gamma.co", "https://www.linkedin.com/in/ivyblue"),
     ]
-    for first, last, title, coid, oid, bid, score, icp, mstatus, email in contact_data:
+    for first, last, title, coid, oid, bid, score, icp, mstatus, email, linkedin in contact_data:
         ct = Contact(
             tenant_id=seed_tenant.id, first_name=first, last_name=last, job_title=title,
             company_id=coid, owner_id=oid, batch_id=bid,
             contact_score=score, icp_fit=icp, message_status=mstatus,
-            email_address=email, seniority_level="c_level" if "C" in title else "director",
+            email_address=email, linkedin_url=linkedin,
+            seniority_level="c_level" if "C" in title else "director",
             department="executive" if "C" in title else "engineering",
         )
         db.session.add(ct)

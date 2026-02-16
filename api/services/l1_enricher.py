@@ -59,6 +59,7 @@ USER_PROMPT_TEMPLATE = """Research the following company and return a JSON objec
 
 Company: {company_name}
 {domain_line}
+{contacts_section}
 {claims_section}
 
 Return this exact JSON structure:
@@ -120,7 +121,8 @@ def enrich_l1(company_id, tenant_id=None):
     existing_size = row[5]
     existing_revenue = float(row[6]) if row[6] else None
 
-    # 2. Resolve domain
+    # 2. Resolve domain and gather contact context
+    contact_linkedin_urls = _get_contact_linkedin_urls(company_id, limit=3)
     if not domain:
         domain = _resolve_domain(company_id)
 
@@ -128,7 +130,8 @@ def enrich_l1(company_id, tenant_id=None):
     try:
         raw_response, usage = _call_perplexity(company_name, domain,
                                                 existing_industry, existing_size,
-                                                existing_revenue)
+                                                existing_revenue,
+                                                contact_linkedin_urls)
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
         _set_company_status(company_id, "enrichment_failed",
@@ -235,12 +238,37 @@ def _resolve_domain(company_id):
     return None
 
 
+def _get_contact_linkedin_urls(company_id, limit=3):
+    """Fetch LinkedIn profile URLs for contacts linked to this company.
+
+    Returns list of (name, linkedin_url) tuples (up to limit).
+    """
+    rows = db.session.execute(
+        text("""
+            SELECT first_name, last_name, job_title, linkedin_url
+            FROM contacts
+            WHERE company_id = :id AND linkedin_url IS NOT NULL AND linkedin_url != ''
+            LIMIT :lim
+        """),
+        {"id": str(company_id), "lim": limit},
+    ).fetchall()
+
+    results = []
+    for row in rows:
+        name_parts = [row[0] or "", row[1] or ""]
+        name = " ".join(p for p in name_parts if p).strip() or "Unknown"
+        title = row[2] or ""
+        url = row[3]
+        results.append((name, title, url))
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Perplexity API call
 # ---------------------------------------------------------------------------
 
 def _call_perplexity(company_name, domain, existing_industry, existing_size,
-                     existing_revenue):
+                     existing_revenue, contact_linkedin_urls=None):
     """Call Perplexity sonar API for company research.
 
     Returns:
@@ -255,6 +283,15 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
     # Build user prompt
     domain_line = f"Domain: {domain}" if domain else "Domain: unknown"
 
+    # Contact LinkedIn context
+    contacts_section = ""
+    if contact_linkedin_urls:
+        lines = []
+        for name, title, url in contact_linkedin_urls:
+            label = f"{name} ({title})" if title else name
+            lines.append(f"- {label}: {url}")
+        contacts_section = "Known employees at this company:\n" + "\n".join(lines)
+
     claims = []
     if existing_industry:
         claims.append(f"Claimed industry: {existing_industry}")
@@ -268,6 +305,7 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
     user_prompt = USER_PROMPT_TEMPLATE.format(
         company_name=company_name,
         domain_line=domain_line,
+        contacts_section=contacts_section,
         claims_section=claims_section,
     )
 
@@ -653,12 +691,12 @@ def _validate_research(research, original_name):
         if similarity < 0.6:
             flags.append("name_mismatch")
 
-    # Missing critical fields (need at least 3 of 5)
+    # Missing critical fields (need at least 4 of 5)
     critical_fields = ["summary", "hq", "industry", "employees", "revenue_eur_m"]
     populated = sum(1 for f in critical_fields
                     if research.get(f) and str(research.get(f)).lower()
                     not in ("unverified", "unknown", "null", "none", "n/a"))
-    if populated < 3:
+    if populated < 4:
         flags.append("incomplete_research")
 
     # Revenue sanity
@@ -692,6 +730,18 @@ def _validate_research(research, original_name):
     if isinstance(summary, str) and len(summary.strip()) < 30:
         flags.append("summary_too_short")
 
+    # Merge Perplexity's own flags — look for high-severity indicators
+    pplx_flags = research.get("flags", [])
+    if isinstance(pplx_flags, list):
+        for pf in pplx_flags:
+            pf_lower = str(pf).lower()
+            if any(kw in pf_lower for kw in (
+                "not found", "no matching", "non-existent", "defunct",
+                "discrepancy", "mismatch", "conflicting",
+            )):
+                flags.append("source_warning")
+                break  # One flag is enough
+
     return flags
 
 
@@ -711,7 +761,9 @@ def _name_similarity(name_a, name_b):
         " inc", " inc.", " incorporated", " llc", " ltd", " ltd.",
         " limited", " gmbh", " ag", " sa", " se", " plc",
         " corp", " corp.", " corporation", " company",
-        " co.", " s.r.o.", " a.s.", " oy", " ab",
+        " co.", " s.r.o.", " a.s.", " a/s", " oy", " ab",
+        " sp. z o.o.", " spol. s r.o.", " s.a.", " s.p.a.",
+        " b.v.", " n.v.", " pty", " pty.",
     ):
         a = a.removesuffix(suffix)
         b = b.removesuffix(suffix)

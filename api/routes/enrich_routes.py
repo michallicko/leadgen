@@ -11,6 +11,7 @@ from ..services.pipeline_engine import (
     AVAILABLE_STAGES,
     count_eligible,
     start_pipeline_threads,
+    _process_entity,
 )
 
 enrich_bp = Blueprint("enrich", __name__)
@@ -217,3 +218,141 @@ def enrich_start():
         "pipeline_run_id": pipeline_run_id,
         "stage_run_ids": stage_run_ids,
     }), 201
+
+
+@enrich_bp.route("/api/enrich/review", methods=["GET"])
+@require_auth
+def enrich_review():
+    """List companies needing review after L1 enrichment."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    batch_name = request.args.get("batch_name", "")
+    stage = request.args.get("stage", "l1")
+
+    if not batch_name:
+        return jsonify({"error": "batch_name is required"}), 400
+
+    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    if err:
+        return err
+
+    rows = db.session.execute(
+        text("""
+            SELECT c.id, c.name, c.domain, c.status, c.error_message,
+                   c.enrichment_cost_usd
+            FROM companies c
+            WHERE c.tenant_id = :t AND c.batch_id = :b
+              AND c.status IN ('needs_review', 'enrichment_failed')
+            ORDER BY c.name
+        """),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchall()
+
+    items = []
+    for row in rows:
+        # Parse error_message as JSON flags list if possible
+        flags = []
+        if row[4]:
+            try:
+                flags = json.loads(row[4])
+            except (json.JSONDecodeError, TypeError):
+                flags = [row[4]]
+
+        items.append({
+            "id": str(row[0]),
+            "name": row[1],
+            "domain": row[2],
+            "status": row[3],
+            "flags": flags,
+            "enrichment_cost_usd": float(row[5]) if row[5] else 0,
+        })
+
+    return jsonify({"items": items, "total": len(items)})
+
+
+@enrich_bp.route("/api/enrich/resolve", methods=["POST"])
+@require_auth
+def enrich_resolve():
+    """Take corrective action on a flagged company."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    company_id = body.get("company_id")
+    action = body.get("action")
+
+    if not company_id:
+        return jsonify({"error": "company_id is required"}), 400
+    if action not in ("approve", "retry", "skip"):
+        return jsonify({"error": "action must be 'approve', 'retry', or 'skip'"}), 400
+
+    # Verify company belongs to tenant and is in reviewable state
+    row = db.session.execute(
+        text("""
+            SELECT status FROM companies
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": str(company_id), "t": str(tenant_id)},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    if row[0] not in ("needs_review", "enrichment_failed"):
+        return jsonify({"error": f"Company status '{row[0]}' is not reviewable"}), 409
+
+    if action == "approve":
+        db.session.execute(
+            text("""
+                UPDATE companies
+                SET status = 'triage_passed', error_message = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            """),
+            {"id": str(company_id)},
+        )
+        db.session.commit()
+        return jsonify({"success": True, "new_status": "triage_passed"})
+
+    elif action == "retry":
+        db.session.execute(
+            text("""
+                UPDATE companies
+                SET status = 'new', error_message = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            """),
+            {"id": str(company_id)},
+        )
+        db.session.commit()
+
+        # Re-run L1 enrichment synchronously
+        try:
+            result = _process_entity("l1", str(company_id), str(tenant_id))
+            new_status_row = db.session.execute(
+                text("SELECT status FROM companies WHERE id = :id"),
+                {"id": str(company_id)},
+            ).fetchone()
+            return jsonify({
+                "success": True,
+                "new_status": new_status_row[0] if new_status_row else "unknown",
+                "result": result,
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)[:500]}), 500
+
+    elif action == "skip":
+        db.session.execute(
+            text("""
+                UPDATE companies
+                SET status = 'triage_disqualified', error_message = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            """),
+            {"id": str(company_id)},
+        )
+        db.session.commit()
+        return jsonify({"success": True, "new_status": "triage_disqualified"})

@@ -324,6 +324,134 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   margin-bottom: 16px;
 }
 
+/* Coming soon badge */
+.coming-soon {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(90,97,112,0.15);
+  color: var(--text-dim);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Progress counters */
+.progress-counters {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+.progress-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.progress-counter--success { color: var(--success); }
+.progress-counter--error { color: var(--error); }
+.progress-counter--review { color: var(--warning); }
+.progress-counter .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.progress-counter--success .dot { background: var(--success); }
+.progress-counter--error .dot { background: var(--error); }
+.progress-counter--review .dot { background: var(--warning); }
+
+/* Time remaining */
+.progress-stage__eta {
+  width: 90px;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Completion badge */
+.completion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.completion-badge--ok { background: rgba(52,211,153,0.15); color: var(--success); cursor: default; }
+.completion-badge--review { background: rgba(251,191,36,0.15); color: var(--warning); }
+.completion-badge--review:hover { background: rgba(251,191,36,0.25); }
+
+/* Review list */
+.review-list {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.review-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.review-item:last-child { border-bottom: none; }
+.review-item__name { font-weight: 600; min-width: 140px; }
+.review-item__domain { color: var(--text-dim); min-width: 120px; }
+.review-item__flags { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; }
+.review-flag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: rgba(251,191,36,0.1);
+  color: var(--warning);
+}
+.review-flag--error { background: rgba(248,113,113,0.1); color: var(--error); }
+.review-item__actions { display: flex; gap: 4px; flex-shrink: 0; }
+.review-item__actions .btn { padding: 3px 10px; font-size: 0.72rem; }
+
+/* Progress counters */
+.progress-counters {
+  display: flex;
+  gap: 10px;
+  width: 130px;
+  flex-shrink: 0;
+}
+.progress-counter {
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.counter-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.counter-dot.green { background: var(--success); }
+.counter-dot.red { background: var(--error); }
+.counter-dot.amber { background: var(--warning); }
+
+/* Time estimate */
+.time-estimate {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 10px;
+  font-style: italic;
+}
+
 /* Hidden */
 .hidden { display: none !important; }
 
@@ -478,9 +606,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   };
 
   var estimateData = null;
-  var enabledStages = { l1: true, l2: true, person: true, generate: true, ares: true };
+  var enabledStages = { l1: true, l2: false, person: false, generate: false, ares: true };
+  var COMING_SOON_STAGES = { l2: true, person: true, generate: true };
   var batchList = [];
   var ownerList = [];
+  var stageStartTimes = {};
+  var reviewItems = [];
 
   // --- Utilities ---
   function $(sel) { return document.querySelector(sel); }
@@ -517,6 +648,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function fmt$(val) { return '$' + (val || 0).toFixed(2); }
+
+  function formatDuration(ms) {
+    var s = Math.round(ms / 1000);
+    if (s < 60) return '~' + s + 's remaining';
+    var m = Math.round(s / 60);
+    return '~' + m + 'm remaining';
+  }
 
   function getParam(name) {
     var params = new URLSearchParams(window.location.search);
@@ -637,11 +775,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var meta = STAGE_META[stage];
       var eligible = info.eligible_count || 0;
       var costPer = info.cost_per_item || 0;
-      var hasItems = eligible > 0;
+      var isComingSoon = !!COMING_SOON_STAGES[stage];
+      var hasItems = eligible > 0 && !isComingSoon;
 
-      enabledStages[stage] = hasItems;
+      enabledStages[stage] = hasItems && !isComingSoon;
 
       var card = mkEl('div', { className: 'stage-card' + (!hasItems ? ' disabled' : '') });
+      if (isComingSoon) card.style.opacity = '0.35';
       card.setAttribute('data-stage', stage);
 
       var colorBar = mkEl('div', { className: 'stage-card__color' });
@@ -649,8 +789,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       var toggle = mkEl('label', { className: 'toggle' });
       var input = mkEl('input', { type: 'checkbox' });
-      input.checked = hasItems;
-      input.disabled = !hasItems;
+      input.checked = hasItems && !isComingSoon;
+      input.disabled = !hasItems || isComingSoon;
       input.setAttribute('data-stage', stage);
       input.addEventListener('change', function() {
         enabledStages[stage] = this.checked;
@@ -661,17 +801,26 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       toggle.appendChild(slider);
 
       var infoDiv = mkEl('div', { className: 'stage-card__info' });
-      infoDiv.appendChild(mkEl('div', { className: 'stage-card__name' }, meta.name));
-      var detailText = eligible + ' eligible';
-      if (costPer) detailText += ' \u00B7 ' + fmt$(costPer) + '/item';
-      if (!hasItems) detailText = '0 eligible';
+      var nameRow = mkEl('div', { className: 'stage-card__name' });
+      nameRow.textContent = meta.name;
+      if (isComingSoon) {
+        var badge = mkEl('span', {
+          className: 'pill pill-idle',
+          style: 'margin-left:8px;font-size:0.65rem;vertical-align:middle;'
+        }, 'Coming soon');
+        nameRow.appendChild(badge);
+      }
+      infoDiv.appendChild(nameRow);
+      var detailText = isComingSoon ? 'Not yet available' : (eligible + ' eligible');
+      if (!isComingSoon && costPer) detailText += ' \u00B7 ' + fmt$(costPer) + '/item';
+      if (!isComingSoon && !eligible) detailText = '0 eligible';
       infoDiv.appendChild(mkEl('div', { className: 'stage-card__detail' }, detailText));
 
       var costDiv = mkEl('div', { className: 'stage-card__cost' });
-      var costVal = mkEl('div', { className: 'stage-card__cost-val' }, fmt$(info.estimated_cost || 0));
+      var costVal = mkEl('div', { className: 'stage-card__cost-val' }, isComingSoon ? '\u2014' : fmt$(info.estimated_cost || 0));
       costVal.setAttribute('data-stage-cost', stage);
       costDiv.appendChild(costVal);
-      costDiv.appendChild(mkEl('div', { className: 'stage-card__cost-label' }, 'estimated'));
+      costDiv.appendChild(mkEl('div', { className: 'stage-card__cost-label' }, isComingSoon ? '' : 'estimated'));
 
       card.appendChild(colorBar);
       card.appendChild(toggle);
@@ -709,7 +858,9 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getEnabledStages() {
-    return ['l1', 'l2', 'person', 'generate', 'ares'].filter(function(s) { return enabledStages[s]; });
+    return ['l1', 'l2', 'person', 'generate', 'ares'].filter(function(s) {
+      return enabledStages[s] && !COMING_SOON_STAGES[s];
+    });
   }
 
   // --- Step 3: Start pipeline and poll ---
@@ -739,6 +890,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function buildProgressUI(stages) {
     var container = $('#progress_stages');
     clearChildren(container);
+    stageStartTimes = {};
 
     stages.forEach(function(stage) {
       var meta = STAGE_META[stage];
@@ -757,8 +909,15 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var countEl = mkEl('div', { className: 'progress-stage__count' }, '0/0');
       countEl.setAttribute('data-count', stage);
 
+      // Success/error/review counters (populated by updateProgressUI)
+      var countersEl = mkEl('div', { className: 'progress-counters' });
+      countersEl.setAttribute('data-counters', stage);
+
       var costEl = mkEl('div', { className: 'progress-stage__cost' }, '$0.00');
       costEl.setAttribute('data-cost', stage);
+
+      var etaEl = mkEl('div', { className: 'progress-stage__eta' }, '');
+      etaEl.setAttribute('data-eta', stage);
 
       var statusEl = mkEl('div', { className: 'progress-stage__status' });
       var pill = mkEl('span', { className: 'pill pill-pending' }, 'PENDING');
@@ -768,10 +927,17 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       row.appendChild(nameEl);
       row.appendChild(barWrap);
       row.appendChild(countEl);
+      row.appendChild(countersEl);
       row.appendChild(costEl);
+      row.appendChild(etaEl);
       row.appendChild(statusEl);
       container.appendChild(row);
     });
+
+    // Add review list container after progress stages
+    var reviewContainer = mkEl('div', { className: 'hidden', id: 'review_list_container' });
+    reviewContainer.setAttribute('style', 'margin-top:12px;');
+    container.parentNode.appendChild(reviewContainer);
   }
 
   function startPolling(batchName) {
@@ -803,10 +969,49 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var pillEl = document.querySelector('[data-pill="' + stage + '"]');
       var rowEl = document.querySelector('[data-progress-stage="' + stage + '"]');
       var barEl = rowEl ? rowEl.querySelector('.progress-bar-fill') : null;
+      var countersEl = document.querySelector('[data-counters="' + stage + '"]');
+      var etaEl = document.querySelector('[data-eta="' + stage + '"]');
 
-      if (countEl) countEl.textContent = (s.done || 0) + '/' + (s.total || 0);
+      var done = s.done || 0;
+      var total = s.total || 0;
+      var failed = s.failed || 0;
+      var success = done - failed;
+
+      if (countEl) countEl.textContent = done + '/' + total;
       if (costEl) costEl.textContent = fmt$(s.cost || 0);
-      if (barEl && s.total > 0) barEl.style.width = Math.round((s.done || 0) / s.total * 100) + '%';
+      if (barEl && total > 0) barEl.style.width = Math.round(done / total * 100) + '%';
+
+      // Update success/error counters
+      if (countersEl && done > 0) {
+        clearChildren(countersEl);
+        if (success > 0) {
+          var sc = mkEl('span', { className: 'progress-counter' });
+          sc.appendChild(mkEl('span', { className: 'counter-dot green' }));
+          sc.appendChild(mkEl('span', {}, String(success)));
+          countersEl.appendChild(sc);
+        }
+        if (failed > 0) {
+          var fc = mkEl('span', { className: 'progress-counter' });
+          fc.appendChild(mkEl('span', { className: 'counter-dot red' }));
+          fc.appendChild(mkEl('span', {}, String(failed)));
+          countersEl.appendChild(fc);
+        }
+      }
+
+      // ETA calculation
+      if (etaEl && s.status === 'running' && done > 0 && done < total) {
+        if (!stageStartTimes[stage]) stageStartTimes[stage] = Date.now();
+        var elapsed = Date.now() - stageStartTimes[stage];
+        var avgPerItem = elapsed / done;
+        var remaining = (total - done) * avgPerItem;
+        etaEl.textContent = formatDuration(remaining);
+      } else if (etaEl) {
+        if (s.status === 'running' && done === 0) {
+          etaEl.textContent = 'Starting...';
+        } else {
+          etaEl.textContent = '';
+        }
+      }
 
       if (pillEl) {
         var st = s.status || 'pending';
@@ -866,11 +1071,130 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       actions.appendChild(contBtn);
     }
 
+    // Load review items to check if any need review
+    loadReviewItems();
+
     var viewContacts = mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts');
     actions.appendChild(viewContacts);
 
     var viewCompanies = mkEl('a', { className: 'btn btn-ghost', href: 'companies.html' }, 'View Companies');
     actions.appendChild(viewCompanies);
+  }
+
+  // --- Review list ---
+  function loadReviewItems() {
+    var batch = $('#batch_select').value;
+    if (!batch) return;
+
+    apiFetch(API_BASE + '/enrich/review?batch_name=' + encodeURIComponent(batch) + '&stage=l1')
+      .then(function(data) {
+        reviewItems = data.items || [];
+        updateReviewBadge();
+        if (reviewItems.length > 0) {
+          renderReviewList();
+        }
+      }).catch(function() {
+        // non-critical
+      });
+  }
+
+  function updateReviewBadge() {
+    var reviewContainer = document.getElementById('review_list_container');
+    if (!reviewContainer) return;
+
+    if (reviewItems.length === 0) {
+      reviewContainer.classList.add('hidden');
+      // Update pill to green check
+      var pillEl = document.querySelector('[data-pill="l1"]');
+      if (pillEl && pillEl.textContent === 'COMPLETED') {
+        var parent = pillEl.parentNode;
+        clearChildren(parent);
+        var badge = mkEl('span', { className: 'completion-badge completion-badge--ok' }, '\u2713 Done');
+        parent.appendChild(badge);
+      }
+      return;
+    }
+
+    // Show amber badge
+    var pillEl = document.querySelector('[data-pill="l1"]');
+    if (pillEl) {
+      var parent = pillEl.parentNode;
+      clearChildren(parent);
+      var badge = mkEl('span', { className: 'completion-badge completion-badge--review' });
+      badge.textContent = reviewItems.length + ' need review';
+      badge.addEventListener('click', function() {
+        reviewContainer.classList.toggle('hidden');
+      });
+      parent.appendChild(badge);
+    }
+
+    reviewContainer.classList.remove('hidden');
+  }
+
+  function renderReviewList() {
+    var container = document.getElementById('review_list_container');
+    if (!container) return;
+    clearChildren(container);
+
+    var title = mkEl('div', { className: 'card-title', style: 'margin-bottom:8px;' }, 'Companies Needing Review');
+    container.appendChild(title);
+
+    var list = mkEl('div', { className: 'review-list' });
+
+    reviewItems.forEach(function(item) {
+      var row = mkEl('div', { className: 'review-item' });
+      row.setAttribute('data-review-id', item.id);
+
+      row.appendChild(mkEl('div', { className: 'review-item__name' }, item.name));
+      row.appendChild(mkEl('div', { className: 'review-item__domain' }, item.domain || '\u2014'));
+
+      var flagsEl = mkEl('div', { className: 'review-item__flags' });
+      (item.flags || []).forEach(function(flag) {
+        var cls = 'review-flag';
+        if (item.status === 'enrichment_failed') cls += ' review-flag--error';
+        flagsEl.appendChild(mkEl('span', { className: cls }, flag.replace(/_/g, ' ')));
+      });
+      row.appendChild(flagsEl);
+
+      var actionsEl = mkEl('div', { className: 'review-item__actions' });
+
+      var retryBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Retry');
+      retryBtn.addEventListener('click', function() { resolveItem(item.id, 'retry', row); });
+      actionsEl.appendChild(retryBtn);
+
+      if (item.status === 'needs_review') {
+        var approveBtn = mkEl('button', { className: 'btn btn-success btn-sm' }, 'Approve');
+        approveBtn.addEventListener('click', function() { resolveItem(item.id, 'approve', row); });
+        actionsEl.appendChild(approveBtn);
+      }
+
+      row.appendChild(actionsEl);
+      list.appendChild(row);
+    });
+
+    container.appendChild(list);
+  }
+
+  function resolveItem(companyId, action, rowEl) {
+    // Disable buttons
+    var buttons = rowEl.querySelectorAll('button');
+    buttons.forEach(function(b) { b.disabled = true; });
+
+    apiFetch(API_BASE + '/enrich/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ company_id: companyId, action: action })
+    }).then(function(data) {
+      // Remove from review list
+      reviewItems = reviewItems.filter(function(i) { return i.id !== companyId; });
+      rowEl.style.opacity = '0.3';
+      setTimeout(function() {
+        rowEl.parentNode.removeChild(rowEl);
+        updateReviewBadge();
+      }, 300);
+    }).catch(function(err) {
+      buttons.forEach(function(b) { b.disabled = false; });
+      alert('Failed: ' + err.message);
+    });
   }
 
   function stopPipeline() {

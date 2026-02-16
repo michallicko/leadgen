@@ -5,6 +5,17 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Native L1 Enrichment** (ADR-003): Company enrichment via Perplexity sonar API, replacing n8n webhook
+  - `l1_enricher.py`: Domain resolution, Perplexity API call, JSON parsing, field mapping, QC validation
+  - 8 QC checks: name mismatch, incomplete research, revenue/employee sanity, low confidence, B2B unclear, short summary, source warning
+  - Contact LinkedIn URLs passed to Perplexity for better company identification
+  - Companies routed to `triage_passed` (clean) or `needs_review` (flagged) or `enrichment_failed` (error)
+  - Research data stored in `research_assets` table with confidence/quality scores
+  - Cost tracked in `llm_usage_log` with Perplexity pricing ($1/1M tokens)
+  - Pipeline engine hybrid dispatch: L1 runs native Python, L2/Person/Generate still via n8n
+  - Review API: `GET /api/enrich/review` (list flagged companies), `POST /api/enrich/resolve` (approve/retry/skip)
+  - Dashboard: L2/person/generate disabled with "Coming soon" badges, progress counters, ETA, inline review list
+  - 105 unit tests (enricher) + 32 tests (enrich routes), spec, ADR-003
 - **ARES Registry Enrichment** (BL-017 partial): Czech public register data for companies via ares.gov.cz
   - `company_registry_data` table: ICO, DIC, official name, legal form, directors, capital, NACE codes, insolvency flags
   - ARES service (`api/services/ares.py`): ICO lookup, name search with fuzzy matching (Czech suffix stripping), VR (commercial register) for directors/capital
