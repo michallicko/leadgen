@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enrich Contacts — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+  --l1-color: #00B8CF;
+  --l2-color: #8B47A8;
+  --person-color: #34D399;
+  --generate-color: #FBBF24;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Nav */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand { display: flex; align-items: center; gap: 10px; }
+.top-nav__title { font-family: var(--font-title); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.top-nav__links { display: flex; gap: 2px; margin-left: 24px; }
+.top-nav__link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: var(--transition);
+}
+.top-nav__link:hover { color: var(--text); background: rgba(110,44,139,0.08); }
+.top-nav__link.active { color: var(--accent-cyan); font-weight: 600; background: rgba(0,184,207,0.08); }
+.auth-user { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-muted); }
+.auth-logout { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+.auth-logout:hover { border-color: var(--error); color: var(--error); }
+
+/* Layout */
+.container { max-width: 860px; margin: 0 auto; padding: 32px 16px; }
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
+.subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
+
+/* Steps indicator */
+.steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 32px;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  cursor: default;
+}
+.step-item:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.step-item:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.step-item:not(:last-child) { border-right: none; }
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.step-item.active { color: var(--text); border-color: var(--accent); }
+.step-item.active .step-num { background: var(--accent); color: #fff; }
+.step-item.done { color: var(--success); border-color: rgba(52,211,153,0.2); }
+.step-item.done .step-num { background: var(--success); color: #0D0F14; }
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: var(--transition);
+  text-decoration: none;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-success { background: var(--success); color: #0D0F14; }
+.btn-success:hover { filter: brightness(1.1); }
+.btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-ghost { background: transparent; border: 1px solid var(--border-solid); color: var(--text-muted); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+.btn-error { background: var(--error); color: #0D0F14; }
+.btn-error:hover { filter: brightness(1.1); }
+.btn-error:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.78rem; }
+
+/* Form */
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
+.form-row select, .form-row input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+.form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
+
+/* Stage cards */
+.stage-cards { display: grid; gap: 12px; margin-bottom: 20px; }
+.stage-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+.stage-card.disabled { opacity: 0.4; }
+.stage-card__color {
+  width: 4px;
+  height: 36px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.stage-card__info { flex: 1; min-width: 0; }
+.stage-card__name { font-family: var(--font-title); font-size: 0.88rem; font-weight: 600; }
+.stage-card__detail { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.stage-card__cost { text-align: right; flex-shrink: 0; }
+.stage-card__cost-val { font-family: var(--font-title); font-size: 0.95rem; font-weight: 600; color: var(--accent-cyan); }
+.stage-card__cost-label { font-size: 0.72rem; color: var(--text-dim); }
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: 10px;
+  transition: var(--transition);
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 14px; width: 14px;
+  left: 2px; bottom: 2px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: var(--transition);
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+.toggle input:checked + .toggle-slider::before { background: #fff; transform: translateX(16px); }
+.toggle input:disabled + .toggle-slider { opacity: 0.3; cursor: not-allowed; }
+
+/* Cost bar */
+.cost-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  margin-top: 20px;
+}
+.cost-total { font-family: var(--font-title); font-size: 1.15rem; font-weight: 700; color: var(--accent-cyan); }
+.cost-label { font-size: 0.82rem; color: var(--text-muted); }
+
+/* Progress bars */
+.progress-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.progress-stage:last-child { border-bottom: none; }
+.progress-stage__name { width: 80px; font-size: 0.82rem; font-weight: 600; flex-shrink: 0; }
+.progress-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--surface-alt);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  background: var(--accent-cyan);
+}
+.progress-stage__count { width: 60px; text-align: right; font-size: 0.78rem; color: var(--text-muted); }
+.progress-stage__cost { width: 70px; text-align: right; font-size: 0.78rem; color: var(--accent-cyan); }
+.progress-stage__status { width: 70px; text-align: right; }
+
+/* Status pills */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.pill-pending { background: rgba(90,97,112,0.2); color: var(--text-dim); }
+.pill-running { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.pill-completed { background: rgba(52,211,153,0.15); color: var(--success); }
+.pill-failed { background: rgba(248,113,113,0.15); color: var(--error); }
+.pill-stopped { background: rgba(251,191,36,0.15); color: var(--warning); }
+.pill-idle { background: rgba(90,97,112,0.1); color: var(--text-dim); }
+
+/* Callout */
+.callout {
+  padding: 12px 16px;
+  background: rgba(0,184,207,0.06);
+  border: 1px solid rgba(0,184,207,0.15);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* Hidden */
+.hidden { display: none !important; }
+
+/* Spinner */
+.loading-sm {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border-solid);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .steps { flex-direction: column; }
+  .step-item { border-radius: 0; border-right: 1px solid var(--border); }
+  .step-item:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+  .step-item:last-child { border-radius: 0 0 var(--radius) var(--radius); border-top: none; }
+  .step-item:not(:last-child) { border-bottom: none; border-right: 1px solid var(--border); }
+  .cost-bar { flex-direction: column; gap: 8px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <div class="top-nav__brand">
+    <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+    <span class="top-nav__title">Leadgen</span>
+  </div>
+  <div class="top-nav__links">
+    <a href="index.html" class="top-nav__link">Pipeline</a>
+    <a href="companies.html" class="top-nav__link">Companies</a>
+    <a href="contacts.html" class="top-nav__link">Contacts</a>
+    <a href="messages.html" class="top-nav__link">Messages</a>
+    <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
+    <a href="enrich.html" class="top-nav__link active" data-min-role="editor">Enrich</a>
+    <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
+    <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+  </div>
+  <span class="auth-user">
+    <span id="auth_user_name"></span>
+    <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+  </span>
+</nav>
+
+<div class="container">
+  <h1>Enrich Contacts</h1>
+  <div class="subtitle" id="page_subtitle">Configure and run enrichment on your contacts.</div>
+
+  <!-- Steps indicator -->
+  <div class="steps">
+    <div class="step-item active" id="step_ind_1"><span class="step-num">1</span> Review Selection</div>
+    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> Configure &amp; Estimate</div>
+    <div class="step-item" id="step_ind_3"><span class="step-num">3</span> Processing</div>
+  </div>
+
+  <!-- STEP 1: Review Selection -->
+  <div id="step_1">
+    <div class="card">
+      <div class="card-title">Selection</div>
+
+      <div id="import_callout" class="callout hidden"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-row">
+          <label for="batch_select">Batch</label>
+          <select id="batch_select"><option value="">Loading...</option></select>
+        </div>
+        <div class="form-row">
+          <label for="owner_select">Owner (optional)</label>
+          <select id="owner_select"><option value="">All owners</option></select>
+        </div>
+      </div>
+
+      <div id="selection_summary" style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);"></div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;">
+        <button class="btn btn-primary" id="btn_configure" disabled>Configure Enrichment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Configure & Estimate -->
+  <div id="step_2" class="hidden">
+    <div class="card">
+      <div class="card-title">Enrichment Stages</div>
+      <div class="stage-cards" id="stage_cards"></div>
+    </div>
+
+    <div class="cost-bar" id="cost_bar">
+      <div>
+        <div class="cost-label">Total estimated cost</div>
+        <div class="cost-total" id="total_cost">$0.00</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-ghost btn-sm" id="btn_sample">Run Sample (10)</button>
+        <button class="btn btn-success" id="btn_start">Start Enrichment</button>
+        <button class="btn btn-ghost btn-sm" id="btn_back_1">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Processing -->
+  <div id="step_3" class="hidden">
+    <div class="card">
+      <div class="card-title">Progress</div>
+      <div id="progress_stages"></div>
+    </div>
+
+    <div class="cost-bar">
+      <div>
+        <div class="cost-label">Total cost so far</div>
+        <div class="cost-total" id="running_cost">$0.00</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-error btn-sm" id="btn_stop">Stop</button>
+      </div>
+    </div>
+
+    <!-- Completion panel (hidden until done) -->
+    <div id="completion_panel" class="card hidden" style="margin-top:16px;text-align:center;">
+      <div id="completion_icon" style="font-size:2rem;margin-bottom:8px;"></div>
+      <div id="completion_title" style="font-family:var(--font-title);font-size:1.1rem;font-weight:600;margin-bottom:6px;"></div>
+      <div id="completion_detail" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;"></div>
+      <div id="completion_actions" style="display:flex;gap:10px;justify-content:center;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = 'https://leadgen.visionvolve.com/api';
+  var POLL_INTERVAL = 5000;
+  var pollTimer = null;
+  var currentPipelineRunId = null;
+  var isSampleRun = false;
+
+  var STAGE_META = {
+    l1: { name: 'L1 Company Research', color: 'var(--l1-color)' },
+    l2: { name: 'L2 Deep Research', color: 'var(--l2-color)' },
+    person: { name: 'Person Enrichment', color: 'var(--person-color)' },
+    generate: { name: 'Message Generation', color: 'var(--generate-color)' }
+  };
+
+  var estimateData = null;
+  var enabledStages = { l1: true, l2: true, person: true, generate: true };
+  var batchList = [];
+  var ownerList = [];
+
+  // --- Utilities ---
+  function $(sel) { return document.querySelector(sel); }
+
+  function mkEl(tag, attrs, text) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function(k) {
+      if (k === 'className') el.className = attrs[k];
+      else if (k === 'style' && typeof attrs[k] === 'string') el.setAttribute('style', attrs[k]);
+      else el.setAttribute(k, attrs[k]);
+    });
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function clearChildren(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+  function apiHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : ''),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  function apiFetch(url, opts) {
+    var options = Object.assign({}, opts || {});
+    options.headers = Object.assign({}, apiHeaders(), options.headers || {});
+    return fetch(url, options).then(function(resp) {
+      if (resp.status === 401) { LeadgenAuth.logout(); throw new Error('Auth expired'); }
+      if (!resp.ok) return resp.json().then(function(d) { throw new Error(d.error || 'HTTP ' + resp.status); });
+      return resp.json();
+    });
+  }
+
+  function fmt$(val) { return '$' + (val || 0).toFixed(2); }
+
+  function getParam(name) {
+    var params = new URLSearchParams(window.location.search);
+    return params.get(name) || '';
+  }
+
+  // --- Step navigation ---
+  function goStep(n) {
+    [1, 2, 3].forEach(function(i) {
+      var el = $('#step_' + i);
+      var ind = $('#step_ind_' + i);
+      if (i === n) {
+        el.classList.remove('hidden');
+        ind.classList.add('active');
+        ind.classList.remove('done');
+      } else if (i < n) {
+        el.classList.add('hidden');
+        ind.classList.remove('active');
+        ind.classList.add('done');
+      } else {
+        el.classList.add('hidden');
+        ind.classList.remove('active', 'done');
+      }
+    });
+  }
+
+  // --- Step 1: Load batches and owners ---
+  function loadBatchesAndOwners() {
+    apiFetch(API_BASE + '/batches').then(function(data) {
+      batchList = data.batches || data || [];
+      var sel = $('#batch_select');
+      clearChildren(sel);
+      sel.appendChild(mkEl('option', { value: '' }, 'Select batch...'));
+      batchList.forEach(function(b) {
+        sel.appendChild(mkEl('option', { value: b.name }, b.name));
+      });
+
+      // Pre-select from URL param
+      var urlBatch = getParam('batch_name');
+      if (urlBatch) sel.value = urlBatch;
+
+      // Load owners
+      var ownerSel = $('#owner_select');
+      var uniqueOwners = {};
+      batchList.forEach(function(b) {
+        if (b.owners) {
+          b.owners.forEach(function(o) { uniqueOwners[o.name] = o; });
+        }
+      });
+      ownerList = Object.values(uniqueOwners);
+      ownerList.forEach(function(o) {
+        ownerSel.appendChild(mkEl('option', { value: o.name }, o.name));
+      });
+
+      var urlOwner = getParam('owner_name');
+      if (urlOwner) ownerSel.value = urlOwner;
+
+      updateSelectionSummary();
+      checkConfigureEnabled();
+
+      // Show import callout if coming from import
+      var importJobId = getParam('import_job_id');
+      if (importJobId && urlBatch) {
+        var callout = $('#import_callout');
+        callout.textContent = 'Enriching contacts imported into batch "' + urlBatch + '"';
+        callout.classList.remove('hidden');
+      }
+    }).catch(function(err) {
+      $('#selection_summary').textContent = 'Failed to load batches: ' + err.message;
+    });
+  }
+
+  function updateSelectionSummary() {
+    var batch = $('#batch_select').value;
+    var owner = $('#owner_select').value;
+    var summary = $('#selection_summary');
+    if (!batch) {
+      summary.textContent = 'Select a batch to see eligible contacts.';
+      return;
+    }
+    var text = 'Batch: ' + batch;
+    if (owner) text += ' | Owner: ' + owner;
+    summary.textContent = text;
+  }
+
+  function checkConfigureEnabled() {
+    $('#btn_configure').disabled = !$('#batch_select').value;
+  }
+
+  // --- Step 2: Fetch estimate and build stage cards ---
+  function fetchEstimate(callback) {
+    var batch = $('#batch_select').value;
+    var owner = $('#owner_select').value;
+    var stages = ['l1', 'l2', 'person', 'generate'];
+
+    apiFetch(API_BASE + '/enrich/estimate', {
+      method: 'POST',
+      body: JSON.stringify({
+        batch_name: batch,
+        owner_name: owner || undefined,
+        stages: stages
+      })
+    }).then(function(data) {
+      estimateData = data;
+      if (callback) callback(data);
+    }).catch(function(err) {
+      alert('Failed to get estimate: ' + err.message);
+    });
+  }
+
+  function buildStageCards(data) {
+    var container = $('#stage_cards');
+    clearChildren(container);
+    var stages = ['l1', 'l2', 'person', 'generate'];
+
+    stages.forEach(function(stage) {
+      var info = data.stages[stage] || {};
+      var meta = STAGE_META[stage];
+      var eligible = info.eligible_count || 0;
+      var costPer = info.cost_per_item || 0;
+      var hasItems = eligible > 0;
+
+      enabledStages[stage] = hasItems;
+
+      var card = mkEl('div', { className: 'stage-card' + (!hasItems ? ' disabled' : '') });
+      card.setAttribute('data-stage', stage);
+
+      var colorBar = mkEl('div', { className: 'stage-card__color' });
+      colorBar.style.background = meta.color;
+
+      var toggle = mkEl('label', { className: 'toggle' });
+      var input = mkEl('input', { type: 'checkbox' });
+      input.checked = hasItems;
+      input.disabled = !hasItems;
+      input.setAttribute('data-stage', stage);
+      input.addEventListener('change', function() {
+        enabledStages[stage] = this.checked;
+        updateTotalCost();
+      });
+      var slider = mkEl('span', { className: 'toggle-slider' });
+      toggle.appendChild(input);
+      toggle.appendChild(slider);
+
+      var infoDiv = mkEl('div', { className: 'stage-card__info' });
+      infoDiv.appendChild(mkEl('div', { className: 'stage-card__name' }, meta.name));
+      var detailText = eligible + ' eligible';
+      if (costPer) detailText += ' \u00B7 ' + fmt$(costPer) + '/item';
+      if (!hasItems) detailText = '0 eligible';
+      infoDiv.appendChild(mkEl('div', { className: 'stage-card__detail' }, detailText));
+
+      var costDiv = mkEl('div', { className: 'stage-card__cost' });
+      var costVal = mkEl('div', { className: 'stage-card__cost-val' }, fmt$(info.estimated_cost || 0));
+      costVal.setAttribute('data-stage-cost', stage);
+      costDiv.appendChild(costVal);
+      costDiv.appendChild(mkEl('div', { className: 'stage-card__cost-label' }, 'estimated'));
+
+      card.appendChild(colorBar);
+      card.appendChild(toggle);
+      card.appendChild(infoDiv);
+      card.appendChild(costDiv);
+      container.appendChild(card);
+    });
+
+    updateTotalCost();
+  }
+
+  function updateTotalCost() {
+    if (!estimateData) return;
+    var total = 0;
+    ['l1', 'l2', 'person', 'generate'].forEach(function(stage) {
+      var info = estimateData.stages[stage] || {};
+      var stageCost = enabledStages[stage] ? (info.estimated_cost || 0) : 0;
+      total += stageCost;
+      var el = document.querySelector('[data-stage-cost="' + stage + '"]');
+      if (el) el.textContent = enabledStages[stage] ? fmt$(info.estimated_cost || 0) : '$0.00';
+      var card = document.querySelector('.stage-card[data-stage="' + stage + '"]');
+      if (card) {
+        if (enabledStages[stage] && (info.eligible_count || 0) > 0) {
+          card.classList.remove('disabled');
+        } else {
+          card.classList.add('disabled');
+        }
+      }
+    });
+    $('#total_cost').textContent = fmt$(total);
+
+    var anyEnabled = Object.keys(enabledStages).some(function(s) { return enabledStages[s]; });
+    $('#btn_start').disabled = !anyEnabled;
+    $('#btn_sample').disabled = !anyEnabled;
+  }
+
+  function getEnabledStages() {
+    return ['l1', 'l2', 'person', 'generate'].filter(function(s) { return enabledStages[s]; });
+  }
+
+  // --- Step 3: Start pipeline and poll ---
+  function startEnrichment(sampleSize) {
+    var batch = $('#batch_select').value;
+    var owner = $('#owner_select').value;
+    var stages = getEnabledStages();
+    isSampleRun = !!sampleSize;
+
+    var body = { batch_name: batch, stages: stages };
+    if (owner) body.owner_name = owner;
+    if (sampleSize) body.sample_size = sampleSize;
+
+    apiFetch(API_BASE + '/enrich/start', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }).then(function(data) {
+      currentPipelineRunId = data.pipeline_run_id;
+      goStep(3);
+      buildProgressUI(stages);
+      startPolling(batch);
+    }).catch(function(err) {
+      alert('Failed to start enrichment: ' + err.message);
+    });
+  }
+
+  function buildProgressUI(stages) {
+    var container = $('#progress_stages');
+    clearChildren(container);
+
+    stages.forEach(function(stage) {
+      var meta = STAGE_META[stage];
+      var row = mkEl('div', { className: 'progress-stage' });
+      row.setAttribute('data-progress-stage', stage);
+
+      var nameEl = mkEl('div', { className: 'progress-stage__name' }, stage.toUpperCase());
+      nameEl.style.color = meta.color;
+
+      var barWrap = mkEl('div', { className: 'progress-bar-wrap' });
+      var barFill = mkEl('div', { className: 'progress-bar-fill' });
+      barFill.style.width = '0%';
+      barFill.style.background = meta.color;
+      barWrap.appendChild(barFill);
+
+      var countEl = mkEl('div', { className: 'progress-stage__count' }, '0/0');
+      countEl.setAttribute('data-count', stage);
+
+      var costEl = mkEl('div', { className: 'progress-stage__cost' }, '$0.00');
+      costEl.setAttribute('data-cost', stage);
+
+      var statusEl = mkEl('div', { className: 'progress-stage__status' });
+      var pill = mkEl('span', { className: 'pill pill-pending' }, 'PENDING');
+      pill.setAttribute('data-pill', stage);
+      statusEl.appendChild(pill);
+
+      row.appendChild(nameEl);
+      row.appendChild(barWrap);
+      row.appendChild(countEl);
+      row.appendChild(costEl);
+      row.appendChild(statusEl);
+      container.appendChild(row);
+    });
+  }
+
+  function startPolling(batchName) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function() { pollStatus(batchName); }, POLL_INTERVAL);
+    pollStatus(batchName);
+  }
+
+  function pollStatus(batchName) {
+    apiFetch(API_BASE + '/pipeline/status?batch_name=' + encodeURIComponent(batchName))
+      .then(function(data) {
+        updateProgressUI(data);
+        checkCompletion(data);
+      }).catch(function() {
+        // ignore transient errors
+      });
+  }
+
+  function updateProgressUI(data) {
+    var totalCost = 0;
+    var stages = data.stages || {};
+
+    Object.keys(stages).forEach(function(stage) {
+      var s = stages[stage];
+      if (!s || s.status === 'idle' || s.status === 'unavailable') return;
+
+      var countEl = document.querySelector('[data-count="' + stage + '"]');
+      var costEl = document.querySelector('[data-cost="' + stage + '"]');
+      var pillEl = document.querySelector('[data-pill="' + stage + '"]');
+      var rowEl = document.querySelector('[data-progress-stage="' + stage + '"]');
+      var barEl = rowEl ? rowEl.querySelector('.progress-bar-fill') : null;
+
+      if (countEl) countEl.textContent = (s.done || 0) + '/' + (s.total || 0);
+      if (costEl) costEl.textContent = fmt$(s.cost || 0);
+      if (barEl && s.total > 0) barEl.style.width = Math.round((s.done || 0) / s.total * 100) + '%';
+
+      if (pillEl) {
+        var st = s.status || 'pending';
+        pillEl.className = 'pill pill-' + st;
+        pillEl.textContent = st.toUpperCase();
+      }
+
+      totalCost += (s.cost || 0);
+    });
+
+    $('#running_cost').textContent = fmt$(totalCost);
+  }
+
+  function checkCompletion(data) {
+    var pipeline = data.pipeline;
+    if (!pipeline) return;
+
+    if (pipeline.status === 'completed' || pipeline.status === 'failed' || pipeline.status === 'stopped') {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      showCompletion(pipeline, data.stages);
+    }
+  }
+
+  function showCompletion(pipeline, stages) {
+    var panel = $('#completion_panel');
+    panel.classList.remove('hidden');
+    $('#btn_stop').disabled = true;
+
+    var isSuccess = pipeline.status === 'completed';
+    var isStopped = pipeline.status === 'stopped';
+
+    $('#completion_icon').textContent = isSuccess ? '\u2713' : (isStopped ? '\u23F8' : '\u2717');
+    $('#completion_icon').style.color = isSuccess ? 'var(--success)' : (isStopped ? 'var(--warning)' : 'var(--error)');
+    $('#completion_title').textContent = isSuccess ? 'Enrichment Complete' : (isStopped ? 'Enrichment Stopped' : 'Enrichment Failed');
+
+    var totalDone = 0, totalFailed = 0;
+    Object.keys(stages).forEach(function(s) {
+      if (stages[s].done) totalDone += stages[s].done;
+      if (stages[s].failed) totalFailed += stages[s].failed;
+    });
+
+    var detail = totalDone + ' items processed';
+    if (totalFailed > 0) detail += ', ' + totalFailed + ' failed';
+    detail += ' \u00B7 Total cost: ' + fmt$(pipeline.cost || 0);
+    $('#completion_detail').textContent = detail;
+
+    var actions = $('#completion_actions');
+    clearChildren(actions);
+
+    if (isSampleRun || isStopped) {
+      var contBtn = mkEl('button', { className: 'btn btn-success' }, 'Continue with Remaining');
+      contBtn.addEventListener('click', function() {
+        panel.classList.add('hidden');
+        goStep(2);
+        fetchEstimate(function(d) { buildStageCards(d); });
+      });
+      actions.appendChild(contBtn);
+    }
+
+    var viewContacts = mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts');
+    actions.appendChild(viewContacts);
+
+    var viewCompanies = mkEl('a', { className: 'btn btn-ghost', href: 'companies.html' }, 'View Companies');
+    actions.appendChild(viewCompanies);
+  }
+
+  function stopPipeline() {
+    if (!currentPipelineRunId) return;
+    apiFetch(API_BASE + '/pipeline/stop-all', {
+      method: 'POST',
+      body: JSON.stringify({ pipeline_run_id: currentPipelineRunId })
+    }).then(function() {
+      $('#btn_stop').disabled = true;
+      $('#btn_stop').textContent = 'Stopping...';
+    }).catch(function(err) {
+      alert('Failed to stop: ' + err.message);
+    });
+  }
+
+  // --- Event bindings ---
+  function bindEvents() {
+    $('#batch_select').addEventListener('change', function() {
+      updateSelectionSummary();
+      checkConfigureEnabled();
+    });
+    $('#owner_select').addEventListener('change', updateSelectionSummary);
+
+    $('#btn_configure').addEventListener('click', function() {
+      fetchEstimate(function(data) {
+        buildStageCards(data);
+        goStep(2);
+      });
+    });
+
+    $('#btn_start').addEventListener('click', function() { startEnrichment(); });
+    $('#btn_sample').addEventListener('click', function() { startEnrichment(10); });
+    $('#btn_back_1').addEventListener('click', function() { goStep(1); });
+    $('#btn_stop').addEventListener('click', stopPipeline);
+  }
+
+  // --- Init ---
+  function onPageReady() {
+    loadBatchesAndOwners();
+    bindEvents();
+  }
+
+  function init() {
+    LeadgenAuth.init(onPageReady);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

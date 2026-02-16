@@ -303,6 +303,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
       <a href="contacts.html" class="top-nav__link">Contacts</a>
       <a href="messages.html" class="top-nav__link">Messages</a>
       <a href="import.html" class="top-nav__link" data-min-role="editor">Import</a>
+      <a href="enrich.html" class="top-nav__link" data-min-role="editor">Enrich</a>
       <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
       <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
     </div>
@@ -356,6 +357,9 @@ textarea:focus { outline: none; border-color: var(--accent); }
         <label for="filter_owner">Owner</label>
         <select id="filter_owner"><option value="">All</option></select>
       </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <a id="enrich_btn" class="btn btn-primary btn-sm" href="enrich.html" data-min-role="editor">Enrich Selection</a>
     </div>
   </div>
 
@@ -669,6 +673,17 @@ textarea:focus { outline: none; border-color: var(--accent); }
     });
   }
 
+  function updateEnrichLink() {
+    var btn = $('#enrich_btn');
+    if (!btn) return;
+    var batch = $('#filter_batch').value;
+    var owner = $('#filter_owner').value;
+    var params = [];
+    if (batch) params.push('batch_name=' + encodeURIComponent(batch));
+    if (owner) params.push('owner_name=' + encodeURIComponent(owner));
+    btn.href = 'enrich.html' + (params.length ? '?' + params.join('&') : '');
+  }
+
   function resetAndLoad() {
     state.page = 1;
     state.items = [];
@@ -676,6 +691,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
     visibleRange = { start: 0, end: 0 };
     $('#table_body').textContent = '';
     $('#scroll_container').scrollTop = 0;
+    updateEnrichLink();
     loadMore();
   }
 
