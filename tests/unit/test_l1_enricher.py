@@ -266,6 +266,22 @@ class TestNameSimilarity:
         # Should be reasonably high
         assert self.sim("Acme Corporation", "Acme Corp") > 0.6
 
+    def test_a_slash_s_suffix(self):
+        """Danish A/S suffix should be stripped."""
+        assert self.sim("NNIT", "NNIT A/S") == 1.0
+
+    def test_sp_z_oo_suffix(self):
+        """Polish sp. z o.o. suffix should be stripped."""
+        assert self.sim("Formika", "Formika Sp. z o.o.") == 1.0
+
+    def test_bv_suffix(self):
+        """Dutch B.V. suffix should be stripped."""
+        assert self.sim("Philips", "Philips B.V.") == 1.0
+
+    def test_spa_suffix(self):
+        """Italian S.p.A. suffix should be stripped."""
+        assert self.sim("Enel", "Enel S.p.A.") == 1.0
+
 
 class TestParseResearchJson:
     def setup_method(self):
@@ -399,6 +415,42 @@ class TestValidateResearch:
     def test_summary_too_short(self):
         flags = self.validate(self._good_research(summary="Short"), "Acme Corp")
         assert "summary_too_short" in flags
+
+    def test_incomplete_at_3_of_5(self):
+        """3 of 5 critical fields should now be flagged (threshold raised to 4)."""
+        research = self._good_research(employees="unverified", revenue_eur_m="unverified")
+        flags = self.validate(research, "Acme Corp")
+        assert "incomplete_research" in flags
+
+    def test_complete_at_4_of_5(self):
+        """4 of 5 critical fields should pass."""
+        research = self._good_research(revenue_eur_m="unverified")
+        flags = self.validate(research, "Acme Corp")
+        assert "incomplete_research" not in flags
+
+    def test_source_warning_from_perplexity_flags(self):
+        """Perplexity flags containing 'not found' trigger source_warning."""
+        research = self._good_research(flags=["Company not found in search results"])
+        flags = self.validate(research, "Acme Corp")
+        assert "source_warning" in flags
+
+    def test_source_warning_discrepancy(self):
+        """Perplexity flags containing 'discrepancy' trigger source_warning."""
+        research = self._good_research(flags=["HQ location discrepancy between sources"])
+        flags = self.validate(research, "Acme Corp")
+        assert "source_warning" in flags
+
+    def test_no_source_warning_for_benign_flags(self):
+        """Perplexity flags without warning keywords should not trigger."""
+        research = self._good_research(flags=["Revenue converted from USD"])
+        flags = self.validate(research, "Acme Corp")
+        assert "source_warning" not in flags
+
+    def test_no_source_warning_without_flags(self):
+        """No Perplexity flags → no source_warning."""
+        research = self._good_research(flags=[])
+        flags = self.validate(research, "Acme Corp")
+        assert "source_warning" not in flags
 
 
 # ---------------------------------------------------------------------------
@@ -628,3 +680,26 @@ class TestEnrichL1Integration:
                 {"id": str(company.id)},
             ).fetchone()
             assert row[0] == "acme.com"
+
+    def test_linkedin_urls_passed_to_perplexity(self, app, db, seed_companies_contacts):
+        """Contact LinkedIn URLs are included in the Perplexity prompt."""
+        data = seed_companies_contacts
+        company = data["companies"][0]  # Acme Corp, contacts have LinkedIn URLs
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            captured_payload = {}
+
+            def _capture_post(*args, **kwargs):
+                captured_payload.update(kwargs.get("json", {}))
+                return _mock_perplexity_success()
+
+            with patch("api.services.l1_enricher.requests.post", side_effect=_capture_post):
+                from api.services.l1_enricher import enrich_l1
+                enrich_l1(str(company.id), str(data["tenant"].id))
+
+            # The user message should contain LinkedIn URLs
+            user_msg = captured_payload["messages"][1]["content"]
+            assert "linkedin.com/in/" in user_msg
+            assert "Known employees" in user_msg
