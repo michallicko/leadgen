@@ -370,6 +370,38 @@ select option { background: var(--bg); color: var(--text); }
 .preview-scroll { max-height: 400px; overflow: auto; }
 .preview-scroll thead { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 
+/* Import detail tabs */
+.detail-tabs { display: flex; gap: 0; margin-bottom: 0; }
+.detail-tab {
+  padding: 8px 18px; cursor: pointer; font-size: 0.78rem; font-weight: 600;
+  color: var(--text-muted); border-bottom: 2px solid transparent;
+  transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.detail-tab:hover { color: var(--text); }
+.detail-tab.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
+.detail-tab .tab-count {
+  display: inline-block; padding: 1px 7px; border-radius: 10px;
+  font-size: 0.65rem; margin-left: 6px; background: rgba(110,44,139,0.12);
+  color: var(--text-muted); font-weight: 700; vertical-align: middle;
+}
+.detail-tab.active .tab-count { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.detail-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.detail-table th {
+  text-align: left; padding: 8px 10px; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.detail-table td {
+  padding: 7px 10px; border-bottom: 1px solid rgba(35,29,48,0.3);
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conflict-row { display: flex; gap: 8px; align-items: center; font-size: 0.78rem; margin-bottom: 4px; }
+.conflict-field { font-weight: 600; color: var(--text); min-width: 80px; }
+.conflict-old { color: var(--error); text-decoration: line-through; }
+.conflict-new { color: var(--success); }
+.detail-scroll { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+.detail-scroll thead { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+
 /* Past imports */
 .imports-list { margin-top: 8px; }
 .import-row {
@@ -1192,7 +1224,9 @@ select option { background: var(--bg); color: var(--text); }
     addCount(counts.companies_linked, 'Linked Cos', 'yellow');
     inner.appendChild(countsDiv);
 
-    var btns = mkEl('div', { style: 'display:flex;gap:10px;justify-content:center;' });
+    var btns = mkEl('div', { style: 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;' });
+    var enrichLink = mkEl('a', { className: 'btn btn-success', href: 'enrich.html?batch_name=' + encodeURIComponent(data.batch_name || '') + '&import_job_id=' + encodeURIComponent(data.job_id || '') }, 'Enrich Contacts');
+    btns.appendChild(enrichLink);
     var aLink = mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts');
     btns.appendChild(aLink);
     var resetBtn = mkEl('button', { className: 'btn btn-ghost' }, 'Import Another');
@@ -1200,8 +1234,175 @@ select option { background: var(--bg); color: var(--text); }
     btns.appendChild(resetBtn);
     inner.appendChild(btns);
 
+    // Import Details section
+    var detailSection = mkEl('div', { style: 'text-align:left;margin-top:24px;' });
+    var detailTitle = mkEl('div', { className: 'card-title' }, 'Import Details');
+    detailSection.appendChild(detailTitle);
+
+    var tabBar = mkEl('div', { className: 'detail-tabs' });
+    var detailBody = mkEl('div', { id: 'detail_body' });
+    var detailState = { filter: 'all', page: 1 };
+
+    var tabDefs = [
+      { key: 'all', label: 'All' },
+      { key: 'created', label: 'Created', count: counts.contacts_created },
+      { key: 'skipped', label: 'Skipped', count: counts.contacts_skipped },
+      { key: 'updated', label: 'Updated', count: counts.contacts_updated },
+      { key: 'conflicts', label: 'Conflicts' },
+    ];
+
+    tabDefs.forEach(function(t) {
+      var tab = mkEl('div', { className: 'detail-tab' + (t.key === 'all' ? ' active' : '') });
+      tab.textContent = t.label;
+      tab.setAttribute('data-filter', t.key);
+      if (t.count !== undefined) {
+        var badge = mkEl('span', { className: 'tab-count' }, String(t.count));
+        tab.appendChild(badge);
+      }
+      tab.addEventListener('click', function() {
+        tabBar.querySelectorAll('.detail-tab').forEach(function(el) { el.classList.remove('active'); });
+        tab.classList.add('active');
+        detailState.filter = t.key;
+        detailState.page = 1;
+        loadDetailRows(data.job_id, detailState, detailBody);
+      });
+      tabBar.appendChild(tab);
+    });
+
+    detailSection.appendChild(tabBar);
+    detailSection.appendChild(detailBody);
+    inner.appendChild(detailSection);
+
     panel.appendChild(inner);
     panel.scrollIntoView({ behavior: 'smooth' });
+
+    // Load initial details
+    loadDetailRows(data.job_id, detailState, detailBody);
+  }
+
+  function loadDetailRows(jobId, state, container) {
+    clearChildren(container);
+    var spinner = mkEl('div', { className: 'spinner-overlay', style: 'padding:16px;' });
+    spinner.appendChild(mkEl('div', { className: 'loading-sm' }));
+    spinner.appendChild(mkEl('span', {}, 'Loading details...'));
+    container.appendChild(spinner);
+
+    apiFetch(API_BASE + '/imports/' + jobId + '/results?filter=' + state.filter + '&page=' + state.page)
+      .then(function(data) {
+        clearChildren(container);
+        if (!data.rows || !data.rows.length) {
+          container.appendChild(mkEl('div', { style: 'padding:16px;color:var(--text-dim);font-size:0.85rem;' }, 'No rows match this filter.'));
+          // Update conflicts tab count if available
+          if (data.summary && data.summary.total_conflicts !== undefined) {
+            var cTab = document.querySelector('.detail-tab[data-filter="conflicts"]');
+            if (cTab && !cTab.querySelector('.tab-count')) {
+              cTab.appendChild(mkEl('span', { className: 'tab-count' }, String(data.summary.total_conflicts)));
+            }
+          }
+          return;
+        }
+
+        // Update conflicts tab count from summary
+        if (data.summary && data.summary.total_conflicts !== undefined) {
+          var cTab = document.querySelector('.detail-tab[data-filter="conflicts"]');
+          if (cTab && !cTab.querySelector('.tab-count')) {
+            cTab.appendChild(mkEl('span', { className: 'tab-count' }, String(data.summary.total_conflicts)));
+          }
+        }
+
+        var scroll = mkEl('div', { className: 'detail-scroll' });
+        var table = mkEl('table', { className: 'detail-table' });
+        var thead = document.createElement('thead');
+        var headTr = document.createElement('tr');
+
+        var columns = state.filter === 'conflicts'
+          ? ['Row', 'Contact', 'Company', 'Field', 'Existing', 'Incoming']
+          : ['Row', 'Action', 'Contact', 'Company', 'Detail'];
+
+        columns.forEach(function(h) {
+          headTr.appendChild(mkEl('th', {}, h));
+        });
+        thead.appendChild(headTr);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+
+        if (state.filter === 'conflicts') {
+          // Flatten: one row per conflict field
+          data.rows.forEach(function(r) {
+            (r.conflicts || []).forEach(function(c) {
+              var tr = document.createElement('tr');
+              tr.appendChild(mkEl('td', {}, String(r.row_idx + 1)));
+              tr.appendChild(mkEl('td', {}, r.contact_name || ''));
+              tr.appendChild(mkEl('td', {}, r.company_name || ''));
+              tr.appendChild(mkEl('td', { style: 'font-weight:600;' }, c.field));
+              tr.appendChild(mkEl('td', { style: 'color:var(--error);' }, c.existing));
+              tr.appendChild(mkEl('td', { style: 'color:var(--success);' }, c.incoming));
+              tbody.appendChild(tr);
+            });
+          });
+        } else {
+          data.rows.forEach(function(r) {
+            var tr = document.createElement('tr');
+            tr.appendChild(mkEl('td', {}, String(r.row_idx + 1)));
+
+            var actionBadge = mkEl('span', { className: 'dedup-badge' });
+            if (r.action === 'created') { actionBadge.className = 'dedup-badge new'; actionBadge.textContent = 'Created'; }
+            else if (r.action === 'skipped') { actionBadge.className = 'dedup-badge duplicate'; actionBadge.textContent = 'Skipped'; }
+            else if (r.action === 'updated') { actionBadge.className = 'dedup-badge existing'; actionBadge.textContent = 'Updated'; }
+            else { actionBadge.className = 'dedup-badge duplicate'; actionBadge.textContent = r.action || 'Error'; }
+            var actionTd = document.createElement('td');
+            actionTd.appendChild(actionBadge);
+            tr.appendChild(actionTd);
+
+            tr.appendChild(mkEl('td', {}, r.contact_name || ''));
+            tr.appendChild(mkEl('td', {}, r.company_name || ''));
+
+            var detailTd = document.createElement('td');
+            if (r.action === 'skipped') {
+              detailTd.textContent = 'Match: ' + (r.match_type || '') + (r.matched_contact_name ? ' (' + r.matched_contact_name + ')' : '');
+            } else if (r.action === 'updated') {
+              var parts = [];
+              if (r.fields_updated && r.fields_updated.length) parts.push('Updated: ' + r.fields_updated.join(', '));
+              if (r.conflicts && r.conflicts.length) parts.push(r.conflicts.length + ' conflict(s)');
+              detailTd.textContent = parts.join(' | ');
+            } else if (r.action === 'error') {
+              detailTd.textContent = r.reason || 'Error';
+              detailTd.style.color = 'var(--error)';
+            }
+            tr.appendChild(detailTd);
+
+            tbody.appendChild(tr);
+          });
+        }
+
+        table.appendChild(tbody);
+        scroll.appendChild(table);
+        container.appendChild(scroll);
+
+        // Pagination
+        if (data.total > data.per_page) {
+          var totalPages = Math.ceil(data.total / data.per_page);
+          var pagBar = mkEl('div', { style: 'display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;' });
+          if (state.page > 1) {
+            var prevBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Previous');
+            prevBtn.addEventListener('click', function() { state.page--; loadDetailRows(jobId, state, container); });
+            pagBar.appendChild(prevBtn);
+          }
+          pagBar.appendChild(mkEl('span', { style: 'font-size:0.78rem;color:var(--text-muted);' },
+            'Page ' + state.page + ' of ' + totalPages + ' (' + data.total + ' rows)'));
+          if (state.page < totalPages) {
+            var nextBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Next');
+            nextBtn.addEventListener('click', function() { state.page++; loadDetailRows(jobId, state, container); });
+            pagBar.appendChild(nextBtn);
+          }
+          container.appendChild(pagBar);
+        }
+      })
+      .catch(function(err) {
+        clearChildren(container);
+        container.appendChild(mkEl('div', { style: 'padding:16px;color:var(--error);font-size:0.85rem;' }, 'Failed to load details: ' + err.message));
+      });
   }
 
   // ---- Load owners ----
