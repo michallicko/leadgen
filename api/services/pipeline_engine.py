@@ -108,6 +108,39 @@ def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None
     return [str(row[0]) for row in rows]
 
 
+def count_eligible(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
+    """Count eligible entities for a stage without loading IDs into memory."""
+    template = ELIGIBILITY_QUERIES.get(stage)
+    if not template:
+        return 0
+
+    params = {"tenant_id": str(tenant_id), "batch_id": str(batch_id)}
+
+    owner_clause = ""
+    if owner_id:
+        if stage in ("person", "generate"):
+            owner_clause = "AND ct.owner_id = :owner_id"
+        else:
+            owner_clause = "AND c.owner_id = :owner_id"
+        params["owner_id"] = str(owner_id)
+
+    tier_clause = ""
+    if tier_filter and stage in ("l2",):
+        from ..display import tier_db_values
+        tier_vals = tier_db_values(tier_filter)
+        if tier_vals:
+            placeholders = ", ".join(f":tier_{i}" for i in range(len(tier_vals)))
+            tier_clause = f"AND c.tier IN ({placeholders})"
+            for i, tv in enumerate(tier_vals):
+                params[f"tier_{i}"] = tv
+
+    # Wrap as COUNT(*)
+    inner = template.format(owner_clause=owner_clause, tier_clause=tier_clause)
+    sql = f"SELECT COUNT(*) FROM ({inner}) sub"
+    row = db.session.execute(text(sql), params).fetchone()
+    return row[0] if row else 0
+
+
 def call_n8n_webhook(stage, data, timeout=120):
     """Call n8n sub-workflow via webhook. Synchronous -- waits for result."""
     base_url = current_app.config.get("N8N_BASE_URL", "https://n8n.visionvolve.com")
