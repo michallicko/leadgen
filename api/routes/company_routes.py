@@ -475,3 +475,37 @@ def confirm_registry(company_id):
     )
 
     return jsonify(result)
+
+
+@companies_bp.route("/api/companies/<company_id>/enrich-registry/<country>", methods=["POST"])
+@require_auth
+def enrich_registry_country(company_id, country):
+    """On-demand registry lookup for a specific country adapter."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": tenant_id},
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    from ..services.registries import get_adapter
+    adapter = get_adapter(country.upper())
+    if not adapter:
+        return jsonify({"error": f"No registry adapter for country: {country}"}), 400
+
+    body = request.get_json(silent=True) or {}
+    reg_id = body.get("ico") or body.get("reg_id")
+
+    result = adapter.enrich_company(
+        company_id=company_id,
+        tenant_id=str(tenant_id),
+        name=row[0],
+        reg_id=reg_id or row[1],
+        hq_country=row[2],
+        domain=row[3],
+    )
+    return jsonify(result)

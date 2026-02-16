@@ -19,7 +19,7 @@ from ..services.pipeline_engine import (
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
-ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review", "ares"]
+ALL_STAGES = ["l1", "triage", "l2", "person", "generate", "review", "ares", "brreg", "prh", "recherche"]
 PIPELINE_STAGES = ["l1", "l2", "person", "generate"]  # stages run by run-all
 
 
