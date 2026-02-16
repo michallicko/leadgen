@@ -1073,9 +1073,10 @@ select option { background: var(--bg); color: var(--text); }
 
   // ---- Init ----
 
-  LeadgenAuth.protect();
-  loadConnections();
-  loadOwners();
+  LeadgenAuth.init(function() {
+    loadConnections();
+    loadOwners();
+  });
 
 })();
 </script>
