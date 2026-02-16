@@ -1,6 +1,6 @@
 # Technical Strategy
 
-**Last updated**: 2026-02-16
+**Last updated**: 2026-02-16 (frontend migration strategy added)
 
 ## Architecture Principles
 
@@ -16,9 +16,9 @@
 
 | Component | Current | Rationale | Pain Point | Revisit When |
 |-----------|---------|-----------|------------|--------------|
-| Backend | Flask + SQLAlchemy | Simple, fast iteration, team familiarity | None yet | >50 concurrent users or need WebSockets |
+| Backend | Flask + SQLAlchemy + **Pydantic v2** | Simple, fast iteration. Adding Pydantic for validation + OpenAPI generation. | Manual validation in routes (TD-004), no API docs, manual serialization | Adopting Pydantic incrementally alongside frontend migration |
 | Database | PostgreSQL (RDS) | Relational data, ACID, managed hosting | None | >10GB data or need read replicas |
-| Frontend | Vanilla HTML/JS/CSS | No build step, fast deploy, low overhead | Will grow complex with outreach UI | Dashboard exceeds ~10 pages or needs reusable components |
+| Frontend | Vanilla HTML/JS/CSS → **React + TS + Tailwind** | No build step was fast early; now 13K lines of duplicated code. **Migration planned.** | 11 pages, 7× duplicated apiFetch, 3.5K duplicated CSS lines, XSS surface | Now — see `docs/specs/frontend-migration.md` |
 | Orchestration | n8n (self-hosted) → **removing** | Visual workflows, quick prototyping | **Hard to version, test, extend. Full removal planned.** | Now — see Migration Path below |
 | Auth | JWT + bcrypt | Stateless, standard | No rate limiting, no session revocation | Adding billing or external API keys |
 | Infra | Single VPS (2GB) | Cheap, simple | Shared resources | >10 tenants or sustained background processing |
@@ -70,6 +70,9 @@ Begin Phase 2 when ALL of:
 | TD-005 | Pipeline logic locked in n8n GUI | High | Pipeline extensibility, testing, cost tracking | See Migration Path |
 | TD-006 | JWT tokens have no revocation mechanism | Low | Account security (logout doesn't invalidate) | — |
 | TD-007 | No background job processing (all work is synchronous or via n8n) | Medium | Long-running operations (bulk enrichment, PDF generation) | — |
+| TD-008 | Frontend: 13K lines vanilla JS/CSS with massive duplication | High | Every new page adds 200+ lines of boilerplate, XSS surface growing | `docs/specs/frontend-migration.md` |
+| TD-009 | No API input validation library (manual in every route) | Medium | Security, consistency, no OpenAPI docs | Phase 6 of frontend migration |
+| TD-010 | No auto-generated API types for frontend | Medium | API contract changes silently break UI | Phase 6 of frontend migration |
 
 **Policy**: Fix as we go. Address debt when it's in the path of a feature. No dedicated debt sprints. Run `/em audit` regularly (before each major feature) to surface new debt and refactoring opportunities.
 
@@ -102,7 +105,7 @@ Begin Phase 2 when ALL of:
 - [ ] Read replica for heavy query workloads (company/contact browsing)
 - [ ] Object storage for file uploads (S3) instead of local/container storage
 - [ ] CDN for dashboard static assets
-- [ ] Evaluate frontend framework if dashboard complexity warrants it
+- [ ] Frontend migrated to React + TS + Tailwind (see `docs/specs/frontend-migration.md`)
 
 ## Security Posture
 
@@ -139,6 +142,6 @@ Begin Phase 2 when ALL of:
 | Product Theme | Technical Enablers | Technical Blockers |
 |--------------|-------------------|-------------------|
 | Contact Intelligence | PostgreSQL data layer, CSV import pipeline | Airtable dependency (TD-001), no background jobs (TD-007) |
-| Outreach Engine | API platform, multi-tenant auth | No pipeline engine in Python (TD-005), no rate limiting (TD-002) |
-| Closed-Loop Analytics | PostgreSQL for analytics queries | No async event processing, no activity ingestion API |
-| Platform Foundation | Multi-tenant schema, JWT auth, namespace routing | Input validation gaps (TD-004), no billing infrastructure |
+| Outreach Engine | API platform, multi-tenant auth | No pipeline engine in Python (TD-005), no rate limiting (TD-002), frontend duplication slows new pages (TD-008) |
+| Closed-Loop Analytics | PostgreSQL for analytics queries | No async event processing, no activity ingestion API, no charting library (React migration enables recharts) |
+| Platform Foundation | Multi-tenant schema, JWT auth, namespace routing | Input validation gaps (TD-004/TD-009), no billing infrastructure, no API docs (TD-010) |
