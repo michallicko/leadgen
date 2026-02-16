@@ -1,3 +1,4 @@
+import json
 import math
 
 from flask import Blueprint, jsonify, request
@@ -29,6 +30,15 @@ def _iso(v):
     if v is None:
         return None
     return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+
+def _parse_jsonb(v):
+    """Parse a JSONB value that may be a string (SQLite) or dict (Postgres)."""
+    if v is None:
+        return {}
+    if isinstance(v, str):
+        return json.loads(v) if v else {}
+    return v
 
 ALLOWED_SORT = {
     "name", "domain", "status", "tier", "triage_score", "hq_country",
@@ -76,6 +86,20 @@ def list_companies():
     if owner_name:
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
+
+    # Custom field filters: cf_{key}=value
+    cf_idx = 0
+    for param_key, param_val in request.args.items():
+        if param_key.startswith("cf_") and param_val.strip():
+            field_key = param_key[3:]
+            dialect = db.engine.dialect.name
+            if dialect == "sqlite":
+                where.append(f"json_extract(c.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}")
+            else:
+                where.append(f"c.custom_fields ->> :cf_key_{cf_idx} = :cf_val_{cf_idx}")
+                params[f"cf_key_{cf_idx}"] = field_key
+            params[f"cf_val_{cf_idx}"] = param_val.strip()
+            cf_idx += 1
 
     where_clause = " AND ".join(where)
 
@@ -161,7 +185,7 @@ def get_company(company_id):
                 c.triage_notes, c.triage_score,
                 c.verified_revenue_eur_m, c.verified_employees,
                 c.enrichment_cost_usd, c.pre_score,
-                c.lemlist_synced, c.error_message, c.notes,
+                c.lemlist_synced, c.error_message, c.notes, c.custom_fields,
                 c.created_at, c.updated_at,
                 o.name AS owner_name, b.name AS batch_name
             FROM companies c
@@ -207,10 +231,11 @@ def get_company(company_id):
         "lemlist_synced": row[28],
         "error_message": row[29],
         "notes": row[30],
-        "created_at": _iso(row[31]),
-        "updated_at": _iso(row[32]),
-        "owner_name": row[33],
-        "batch_name": row[34],
+        "custom_fields": _parse_jsonb(row[31]),
+        "created_at": _iso(row[32]),
+        "updated_at": _iso(row[33]),
+        "owner_name": row[34],
+        "batch_name": row[35],
     }
 
     # L2 enrichment
@@ -306,16 +331,17 @@ def update_company(company_id):
         "buying_stage", "engagement_status", "crm_status", "cohort",
     }
     fields = {k: v for k, v in body.items() if k in allowed}
+    custom_fields_update = body.get("custom_fields")
 
-    if not fields:
+    if not fields and not custom_fields_update:
         return jsonify({"error": "No valid fields to update"}), 400
 
     # Verify company belongs to tenant
-    exists = db.session.execute(
-        db.text("SELECT id FROM companies WHERE id = :id AND tenant_id = :t"),
+    row = db.session.execute(
+        db.text("SELECT id, custom_fields FROM companies WHERE id = :id AND tenant_id = :t"),
         {"id": company_id, "t": tenant_id},
     ).fetchone()
-    if not exists:
+    if not row:
         return jsonify({"error": "Company not found"}), 404
 
     set_parts = []
@@ -323,6 +349,12 @@ def update_company(company_id):
     for k, v in fields.items():
         set_parts.append(f"{k} = :{k}")
         params[k] = v
+
+    if custom_fields_update and isinstance(custom_fields_update, dict):
+        existing_cf = _parse_jsonb(row[1])
+        existing_cf.update(custom_fields_update)
+        set_parts.append("custom_fields = :custom_fields")
+        params["custom_fields"] = json.dumps(existing_cf)
 
     db.session.execute(
         db.text(f"UPDATE companies SET {', '.join(set_parts)} WHERE id = :id"),

@@ -1,3 +1,4 @@
+import json
 import math
 
 from flask import Blueprint, jsonify, request
@@ -23,6 +24,15 @@ def _iso(v):
     if v is None:
         return None
     return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+
+def _parse_jsonb(v):
+    """Parse a JSONB value that may be a string (SQLite) or dict (Postgres)."""
+    if v is None:
+        return {}
+    if isinstance(v, str):
+        return json.loads(v) if v else {}
+    return v
 
 ALLOWED_SORT = {
     "full_name", "job_title", "email_address", "contact_score",
@@ -77,6 +87,21 @@ def list_contacts():
     if company_id:
         where.append("ct.company_id = :company_id")
         params["company_id"] = company_id
+
+    # Custom field filters: cf_{key}=value
+    cf_idx = 0
+    for param_key, param_val in request.args.items():
+        if param_key.startswith("cf_") and param_val.strip():
+            field_key = param_key[3:]
+            # Use json_extract for SQLite compat, ->> for Postgres
+            dialect = db.engine.dialect.name
+            if dialect == "sqlite":
+                where.append(f"json_extract(ct.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}")
+            else:
+                where.append(f"ct.custom_fields ->> :cf_key_{cf_idx} = :cf_val_{cf_idx}")
+                params[f"cf_key_{cf_idx}"] = field_key
+            params[f"cf_val_{cf_idx}"] = param_val.strip()
+            cf_idx += 1
 
     where_clause = " AND ".join(where)
 
@@ -163,7 +188,7 @@ def get_contact(contact_id):
                 ct.enrichment_cost_usd, ct.processed_enrich,
                 ct.email_lookup, ct.duplicity_check,
                 ct.duplicity_conflict, ct.duplicity_detail,
-                ct.notes, ct.error,
+                ct.notes, ct.error, ct.custom_fields,
                 ct.created_at, ct.updated_at,
                 co.id AS company_id, co.name AS company_name,
                 co.domain AS company_domain, co.status AS company_status,
@@ -210,17 +235,18 @@ def get_contact(contact_id):
         "duplicity_detail": row[25],
         "notes": row[26],
         "error": row[27],
-        "created_at": _iso(row[28]),
-        "updated_at": _iso(row[29]),
+        "custom_fields": _parse_jsonb(row[28]),
+        "created_at": _iso(row[29]),
+        "updated_at": _iso(row[30]),
         "company": {
-            "id": str(row[30]),
-            "name": row[31],
-            "domain": row[32],
-            "status": display_status(row[33]),
-            "tier": display_tier(row[34]),
-        } if row[30] else None,
-        "owner_name": row[35],
-        "batch_name": row[36],
+            "id": str(row[31]),
+            "name": row[32],
+            "domain": row[33],
+            "status": display_status(row[34]),
+            "tier": display_tier(row[35]),
+        } if row[31] else None,
+        "owner_name": row[36],
+        "batch_name": row[37],
     }
 
     # Contact enrichment
@@ -282,15 +308,16 @@ def update_contact(contact_id):
         "seniority_level", "department", "contact_source", "language",
     }
     fields = {k: v for k, v in body.items() if k in allowed}
+    custom_fields_update = body.get("custom_fields")
 
-    if not fields:
+    if not fields and not custom_fields_update:
         return jsonify({"error": "No valid fields to update"}), 400
 
-    exists = db.session.execute(
-        db.text("SELECT id FROM contacts WHERE id = :id AND tenant_id = :t"),
+    row = db.session.execute(
+        db.text("SELECT id, custom_fields FROM contacts WHERE id = :id AND tenant_id = :t"),
         {"id": contact_id, "t": tenant_id},
     ).fetchone()
-    if not exists:
+    if not row:
         return jsonify({"error": "Contact not found"}), 404
 
     set_parts = []
@@ -298,6 +325,12 @@ def update_contact(contact_id):
     for k, v in fields.items():
         set_parts.append(f"{k} = :{k}")
         params[k] = v
+
+    if custom_fields_update and isinstance(custom_fields_update, dict):
+        existing_cf = _parse_jsonb(row[1])
+        existing_cf.update(custom_fields_update)
+        set_parts.append("custom_fields = :custom_fields")
+        params["custom_fields"] = json.dumps(existing_cf)
 
     db.session.execute(
         db.text(f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = :id"),

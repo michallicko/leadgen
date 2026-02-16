@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
 from ..display import display_message_status, display_status, display_tier, tier_db_values
-from ..models import db
+from ..models import CustomFieldDefinition, db
 
 batch_bp = Blueprint("batches", __name__)
 
@@ -20,13 +20,24 @@ def list_batches():
     ).fetchall()
 
     owners = db.session.execute(
-        db.text("SELECT id, name FROM owners WHERE tenant_id = :t AND is_active = true ORDER BY name"),
+        db.text("""
+            SELECT DISTINCT u.owner_id, u.display_name
+            FROM users u
+            JOIN user_tenant_roles utr ON utr.user_id = u.id
+            WHERE utr.tenant_id = :t AND u.is_active = true AND u.owner_id IS NOT NULL
+            ORDER BY u.display_name
+        """),
         {"t": tenant_id},
     ).fetchall()
+
+    custom_defs = CustomFieldDefinition.query.filter_by(
+        tenant_id=str(tenant_id), is_active=True,
+    ).order_by(CustomFieldDefinition.entity_type, CustomFieldDefinition.display_order).all()
 
     return jsonify({
         "batches": [{"name": r[0]} for r in batches],
         "owners": [{"id": str(r[0]), "name": r[1]} for r in owners],
+        "custom_fields": [d.to_dict() for d in custom_defs],
     })
 
 
