@@ -222,13 +222,15 @@ def execute_contacts_import(job_id):
 @gmail_bp.route("/api/gmail/scan/start", methods=["POST"])
 @require_auth
 def start_scan():
-    """Start a background Gmail scan.
+    """Synchronous Gmail scan — fetches a batch of recent messages, extracts contacts from headers.
+
+    Fast enough for preview (200 messages via batch API). No background thread.
 
     Body: {
         "connection_id": "...",
         "date_range": 90,           # days (0 = all time)
         "exclude_domains": ["..."],  # optional
-        "max_messages": 5000         # optional
+        "max_messages": 200          # optional, capped at 500
     }
     """
     tenant_id = resolve_tenant()
@@ -252,29 +254,50 @@ def start_scan():
     config = {
         "date_range": body.get("date_range", 90),
         "exclude_domains": body.get("exclude_domains", []),
-        "max_messages": min(body.get("max_messages", 5000), 10000),
+        "max_messages": min(body.get("max_messages", 200), 500),
     }
+
+    try:
+        from ..services.gmail_scanner import quick_scan
+        contacts, messages_scanned = quick_scan(conn, config)
+    except Exception as e:
+        return jsonify({"error": f"Gmail scan failed: {e}"}), 500
+
+    # Build rows in dedup-compatible format
+    rows = []
+    for addr, c in contacts.items():
+        first_name = c.get("first_name", "") or addr.split("@")[0]
+        contact_data = {
+            "first_name": first_name,
+            "last_name": c.get("last_name", ""),
+            "email_address": addr,
+            "contact_source": "gmail_scan",
+        }
+        company_data = {}
+        if c.get("domain"):
+            company_data["domain"] = c["domain"]
+        rows.append({"contact": contact_data, "company": company_data})
 
     job = ImportJob(
         tenant_id=str(tenant_id),
         user_id=g.current_user.id,
         filename=f"gmail-scan-{conn.provider_email}",
-        total_rows=0,
-        headers=json.dumps([]),
+        total_rows=len(rows),
+        headers=json.dumps(["first_name", "last_name", "email_address"]),
+        raw_csv=json.dumps(rows),
         source="gmail_scan",
         oauth_connection_id=connection_id,
         scan_config=json.dumps(config),
-        scan_progress=json.dumps({"phase": "starting", "percent": 0}),
-        status="scanning",
+        status="extracted",
     )
     db.session.add(job)
     db.session.commit()
 
-    start_gmail_scan(current_app, conn, str(job.id), config)
-
     return jsonify({
         "job_id": str(job.id),
-        "status": "scanning",
+        "status": "extracted",
+        "total_contacts": len(rows),
+        "messages_scanned": messages_scanned,
     }), 201
 
 

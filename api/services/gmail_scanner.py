@@ -528,3 +528,95 @@ def start_gmail_scan(app, oauth_connection, job_id, config):
     )
     t.start()
     return t
+
+
+def quick_scan(oauth_connection, config):
+    """Synchronous Gmail scan — fast, headers only, no AI. For preview.
+
+    Returns (contacts_dict, messages_scanned).
+    """
+    from .google_oauth import get_valid_token
+
+    access_token = get_valid_token(oauth_connection)
+    db.session.commit()
+
+    creds = Credentials(token=access_token)
+    service = build("gmail", "v1", credentials=creds)
+
+    exclude_domains = set(d.lower().strip() for d in config.get("exclude_domains", []))
+    max_messages = config.get("max_messages", 200)
+    date_range = config.get("date_range")
+
+    # Build query
+    query_parts = []
+    if date_range and date_range > 0:
+        from datetime import timedelta
+        after_date = datetime.now(timezone.utc) - timedelta(days=date_range)
+        query_parts.append(f"after:{after_date.strftime('%Y/%m/%d')}")
+    query = " ".join(query_parts) if query_parts else None
+
+    # List message IDs (fast — just IDs, no content)
+    msg_ids = []
+    page_token = None
+    while len(msg_ids) < max_messages:
+        list_kwargs = {"userId": "me", "maxResults": min(100, max_messages - len(msg_ids))}
+        if query:
+            list_kwargs["q"] = query
+        if page_token:
+            list_kwargs["pageToken"] = page_token
+        results = service.users().messages().list(**list_kwargs).execute()
+        for m in results.get("messages", []):
+            msg_ids.append(m["id"])
+        page_token = results.get("nextPageToken")
+        if not page_token:
+            break
+
+    # Batch-fetch headers (up to 100 per batch request)
+    contacts = {}
+    messages_scanned = 0
+
+    def _batch_callback(request_id, response, exception):
+        nonlocal messages_scanned
+        messages_scanned += 1
+        if exception:
+            return
+        headers = {h["name"]: h["value"] for h in response.get("payload", {}).get("headers", [])}
+        for field in ["From", "To", "Cc", "Reply-To"]:
+            value = headers.get(field, "")
+            if not value:
+                continue
+            addresses = email.utils.getaddresses([value])
+            for display_name, addr in addresses:
+                addr = addr.strip().lower()
+                if not addr or "@" not in addr:
+                    continue
+                domain = addr.split("@", 1)[1]
+                if domain in exclude_domains:
+                    continue
+                if SERVICE_EMAIL_PATTERNS.match(addr):
+                    continue
+                local = addr.split("@")[0]
+                if local in DEFAULT_EXCLUDE_DOMAINS:
+                    continue
+                if addr not in contacts:
+                    first, last = GmailScanner._split_display_name(display_name)
+                    contacts[addr] = {
+                        "email": addr,
+                        "first_name": first,
+                        "last_name": last,
+                        "domain": domain,
+                        "message_count": 0,
+                    }
+                contacts[addr]["message_count"] += 1
+
+    # Execute in batches of 100
+    for i in range(0, len(msg_ids), 100):
+        batch = service.new_batch_http_request(callback=_batch_callback)
+        for mid in msg_ids[i:i + 100]:
+            batch.add(service.users().messages().get(
+                userId="me", id=mid, format="metadata",
+                metadataHeaders=["From", "To", "Cc", "Reply-To"],
+            ))
+        batch.execute()
+
+    return contacts, messages_scanned
