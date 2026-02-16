@@ -76,29 +76,59 @@ class PrhAdapter(BaseRegistryAdapter):
             return []
 
 
+def _is_english(lang_code):
+    """Check if language code means English (string 'EN' or numeric '3')."""
+    return str(lang_code) in ("EN", "3")
+
+
+def _is_finnish(lang_code):
+    """Check if language code means Finnish (string 'FI' or numeric '1')."""
+    return str(lang_code) in ("FI", "1")
+
+
+def _get_description(descriptions, prefer_english=True):
+    """Extract description preferring English, falling back to Finnish.
+
+    PRH v3 API uses numeric language codes: 1=FI, 2=SE, 3=EN.
+    Some docs show string codes: "FI", "EN". We handle both.
+    """
+    en_desc = fi_desc = None
+    for d in (descriptions or []):
+        lc = d.get("languageCode", "")
+        if _is_english(lc):
+            en_desc = d.get("description", "")
+        elif _is_finnish(lc):
+            fi_desc = d.get("description", "")
+    if prefer_english and en_desc:
+        return en_desc
+    return fi_desc or en_desc or ""
+
+
 def _parse_prh_response(data):
     """Parse PRH company response into standardized format.
 
-    Real API fields:
+    Real API v3 fields (numeric codes):
     - businessId: {value, registrationDate, source}
-    - names: [{name, type, registrationDate, endDate, version, source}]
-    - companyForms: [{type, descriptions: [{languageCode, description}]}]
-    - addresses: [{type, street, postCode, postOffices: [{city}]}]
+    - names: [{name, type ("1"=trade register), registrationDate, endDate, version, source}]
+    - companyForms: [{type ("16"=OY), descriptions: [{languageCode ("1"=FI,"3"=EN), description}]}]
+    - addresses: [{type, street, postCode, postOffices: [{city, languageCode}]}]
     - mainBusinessLine: {type, descriptions: [{languageCode, description}]}
+    - tradeRegisterStatus: "1" (registered) or "2" (deregistered)
     - registrationDate: string
-    - tradeRegisterStatus: string
+    - lastModified: string
     """
     # Business ID
     bid = data.get("businessId", {}) or {}
     business_id = bid.get("value")
 
-    # Name — use latest active name (no endDate, prefer TRADE_REGISTER type)
+    # Name — use latest active name (no endDate), prefer trade register type
     official_name = None
     for name_entry in data.get("names", []):
         if not name_entry.get("endDate"):
             official_name = name_entry.get("name")
-            if name_entry.get("type") == "TRADE_REGISTER":
-                break  # prefer trade register name
+            # type "1" = trade register name in v3, "TRADE_REGISTER" in docs
+            if str(name_entry.get("type", "")) in ("TRADE_REGISTER", "1"):
+                break
 
     # Company form
     legal_form = ""
@@ -106,19 +136,10 @@ def _parse_prh_response(data):
     for form in data.get("companyForms", []):
         if form.get("type"):
             legal_form = form["type"]
-            # Prefer English description
-            for desc in form.get("descriptions", []):
-                if desc.get("languageCode") == "EN":
-                    legal_form_name = desc.get("description", "")
-                    break
-            if not legal_form_name:
-                for desc in form.get("descriptions", []):
-                    if desc.get("languageCode") == "FI":
-                        legal_form_name = desc.get("description", "")
-                        break
+            legal_form_name = _get_description(form.get("descriptions", []))
             break
 
-    # Address — use first address
+    # Address — use first address, prefer Finnish city name
     address = ""
     city = ""
     postal = ""
@@ -126,7 +147,14 @@ def _parse_prh_response(data):
         street = addr.get("street", "")
         postal = addr.get("postCode", "")
         post_offices = addr.get("postOffices", [])
-        city = post_offices[0].get("city", "") if post_offices else ""
+        # Prefer Finnish city name, fall back to first
+        city = ""
+        for po in post_offices:
+            if _is_finnish(po.get("languageCode", "")):
+                city = po.get("city", "")
+                break
+        if not city and post_offices:
+            city = post_offices[0].get("city", "")
         if street:
             address = f"{street}, {postal} {city}".strip(", ")
             break
@@ -136,26 +164,17 @@ def _parse_prh_response(data):
     bline = data.get("mainBusinessLine")
     if bline and isinstance(bline, dict):
         code = bline.get("type")
-        desc = None
-        for d in bline.get("descriptions", []):
-            if d.get("languageCode") == "EN":
-                desc = d.get("description")
-                break
-        if not desc:
-            for d in bline.get("descriptions", []):
-                if d.get("languageCode") == "FI":
-                    desc = d.get("description")
-                    break
+        desc = _get_description(bline.get("descriptions", []))
         if code:
-            nace_codes.append({"code": code, "description": desc})
+            nace_codes.append({"code": code, "description": desc or None})
 
     # Registration date
     date_established = bid.get("registrationDate") or data.get("registrationDate")
 
-    # Status
+    # Status — v3 uses "1" (registered), "2" (deregistered); docs use string names
     status = "active"
-    tr_status = (data.get("tradeRegisterStatus") or "").lower()
-    if tr_status in ("deregistered", "dissolved", "removed"):
+    tr_status = str(data.get("tradeRegisterStatus") or "").lower()
+    if tr_status in ("deregistered", "dissolved", "removed", "2"):
         status = "dissolved"
 
     return {
