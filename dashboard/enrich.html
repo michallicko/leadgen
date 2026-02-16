@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enrich Contacts — Leadgen</title>
+<title>Enrich Pipeline — Leadgen</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -31,11 +31,6 @@
   --transition: 0.2s ease;
   --font-title: 'Lexend Deca', -apple-system, sans-serif;
   --font-body: 'Work Sans', -apple-system, sans-serif;
-  --l1-color: #00B8CF;
-  --l2-color: #8B47A8;
-  --person-color: #34D399;
-  --generate-color: #FBBF24;
-  --ares-color: #3B82F6;
 }
 
 body {
@@ -68,42 +63,26 @@ body::after {
 }
 
 /* Layout */
-.container { max-width: 920px; margin: 0 auto; padding: 32px 16px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
 
-/* Steps indicator */
-.steps {
-  display: flex;
-  gap: 0;
-  margin-bottom: 32px;
-}
+/* Steps */
+.steps { display: flex; gap: 0; margin-bottom: 32px; }
 .step-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  padding: 10px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  cursor: default;
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  padding: 10px 16px; background: var(--surface);
+  border: 1px solid var(--border); font-size: 0.82rem;
+  color: var(--text-dim); cursor: default;
 }
 .step-item:first-child { border-radius: var(--radius) 0 0 var(--radius); }
 .step-item:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .step-item:not(:last-child) { border-right: none; }
 .step-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: var(--surface-alt);
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--text-dim);
-  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--surface-alt); font-size: 0.7rem;
+  font-weight: 700; color: var(--text-dim); flex-shrink: 0;
 }
 .step-item.active { color: var(--text); border-color: var(--accent); }
 .step-item.active .step-num { background: var(--accent); color: #fff; }
@@ -119,30 +98,17 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   margin-bottom: 16px;
 }
 .card-title {
-  font-family: var(--font-title);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  margin-bottom: 12px;
+  font-family: var(--font-title); font-size: 0.85rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text-muted); margin-bottom: 12px;
 }
 
 /* Buttons */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 20px;
-  border-radius: var(--radius);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: var(--transition);
-  text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 10px 20px; border-radius: var(--radius);
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; border: none; transition: var(--transition); text-decoration: none;
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
@@ -161,77 +127,35 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .form-row { margin-bottom: 14px; }
 .form-row label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
 .form-row select, .form-row input[type="text"] {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border-solid);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
+  width: 100%; padding: 8px 12px; background: var(--bg);
+  border: 1px solid var(--border-solid); border-radius: var(--radius);
+  color: var(--text); font-family: var(--font-body); font-size: 0.85rem;
 }
 .form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
 
 /* Filter bar */
-.filter-bar {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-}
+.filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
 .filter-bar .form-row { margin-bottom: 0; flex: 1; min-width: 140px; }
 
 /* Tier chips */
 .tier-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .tier-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--border-solid);
-  background: transparent;
-  color: var(--text-dim);
-  transition: var(--transition);
-  user-select: none;
+  display: inline-flex; align-items: center; padding: 4px 10px;
+  border-radius: 10px; font-size: 0.72rem; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border-solid);
+  background: transparent; color: var(--text-dim);
+  transition: var(--transition); user-select: none;
 }
 .tier-chip input { display: none; }
 .tier-chip.active { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
 
-/* Status chips (multi-select) */
-.status-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--border-solid);
-  background: transparent;
-  color: var(--text-dim);
-  transition: var(--transition);
-  user-select: none;
-}
-.status-chip input { display: none; }
-.status-chip.active { background: rgba(0,184,207,0.12); color: var(--accent-cyan); border-color: rgba(0,184,207,0.3); }
-
-/* Status breakdown grid */
+/* Status grid */
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+  gap: 8px; margin-top: 12px;
 }
-.status-cell {
-  padding: 10px 12px;
-  background: var(--surface-alt);
-  border-radius: var(--radius);
-  text-align: center;
-}
+.status-cell { padding: 10px 12px; background: var(--surface-alt); border-radius: var(--radius); text-align: center; }
 .status-cell__value { font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; }
 .status-cell__label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
 .status-cell--new .status-cell__value { color: var(--text); }
@@ -240,190 +164,29 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .status-cell--failed .status-cell__value { color: var(--error); }
 .status-cell--enriched .status-cell__value { color: var(--accent-cyan); }
 
-/* Package cards (Step 2) */
-.pkg-cards { display: grid; gap: 14px; }
-.pkg-card {
-  display: grid;
-  grid-template-columns: 44px 1fr auto;
-  gap: 14px;
-  padding: 16px 18px;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  transition: var(--transition);
-}
-.pkg-card.disabled { opacity: 0.35; pointer-events: none; }
-.pkg-card__icon {
-  width: 44px; height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  font-weight: 700;
-  flex-shrink: 0;
-  align-self: start;
-  margin-top: 2px;
-}
-.pkg-card__body { min-width: 0; }
-.pkg-card__header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.pkg-card__name { font-family: var(--font-title); font-size: 0.92rem; font-weight: 600; }
-.pkg-card__badge {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 4px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.pkg-card__desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 8px; }
-.pkg-card__fields { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
-.pkg-field {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-weight: 500;
-  background: rgba(255,255,255,0.04);
-  color: var(--text-dim);
-  border: 1px solid rgba(255,255,255,0.06);
-}
-.pkg-card__usecase { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
-.pkg-card__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 90px; }
-.pkg-card__cost { font-family: var(--font-title); font-size: 1rem; font-weight: 700; color: var(--accent-cyan); }
-.pkg-card__cost-label { font-size: 0.68rem; color: var(--text-dim); }
-.pkg-card__eligible { font-size: 0.78rem; color: var(--text-muted); text-align: right; }
-
 /* Toggle switch */
-.toggle {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  flex-shrink: 0;
-}
+.toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
 .toggle input { opacity: 0; width: 0; height: 0; }
 .toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--surface);
-  border: 1px solid var(--border-solid);
-  border-radius: 10px;
-  transition: var(--transition);
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--surface); border: 1px solid var(--border-solid);
+  border-radius: 10px; transition: var(--transition);
 }
 .toggle-slider::before {
-  content: '';
-  position: absolute;
-  height: 14px; width: 14px;
-  left: 2px; bottom: 2px;
-  background: var(--text-dim);
-  border-radius: 50%;
-  transition: var(--transition);
+  content: ''; position: absolute; height: 14px; width: 14px;
+  left: 2px; bottom: 2px; background: var(--text-dim);
+  border-radius: 50%; transition: var(--transition);
 }
 .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
 .toggle input:checked + .toggle-slider::before { background: #fff; transform: translateX(16px); }
 .toggle input:disabled + .toggle-slider { opacity: 0.3; cursor: not-allowed; }
 
-/* Cost bar */
-.cost-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  margin-top: 20px;
-}
-.cost-total { font-family: var(--font-title); font-size: 1.15rem; font-weight: 700; color: var(--accent-cyan); }
-.cost-label { font-size: 0.82rem; color: var(--text-muted); }
-
-/* Progress bars */
-.progress-stage {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.progress-stage:last-child { border-bottom: none; }
-.progress-stage__name { width: 80px; font-size: 0.82rem; font-weight: 600; flex-shrink: 0; }
-.progress-bar-wrap {
-  flex: 1;
-  height: 8px;
-  background: var(--surface-alt);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.progress-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s ease;
-  background: var(--accent-cyan);
-}
-.progress-stage__count { width: 60px; text-align: right; font-size: 0.78rem; color: var(--text-muted); }
-.progress-stage__cost { width: 70px; text-align: right; font-size: 0.78rem; color: var(--accent-cyan); }
-.progress-stage__status { width: 70px; text-align: right; }
-
-/* Status pills */
-.pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.pill-pending { background: rgba(90,97,112,0.2); color: var(--text-dim); }
-.pill-running { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
-.pill-completed { background: rgba(52,211,153,0.15); color: var(--success); }
-.pill-failed { background: rgba(248,113,113,0.15); color: var(--error); }
-.pill-stopped { background: rgba(251,191,36,0.15); color: var(--warning); }
-.pill-idle { background: rgba(90,97,112,0.1); color: var(--text-dim); }
-
 /* Callout */
 .callout {
-  padding: 12px 16px;
-  background: rgba(0,184,207,0.06);
-  border: 1px solid rgba(0,184,207,0.15);
-  border-radius: var(--radius);
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  margin-bottom: 16px;
+  padding: 12px 16px; background: rgba(0,184,207,0.06);
+  border: 1px solid rgba(0,184,207,0.15); border-radius: var(--radius);
+  font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;
 }
-
-/* Progress counters */
-.progress-counters { display: flex; gap: 10px; width: 130px; flex-shrink: 0; }
-.progress-counter { font-size: 0.72rem; font-weight: 600; display: flex; align-items: center; gap: 3px; }
-.counter-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.counter-dot.green { background: var(--success); }
-.counter-dot.red { background: var(--error); }
-.counter-dot.amber { background: var(--warning); }
-
-.progress-stage__eta { width: 90px; text-align: right; font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
-
-/* Completion badge */
-.completion-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
-}
-.completion-badge--ok { background: rgba(52,211,153,0.15); color: var(--success); cursor: default; }
-.completion-badge--review { background: rgba(251,191,36,0.15); color: var(--warning); }
-.completion-badge--review:hover { background: rgba(251,191,36,0.25); }
-
-/* Review list */
-.review-list { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.review-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
-.review-item:last-child { border-bottom: none; }
-.review-item__name { font-weight: 600; min-width: 140px; }
-.review-item__domain { color: var(--text-dim); min-width: 120px; }
-.review-item__flags { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; }
-.review-flag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: rgba(251,191,36,0.1); color: var(--warning); }
-.review-flag--error { background: rgba(248,113,113,0.1); color: var(--error); }
-.review-item__actions { display: flex; gap: 4px; flex-shrink: 0; }
-.review-item__actions .btn { padding: 3px 10px; font-size: 0.72rem; }
 
 /* Hidden */
 .hidden { display: none !important; }
@@ -435,20 +198,293 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   border-top-color: var(--accent-cyan);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 8px;
+  display: inline-block; vertical-align: middle; margin-right: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* ===== DAG LAYOUT ===== */
+.dag-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+}
+.dag-controls__info { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.dag-controls__info-item { font-size: 0.82rem; color: var(--text-muted); }
+.dag-controls__info-item strong { color: var(--text); font-weight: 600; }
+.dag-controls__cost { font-family: var(--font-title); font-size: 1.1rem; font-weight: 700; color: var(--accent-cyan); }
+.dag-controls__actions { display: flex; gap: 8px; align-items: center; }
+
+.dag-wrapper {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.dag-container {
+  position: relative;
+  min-height: 500px;
+}
+
+.dag-columns {
+  display: flex;
+  gap: 20px;
+  position: relative;
+  z-index: 2;
+  min-width: 900px;
+}
+
+.dag-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.dag-col--wide { flex: 1.4; }
+
+.dag-col__label {
+  font-family: var(--font-title);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  text-align: center;
+  width: 100%;
+}
+
+/* SVG edge layer */
+.dag-edges {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ===== DAG NODE ===== */
+.dag-node {
+  width: 100%;
+  max-width: 180px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
+  position: relative;
+}
+
+.dag-node__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.dag-node__icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dag-node__name {
+  font-family: var(--font-title);
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dag-node__badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dag-node__stats {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.dag-node__progress { margin-top: 4px; }
+
+.dag-node__bar-wrap {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.dag-node__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+.dag-node__counts {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+}
+
+.dag-node__counts .cost { color: var(--accent-cyan); }
+
+/* Node soft dep badges */
+.dag-node__soft-deps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.soft-dep-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.soft-dep-badge__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.soft-dep-badge.active .soft-dep-badge__dot { background: var(--accent-cyan); }
+.soft-dep-badge:not(.active) .soft-dep-badge__dot { background: var(--text-dim); opacity: 0.4; }
+.soft-dep-badge:not(.active) { text-decoration: line-through; opacity: 0.5; }
+
+/* ===== NODE STATES ===== */
+.dag-node[data-state="disabled"] { opacity: 0.25; pointer-events: none; }
+.dag-node[data-state="pending"] { border-style: dashed; border-color: var(--text-dim); }
+.dag-node[data-state="eligible"] { border-color: var(--accent); box-shadow: 0 0 12px -4px rgba(110,44,139,0.3); }
+.dag-node[data-state="running"] { border-color: var(--accent-cyan); box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); animation: nodeGlow 2s ease-in-out infinite; }
+.dag-node[data-state="completed"] { border-color: var(--success); box-shadow: 0 0 12px -4px rgba(52,211,153,0.3); }
+.dag-node[data-state="failed"] { border-color: var(--error); box-shadow: 0 0 12px -4px rgba(248,113,113,0.3); }
+
+@keyframes nodeGlow {
+  0%, 100% { box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); }
+  50% { box-shadow: 0 0 24px -2px rgba(0,184,207,0.6); }
+}
+
+/* Barberpole progress */
+.dag-node[data-state="running"] .dag-node__bar-fill {
+  background-image: linear-gradient(
+    -45deg,
+    rgba(255,255,255,0.15) 25%, transparent 25%,
+    transparent 50%, rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.15) 75%, transparent 75%
+  );
+  background-size: 12px 12px;
+  animation: barberpole 0.6s linear infinite;
+}
+
+@keyframes barberpole { to { background-position: 12px 0; } }
+
+/* Compact registry node */
+.dag-node--compact { max-width: 180px; padding: 6px 10px; }
+.dag-node--compact .dag-node__header { margin-bottom: 0; }
+.dag-node--compact .dag-node__icon { width: 22px; height: 22px; font-size: 0.6rem; border-radius: 4px; }
+.dag-node--compact .dag-node__name { font-size: 0.7rem; }
+.dag-node--compact .dag-node__stats { margin-bottom: 0; font-size: 0.65rem; }
+.dag-node--compact .dag-node__progress { display: none; }
+
+.dag-node__status-icon {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; font-weight: 700;
+  z-index: 3;
+}
+
+.dag-node[data-state="completed"] .dag-node__status-icon { background: var(--success); color: #0D0F14; }
+.dag-node[data-state="failed"] .dag-node__status-icon { background: var(--error); color: #fff; }
+.dag-node[data-state="running"] .dag-node__status-icon { background: var(--accent-cyan); color: #0D0F14; }
+
+/* ===== EDGE STATES ===== */
+.dag-edge { fill: none; stroke-width: 1.5; transition: stroke 0.3s, opacity 0.3s; }
+.dag-edge--inactive { stroke: var(--border-solid); stroke-dasharray: 4 4; opacity: 0.4; }
+.dag-edge--pending { stroke: var(--text-dim); stroke-dasharray: 6 4; opacity: 0.5; }
+.dag-edge--active { stroke: var(--accent-cyan); stroke-dasharray: 8 12; stroke-width: 2; animation: flowDash 0.8s linear infinite; }
+.dag-edge--completed { stroke: var(--success); stroke-width: 2; opacity: 0.8; }
+.dag-edge--failed { stroke: var(--error); stroke-dasharray: 4 4; opacity: 0.6; }
+.dag-edge--soft { stroke-dasharray: 3 6; opacity: 0.4; }
+.dag-edge--soft.dag-edge--active { stroke-dasharray: 3 6; opacity: 0.7; }
+
+@keyframes flowDash { to { stroke-dashoffset: -20; } }
+
+/* Status pills */
+.pill {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 10px; font-size: 0.7rem;
+  font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.pill-pending { background: rgba(90,97,112,0.2); color: var(--text-dim); }
+.pill-running { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.pill-completed { background: rgba(52,211,153,0.15); color: var(--success); }
+.pill-failed { background: rgba(248,113,113,0.15); color: var(--error); }
+.pill-stopped { background: rgba(251,191,36,0.15); color: var(--warning); }
+
+/* Completion panel */
+.completion-panel {
+  text-align: center;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-top: 16px;
+}
+
+/* DAG summary row */
+.dag-summary { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.dag-summary__item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); }
+.dag-summary__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* Responsive */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .dag-columns { flex-direction: column; min-width: auto; gap: 16px; }
+  .dag-col { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .dag-edges { display: none; }
+  .dag-node { max-width: 200px; }
+  .dag-controls { flex-direction: column; text-align: center; }
+  .dag-controls__actions { justify-content: center; }
   .steps { flex-direction: column; }
   .filter-bar { flex-direction: column; }
-  .pkg-card { grid-template-columns: 1fr; }
-  .cost-bar { flex-direction: column; gap: 8px; text-align: center; }
 }
+
+@media (max-width: 640px) { .container { padding: 16px 8px; } }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 </style>
 </head>
 <body data-pillar="radar" data-page="enrich">
@@ -456,23 +492,20 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 <div id="app-nav"></div>
 
 <div class="container">
-  <h1>Enrich Contacts</h1>
-  <div class="subtitle" id="page_subtitle">Select contacts to enrich, choose enrichment packages, and run.</div>
+  <h1>Enrichment Pipeline</h1>
+  <div class="subtitle" id="page_subtitle">Configure enrichment stages and run the DAG pipeline.</div>
 
-  <!-- Steps indicator -->
+  <!-- Steps -->
   <div class="steps">
     <div class="step-item active" id="step_ind_1"><span class="step-num">1</span> Select &amp; Filter</div>
-    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> Choose Packages</div>
-    <div class="step-item" id="step_ind_3"><span class="step-num">3</span> Processing</div>
+    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> DAG Pipeline</div>
   </div>
 
   <!-- STEP 1: Select & Filter -->
   <div id="step_1">
     <div class="card">
       <div class="card-title">Filters</div>
-
       <div id="import_callout" class="callout hidden"></div>
-
       <div class="filter-bar">
         <div class="form-row" style="min-width:160px;">
           <label for="batch_select">Batch</label>
@@ -481,17 +514,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         <div class="form-row" style="min-width:130px;">
           <label for="owner_select">Owner</label>
           <select id="owner_select"><option value="">All owners</option></select>
-        </div>
-        <div class="form-row" style="min-width:100px;">
-          <label for="status_select">Company Status</label>
-          <select id="status_select">
-            <option value="">All statuses</option>
-            <option value="new" selected>New</option>
-            <option value="triage_passed">Triage Passed</option>
-            <option value="needs_review">Needs Review</option>
-            <option value="enriched_l2">Enriched L2</option>
-            <option value="enrichment_failed">Failed</option>
-          </select>
         </div>
         <div class="form-row" style="min-width:180px;">
           <label>Tier Filter</label>
@@ -506,7 +528,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       </div>
     </div>
 
-    <!-- Status breakdown -->
     <div id="status_breakdown" class="card hidden">
       <div class="card-title">Company Status Breakdown</div>
       <div class="status-grid" id="status_grid"></div>
@@ -514,50 +535,35 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     </div>
 
     <div style="margin-top:16px;display:flex;gap:10px;">
-      <button class="btn btn-primary" id="btn_configure" disabled>Choose Enrichment Packages</button>
+      <button class="btn btn-primary" id="btn_configure" disabled>Configure DAG Pipeline</button>
     </div>
   </div>
 
-  <!-- STEP 2: Choose Packages -->
+  <!-- STEP 2: DAG Pipeline -->
   <div id="step_2" class="hidden">
-    <div class="card">
-      <div class="card-title">Enrichment Packages</div>
-      <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:16px;">Toggle packages on/off. Each package enriches different data fields. Costs shown are estimates based on eligible count.</div>
-      <div class="pkg-cards" id="pkg_cards"></div>
-    </div>
-
-    <div class="cost-bar" id="cost_bar">
-      <div>
-        <div class="cost-label">Total estimated cost</div>
-        <div class="cost-total" id="total_cost">$0.00</div>
+    <div class="dag-controls" id="dag_controls">
+      <div class="dag-controls__info">
+        <span class="dag-controls__info-item" id="dag_batch_info"></span>
+        <span class="dag-controls__info-item">Est: <strong class="dag-controls__cost" id="dag_total_cost">$0.00</strong></span>
+        <span class="dag-controls__info-item" id="dag_pipeline_status"></span>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <button class="btn btn-ghost btn-sm" id="btn_sample">Run Sample (10)</button>
-        <button class="btn btn-success" id="btn_start">Start Enrichment</button>
-        <button class="btn btn-ghost btn-sm" id="btn_back_1">Back</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- STEP 3: Processing -->
-  <div id="step_3" class="hidden">
-    <div class="card">
-      <div class="card-title">Progress</div>
-      <div id="progress_stages"></div>
-    </div>
-
-    <div class="cost-bar">
-      <div>
-        <div class="cost-label">Total cost so far</div>
-        <div class="cost-total" id="running_cost">$0.00</div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <button class="btn btn-error btn-sm" id="btn_stop">Stop</button>
+      <div class="dag-controls__actions">
+        <button class="btn btn-ghost btn-sm" id="btn_back">Back</button>
+        <button class="btn btn-success" id="btn_run">Run Enabled</button>
+        <button class="btn btn-error btn-sm hidden" id="btn_stop_dag">Stop All</button>
       </div>
     </div>
 
-    <!-- Completion panel (hidden until done) -->
-    <div id="completion_panel" class="card hidden" style="margin-top:16px;text-align:center;">
+    <div class="dag-wrapper">
+      <div class="dag-container" id="dag_container">
+        <svg class="dag-edges" id="dag_edges"></svg>
+        <div class="dag-columns" id="dag_columns"></div>
+      </div>
+    </div>
+
+    <div class="dag-summary" id="dag_summary"></div>
+
+    <div id="completion_panel" class="completion-panel hidden">
       <div id="completion_icon" style="font-size:2rem;margin-bottom:8px;"></div>
       <div id="completion_title" style="font-family:var(--font-title);font-size:1.1rem;font-weight:600;margin-bottom:6px;"></div>
       <div id="completion_detail" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;"></div>
@@ -576,151 +582,45 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var POLL_INTERVAL = 5000;
   var pollTimer = null;
   var currentPipelineRunId = null;
-  var isSampleRun = false;
+  var dagMode = 'configure'; // 'configure' | 'running' | 'completed'
 
-  // --- Package definitions ---
-  // Progressive value chain: each layer answers a deeper question.
-  //   1. WHO are they? (Profile)
-  //   2. Are they LEGIT? (Legal)
-  //   3. WHAT do they build? (Tech & Product)
-  //   4. Is the TIMING right? (Financial & Growth)
-  //   5. HOW to position? (Competitive)
-  //   6. WHAT to say? (News & Media)
-  // Contact packages: WHO to reach, HOW to personalize, WHERE to find them.
-  var PACKAGES = {
-    // --- Company enrichment (progressive depth) ---
-    l1: {
-      name: 'Company Profile',
-      icon: 'CP',
-      color: 'var(--l1-color)',
-      bgColor: 'rgba(0,184,207,0.12)',
-      desc: 'AI-powered company research via Perplexity. Identifies industry, headcount, what the company does, founding year, HQ location, and website analysis. QC validation flags dubious results for human review. The foundation for all subsequent enrichment.',
-      fields: ['Industry', 'Employees', 'Revenue Range', 'B2B Focus', 'HQ Location', 'Founded', 'Summary', 'Tier'],
-      usecase: 'Run first on every new batch. Answers: who are they and should we pursue them?',
-      comingSoon: false,
-      badge: null,
-      category: 'company'
-    },
-    registry: {
-      name: 'Legal & Registry',
-      icon: 'LR',
-      color: 'var(--ares-color)',
-      bgColor: 'rgba(59,130,246,0.12)',
-      desc: 'Smart registry lookup across CZ, NO, FI, FR. Auto-detects register from company country/domain. Includes insolvency check for Czech companies. Computes credibility score 0\u2013100.',
-      fields: ['Registration ID', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Credibility Score'],
-      usecase: 'Run on any supported-country company. Answers: are they legitimate, solvent, and credible?',
-      comingSoon: false,
-      badge: 'Free',
-      category: 'company'
-    },
-    tech_product: {
-      name: 'Tech & Product Intelligence',
-      icon: 'TP',
-      color: 'var(--l2-color)',
-      bgColor: 'rgba(139,71,168,0.12)',
-      desc: 'Deep-dive into the company\'s technology stack, product lines, integrations, and pricing model. Analyzes their website, job postings, and public repos to map their technical landscape. Determines ICP fit based on tech overlap.',
-      fields: ['Tech Stack', 'Product Lines', 'Integrations', 'Pricing Model', 'Engineering Size', 'Tech Maturity'],
-      usecase: 'Run on Tier 1-2 after Profile. Answers: do they use technology we can sell into?',
-      comingSoon: true,
-      badge: null,
-      category: 'company'
-    },
-    financial_growth: {
-      name: 'Financial & Growth Signals',
-      icon: 'FG',
-      color: '#f59e0b',
-      bgColor: 'rgba(245,158,11,0.12)',
-      desc: 'Tracks funding rounds, revenue indicators, hiring velocity, office expansion, and M&A activity. Identifies companies actively investing and growing — the ones most likely to buy. Cross-references multiple signal sources for confidence scoring.',
-      fields: ['Funding History', 'Revenue Signals', 'Hiring Velocity', 'Office Expansion', 'M&A Activity', 'Growth Score'],
-      usecase: 'Run on qualified companies. Answers: is the timing right — are they growing and spending?',
-      comingSoon: true,
-      badge: null,
-      category: 'company'
-    },
-    competitive: {
-      name: 'Competitive Landscape',
-      icon: 'CL',
-      color: '#ec4899',
-      bgColor: 'rgba(236,72,153,0.12)',
-      desc: 'Maps direct competitors, market position, key differentiators, and win/loss patterns. Identifies what solutions they already use and where gaps exist. Gives you the ammunition to position against incumbents.',
-      fields: ['Competitors', 'Market Position', 'Current Solutions', 'Differentiators', 'Vendor Stack', 'Switch Signals'],
-      usecase: 'Run before outreach. Answers: who else are they talking to and how do we position?',
-      comingSoon: true,
-      badge: null,
-      category: 'company'
-    },
-    news_media: {
-      name: 'News & Media',
-      icon: 'NM',
-      color: '#ef4444',
-      bgColor: 'rgba(239,68,68,0.12)',
-      desc: 'Scans recent media mentions, press releases, conference appearances, social media presence, and thought leadership. Surfaces timely conversation hooks and sentiment. The freshest layer — run closest to outreach.',
-      fields: ['Recent News', 'Press Releases', 'Events & Conferences', 'Social Presence', 'Thought Leadership', 'Sentiment'],
-      usecase: 'Run right before outreach. Answers: what can we talk about that feels timely and relevant?',
-      comingSoon: true,
-      badge: null,
-      category: 'company'
-    },
-    // --- Contact enrichment (who, how, where) ---
-    role_employment: {
-      name: 'Role & Employment',
-      icon: 'RE',
-      color: 'var(--person-color)',
-      bgColor: 'rgba(52,211,153,0.12)',
-      desc: 'Verifies current job title, identifies reporting structure, calculates tenure, and confirms the contact still works at the listed company. The essential check before any outreach — nothing wastes credibility like messaging someone who left 6 months ago.',
-      fields: ['Title Verified', 'Department', 'Seniority Level', 'Reporting To', 'Tenure', 'Still Employed'],
-      usecase: 'Run first on contacts. Answers: is this the right person, and are they still there?',
-      comingSoon: true,
-      badge: null,
-      category: 'contact'
-    },
-    social_online: {
-      name: 'Social & Online Presence',
-      icon: 'SO',
-      color: '#8b5cf6',
-      bgColor: 'rgba(139,92,246,0.12)',
-      desc: 'Analyzes LinkedIn profile, Twitter/X presence, speaking engagements, blog posts, and publications. Identifies topics of interest, professional communities, and engagement patterns. Gives you personalization hooks that go beyond "I saw your company does X."',
-      fields: ['LinkedIn Activity', 'Twitter/X', 'Speaking Events', 'Publications', 'Communities', 'Topics of Interest'],
-      usecase: 'Run on high-priority contacts. Answers: what do they care about and where are they active?',
-      comingSoon: true,
-      badge: null,
-      category: 'contact'
-    },
-    career_history: {
-      name: 'Career History',
-      icon: 'CH',
-      color: '#06b6d4',
-      bgColor: 'rgba(6,182,212,0.12)',
-      desc: 'Maps previous roles, companies, career trajectory, and industry experience. Identifies career patterns — someone who moved from competitor X to target Y likely brought a specific problem with them. Finds shared connections and common ground.',
-      fields: ['Previous Roles', 'Past Companies', 'Career Trajectory', 'Industry Experience', 'Shared Connections'],
-      usecase: 'Run on decision-makers. Answers: what\'s their background and what pain did they bring?',
-      comingSoon: true,
-      badge: null,
-      category: 'contact'
-    },
-    contact_details: {
-      name: 'Contact Details & Deliverability',
-      icon: 'CD',
-      color: '#10b981',
-      bgColor: 'rgba(16,185,129,0.12)',
-      desc: 'Verifies email deliverability (MX + SMTP probe), finds direct phone numbers, validates LinkedIn DM availability, and checks alternative contact methods. Scores overall reachability. The last step before campaign launch — ensures your message actually arrives.',
-      fields: ['Email Verified', 'Deliverability Score', 'Direct Phone', 'LinkedIn DM', 'Alternative Email', 'Reachability Score'],
-      usecase: 'Run last, before campaign. Answers: can we actually reach them, and through which channel?',
-      comingSoon: true,
-      badge: null,
-      category: 'contact'
-    }
+  // --- Stage definitions for DAG ---
+  var DAG_STAGES = {
+    l1:        { col: 0, icon: 'L1', color: '#00B8CF', bg: 'rgba(0,184,207,0.12)',    name: 'L1 Company Profile',   compact: false, available: true },
+    l2:        { col: 1, icon: 'L2', color: '#8B47A8', bg: 'rgba(139,71,168,0.12)',    name: 'L2 Deep Research',     compact: false, available: true },
+    signals:   { col: 1, icon: 'SS', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',    name: 'Strategic Signals',    compact: false, available: false },
+    ares:      { col: 1, icon: 'CZ', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'ARES (CZ)',            compact: true,  available: true, gate: 'CZ' },
+    brreg:     { col: 1, icon: 'NO', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'BRREG (NO)',           compact: true,  available: true, gate: 'NO' },
+    prh:       { col: 1, icon: 'FI', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'PRH (FI)',             compact: true,  available: true, gate: 'FI' },
+    recherche: { col: 1, icon: 'FR', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'Recherche (FR)',       compact: true,  available: true, gate: 'FR' },
+    isir:      { col: 1, icon: 'IS', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',     name: 'ISIR (CZ)',            compact: true,  available: true, gate: 'CZ' },
+    person:    { col: 2, icon: 'PE', color: '#34D399', bg: 'rgba(52,211,153,0.12)',    name: 'Person Enrichment',    compact: false, available: true },
+    generate:  { col: 3, icon: 'MG', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',    name: 'Message Generation',   compact: false, available: true },
+    qc:        { col: 4, icon: 'QC', color: '#8B92A0', bg: 'rgba(139,146,160,0.12)',   name: 'Quality Check',        compact: false, available: false }
   };
 
-  var STAGE_ORDER = ['l1', 'registry', 'tech_product', 'financial_growth', 'competitive', 'news_media', 'role_employment', 'social_online', 'career_history', 'contact_details'];
+  var STAGE_ORDER = ['l1', 'l2', 'signals', 'ares', 'brreg', 'prh', 'recherche', 'isir', 'person', 'generate', 'qc'];
 
-  var estimateData = null;
+  var HARD_DEPS = {
+    l1: [], l2: ['l1'], signals: ['l1'],
+    ares: ['l1'], brreg: ['l1'], prh: ['l1'], recherche: ['l1'], isir: ['l1'],
+    person: ['l1'], generate: ['person'], qc: []
+  };
+  var SOFT_DEPS = {
+    l1: [], l2: [], signals: [],
+    ares: [], brreg: [], prh: [], recherche: [], isir: [],
+    person: ['l2', 'signals'], generate: ['l2', 'signals'], qc: []
+  };
+
+  var COL_LABELS = ['Source', 'Enrichment', 'Contacts', 'Outreach', 'QC'];
+
+  // State
   var enabledStages = {};
+  var softDepsConfig = { person: true, generate: true };
+  var estimateData = null;
   var batchList = [];
-  var ownerList = [];
-  var stageStartTimes = {};
-  var reviewItems = [];
   var batchStats = null;
+  var stageStatus = {};
 
   // --- Utilities ---
   function $(sel) { return document.querySelector(sel); }
@@ -734,6 +634,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       else el.setAttribute(k, attrs[k]);
     });
     if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function mkSvg(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    if (attrs) Object.keys(attrs).forEach(function(k) { el.setAttribute(k, attrs[k]); });
     return el;
   }
 
@@ -759,13 +665,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
   function fmt$(val) { return '$' + (val || 0).toFixed(2); }
 
-  function formatDuration(ms) {
-    var s = Math.round(ms / 1000);
-    if (s < 60) return '~' + s + 's remaining';
-    var m = Math.round(s / 60);
-    return '~' + m + 'm remaining';
-  }
-
   function getParam(name) {
     var params = new URLSearchParams(window.location.search);
     return params.get(name) || '';
@@ -777,7 +676,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
   // --- Step navigation ---
   function goStep(n) {
-    [1, 2, 3].forEach(function(i) {
+    [1, 2].forEach(function(i) {
       var el = $('#step_' + i);
       var ind = $('#step_ind_' + i);
       if (i === n) {
@@ -806,14 +705,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         sel.appendChild(mkEl('option', { value: b.name }, b.name));
       });
 
-      // Pre-select from URL param
       var urlBatch = getParam('batch_name');
       if (urlBatch) {
         sel.value = urlBatch;
         loadBatchStats();
       }
 
-      // Load owners
       var ownerSel = $('#owner_select');
       var uniqueOwners = {};
       batchList.forEach(function(b) {
@@ -821,8 +718,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
           b.owners.forEach(function(o) { uniqueOwners[o.name] = o; });
         }
       });
-      ownerList = Object.values(uniqueOwners);
-      ownerList.forEach(function(o) {
+      Object.values(uniqueOwners).forEach(function(o) {
         ownerSel.appendChild(mkEl('option', { value: o.name }, o.name));
       });
 
@@ -831,7 +727,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       checkConfigureEnabled();
 
-      // Show import callout if coming from import
       var importJobId = getParam('import_job_id');
       if (importJobId && urlBatch) {
         var callout = $('#import_callout');
@@ -883,22 +778,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       grid.appendChild(cell);
     });
 
-    // Summary
     var summary = $('#selection_summary');
     var total = data.companies_total || 0;
     var contacts = data.contacts_total || 0;
     summary.textContent = total + ' companies, ' + contacts + ' contacts in this batch';
-
-    // Tier breakdown if available
-    var tierData = data.l2_eligible_by_tier || {};
-    var tierKeys = Object.keys(tierData);
-    if (tierKeys.length > 0) {
-      var tierLine = mkEl('div', { style: 'margin-top:6px;font-size:0.78rem;color:var(--text-dim);' });
-      tierLine.textContent = 'Tier breakdown: ' + tierKeys.map(function(t) {
-        return t.replace(/ - .*/, '') + ': ' + tierData[t];
-      }).join(', ');
-      summary.parentNode.appendChild(tierLine);
-    }
 
     $('#status_breakdown').classList.remove('hidden');
   }
@@ -907,11 +790,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     $('#btn_configure').disabled = !$('#batch_select').value;
   }
 
-  // --- Step 2: Fetch estimate and build package cards ---
+  // --- Step 2: DAG building ---
   function fetchEstimate(callback) {
     var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
     var tiers = getTiers();
+
+    var availableStages = STAGE_ORDER.filter(function(s) { return DAG_STAGES[s].available; });
 
     apiFetch(API_BASE + '/enrich/estimate', {
       method: 'POST',
@@ -919,7 +804,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         batch_name: batch,
         owner_name: owner || undefined,
         tier_filter: tiers,
-        stages: STAGE_ORDER.filter(function(s) { return !PACKAGES[s].comingSoon; })
+        stages: availableStages
       })
     }).then(function(data) {
       estimateData = data;
@@ -929,336 +814,518 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  function buildPackageCards(data) {
-    var container = $('#pkg_cards');
+  function buildDAG(data) {
+    var container = $('#dag_columns');
     clearChildren(container);
 
-    // Reset enabled stages
+    // Reset state
     enabledStages = {};
+    dagMode = 'configure';
+    stageStatus = {};
 
-    var lastCategory = '';
+    // Update controls info (safe DOM methods, no innerHTML)
+    var batchInfoEl = $('#dag_batch_info');
+    clearChildren(batchInfoEl);
+    var batch = $('#batch_select').value;
+    var owner = $('#owner_select').value;
+    var batchStrong = mkEl('strong', {}, batch);
+    batchInfoEl.appendChild(batchStrong);
+    if (owner) {
+      batchInfoEl.appendChild(document.createTextNode(' \u00B7 ' + owner));
+    }
 
-    STAGE_ORDER.forEach(function(stage) {
-      var pkg = PACKAGES[stage];
+    // Group stages by column
+    var columns = {};
+    STAGE_ORDER.forEach(function(code) {
+      var stage = DAG_STAGES[code];
+      var col = stage.col;
+      if (!columns[col]) columns[col] = [];
+      columns[col].push(code);
+    });
 
-      // Category header
-      if (pkg.category !== lastCategory) {
-        lastCategory = pkg.category;
-        var catLabel = pkg.category === 'company' ? 'Company Enrichment' : 'Contact Enrichment';
-        var catEl = mkEl('div', {
-          style: 'font-family:var(--font-title);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);padding:8px 0 2px;' + (pkg.category === 'contact' ? 'margin-top:8px;border-top:1px solid var(--border);padding-top:16px;' : '')
-        }, catLabel);
-        container.appendChild(catEl);
-      }
-      var pkg = PACKAGES[stage];
-      var info = data.stages[stage] || {};
-      var eligible = info.eligible_count || 0;
-      var costPer = info.cost_per_item || 0;
-      var isComingSoon = pkg.comingSoon;
-      var hasItems = eligible > 0 && !isComingSoon;
+    // Build columns
+    var colKeys = Object.keys(columns).sort(function(a, b) { return Number(a) - Number(b); });
+    colKeys.forEach(function(colIdx) {
+      var colEl = mkEl('div', { className: 'dag-col' + (colIdx === '1' ? ' dag-col--wide' : '') });
+      colEl.setAttribute('data-col', colIdx);
 
-      enabledStages[stage] = hasItems;
+      var label = mkEl('div', { className: 'dag-col__label' }, COL_LABELS[Number(colIdx)] || '');
+      colEl.appendChild(label);
 
-      var card = mkEl('div', { className: 'pkg-card' + (isComingSoon ? ' disabled' : '') });
-      card.setAttribute('data-stage', stage);
+      columns[colIdx].forEach(function(code) {
+        var stage = DAG_STAGES[code];
+        var info = (data && data.stages && data.stages[code]) || {};
+        var eligible = info.eligible_count || 0;
+        var isAvailable = stage.available;
+        var hasEligible = eligible > 0 && isAvailable;
 
-      // Icon
-      var iconEl = mkEl('div', { className: 'pkg-card__icon' });
-      iconEl.style.background = pkg.bgColor;
-      iconEl.style.color = pkg.color;
-      iconEl.textContent = pkg.icon;
+        enabledStages[code] = hasEligible;
 
-      // Body
-      var body = mkEl('div', { className: 'pkg-card__body' });
-
-      // Header: name + badge + toggle
-      var header = mkEl('div', { className: 'pkg-card__header' });
-      header.appendChild(mkEl('div', { className: 'pkg-card__name' }, pkg.name));
-      if (isComingSoon) {
-        var badge = mkEl('span', { className: 'pkg-card__badge', style: 'background:rgba(90,97,112,0.2);color:var(--text-dim);' }, 'Coming Soon');
-        header.appendChild(badge);
-      } else if (pkg.badge) {
-        var freeBadge = mkEl('span', { className: 'pkg-card__badge', style: 'background:rgba(52,211,153,0.15);color:var(--success);' }, pkg.badge);
-        header.appendChild(freeBadge);
-      }
-      body.appendChild(header);
-
-      // Description
-      body.appendChild(mkEl('div', { className: 'pkg-card__desc' }, pkg.desc));
-
-      // Fields
-      var fieldsEl = mkEl('div', { className: 'pkg-card__fields' });
-      pkg.fields.forEach(function(f) {
-        fieldsEl.appendChild(mkEl('span', { className: 'pkg-field' }, f));
+        var nodeEl = buildNode(code, stage, info, isAvailable);
+        colEl.appendChild(nodeEl);
       });
-      body.appendChild(fieldsEl);
 
-      // Use case
-      body.appendChild(mkEl('div', { className: 'pkg-card__usecase' }, pkg.usecase));
-
-      // Right side: toggle + cost + eligible
-      var right = mkEl('div', { className: 'pkg-card__right' });
-
-      var toggle = mkEl('label', { className: 'toggle' });
-      var input = mkEl('input', { type: 'checkbox' });
-      input.checked = hasItems;
-      input.disabled = !hasItems || isComingSoon;
-      input.setAttribute('data-stage', stage);
-      input.addEventListener('change', function() {
-        enabledStages[stage] = this.checked;
-        updateTotalCost();
-      });
-      var slider = mkEl('span', { className: 'toggle-slider' });
-      toggle.appendChild(input);
-      toggle.appendChild(slider);
-      right.appendChild(toggle);
-
-      if (!isComingSoon) {
-        var costWrap = mkEl('div', { style: 'text-align:right;' });
-        var costVal = mkEl('div', { className: 'pkg-card__cost' }, fmt$(info.estimated_cost || 0));
-        costVal.setAttribute('data-stage-cost', stage);
-        costWrap.appendChild(costVal);
-        if (costPer > 0) {
-          costWrap.appendChild(mkEl('div', { className: 'pkg-card__cost-label' }, fmt$(costPer) + '/item'));
-        } else {
-          costWrap.appendChild(mkEl('div', { className: 'pkg-card__cost-label' }, 'free'));
-        }
-        right.appendChild(costWrap);
-
-        right.appendChild(mkEl('div', { className: 'pkg-card__eligible' }, eligible + ' eligible'));
-      }
-
-      card.appendChild(iconEl);
-      card.appendChild(body);
-      card.appendChild(right);
-      container.appendChild(card);
+      container.appendChild(colEl);
     });
 
     updateTotalCost();
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() { drawEdges(); });
+    });
+  }
+
+  function buildNode(code, stage, info, isAvailable) {
+    var eligible = (info && info.eligible_count) || 0;
+    var hasEligible = eligible > 0 && isAvailable;
+    var isCompact = stage.compact;
+
+    var nodeEl = mkEl('div', { className: 'dag-node' + (isCompact ? ' dag-node--compact' : '') });
+    nodeEl.setAttribute('data-stage', code);
+    nodeEl.setAttribute('data-state', !isAvailable ? 'disabled' : (hasEligible ? 'eligible' : 'pending'));
+
+    // Status icon (hidden until running/completed/failed)
+    var statusIcon = mkEl('div', { className: 'dag-node__status-icon hidden' });
+    nodeEl.appendChild(statusIcon);
+
+    // Header: icon + name + toggle
+    var header = mkEl('div', { className: 'dag-node__header' });
+
+    var iconEl = mkEl('div', { className: 'dag-node__icon', style: 'background:' + stage.bg + ';color:' + stage.color + ';' }, stage.icon);
+    header.appendChild(iconEl);
+
+    var nameEl = mkEl('div', { className: 'dag-node__name' }, stage.name);
+    header.appendChild(nameEl);
+
+    if (!isAvailable) {
+      header.appendChild(mkEl('span', { className: 'dag-node__badge', style: 'background:rgba(90,97,112,0.2);color:var(--text-dim);' }, 'Soon'));
+    } else if (stage.gate) {
+      header.appendChild(mkEl('span', { className: 'dag-node__badge', style: 'background:rgba(59,130,246,0.12);color:#3B82F6;' }, stage.gate));
+    }
+
+    // Toggle
+    var toggle = mkEl('label', { className: 'toggle' });
+    var input = mkEl('input', { type: 'checkbox' });
+    input.checked = hasEligible;
+    input.disabled = !isAvailable;
+    input.setAttribute('data-toggle', code);
+    input.addEventListener('change', function() {
+      enabledStages[code] = this.checked;
+      updateNodeState(code);
+      updateTotalCost();
+      drawEdges();
+    });
+    toggle.appendChild(input);
+    toggle.appendChild(mkEl('span', { className: 'toggle-slider' }));
+    header.appendChild(toggle);
+
+    nodeEl.appendChild(header);
+
+    // Stats line
+    if (!isCompact) {
+      var statsEl = mkEl('div', { className: 'dag-node__stats' });
+      statsEl.setAttribute('data-stats', code);
+      if (isAvailable) {
+        var statText = eligible + ' eligible';
+        if (info && info.estimated_cost > 0) {
+          statText += ' \u00B7 ' + fmt$(info.estimated_cost);
+        } else if (info && info.cost_per_item === 0) {
+          statText += ' \u00B7 free';
+        }
+        statsEl.textContent = statText;
+      } else {
+        statsEl.textContent = 'Coming soon';
+      }
+      nodeEl.appendChild(statsEl);
+
+      // Progress (hidden in configure mode)
+      var progressEl = mkEl('div', { className: 'dag-node__progress hidden' });
+      progressEl.setAttribute('data-progress', code);
+
+      var barWrap = mkEl('div', { className: 'dag-node__bar-wrap' });
+      var barFill = mkEl('div', { className: 'dag-node__bar-fill', style: 'background:' + stage.color + ';' });
+      barFill.setAttribute('data-bar', code);
+      barWrap.appendChild(barFill);
+      progressEl.appendChild(barWrap);
+
+      var countsEl = mkEl('div', { className: 'dag-node__counts' });
+      var doneEl = mkEl('span', {}, '0/0');
+      doneEl.setAttribute('data-done', code);
+      countsEl.appendChild(doneEl);
+      var costEl = mkEl('span', { className: 'cost' }, '$0.00');
+      costEl.setAttribute('data-node-cost', code);
+      countsEl.appendChild(costEl);
+      progressEl.appendChild(countsEl);
+
+      nodeEl.appendChild(progressEl);
+    } else {
+      var compactStats = mkEl('div', { className: 'dag-node__stats' });
+      compactStats.setAttribute('data-stats', code);
+      compactStats.textContent = isAvailable ? (eligible + ' eligible \u00B7 free') : 'Coming soon';
+      nodeEl.appendChild(compactStats);
+    }
+
+    // Soft dependency badges (only for person, generate)
+    var softDeps = SOFT_DEPS[code] || [];
+    if (softDeps.length > 0 && !isCompact) {
+      var sdContainer = mkEl('div', { className: 'dag-node__soft-deps' });
+      softDeps.forEach(function(dep) {
+        var depStage = DAG_STAGES[dep];
+        var badgeEl = mkEl('div', { className: 'soft-dep-badge' + (softDepsConfig[code] !== false ? ' active' : '') });
+        badgeEl.setAttribute('data-soft-dep', code + ':' + dep);
+
+        badgeEl.appendChild(mkEl('span', { className: 'soft-dep-badge__dot' }));
+        badgeEl.appendChild(mkEl('span', {}, 'Wait for ' + (depStage ? depStage.name.split(' ')[0] : dep)));
+
+        badgeEl.addEventListener('click', function() {
+          if (dagMode !== 'configure') return;
+          var isActive = badgeEl.classList.contains('active');
+          badgeEl.classList.toggle('active', !isActive);
+          var allBadges = $$('[data-soft-dep^="' + code + ':"]');
+          var anyActive = allBadges.some(function(b) { return b.classList.contains('active'); });
+          softDepsConfig[code] = anyActive;
+          drawEdges();
+        });
+        sdContainer.appendChild(badgeEl);
+      });
+      nodeEl.appendChild(sdContainer);
+    }
+
+    return nodeEl;
+  }
+
+  function updateNodeState(code) {
+    var nodeEl = document.querySelector('[data-stage="' + code + '"]');
+    if (!nodeEl) return;
+    var stage = DAG_STAGES[code];
+
+    if (!stage.available) {
+      nodeEl.setAttribute('data-state', 'disabled');
+      return;
+    }
+
+    if (dagMode === 'configure') {
+      if (!enabledStages[code]) {
+        nodeEl.setAttribute('data-state', 'disabled');
+      } else {
+        var info = estimateData && estimateData.stages && estimateData.stages[code];
+        var eligible = info ? (info.eligible_count || 0) : 0;
+        nodeEl.setAttribute('data-state', eligible > 0 ? 'eligible' : 'pending');
+      }
+    }
   }
 
   function updateTotalCost() {
     if (!estimateData) return;
     var total = 0;
-    STAGE_ORDER.forEach(function(stage) {
-      var info = estimateData.stages[stage] || {};
-      var stageCost = enabledStages[stage] ? (info.estimated_cost || 0) : 0;
-      total += stageCost;
-      var el = document.querySelector('[data-stage-cost="' + stage + '"]');
-      if (el) el.textContent = enabledStages[stage] ? fmt$(info.estimated_cost || 0) : '$0.00';
+    STAGE_ORDER.forEach(function(code) {
+      if (!enabledStages[code]) return;
+      var info = estimateData.stages && estimateData.stages[code];
+      if (info) total += (info.estimated_cost || 0);
     });
-    $('#total_cost').textContent = fmt$(total);
+    $('#dag_total_cost').textContent = fmt$(total);
 
     var anyEnabled = Object.keys(enabledStages).some(function(s) { return enabledStages[s]; });
-    $('#btn_start').disabled = !anyEnabled;
-    $('#btn_sample').disabled = !anyEnabled;
+    $('#btn_run').disabled = !anyEnabled;
   }
 
-  function getEnabledStages() {
-    return STAGE_ORDER.filter(function(s) { return enabledStages[s] && !PACKAGES[s].comingSoon; });
+  // --- Edge rendering ---
+  function drawEdges() {
+    var svg = $('#dag_edges');
+    clearChildren(svg);
+
+    var container = $('#dag_container');
+    var containerRect = container.getBoundingClientRect();
+
+    svg.setAttribute('width', String(container.scrollWidth));
+    svg.setAttribute('height', String(container.scrollHeight));
+
+    STAGE_ORDER.forEach(function(code) {
+      var hardDeps = HARD_DEPS[code] || [];
+      var softDeps = SOFT_DEPS[code] || [];
+
+      hardDeps.forEach(function(dep) {
+        drawEdge(svg, dep, code, 'hard', containerRect);
+      });
+
+      softDeps.forEach(function(dep) {
+        var isEnabled = softDepsConfig[code] !== false;
+        drawEdge(svg, dep, code, isEnabled ? 'soft-active' : 'soft', containerRect);
+      });
+    });
   }
 
-  // --- Step 3: Start pipeline and poll ---
-  function startEnrichment(sampleSize) {
+  function drawEdge(svg, fromCode, toCode, type, containerRect) {
+    var fromNode = document.querySelector('[data-stage="' + fromCode + '"]');
+    var toNode = document.querySelector('[data-stage="' + toCode + '"]');
+    if (!fromNode || !toNode) return;
+
+    var fromEnabled = enabledStages[fromCode];
+    var toEnabled = enabledStages[toCode];
+    if (!fromEnabled && !toEnabled) return;
+
+    var fromRect = fromNode.getBoundingClientRect();
+    var toRect = toNode.getBoundingClientRect();
+
+    var x1 = fromRect.right - containerRect.left;
+    var y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+    var x2 = toRect.left - containerRect.left;
+    var y2 = toRect.top + toRect.height / 2 - containerRect.top;
+
+    var dx = Math.max((x2 - x1) * 0.4, 20);
+    var d = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
+
+    var path = mkSvg('path', { d: d });
+    path.setAttribute('data-from', fromCode);
+    path.setAttribute('data-to', toCode);
+
+    var edgeClass = 'dag-edge';
+    if (dagMode === 'running' || dagMode === 'completed') {
+      var fromStatus = stageStatus[fromCode];
+      var fromState = fromStatus ? fromStatus.status : 'pending';
+
+      if (fromState === 'completed') {
+        edgeClass += ' dag-edge--completed';
+      } else if (fromState === 'running') {
+        edgeClass += ' dag-edge--active';
+      } else if (fromState === 'failed') {
+        edgeClass += ' dag-edge--failed';
+      } else {
+        edgeClass += ' dag-edge--pending';
+      }
+    } else {
+      if (!fromEnabled || !toEnabled) {
+        edgeClass += ' dag-edge--inactive';
+      } else {
+        edgeClass += ' dag-edge--pending';
+      }
+    }
+
+    if (type === 'soft' || type === 'soft-active') {
+      edgeClass += ' dag-edge--soft';
+    }
+
+    path.setAttribute('class', edgeClass);
+    svg.appendChild(path);
+  }
+
+  // --- Run pipeline ---
+  function startDagPipeline() {
     var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
-    var stages = getEnabledStages();
     var tiers = getTiers();
-    isSampleRun = !!sampleSize;
 
-    var body = { batch_name: batch, stages: stages };
-    if (owner) body.owner_name = owner;
-    if (sampleSize) body.sample_size = sampleSize;
+    var stages = STAGE_ORDER.filter(function(s) {
+      return enabledStages[s] && DAG_STAGES[s].available;
+    });
+
+    if (stages.length === 0) {
+      alert('No stages enabled');
+      return;
+    }
+
+    var body = {
+      batch_name: batch,
+      stages: stages,
+      soft_deps: softDepsConfig
+    };
+    if (owner) body.owner = owner;
     if (tiers.length > 0) body.tier_filter = tiers;
 
-    apiFetch(API_BASE + '/enrich/start', {
+    $('#btn_run').disabled = true;
+    $('#btn_run').textContent = 'Starting...';
+
+    apiFetch(API_BASE + '/pipeline/dag-run', {
       method: 'POST',
       body: JSON.stringify(body)
     }).then(function(data) {
       currentPipelineRunId = data.pipeline_run_id;
-      goStep(3);
-      buildProgressUI(stages);
-      startPolling(batch);
-    }).catch(function(err) {
-      alert('Failed to start enrichment: ' + err.message);
-    });
-  }
+      dagMode = 'running';
 
-  function buildProgressUI(stages) {
-    var container = $('#progress_stages');
-    clearChildren(container);
-    stageStartTimes = {};
+      $('#btn_run').classList.add('hidden');
+      $('#btn_stop_dag').classList.remove('hidden');
+      $('#btn_back').disabled = true;
 
-    stages.forEach(function(stage) {
-      var pkg = PACKAGES[stage];
-      var row = mkEl('div', { className: 'progress-stage' });
-      row.setAttribute('data-progress-stage', stage);
+      $$('[data-toggle]').forEach(function(input) { input.disabled = true; });
 
-      var nameEl = mkEl('div', { className: 'progress-stage__name' }, pkg.name);
-      nameEl.style.color = pkg.color;
+      STAGE_ORDER.forEach(function(code) {
+        var progressEl = document.querySelector('[data-progress="' + code + '"]');
+        var statsEl = document.querySelector('[data-stats="' + code + '"]');
+        if (progressEl && enabledStages[code]) progressEl.classList.remove('hidden');
+        if (statsEl && enabledStages[code]) statsEl.classList.add('hidden');
 
-      var barWrap = mkEl('div', { className: 'progress-bar-wrap' });
-      var barFill = mkEl('div', { className: 'progress-bar-fill' });
-      barFill.style.width = '0%';
-      barFill.style.background = pkg.color;
-      barWrap.appendChild(barFill);
-
-      var countEl = mkEl('div', { className: 'progress-stage__count' }, '0/0');
-      countEl.setAttribute('data-count', stage);
-
-      var countersEl = mkEl('div', { className: 'progress-counters' });
-      countersEl.setAttribute('data-counters', stage);
-
-      var costEl = mkEl('div', { className: 'progress-stage__cost' }, '$0.00');
-      costEl.setAttribute('data-cost', stage);
-
-      var etaEl = mkEl('div', { className: 'progress-stage__eta' }, '');
-      etaEl.setAttribute('data-eta', stage);
-
-      var statusEl = mkEl('div', { className: 'progress-stage__status' });
-      var pill = mkEl('span', { className: 'pill pill-pending' }, 'PENDING');
-      pill.setAttribute('data-pill', stage);
-      statusEl.appendChild(pill);
-
-      row.appendChild(nameEl);
-      row.appendChild(barWrap);
-      row.appendChild(countEl);
-      row.appendChild(countersEl);
-      row.appendChild(costEl);
-      row.appendChild(etaEl);
-      row.appendChild(statusEl);
-      container.appendChild(row);
-
-      // Current item indicator below progress bar
-      var itemRow = mkEl('div', {
-        style: 'display:flex;align-items:center;gap:8px;padding:2px 0 8px 92px;font-size:0.72rem;color:var(--text-dim);border-bottom:1px solid var(--border);min-height:20px;'
+        if (!enabledStages[code]) {
+          var nodeEl = document.querySelector('[data-stage="' + code + '"]');
+          if (nodeEl) nodeEl.setAttribute('data-state', 'disabled');
+        }
       });
-      itemRow.setAttribute('data-current-item', stage);
-      container.appendChild(itemRow);
+
+      startPolling();
+    }).catch(function(err) {
+      alert('Failed to start pipeline: ' + err.message);
+      $('#btn_run').disabled = false;
+      $('#btn_run').textContent = 'Run Enabled';
     });
-
-    var reviewContainer = mkEl('div', { className: 'hidden', id: 'review_list_container' });
-    reviewContainer.setAttribute('style', 'margin-top:12px;');
-    container.parentNode.appendChild(reviewContainer);
   }
 
-  function startPolling(batchName) {
+  function stopDagPipeline() {
+    if (!currentPipelineRunId) return;
+
+    apiFetch(API_BASE + '/pipeline/dag-stop', {
+      method: 'POST',
+      body: JSON.stringify({ pipeline_run_id: currentPipelineRunId })
+    }).then(function() {
+      $('#btn_stop_dag').disabled = true;
+      $('#btn_stop_dag').textContent = 'Stopping...';
+    }).catch(function(err) {
+      alert('Failed to stop: ' + err.message);
+    });
+  }
+
+  // --- Polling ---
+  function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(function() { pollStatus(batchName); }, POLL_INTERVAL);
-    pollStatus(batchName);
+    pollTimer = setInterval(pollDagStatus, POLL_INTERVAL);
+    pollDagStatus();
   }
 
-  function pollStatus(batchName) {
-    apiFetch(API_BASE + '/pipeline/status?batch_name=' + encodeURIComponent(batchName))
+  function pollDagStatus() {
+    var batch = $('#batch_select').value;
+    if (!batch) return;
+
+    apiFetch(API_BASE + '/pipeline/dag-status?batch_name=' + encodeURIComponent(batch))
       .then(function(data) {
-        updateProgressUI(data);
-        checkCompletion(data);
+        updateFromPoll(data);
+        checkDagCompletion(data);
       }).catch(function() {});
   }
 
-  function updateProgressUI(data) {
-    var totalCost = 0;
+  function updateFromPoll(data) {
     var stages = data.stages || {};
+    var pipeline = data.pipeline || {};
+    var totalCost = 0;
 
-    Object.keys(stages).forEach(function(stage) {
-      var s = stages[stage];
-      if (!s || s.status === 'idle' || s.status === 'unavailable') return;
+    stageStatus = stages;
 
-      var countEl = document.querySelector('[data-count="' + stage + '"]');
-      var costEl = document.querySelector('[data-cost="' + stage + '"]');
-      var pillEl = document.querySelector('[data-pill="' + stage + '"]');
-      var rowEl = document.querySelector('[data-progress-stage="' + stage + '"]');
-      var barEl = rowEl ? rowEl.querySelector('.progress-bar-fill') : null;
-      var countersEl = document.querySelector('[data-counters="' + stage + '"]');
-      var etaEl = document.querySelector('[data-eta="' + stage + '"]');
+    Object.keys(stages).forEach(function(code) {
+      var s = stages[code];
+      if (!s) return;
+
+      var nodeEl = document.querySelector('[data-stage="' + code + '"]');
+      if (!nodeEl) return;
+
+      var statusIconEl = nodeEl.querySelector('.dag-node__status-icon');
+      var barEl = document.querySelector('[data-bar="' + code + '"]');
+      var doneEl = document.querySelector('[data-done="' + code + '"]');
+      var costEl = document.querySelector('[data-node-cost="' + code + '"]');
 
       var done = s.done || 0;
       var total = s.total || 0;
       var failed = s.failed || 0;
-      var success = done - failed;
 
-      if (countEl) countEl.textContent = done + '/' + total;
+      var state = s.status || 'pending';
+      if (state === 'stopping') state = 'running';
+      nodeEl.setAttribute('data-state', state);
+
+      if (state === 'completed') {
+        statusIconEl.textContent = '\u2713';
+        statusIconEl.classList.remove('hidden');
+      } else if (state === 'failed') {
+        statusIconEl.textContent = '\u2717';
+        statusIconEl.classList.remove('hidden');
+      } else if (state === 'running') {
+        statusIconEl.textContent = '\u2022';
+        statusIconEl.classList.remove('hidden');
+      } else {
+        statusIconEl.classList.add('hidden');
+      }
+
+      if (barEl && total > 0) {
+        barEl.style.width = Math.round(done / total * 100) + '%';
+      }
+
+      if (doneEl) {
+        var countText = done + '/' + total;
+        if (failed > 0) countText += ' (' + failed + ' failed)';
+        doneEl.textContent = countText;
+      }
+
       if (costEl) costEl.textContent = fmt$(s.cost || 0);
-      if (barEl && total > 0) barEl.style.width = Math.round(done / total * 100) + '%';
-
-      if (countersEl && done > 0) {
-        clearChildren(countersEl);
-        if (success > 0) {
-          var sc = mkEl('span', { className: 'progress-counter' });
-          sc.appendChild(mkEl('span', { className: 'counter-dot green' }));
-          sc.appendChild(mkEl('span', {}, String(success)));
-          countersEl.appendChild(sc);
-        }
-        if (failed > 0) {
-          var fc = mkEl('span', { className: 'progress-counter' });
-          fc.appendChild(mkEl('span', { className: 'counter-dot red' }));
-          fc.appendChild(mkEl('span', {}, String(failed)));
-          countersEl.appendChild(fc);
-        }
-      }
-
-      if (etaEl && s.status === 'running' && done > 0 && done < total) {
-        if (!stageStartTimes[stage]) stageStartTimes[stage] = Date.now();
-        var elapsed = Date.now() - stageStartTimes[stage];
-        var avgPerItem = elapsed / done;
-        var remaining = (total - done) * avgPerItem;
-        etaEl.textContent = formatDuration(remaining);
-      } else if (etaEl) {
-        etaEl.textContent = (s.status === 'running' && done === 0) ? 'Starting...' : '';
-      }
-
-      if (pillEl) {
-        var st = s.status || 'pending';
-        pillEl.className = 'pill pill-' + st;
-        pillEl.textContent = st.toUpperCase();
-      }
-
-      // Per-item progress indicator
-      var itemEl = document.querySelector('[data-current-item="' + stage + '"]');
-      if (itemEl) {
-        clearChildren(itemEl);
-        if (s.status === 'running' && s.current_item) {
-          var ci = s.current_item;
-          var dot = mkEl('span', { style: 'width:6px;height:6px;border-radius:50%;background:var(--accent-cyan);display:inline-block;animation:pulse 1.2s infinite;' });
-          itemEl.appendChild(dot);
-          itemEl.appendChild(mkEl('span', {}, ci.name));
-        } else if (s.recent_items && s.recent_items.length > 0) {
-          var last = s.recent_items[s.recent_items.length - 1];
-          var statusIcon = last.status === 'ok' ? '\u2713' : '\u2717';
-          var statusColor = last.status === 'ok' ? 'var(--success)' : 'var(--error)';
-          itemEl.appendChild(mkEl('span', { style: 'color:' + statusColor }, statusIcon));
-          itemEl.appendChild(mkEl('span', {}, last.name));
-        }
-        itemEl.style.display = (s.status === 'running' || (s.recent_items && s.recent_items.length > 0)) ? 'flex' : 'none';
-      }
 
       totalCost += (s.cost || 0);
     });
 
-    $('#running_cost').textContent = fmt$(totalCost);
+    $('#dag_total_cost').textContent = fmt$(totalCost);
+
+    // Update pipeline status badge (safe DOM, no innerHTML)
+    var statusEl = $('#dag_pipeline_status');
+    clearChildren(statusEl);
+    if (pipeline.status) {
+      var pill = mkEl('span', { className: 'pill pill-' + pipeline.status }, pipeline.status.toUpperCase());
+      statusEl.appendChild(pill);
+    }
+
+    drawEdges();
+    updateDagSummary(stages);
   }
 
-  function checkCompletion(data) {
+  function updateDagSummary(stages) {
+    var summaryEl = $('#dag_summary');
+    clearChildren(summaryEl);
+
+    var completed = 0, running = 0, pending = 0, failed = 0;
+    var totalDone = 0, totalItems = 0;
+
+    Object.keys(stages).forEach(function(code) {
+      var s = stages[code];
+      if (!s) return;
+      if (s.status === 'completed') completed++;
+      else if (s.status === 'running') running++;
+      else if (s.status === 'failed') failed++;
+      else pending++;
+      totalDone += (s.done || 0);
+      totalItems += (s.total || 0);
+    });
+
+    var items = [
+      { label: completed + ' completed', color: 'var(--success)' },
+      { label: running + ' running', color: 'var(--accent-cyan)' },
+      { label: pending + ' pending', color: 'var(--text-dim)' }
+    ];
+    if (failed > 0) items.push({ label: failed + ' failed', color: 'var(--error)' });
+    items.push({ label: totalDone + '/' + totalItems + ' entities', color: 'var(--text-muted)' });
+
+    items.forEach(function(item) {
+      var el = mkEl('div', { className: 'dag-summary__item' });
+      el.appendChild(mkEl('span', { className: 'dag-summary__dot', style: 'background:' + item.color }));
+      el.appendChild(mkEl('span', {}, item.label));
+      summaryEl.appendChild(el);
+    });
+  }
+
+  function checkDagCompletion(data) {
     var pipeline = data.pipeline;
     if (!pipeline) return;
 
     if (pipeline.status === 'completed' || pipeline.status === 'failed' || pipeline.status === 'stopped') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      showCompletion(pipeline, data.stages);
+      dagMode = 'completed';
+      showDagCompletion(pipeline, data.stages);
     }
   }
 
-  function showCompletion(pipeline, stages) {
+  function showDagCompletion(pipeline, stages) {
     var panel = $('#completion_panel');
     panel.classList.remove('hidden');
-    $('#btn_stop').disabled = true;
+
+    $('#btn_stop_dag').classList.add('hidden');
+    $('#btn_back').disabled = false;
 
     var isSuccess = pipeline.status === 'completed';
     var isStopped = pipeline.status === 'stopped';
 
     $('#completion_icon').textContent = isSuccess ? '\u2713' : (isStopped ? '\u23F8' : '\u2717');
     $('#completion_icon').style.color = isSuccess ? 'var(--success)' : (isStopped ? 'var(--warning)' : 'var(--error)');
-    $('#completion_title').textContent = isSuccess ? 'Enrichment Complete' : (isStopped ? 'Enrichment Stopped' : 'Enrichment Failed');
+    $('#completion_title').textContent = isSuccess ? 'Pipeline Complete' : (isStopped ? 'Pipeline Stopped' : 'Pipeline Failed');
 
     var totalDone = 0, totalFailed = 0;
     Object.keys(stages).forEach(function(s) {
@@ -1274,135 +1341,24 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var actions = $('#completion_actions');
     clearChildren(actions);
 
-    if (isSampleRun || isStopped) {
-      var contBtn = mkEl('button', { className: 'btn btn-success' }, 'Continue with Remaining');
-      contBtn.addEventListener('click', function() {
-        panel.classList.add('hidden');
-        goStep(2);
-        fetchEstimate(function(d) { buildPackageCards(d); });
+    var rerunBtn = mkEl('button', { className: 'btn btn-success' }, 'Configure New Run');
+    rerunBtn.addEventListener('click', function() {
+      panel.classList.add('hidden');
+      dagMode = 'configure';
+      currentPipelineRunId = null;
+      stageStatus = {};
+      fetchEstimate(function(data) {
+        buildDAG(data);
+        $('#btn_run').classList.remove('hidden');
+        $('#btn_run').disabled = false;
+        $('#btn_run').textContent = 'Run Enabled';
+        clearChildren($('#dag_pipeline_status'));
       });
-      actions.appendChild(contBtn);
-    }
-
-    loadReviewItems();
-
-    actions.appendChild(mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts'));
-    actions.appendChild(mkEl('a', { className: 'btn btn-ghost', href: 'companies.html' }, 'View Companies'));
-  }
-
-  // --- Review list ---
-  function loadReviewItems() {
-    var batch = $('#batch_select').value;
-    if (!batch) return;
-
-    apiFetch(API_BASE + '/enrich/review?batch_name=' + encodeURIComponent(batch) + '&stage=l1')
-      .then(function(data) {
-        reviewItems = data.items || [];
-        updateReviewBadge();
-        if (reviewItems.length > 0) renderReviewList();
-      }).catch(function() {});
-  }
-
-  function updateReviewBadge() {
-    var reviewContainer = document.getElementById('review_list_container');
-    if (!reviewContainer) return;
-
-    if (reviewItems.length === 0) {
-      reviewContainer.classList.add('hidden');
-      var pillEl = document.querySelector('[data-pill="l1"]');
-      if (pillEl && pillEl.textContent === 'COMPLETED') {
-        var parent = pillEl.parentNode;
-        clearChildren(parent);
-        parent.appendChild(mkEl('span', { className: 'completion-badge completion-badge--ok' }, '\u2713 Done'));
-      }
-      return;
-    }
-
-    var pillEl = document.querySelector('[data-pill="l1"]');
-    if (pillEl) {
-      var parent = pillEl.parentNode;
-      clearChildren(parent);
-      var badge = mkEl('span', { className: 'completion-badge completion-badge--review' });
-      badge.textContent = reviewItems.length + ' need review';
-      badge.addEventListener('click', function() { reviewContainer.classList.toggle('hidden'); });
-      parent.appendChild(badge);
-    }
-    reviewContainer.classList.remove('hidden');
-  }
-
-  function renderReviewList() {
-    var container = document.getElementById('review_list_container');
-    if (!container) return;
-    clearChildren(container);
-
-    container.appendChild(mkEl('div', { className: 'card-title', style: 'margin-bottom:8px;' }, 'Companies Needing Review'));
-
-    var list = mkEl('div', { className: 'review-list' });
-
-    reviewItems.forEach(function(item) {
-      var row = mkEl('div', { className: 'review-item' });
-      row.setAttribute('data-review-id', item.id);
-
-      row.appendChild(mkEl('div', { className: 'review-item__name' }, item.name));
-      row.appendChild(mkEl('div', { className: 'review-item__domain' }, item.domain || '\u2014'));
-
-      var flagsEl = mkEl('div', { className: 'review-item__flags' });
-      (item.flags || []).forEach(function(flag) {
-        var cls = 'review-flag';
-        if (item.status === 'enrichment_failed') cls += ' review-flag--error';
-        flagsEl.appendChild(mkEl('span', { className: cls }, flag.replace(/_/g, ' ')));
-      });
-      row.appendChild(flagsEl);
-
-      var actionsEl = mkEl('div', { className: 'review-item__actions' });
-      var retryBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Retry');
-      retryBtn.addEventListener('click', function() { resolveItem(item.id, 'retry', row); });
-      actionsEl.appendChild(retryBtn);
-
-      if (item.status === 'needs_review') {
-        var approveBtn = mkEl('button', { className: 'btn btn-success btn-sm' }, 'Approve');
-        approveBtn.addEventListener('click', function() { resolveItem(item.id, 'approve', row); });
-        actionsEl.appendChild(approveBtn);
-      }
-
-      row.appendChild(actionsEl);
-      list.appendChild(row);
     });
+    actions.appendChild(rerunBtn);
 
-    container.appendChild(list);
-  }
-
-  function resolveItem(companyId, action, rowEl) {
-    var buttons = rowEl.querySelectorAll('button');
-    buttons.forEach(function(b) { b.disabled = true; });
-
-    apiFetch(API_BASE + '/enrich/resolve', {
-      method: 'POST',
-      body: JSON.stringify({ company_id: companyId, action: action })
-    }).then(function() {
-      reviewItems = reviewItems.filter(function(i) { return i.id !== companyId; });
-      rowEl.style.opacity = '0.3';
-      setTimeout(function() {
-        rowEl.parentNode.removeChild(rowEl);
-        updateReviewBadge();
-      }, 300);
-    }).catch(function(err) {
-      buttons.forEach(function(b) { b.disabled = false; });
-      alert('Failed: ' + err.message);
-    });
-  }
-
-  function stopPipeline() {
-    if (!currentPipelineRunId) return;
-    apiFetch(API_BASE + '/pipeline/stop-all', {
-      method: 'POST',
-      body: JSON.stringify({ pipeline_run_id: currentPipelineRunId })
-    }).then(function() {
-      $('#btn_stop').disabled = true;
-      $('#btn_stop').textContent = 'Stopping...';
-    }).catch(function(err) {
-      alert('Failed to stop: ' + err.message);
-    });
+    actions.appendChild(mkEl('a', { className: 'btn btn-primary', href: 'companies.html' }, 'View Companies'));
+    actions.appendChild(mkEl('a', { className: 'btn btn-ghost', href: 'contacts.html' }, 'View Contacts'));
   }
 
   // --- Event bindings ---
@@ -1412,9 +1368,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       checkConfigureEnabled();
     });
     $('#owner_select').addEventListener('change', loadBatchStats);
-    $('#status_select').addEventListener('change', loadBatchStats);
 
-    // Tier chip toggles
     $$('.tier-chip').forEach(function(chip) {
       var cb = chip.querySelector('input');
       chip.addEventListener('click', function(e) {
@@ -1431,15 +1385,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     $('#btn_configure').addEventListener('click', function() {
       fetchEstimate(function(data) {
-        buildPackageCards(data);
+        buildDAG(data);
         goStep(2);
       });
     });
 
-    $('#btn_start').addEventListener('click', function() { startEnrichment(); });
-    $('#btn_sample').addEventListener('click', function() { startEnrichment(10); });
-    $('#btn_back_1').addEventListener('click', function() { goStep(1); });
-    $('#btn_stop').addEventListener('click', stopPipeline);
+    $('#btn_run').addEventListener('click', startDagPipeline);
+    $('#btn_stop_dag').addEventListener('click', stopDagPipeline);
+    $('#btn_back').addEventListener('click', function() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      dagMode = 'configure';
+      currentPipelineRunId = null;
+      goStep(1);
+    });
+
+    var resizeTimeout;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(drawEdges, 100);
+    });
   }
 
   // --- Init ---

@@ -17,6 +17,15 @@ from ..services.pipeline_engine import (
     start_pipeline_threads,
     start_stage_thread,
 )
+from ..services.dag_executor import (
+    count_dag_eligible,
+    start_dag_pipeline,
+)
+from ..services.stage_registry import (
+    STAGE_REGISTRY,
+    get_all_stages,
+    topo_sort,
+)
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
@@ -395,6 +404,307 @@ def pipeline_stop_all():
     )
 
     # Also force-stop all non-terminal stage_runs for this pipeline
+    db.session.execute(
+        text("""
+            UPDATE stage_runs SET status = 'stopped', completed_at = CURRENT_TIMESTAMP,
+                   error = 'Force-stopped by user'
+            WHERE CAST(config AS TEXT) LIKE :pattern
+              AND status NOT IN ('completed', 'failed', 'stopped')
+        """),
+        {"pattern": f"%{pipeline_run_id}%"},
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# DAG-based pipeline endpoints
+# ---------------------------------------------------------------------------
+
+@pipeline_bp.route("/api/pipeline/dag-run", methods=["POST"])
+@require_auth
+def pipeline_dag_run():
+    """Start a DAG-based enrichment pipeline with configurable stages and soft deps."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    batch_name = body.get("batch_name", "")
+    owner_name = body.get("owner", "")
+    tier_filter = body.get("tier_filter", [])
+    stages = body.get("stages", [])
+    soft_deps = body.get("soft_deps", {})
+    sample_size = body.get("sample_size")
+
+    if not batch_name:
+        return jsonify({"error": "batch_name is required"}), 400
+    if not stages:
+        return jsonify({"error": "stages is required"}), 400
+
+    # Validate stage codes
+    invalid = [s for s in stages if s not in STAGE_REGISTRY]
+    if invalid:
+        return jsonify({"error": f"Unknown stages: {', '.join(invalid)}"}), 400
+
+    # Validate topological sort (catches cycles)
+    try:
+        sorted_stages = topo_sort(stages, soft_deps)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    if err:
+        return err
+
+    owner_id = _resolve_owner(tenant_id, owner_name)
+
+    # Check no pipeline already running for this batch
+    existing = db.session.execute(
+        text("""
+            SELECT id FROM pipeline_runs
+            WHERE tenant_id = :t AND batch_id = :b
+              AND status IN ('running', 'stopping')
+            LIMIT 1
+        """),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchone()
+    if existing:
+        return jsonify({"error": "A pipeline is already running for this batch"}), 409
+
+    # Build config
+    config = {"mode": "dag", "stages": stages}
+    if tier_filter:
+        config["tier_filter"] = tier_filter
+    if owner_name:
+        config["owner"] = owner_name
+    if soft_deps:
+        config["soft_deps"] = soft_deps
+    if sample_size:
+        config["sample_size"] = int(sample_size)
+
+    # Create pipeline_run record
+    pipeline_run = PipelineRun(
+        tenant_id=str(tenant_id),
+        batch_id=str(batch_id),
+        owner_id=str(owner_id) if owner_id else None,
+        status="running",
+        config=json.dumps(config),
+    )
+    db.session.add(pipeline_run)
+    db.session.flush()
+    pipeline_run_id = str(pipeline_run.id)
+
+    # Create stage_run records
+    stage_run_ids = {}
+    for stage_code in sorted_stages:
+        stage_config = dict(config)
+        stage_config["pipeline_run_id"] = pipeline_run_id
+
+        sr = StageRun(
+            tenant_id=str(tenant_id),
+            batch_id=str(batch_id),
+            owner_id=str(owner_id) if owner_id else None,
+            stage=stage_code,
+            status="pending",
+            total=0,
+            config=json.dumps(stage_config),
+        )
+        db.session.add(sr)
+        db.session.flush()
+        stage_run_ids[stage_code] = str(sr.id)
+
+    pipeline_run.stages = json.dumps(stage_run_ids)
+    db.session.commit()
+
+    # Spawn threads
+    start_dag_pipeline(
+        current_app._get_current_object(),
+        pipeline_run_id,
+        sorted_stages,
+        tenant_id,
+        batch_id,
+        owner_id=owner_id,
+        tier_filter=tier_filter,
+        stage_run_ids=stage_run_ids,
+        soft_deps_enabled=soft_deps,
+        sample_size=int(sample_size) if sample_size else None,
+    )
+
+    return jsonify({
+        "pipeline_run_id": pipeline_run_id,
+        "stage_run_ids": stage_run_ids,
+        "stage_order": sorted_stages,
+    }), 201
+
+
+@pipeline_bp.route("/api/pipeline/dag-status", methods=["GET"])
+@require_auth
+def pipeline_dag_status():
+    """Return DAG structure + per-stage status + completion counts."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    batch_name = request.args.get("batch_name", "")
+    if not batch_name:
+        return jsonify({"error": "batch_name query param required"}), 400
+
+    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    if err:
+        return err
+
+    # Find the most recent DAG pipeline run
+    prow = db.session.execute(
+        text("""
+            SELECT id, status, cost_usd, stages, config, started_at, completed_at, updated_at
+            FROM pipeline_runs
+            WHERE tenant_id = :t AND batch_id = :b
+              AND CAST(config AS TEXT) LIKE '%%"mode": "dag"%%'
+            ORDER BY started_at DESC
+            LIMIT 1
+        """),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchone()
+
+    if not prow:
+        return jsonify({"error": "No DAG pipeline run found for this batch"}), 404
+
+    pipeline_run_id = str(prow[0])
+    stages_json = prow[3]
+    if isinstance(stages_json, str):
+        try:
+            stages_json = json.loads(stages_json)
+        except (json.JSONDecodeError, TypeError):
+            stages_json = {}
+
+    config_raw = prow[4]
+    if isinstance(config_raw, str):
+        try:
+            config_raw = json.loads(config_raw)
+        except (json.JSONDecodeError, TypeError):
+            config_raw = {}
+
+    # Build per-stage status
+    stage_statuses = {}
+    for stage_code, run_id in (stages_json or {}).items():
+        row = db.session.execute(
+            text("""
+                SELECT status, total, done, failed, cost_usd, error,
+                       started_at, completed_at, updated_at, config
+                FROM stage_runs WHERE id = :id
+            """),
+            {"id": str(run_id)},
+        ).fetchone()
+
+        if row:
+            stage_data = {
+                "run_id": str(run_id),
+                "status": row[0],
+                "total": row[1] or 0,
+                "done": row[2] or 0,
+                "failed": row[3] or 0,
+                "cost": float(row[4] or 0),
+                "error": row[5],
+                "started_at": _fmt_dt(row[6]),
+                "completed_at": _fmt_dt(row[7]),
+                "updated_at": _fmt_dt(row[8]),
+            }
+            sr_config = row[9]
+            if sr_config:
+                try:
+                    sr_config = json.loads(sr_config) if isinstance(sr_config, str) else sr_config
+                    if sr_config.get("current_item"):
+                        stage_data["current_item"] = sr_config["current_item"]
+                    if sr_config.get("recent_items"):
+                        stage_data["recent_items"] = sr_config["recent_items"]
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            stage_statuses[stage_code] = stage_data
+
+    # Completion counts from entity_stage_completions
+    completion_counts = {}
+    comp_rows = db.session.execute(
+        text("""
+            SELECT stage, status, COUNT(*)
+            FROM entity_stage_completions
+            WHERE pipeline_run_id = :pr
+            GROUP BY stage, status
+        """),
+        {"pr": pipeline_run_id},
+    ).fetchall()
+    for row in comp_rows:
+        stage = row[0]
+        if stage not in completion_counts:
+            completion_counts[stage] = {}
+        completion_counts[stage][row[1]] = row[2]
+
+    # Build DAG structure for UI
+    dag_structure = []
+    for stage_code in (stages_json or {}):
+        reg = STAGE_REGISTRY.get(stage_code, {})
+        dag_structure.append({
+            "code": stage_code,
+            "display_name": reg.get("display_name", stage_code),
+            "entity_type": reg.get("entity_type", "company"),
+            "hard_deps": reg.get("hard_deps", []),
+            "soft_deps": reg.get("soft_deps", []),
+            "country_gate": reg.get("country_gate"),
+            "is_terminal": reg.get("is_terminal", False),
+        })
+
+    return jsonify({
+        "pipeline": {
+            "run_id": pipeline_run_id,
+            "status": prow[1],
+            "cost": float(prow[2] or 0),
+            "config": config_raw,
+            "started_at": _fmt_dt(prow[5]),
+            "completed_at": _fmt_dt(prow[6]),
+            "updated_at": _fmt_dt(prow[7]),
+        },
+        "stages": stage_statuses,
+        "completions": completion_counts,
+        "dag": dag_structure,
+    })
+
+
+@pipeline_bp.route("/api/pipeline/dag-stop", methods=["POST"])
+@require_auth
+def pipeline_dag_stop():
+    """Stop an entire DAG pipeline run."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    pipeline_run_id = body.get("pipeline_run_id", "")
+
+    if not pipeline_run_id:
+        return jsonify({"error": "pipeline_run_id is required"}), 400
+    try:
+        _uuid_mod.UUID(pipeline_run_id)
+    except (ValueError, AttributeError):
+        return jsonify({"error": "Invalid pipeline_run_id format"}), 400
+
+    row = db.session.execute(
+        text("SELECT status FROM pipeline_runs WHERE id = :id AND tenant_id = :t"),
+        {"id": pipeline_run_id, "t": str(tenant_id)},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Pipeline run not found"}), 404
+    if row[0] in ("completed", "failed", "stopped"):
+        return jsonify({"error": f"Pipeline already finished with status '{row[0]}'"}), 400
+
+    db.session.execute(
+        text("""
+            UPDATE pipeline_runs SET status = 'stopped', completed_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        """),
+        {"id": pipeline_run_id},
+    )
     db.session.execute(
         text("""
             UPDATE stage_runs SET status = 'stopped', completed_at = CURRENT_TIMESTAMP,
