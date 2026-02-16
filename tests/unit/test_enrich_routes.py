@@ -410,3 +410,240 @@ class TestEnrichStart:
             json={"batch_name": "test", "stages": ["l1"]},
         )
         assert resp.status_code == 401
+
+
+@pytest.fixture
+def seed_review_data(db, seed_tenant, seed_super_admin):
+    """Create batch with companies in various review states."""
+    from api.models import Batch, Company, Owner
+    import json
+
+    owner = Owner(tenant_id=seed_tenant.id, name="Tester", is_active=True)
+    db.session.add(owner)
+    db.session.flush()
+
+    batch = Batch(tenant_id=seed_tenant.id, name="review-batch", is_active=True)
+    db.session.add(batch)
+    db.session.flush()
+
+    # Company needing review (QC flags)
+    c_review = Company(
+        tenant_id=seed_tenant.id,
+        name="Flagged Co",
+        domain="flagged.com",
+        batch_id=batch.id,
+        owner_id=owner.id,
+        status="needs_review",
+        error_message=json.dumps(["name_mismatch", "low_confidence"]),
+        enrichment_cost_usd=0.01,
+    )
+    db.session.add(c_review)
+
+    # Company with enrichment failure
+    c_failed = Company(
+        tenant_id=seed_tenant.id,
+        name="Failed Co",
+        domain="failed.com",
+        batch_id=batch.id,
+        owner_id=owner.id,
+        status="enrichment_failed",
+        error_message="API timeout",
+        enrichment_cost_usd=0,
+    )
+    db.session.add(c_failed)
+
+    # Normal company (should NOT appear in review)
+    c_ok = Company(
+        tenant_id=seed_tenant.id,
+        name="OK Co",
+        domain="ok.com",
+        batch_id=batch.id,
+        owner_id=owner.id,
+        status="triage_passed",
+    )
+    db.session.add(c_ok)
+
+    db.session.commit()
+    return {
+        "tenant": seed_tenant,
+        "batch": batch,
+        "c_review": c_review,
+        "c_failed": c_failed,
+        "c_ok": c_ok,
+    }
+
+
+class TestEnrichReview:
+    def test_review_returns_flagged_companies(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.get(
+            "/api/enrich/review?batch_name=review-batch&stage=l1",
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 2
+
+        names = {item["name"] for item in data["items"]}
+        assert "Flagged Co" in names
+        assert "Failed Co" in names
+        assert "OK Co" not in names
+
+    def test_review_parses_json_flags(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.get(
+            "/api/enrich/review?batch_name=review-batch",
+            headers=headers,
+        )
+        data = resp.get_json()
+        flagged = next(i for i in data["items"] if i["name"] == "Flagged Co")
+        assert flagged["flags"] == ["name_mismatch", "low_confidence"]
+
+    def test_review_non_json_error_as_single_flag(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.get(
+            "/api/enrich/review?batch_name=review-batch",
+            headers=headers,
+        )
+        data = resp.get_json()
+        failed = next(i for i in data["items"] if i["name"] == "Failed Co")
+        assert failed["flags"] == ["API timeout"]
+
+    def test_review_missing_batch(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.get("/api/enrich/review", headers=headers)
+        assert resp.status_code == 400
+
+    def test_review_nonexistent_batch(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.get(
+            "/api/enrich/review?batch_name=no-such-batch",
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    def test_review_unauthenticated(self, client):
+        resp = client.get("/api/enrich/review?batch_name=test")
+        assert resp.status_code == 401
+
+
+class TestEnrichResolve:
+    def test_approve_sets_triage_passed(self, client, db, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+        company_id = str(seed_review_data["c_review"].id)
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": company_id, "action": "approve"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["new_status"] == "triage_passed"
+
+        # Verify in DB
+        row = db.session.execute(
+            db.text("SELECT status, error_message FROM companies WHERE id = :id"),
+            {"id": company_id},
+        ).fetchone()
+        assert row[0] == "triage_passed"
+        assert row[1] is None
+
+    def test_skip_sets_triage_disqualified(self, client, db, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+        company_id = str(seed_review_data["c_review"].id)
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": company_id, "action": "skip"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["new_status"] == "triage_disqualified"
+
+    def test_retry_resets_and_re_enriches(self, client, db, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+        company_id = str(seed_review_data["c_failed"].id)
+
+        with patch("api.routes.enrich_routes._process_entity") as mock_proc:
+            mock_proc.return_value = {"enrichment_cost_usd": 0.02, "qc_flags": []}
+            resp = client.post(
+                "/api/enrich/resolve",
+                json={"company_id": company_id, "action": "retry"},
+                headers=headers,
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        mock_proc.assert_called_once()
+
+    def test_resolve_invalid_action(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": str(seed_review_data["c_review"].id), "action": "delete"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "action" in resp.get_json()["error"]
+
+    def test_resolve_missing_company_id(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"action": "approve"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+
+    def test_resolve_nonexistent_company(self, client, seed_review_data):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": _uuid(), "action": "approve"},
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    def test_resolve_non_reviewable_status(self, client, seed_review_data):
+        """Cannot resolve a company that's not in needs_review or enrichment_failed."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_review_data["tenant"].slug
+
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": str(seed_review_data["c_ok"].id), "action": "approve"},
+            headers=headers,
+        )
+        assert resp.status_code == 409
+        assert "not reviewable" in resp.get_json()["error"]
+
+    def test_resolve_unauthenticated(self, client):
+        resp = client.post(
+            "/api/enrich/resolve",
+            json={"company_id": _uuid(), "action": "approve"},
+        )
+        assert resp.status_code == 401
