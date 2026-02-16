@@ -101,32 +101,19 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .btn-error:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-sm { padding: 6px 14px; font-size: 0.78rem; }
 
-/* Form */
-.form-row { margin-bottom: 14px; }
-.form-row label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
-.form-row select, .form-row input[type="text"] {
-  width: 100%; padding: 8px 12px; background: var(--bg);
-  border: 1px solid var(--border-solid); border-radius: var(--radius);
-  color: var(--text); font-family: var(--font-body); font-size: 0.85rem;
+/* Filter bar — matches React FilterBar */
+.filter-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
 }
-.form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
-
-/* Filter grid */
-.filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-items: end; }
-.filter-grid .form-row { margin-bottom: 0; }
-@media (max-width: 900px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
-
-/* Tier chips */
-.tier-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.tier-chip {
-  display: inline-flex; align-items: center; padding: 4px 10px;
-  border-radius: 10px; font-size: 0.72rem; font-weight: 600;
-  cursor: pointer; border: 1px solid var(--border-solid);
-  background: transparent; color: var(--text-dim);
-  transition: var(--transition); user-select: none;
+.filter-bar select, .filter-bar input[type="number"] {
+  padding: 6px 8px; font-size: 0.875rem;
+  background: var(--surface-alt); border: 1px solid var(--border-solid);
+  border-radius: 6px; color: var(--text); font-family: var(--font-body);
+  outline: none;
 }
-.tier-chip input { display: none; }
-.tier-chip.active { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
+.filter-bar input[type="number"] { width: 80px; }
+.filter-bar__count { font-size: 0.875rem; color: var(--text-muted); margin-left: auto; }
 
 /* Toggle switch */
 .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -452,7 +439,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   .dag-node { max-width: 280px; width: 100%; }
   .dag-controls { flex-direction: column; text-align: center; }
   .dag-controls__actions { justify-content: center; }
-  .filter-grid { grid-template-columns: 1fr; }
+  .filter-bar { gap: 6px; }
 }
 
 @media (max-width: 640px) { .container { padding: 16px 8px; } }
@@ -468,30 +455,19 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   <h1>Enrichment Pipeline</h1>
   <div class="subtitle" id="page_subtitle">Configure and run the DAG enrichment pipeline.</div>
 
-  <!-- Filters (always visible) -->
-  <div class="card">
-    <div class="card-title">Filters</div>
-    <div id="import_callout" class="callout hidden"></div>
-    <div class="filter-grid">
-      <div class="form-row">
-        <label for="batch_select">Batch</label>
-        <select id="batch_select"><option value="">Loading...</option></select>
-      </div>
-      <div class="form-row">
-        <label for="owner_select">Owner</label>
-        <select id="owner_select"><option value="">All owners</option></select>
-      </div>
-      <div class="form-row">
-        <label>Tier Filter</label>
-        <div class="tier-chips" id="tier_chips">
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
-          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 4"> T4</label>
-          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 5"> T5</label>
-        </div>
-      </div>
-    </div>
+  <div id="import_callout" class="callout hidden"></div>
+  <div class="filter-bar">
+    <select id="batch_select"><option value="">Loading...</option></select>
+    <select id="owner_select"><option value="">All Owner</option></select>
+    <select id="tier_select">
+      <option value="">All Tier</option>
+      <option value="Tier 1">Tier 1 - Platinum</option>
+      <option value="Tier 2">Tier 2 - Gold</option>
+      <option value="Tier 3">Tier 3 - Silver</option>
+      <option value="Tier 4">Tier 4 - Bronze</option>
+      <option value="Tier 5">Tier 5 - Copper</option>
+    </select>
+    <input type="number" id="limit_input" min="1" max="500" placeholder="Limit">
   </div>
 
   <!-- DAG Controls -->
@@ -633,7 +609,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getTiers() {
-    return $$('input[name="tier"]:checked').map(function(cb) { return cb.value; });
+    var val = $('#tier_select').value;
+    return val ? [val] : [];
+  }
+
+  function getLimit() {
+    var val = parseInt($('#limit_input').value, 10);
+    return (val > 0) ? val : null;
   }
 
   // --- Load batches and owners ---
@@ -642,7 +624,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       batchList = data.batches || data || [];
       var sel = $('#batch_select');
       clearChildren(sel);
-      sel.appendChild(mkEl('option', { value: '' }, 'Select batch...'));
+      sel.appendChild(mkEl('option', { value: '' }, 'All Batch'));
       batchList.forEach(function(b) {
         sel.appendChild(mkEl('option', { value: b.name }, b.name));
       });
@@ -695,14 +677,18 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var tiers = getTiers();
     var availableStages = STAGE_ORDER.filter(function(s) { return DAG_STAGES[s].available; });
 
+    var estimateBody = {
+      batch_name: batch,
+      owner_name: owner || undefined,
+      tier_filter: tiers,
+      stages: availableStages
+    };
+    var limit = getLimit();
+    if (limit) estimateBody.limit = limit;
+
     apiFetch(API_BASE + '/enrich/estimate', {
       method: 'POST',
-      body: JSON.stringify({
-        batch_name: batch,
-        owner_name: owner || undefined,
-        tier_filter: tiers,
-        stages: availableStages
-      })
+      body: JSON.stringify(estimateBody)
     }).then(function(data) {
       estimateData = data;
       if (callback) callback(data);
@@ -1100,6 +1086,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     };
     if (owner) body.owner = owner;
     if (tiers.length > 0) body.tier_filter = tiers;
+    var limit = getLimit();
+    if (limit) body.limit = limit;
 
     $('#btn_run').disabled = true;
     $('#btn_run').textContent = 'Starting...';
@@ -1363,20 +1351,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
 
     $('#owner_select').addEventListener('change', onFilterChange);
-
-    $$('.tier-chip').forEach(function(chip) {
-      var cb = chip.querySelector('input');
-      chip.addEventListener('click', function(e) {
-        if (e.target.tagName === 'INPUT') return;
-        cb.checked = !cb.checked;
-        chip.classList.toggle('active', cb.checked);
-        onFilterChange();
-      });
-      cb.addEventListener('change', function() {
-        chip.classList.toggle('active', cb.checked);
-        onFilterChange();
-      });
-    });
+    $('#tier_select').addEventListener('change', onFilterChange);
+    $('#limit_input').addEventListener('change', onFilterChange);
 
     $('#btn_run').addEventListener('click', startDagPipeline);
     $('#btn_stop_dag').addEventListener('click', stopDagPipeline);
