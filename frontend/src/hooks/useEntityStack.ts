@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 
 export type EntityType = 'company' | 'contact'
@@ -28,50 +28,55 @@ export interface EntityStack {
  * @param defaultType - the entity type for the page (used when reading ?open= from URL)
  */
 export function useEntityStack(defaultType: EntityType): EntityStack {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const openId = searchParams.get('open')
+  const [, setSearchParams] = useSearchParams()
 
-  const [stack, setStack] = useState<EntityRef[]>(() =>
-    openId ? [{ type: defaultType, id: openId }] : []
-  )
+  const [stack, setStack] = useState<EntityRef[]>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('open')
+    return id ? [{ type: defaultType, id }] : []
+  })
 
-  const syncUrl = useCallback((newStack: EntityRef[]) => {
-    if (newStack.length > 0) {
-      setSearchParams({ open: newStack[newStack.length - 1].id }, { replace: true })
-    } else {
-      const next = new URLSearchParams(searchParams)
-      next.delete('open')
-      setSearchParams(next, { replace: true })
+  // Sync URL whenever stack changes
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return // Don't sync on mount — URL already has the correct value
     }
-  }, [searchParams, setSearchParams])
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      const top = stack[stack.length - 1]
+      if (top) {
+        next.set('open', top.id)
+      } else {
+        next.delete('open')
+      }
+      return next
+    }, { replace: true })
+  }, [stack, setSearchParams])
 
   const open = useCallback((type: EntityType, id: string) => {
-    const newStack = [{ type, id }]
-    setStack(newStack)
-    syncUrl(newStack)
-  }, [syncUrl])
+    setStack([{ type, id }])
+  }, [])
 
   const push = useCallback((type: EntityType, id: string) => {
     setStack((prev) => {
-      const newStack = [...prev, { type, id }]
-      syncUrl(newStack)
-      return newStack
+      const top = prev[prev.length - 1]
+      if (top && top.type === type && top.id === id) return prev
+      return [...prev, { type, id }]
     })
-  }, [syncUrl])
+  }, [])
 
   const pop = useCallback(() => {
     setStack((prev) => {
       if (prev.length <= 1) return prev
-      const newStack = prev.slice(0, -1)
-      syncUrl(newStack)
-      return newStack
+      return prev.slice(0, -1)
     })
-  }, [syncUrl])
+  }, [])
 
   const close = useCallback(() => {
     setStack([])
-    syncUrl([])
-  }, [syncUrl])
+  }, [])
 
   const current = stack.length > 0 ? stack[stack.length - 1] : null
 
