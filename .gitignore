@@ -42,3 +42,6 @@ transcript_*
 
 # Playwright MCP cache
 .playwright-mcp/
+
+# Git worktrees for parallel feature work
+.worktrees/
