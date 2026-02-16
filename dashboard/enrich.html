@@ -611,7 +611,11 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  function fmt$(val) { return '$' + (val || 0).toFixed(2); }
+  function fmt$(val) {
+    val = val || 0;
+    if (val > 0 && val < 0.01) return '<$0.01';
+    return '$' + val.toFixed(2);
+  }
 
   function getParam(name) {
     var params = new URLSearchParams(window.location.search);
