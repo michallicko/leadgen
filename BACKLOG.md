@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-030
+**Next ID**: BL-031
 
 ## Must Have
 
@@ -83,6 +83,16 @@ Enrichment modules for individual contacts, plugging into the modular framework 
 - **Contact Details**: Email verification (via BL-013), phone numbers, alternative contact methods
 
 Depth selection: "basics" (role + email) vs "full profile" (all modules). Credit cost scales with depth.
+
+### BL-030: Resend Email Integration
+**Status**: Idea | **Effort**: M | **Spec**: —
+**Depends on**: — | **Theme**: Platform Foundation
+
+Integrate Resend as the unified email sending infrastructure for two use cases:
+- **Transactional/system emails**: Enrichment complete notifications, import status updates, staleness alerts, weekly contact health digests, account notifications (password reset, invite). Branded HTML templates.
+- **Outreach delivery**: Send personalized outreach emails to contacts directly from the platform. Complements/replaces Lemlist for users who want native email sending. Tracks opens, clicks, bounces.
+
+Resend API key per tenant, domain verification, sender reputation management. Free tier (100 emails/day) works for early customers.
 
 ## Should Have
 
