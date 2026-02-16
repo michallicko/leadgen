@@ -11,6 +11,7 @@ services:
       - JWT_SECRET_KEY=${LEADGEN_JWT_SECRET}
       - CORS_ORIGINS=https://leadgen.visionvolve.com
       - N8N_BASE_URL=http://n8n:5678
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     ports:
       - "127.0.0.1:5000:5000"
     restart: unless-stopped

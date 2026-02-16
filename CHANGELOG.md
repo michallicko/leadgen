@@ -5,6 +5,15 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Contact List Import** (BL-006): CSV upload with AI-powered column mapping, dedup preview, and batch import
+  - AI column mapping via Claude API (Sonnet) with confidence scores and manual override (ADR-002)
+  - Contact dedup: LinkedIn URL → email → name+company hierarchy, 3 strategies (skip/update/create_new)
+  - Company dedup: domain → name matching, always links to existing
+  - Import wizard page with 3-step flow: Upload → Map Columns → Preview & Import
+  - `import_jobs` table tracking full import lifecycle (migration 007)
+  - 5 API endpoints: upload, preview, execute, status, list
+  - Import nav link added to all dashboard pages (editor+ role)
+  - 80 new unit tests (csv_mapper, dedup, import routes)
 - Companies & Contacts dashboard pages with infinite scroll and virtual DOM windowing (ADR-001)
 - Virtual scroll: only ~60-80 DOM rows rendered at any time, constant performance regardless of dataset size
 - Companies API routes: list (paginated, filterable), detail, PATCH update

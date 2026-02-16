@@ -3,6 +3,7 @@ from .batch_routes import batch_bp
 from .company_routes import companies_bp
 from .contact_routes import contacts_bp
 from .health import health_bp
+from .import_routes import imports_bp
 from .message_routes import messages_bp
 from .pipeline_routes import pipeline_bp
 from .tenant_routes import tenants_bp
@@ -19,3 +20,4 @@ def register_blueprints(app):
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(companies_bp)
     app.register_blueprint(contacts_bp)
+    app.register_blueprint(imports_bp)

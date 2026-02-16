@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Contacts — Leadgen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0F14;
+  --surface: #14171E;
+  --surface-alt: #1A1E28;
+  --border: rgba(110,44,139,0.15);
+  --border-solid: #231D30;
+  --text: #E8EAF0;
+  --text-muted: #8B92A0;
+  --text-dim: #5A6170;
+  --accent: #6E2C8B;
+  --accent-hover: #8B47A8;
+  --accent-cyan: #00B8CF;
+  --success: #34D399;
+  --error: #F87171;
+  --warning: #FBBF24;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.2s ease;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A1D5E, #6E2C8B 40%, #00B8CF);
+  z-index: 100;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(110,44,139,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,44,139,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+select, input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+select option { background: var(--bg); color: var(--text); }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label:first-child { display: block; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+.btn-primary { background: linear-gradient(135deg, #6E2C8B, #4A1D5E); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8B47A8, #6E2C8B); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #3aa372; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
+
+/* Top nav */
+.top-nav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 0; margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.top-nav__brand { display: flex; align-items: center; gap: 10px; }
+.top-nav__title { font-family: var(--font-title); font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.top-nav__links { display: flex; gap: 2px; margin-left: 24px; }
+.top-nav__link {
+  color: var(--text-muted); text-decoration: none;
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
+  padding: 6px 14px; border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.top-nav__link:hover { color: var(--text); background: rgba(110,44,139,0.08); }
+.top-nav__link.active { color: var(--accent-cyan); font-weight: 600; background: rgba(0,184,207,0.08); }
+
+/* Toast */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: #fff; opacity: 0; transform: translateX(40px); transition: opacity 0.3s, transform 0.3s; max-width: 360px; }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--accent-cyan); }
+
+.loading-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Import-specific styles ---- */
+
+/* Wizard step indicator */
+.wizard-steps {
+  display: flex; gap: 0; margin-bottom: 24px; position: relative;
+}
+.wizard-step {
+  flex: 1; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 0.82rem; color: var(--text-dim);
+  transition: all 0.3s ease;
+}
+.wizard-step:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+.wizard-step:last-child { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.wizard-step:not(:first-child) { border-left: none; }
+.wizard-step .step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-title); font-size: 0.75rem; font-weight: 700;
+  background: var(--surface-alt); color: var(--text-dim);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+.wizard-step .step-label { font-weight: 500; }
+.wizard-step.active { color: var(--text); background: var(--surface-alt); }
+.wizard-step.active .step-num { background: var(--accent); color: #fff; }
+.wizard-step.done { color: var(--success); }
+.wizard-step.done .step-num { background: rgba(52,211,153,0.15); color: var(--success); }
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s, background 0.3s;
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(110,44,139,0.04);
+}
+.drop-zone .drop-icon { font-size: 2.4rem; margin-bottom: 12px; opacity: 0.5; }
+.drop-zone .drop-text { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 6px; }
+.drop-zone .drop-hint { font-size: 0.78rem; color: var(--text-dim); }
+.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Upload config row */
+.upload-config {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-top: 16px;
+}
+@media (max-width: 600px) { .upload-config { grid-template-columns: 1fr; } }
+
+/* Mapping table */
+.mapping-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.mapping-table th {
+  text-align: left; padding: 10px 12px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.mapping-table td { padding: 8px 12px; border-bottom: 1px solid rgba(35,29,48,0.3); vertical-align: middle; }
+.mapping-table select { font-size: 0.82rem; padding: 6px 10px; }
+
+/* Confidence dots */
+.confidence-dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 6px; vertical-align: middle;
+}
+.confidence-dot.high { background: var(--success); }
+.confidence-dot.medium { background: var(--warning); }
+.confidence-dot.low { background: var(--error); }
+
+/* Sample value */
+.sample-val {
+  font-size: 0.78rem; color: var(--text-dim);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: inline-block;
+}
+
+/* Preview table */
+.preview-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.preview-table th {
+  text-align: left; padding: 8px 10px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.preview-table td {
+  padding: 8px 10px; border-bottom: 1px solid rgba(35,29,48,0.3);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Dedup badges */
+.dedup-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+}
+.dedup-badge.new { background: rgba(52,211,153,0.15); color: var(--success); }
+.dedup-badge.duplicate { background: rgba(248,113,113,0.15); color: var(--error); }
+.dedup-badge.existing { background: rgba(251,191,36,0.15); color: var(--warning); }
+
+/* Summary bar */
+.summary-bar {
+  display: flex; gap: 24px; flex-wrap: wrap;
+  padding: 14px 18px; border-radius: var(--radius);
+  background: var(--surface-alt); margin-bottom: 16px;
+}
+.summary-stat { text-align: center; }
+.summary-stat .num {
+  font-family: var(--font-title); font-size: 1.4rem; font-weight: 700;
+  display: block; line-height: 1;
+}
+.summary-stat .num.green { color: var(--success); }
+.summary-stat .num.yellow { color: var(--warning); }
+.summary-stat .num.red { color: var(--error); }
+.summary-stat .label {
+  font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin-top: 4px;
+}
+
+/* Dedup strategy radio group */
+.radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.radio-option {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 6px;
+  border: 1px solid var(--border); cursor: pointer;
+  font-size: 0.82rem; color: var(--text-muted);
+  transition: all 0.2s;
+}
+.radio-option:hover { border-color: var(--accent); color: var(--text); }
+.radio-option.selected { border-color: var(--accent); color: var(--text); background: rgba(110,44,139,0.08); }
+.radio-option input { display: none; }
+
+/* Warnings banner */
+.warnings-banner {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.2);
+  border-radius: var(--radius);
+  padding: 12px 16px; margin-bottom: 16px;
+  font-size: 0.82rem; color: var(--warning);
+}
+
+/* Section transitions */
+.wizard-section { display: none; animation: fadeSlideIn 0.3s ease; }
+.wizard-section.visible { display: block; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Spinner overlay */
+.spinner-overlay {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 32px; color: var(--text-muted); font-size: 0.9rem;
+}
+.spinner-lg {
+  width: 24px; height: 24px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+
+/* Success panel */
+.success-panel { text-align: center; padding: 32px; }
+.success-panel .check-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(52,211,153,0.12); color: var(--success);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; margin-bottom: 16px;
+}
+.success-panel h2 {
+  font-family: var(--font-title); font-size: 1.15rem; font-weight: 600;
+  margin-bottom: 8px;
+}
+.success-panel p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
+.success-counts { display: flex; gap: 24px; justify-content: center; margin-bottom: 24px; }
+
+/* Table scroll for preview */
+.preview-scroll { max-height: 400px; overflow: auto; }
+.preview-scroll thead { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+
+/* Past imports */
+.imports-list { margin-top: 8px; }
+.import-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 0; border-bottom: 1px solid rgba(35,29,48,0.3);
+  font-size: 0.84rem;
+}
+.import-row .filename { font-weight: 500; flex: 1; }
+.import-row .status-pill {
+  display: inline-block; padding: 2px 10px; border-radius: 4px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+}
+.import-row .status-pill.completed { background: rgba(52,211,153,0.15); color: var(--success); }
+.import-row .status-pill.error { background: rgba(248,113,113,0.15); color: var(--error); }
+.import-row .status-pill.mapped { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
+.import-row .status-pill.uploaded { background: rgba(139,146,160,0.15); color: var(--text-muted); }
+.import-row .meta { color: var(--text-dim); font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <nav class="top-nav">
+    <div class="top-nav__brand">
+      <img src="visionvolve-icon-color.svg" alt="VisionVolve" class="top-nav__logo" style="height:26px;width:auto;">
+      <span class="top-nav__title">Leadgen</span>
+    </div>
+    <div class="top-nav__links">
+      <a href="index.html" class="top-nav__link">Pipeline</a>
+      <a href="companies.html" class="top-nav__link">Companies</a>
+      <a href="contacts.html" class="top-nav__link">Contacts</a>
+      <a href="messages.html" class="top-nav__link">Messages</a>
+      <a href="import.html" class="top-nav__link active" data-min-role="editor">Import</a>
+      <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
+    </div>
+    <span class="auth-user">
+      <span id="auth_user_name"></span>
+      <button class="auth-logout" onclick="LeadgenAuth.logout()">Logout</button>
+    </span>
+  </nav>
+
+  <h1>Import Contacts</h1>
+
+  <!-- Wizard Steps -->
+  <div class="wizard-steps">
+    <div class="wizard-step active" data-step="1">
+      <span class="step-num">1</span>
+      <span class="step-label">Upload</span>
+    </div>
+    <div class="wizard-step" data-step="2">
+      <span class="step-num">2</span>
+      <span class="step-label">Map Columns</span>
+    </div>
+    <div class="wizard-step" data-step="3">
+      <span class="step-num">3</span>
+      <span class="step-label">Preview &amp; Import</span>
+    </div>
+  </div>
+
+  <!-- Section 1: Upload -->
+  <div id="section_upload" class="wizard-section visible">
+    <div class="card">
+      <div class="card-title">Upload CSV File</div>
+
+      <div class="drop-zone" id="drop_zone">
+        <input type="file" id="file_input" accept=".csv">
+        <div class="drop-icon">&#128196;</div>
+        <div class="drop-text">Drop your CSV file here or click to browse</div>
+        <div class="drop-hint">Max 10 MB. UTF-8 or Latin-1 encoding.</div>
+      </div>
+
+      <div class="upload-config">
+        <div class="form-row">
+          <label>Batch Name</label>
+          <input type="text" id="batch_name" placeholder="auto-generated from filename">
+        </div>
+        <div class="form-row">
+          <label>Owner</label>
+          <select id="owner_select"><option value="">None</option></select>
+        </div>
+      </div>
+
+      <div id="upload_spinner" class="spinner-overlay" style="display:none;">
+        <div class="spinner-lg"></div>
+        <span>Uploading &amp; analyzing columns with AI...</span>
+      </div>
+    </div>
+
+    <!-- Past imports -->
+    <div class="card">
+      <div class="card-title">Recent Imports</div>
+      <div id="past_imports" class="imports-list">
+        <div style="color:var(--text-dim); font-size:0.85rem;">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Column Mapping -->
+  <div id="section_mapping" class="wizard-section">
+    <div class="card">
+      <div class="card-title">Column Mapping</div>
+
+      <div id="mapping_warnings" class="warnings-banner" style="display:none;"></div>
+
+      <div style="overflow-x:auto;">
+        <table class="mapping-table">
+          <thead>
+            <tr>
+              <th>CSV Column</th>
+              <th>Sample Value</th>
+              <th>Maps To</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="mapping_body"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="goToStep(1)">Back</button>
+        <button class="btn btn-primary" id="btn_preview" onclick="submitPreview()">Preview Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Preview & Import -->
+  <div id="section_preview" class="wizard-section">
+    <div class="card">
+      <div class="card-title">Preview</div>
+
+      <div id="preview_summary" class="summary-bar" style="display:none;"></div>
+
+      <div id="preview_spinner" class="spinner-overlay" style="display:none;">
+        <div class="spinner-lg"></div>
+        <span>Running dedup analysis...</span>
+      </div>
+
+      <div class="preview-scroll">
+        <table class="preview-table">
+          <thead id="preview_thead"></thead>
+          <tbody id="preview_body"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="form-row">
+          <label>Duplicate Strategy</label>
+          <div class="radio-group" id="dedup_strategy">
+            <label class="radio-option selected" data-val="skip">
+              <input type="radio" name="dedup" value="skip" checked>
+              Skip duplicates
+            </label>
+            <label class="radio-option" data-val="update">
+              <input type="radio" name="dedup" value="update">
+              Update empty fields
+            </label>
+            <label class="radio-option" data-val="create_new">
+              <input type="radio" name="dedup" value="create_new">
+              Create new anyway
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="goToStep(2)">Back</button>
+        <button class="btn btn-success" id="btn_import" onclick="executeImport()">Import Contacts</button>
+      </div>
+    </div>
+
+    <!-- Success panel (hidden until import completes) -->
+    <div id="success_panel" class="card" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast_container"></div>
+
+<script src="auth.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = 'https://leadgen.visionvolve.com/api';
+  var currentJobId = null;
+  var currentMapping = null;
+  var owners = [];
+
+  // ---- Helpers ----
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  function authHeaders() {
+    return {
+      'Authorization': 'Bearer ' + (LeadgenAuth.getToken ? LeadgenAuth.getToken() : (localStorage.getItem('lg_access_token') || '')),
+      'X-Namespace': (LeadgenAuth.getNamespace ? LeadgenAuth.getNamespace() : '') || 'visionvolve'
+    };
+  }
+
+  function apiFetch(url, opts) {
+    var options = Object.assign({ headers: authHeaders() }, opts || {});
+    return fetch(url, options).then(function(resp) {
+      if (resp.status === 401) throw new Error('Authentication failed');
+      if (!resp.ok) return resp.text().then(function(t) { throw new Error('HTTP ' + resp.status + ': ' + t); });
+      return resp.json();
+    });
+  }
+
+  function toast(msg, type) {
+    var container = document.getElementById('toast_container');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    container.appendChild(t);
+    setTimeout(function() { t.classList.add('show'); }, 10);
+    setTimeout(function() {
+      t.classList.remove('show');
+      setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
+    }, 4000);
+  }
+
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function mkEl(tag, attrs, textContent) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function(k) {
+      if (k === 'className') el.className = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    });
+    if (textContent !== undefined) el.textContent = textContent;
+    return el;
+  }
+
+  // ---- Wizard navigation ----
+
+  window.goToStep = function(step) {
+    var sections = ['section_upload', 'section_mapping', 'section_preview'];
+    sections.forEach(function(id, i) {
+      var el = document.getElementById(id);
+      el.classList.toggle('visible', i === step - 1);
+    });
+    document.querySelectorAll('.wizard-step').forEach(function(el) {
+      var s = parseInt(el.getAttribute('data-step'));
+      el.classList.toggle('active', s === step);
+      el.classList.toggle('done', s < step);
+    });
+  };
+
+  window.resetWizard = function() {
+    currentJobId = null;
+    currentMapping = null;
+    document.getElementById('file_input').value = '';
+    document.getElementById('batch_name').value = '';
+    clearChildren(document.getElementById('mapping_body'));
+    clearChildren(document.getElementById('preview_body'));
+    clearChildren(document.getElementById('preview_thead'));
+    document.getElementById('preview_summary').style.display = 'none';
+    document.getElementById('success_panel').style.display = 'none';
+    goToStep(1);
+    loadPastImports();
+  };
+
+  // ---- Target field options ----
+
+  var TARGET_OPTIONS = [
+    { value: '', label: '-- Unmapped --', group: '' },
+    { value: 'contact.full_name', label: 'Full Name', group: 'Contact' },
+    { value: 'contact.job_title', label: 'Job Title', group: 'Contact' },
+    { value: 'contact.email_address', label: 'Email', group: 'Contact' },
+    { value: 'contact.linkedin_url', label: 'LinkedIn URL', group: 'Contact' },
+    { value: 'contact.phone_number', label: 'Phone', group: 'Contact' },
+    { value: 'contact.location_city', label: 'City', group: 'Contact' },
+    { value: 'contact.location_country', label: 'Country', group: 'Contact' },
+    { value: 'contact.seniority_level', label: 'Seniority', group: 'Contact' },
+    { value: 'contact.department', label: 'Department', group: 'Contact' },
+    { value: 'contact.contact_source', label: 'Source', group: 'Contact' },
+    { value: 'contact.language', label: 'Language', group: 'Contact' },
+    { value: 'company.name', label: 'Company Name', group: 'Company' },
+    { value: 'company.domain', label: 'Company Domain', group: 'Company' },
+    { value: 'company.industry', label: 'Industry', group: 'Company' },
+    { value: 'company.hq_city', label: 'HQ City', group: 'Company' },
+    { value: 'company.hq_country', label: 'HQ Country', group: 'Company' },
+    { value: 'company.company_size', label: 'Company Size', group: 'Company' },
+    { value: 'company.business_model', label: 'Business Model', group: 'Company' },
+  ];
+
+  function buildTargetSelect(selectedValue) {
+    var sel = document.createElement('select');
+    sel.className = 'mapping-select';
+    var currentGroup = '';
+    var optgroup = null;
+    TARGET_OPTIONS.forEach(function(opt) {
+      if (opt.group && opt.group !== currentGroup) {
+        optgroup = document.createElement('optgroup');
+        optgroup.label = opt.group;
+        sel.appendChild(optgroup);
+        currentGroup = opt.group;
+      }
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (opt.value === selectedValue) o.selected = true;
+      (optgroup || sel).appendChild(o);
+    });
+    return sel;
+  }
+
+  // ---- Upload ----
+
+  function setupDropZone() {
+    var zone = document.getElementById('drop_zone');
+    var input = document.getElementById('file_input');
+
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', function() {
+      zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        input.files = e.dataTransfer.files;
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    input.addEventListener('change', function() {
+      if (input.files.length) handleFile(input.files[0]);
+    });
+  }
+
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast('Only CSV files are supported', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast('File too large (max 10 MB)', 'error');
+      return;
+    }
+
+    var nameInput = document.getElementById('batch_name');
+    if (!nameInput.value) {
+      var baseName = file.name.replace(/\.csv$/i, '').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+      nameInput.value = 'import-' + baseName;
+    }
+
+    uploadFile(file);
+  }
+
+  function uploadFile(file) {
+    var spinner = document.getElementById('upload_spinner');
+    spinner.style.display = 'flex';
+
+    var formData = new FormData();
+    formData.append('file', file);
+
+    var hdrs = authHeaders();
+    fetch(API_BASE + '/imports/upload', {
+      method: 'POST',
+      headers: hdrs,
+      body: formData,
+    }).then(function(resp) {
+      if (!resp.ok) return resp.text().then(function(t) { throw new Error(t); });
+      return resp.json();
+    }).then(function(data) {
+      spinner.style.display = 'none';
+      currentJobId = data.job_id;
+      currentMapping = data.mapping;
+      renderMapping(data);
+      goToStep(2);
+      toast('AI mapping complete \u2014 ' + data.total_rows + ' rows detected', 'success');
+    }).catch(function(err) {
+      spinner.style.display = 'none';
+      toast('Upload failed: ' + err.message, 'error');
+    });
+  }
+
+  // ---- Column Mapping ----
+
+  function renderMapping(data) {
+    var body = document.getElementById('mapping_body');
+    clearChildren(body);
+    var mappings = data.mapping.mappings || [];
+    var samples = data.sample_rows || [];
+    var warnings = data.mapping.warnings || [];
+
+    // Show warnings
+    var banner = document.getElementById('mapping_warnings');
+    if (warnings.length) {
+      banner.style.display = 'block';
+      clearChildren(banner);
+      var strong = mkEl('strong', {}, 'Warnings:');
+      banner.appendChild(strong);
+      var ul = document.createElement('ul');
+      warnings.forEach(function(w) {
+        var li = document.createElement('li');
+        li.textContent = w;
+        ul.appendChild(li);
+      });
+      banner.appendChild(ul);
+    } else {
+      banner.style.display = 'none';
+    }
+
+    mappings.forEach(function(m) {
+      var sampleVal = '';
+      if (samples.length && samples[0][m.csv_header] !== undefined) {
+        sampleVal = String(samples[0][m.csv_header]);
+      }
+
+      var conf = m.confidence || 0;
+      var confClass = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
+
+      var tr = document.createElement('tr');
+
+      var td1 = document.createElement('td');
+      var b = mkEl('strong', {}, m.csv_header);
+      td1.appendChild(b);
+      tr.appendChild(td1);
+
+      var td2 = document.createElement('td');
+      var span = mkEl('span', { className: 'sample-val' }, sampleVal);
+      td2.appendChild(span);
+      tr.appendChild(td2);
+
+      var td3 = document.createElement('td');
+      var sel = buildTargetSelect(m.target || '');
+      sel.setAttribute('data-header', m.csv_header);
+      td3.appendChild(sel);
+      tr.appendChild(td3);
+
+      var td4 = document.createElement('td');
+      var dot = mkEl('span', { className: 'confidence-dot ' + confClass });
+      td4.appendChild(dot);
+      td4.appendChild(document.createTextNode(' ' + Math.round(conf * 100) + '%'));
+      tr.appendChild(td4);
+
+      body.appendChild(tr);
+    });
+  }
+
+  // ---- Preview ----
+
+  window.submitPreview = function() {
+    if (!currentJobId) return;
+
+    var btnPreview = document.getElementById('btn_preview');
+    btnPreview.disabled = true;
+
+    // Collect user-adjusted mapping
+    var adjustedMappings = [];
+    document.querySelectorAll('.mapping-select').forEach(function(sel) {
+      adjustedMappings.push({
+        csv_header: sel.getAttribute('data-header'),
+        target: sel.value || null,
+        confidence: 1.0,
+        transform: null,
+      });
+    });
+
+    var adjustedMapping = Object.assign({}, currentMapping, { mappings: adjustedMappings });
+
+    var previewSpinner = document.getElementById('preview_spinner');
+    previewSpinner.style.display = 'flex';
+    goToStep(3);
+
+    apiFetch(API_BASE + '/imports/' + currentJobId + '/preview', {
+      method: 'POST',
+      headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ mapping: adjustedMapping }),
+    }).then(function(data) {
+      previewSpinner.style.display = 'none';
+      btnPreview.disabled = false;
+      currentMapping = adjustedMapping;
+      renderPreview(data);
+    }).catch(function(err) {
+      previewSpinner.style.display = 'none';
+      btnPreview.disabled = false;
+      toast('Preview failed: ' + err.message, 'error');
+    });
+  };
+
+  function renderPreview(data) {
+    var rows = data.preview_rows || [];
+    var summary = data.summary || {};
+
+    // Summary bar (using safe DOM)
+    var summaryBar = document.getElementById('preview_summary');
+    summaryBar.style.display = 'flex';
+    clearChildren(summaryBar);
+
+    function addStat(num, label, colorClass) {
+      var div = mkEl('div', { className: 'summary-stat' });
+      var numSpan = mkEl('span', { className: 'num' + (colorClass ? ' ' + colorClass : '') }, String(num));
+      var labelSpan = mkEl('span', { className: 'label' }, label);
+      div.appendChild(numSpan);
+      div.appendChild(labelSpan);
+      summaryBar.appendChild(div);
+    }
+    addStat(data.total_rows, 'Total Rows', '');
+    addStat(summary.new_contacts, 'New Contacts', 'green');
+    addStat(summary.duplicate_contacts, 'Duplicates', 'yellow');
+    addStat(summary.new_companies, 'New Companies', 'green');
+    addStat(summary.existing_companies, 'Existing Companies', 'yellow');
+
+    // Table header
+    var thead = document.getElementById('preview_thead');
+    clearChildren(thead);
+    var headTr = document.createElement('tr');
+    ['Status', 'Name', 'Title', 'Email', 'Company', 'Domain', 'Co. Status'].forEach(function(h) {
+      var th = document.createElement('th');
+      th.textContent = h;
+      headTr.appendChild(th);
+    });
+    thead.appendChild(headTr);
+
+    // Table body
+    var tbody = document.getElementById('preview_body');
+    clearChildren(tbody);
+
+    rows.forEach(function(r) {
+      var ct = r.contact || {};
+      var co = r.company || {};
+      var tr = document.createElement('tr');
+
+      // Contact status badge
+      var td0 = document.createElement('td');
+      var badge = document.createElement('span');
+      if (r.contact_status === 'new') {
+        badge.className = 'dedup-badge new';
+        badge.textContent = 'New';
+      } else {
+        badge.className = 'dedup-badge duplicate';
+        badge.textContent = 'Dup: ' + (r.contact_match_type || '');
+      }
+      td0.appendChild(badge);
+      tr.appendChild(td0);
+
+      // Data cells
+      [ct.full_name, ct.job_title, ct.email_address, co.name, co.domain].forEach(function(val) {
+        var td = document.createElement('td');
+        td.textContent = val || '';
+        tr.appendChild(td);
+      });
+
+      // Company status badge
+      var tdCo = document.createElement('td');
+      var coBadge = document.createElement('span');
+      if (r.company_status === 'new') {
+        coBadge.className = 'dedup-badge new';
+        coBadge.textContent = 'New';
+      } else {
+        coBadge.className = 'dedup-badge existing';
+        coBadge.textContent = 'Existing';
+      }
+      tdCo.appendChild(coBadge);
+      tr.appendChild(tdCo);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- Dedup strategy radio ----
+
+  function setupDedupRadio() {
+    document.querySelectorAll('.radio-option').forEach(function(opt) {
+      opt.addEventListener('click', function() {
+        document.querySelectorAll('.radio-option').forEach(function(o) { o.classList.remove('selected'); });
+        opt.classList.add('selected');
+        opt.querySelector('input').checked = true;
+      });
+    });
+  }
+
+  // ---- Execute import ----
+
+  window.executeImport = function() {
+    if (!currentJobId) return;
+
+    var btn = document.getElementById('btn_import');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    var strategy = document.querySelector('input[name="dedup"]:checked').value;
+    var batchName = document.getElementById('batch_name').value || ('import-' + currentJobId.substring(0, 8));
+    var ownerId = document.getElementById('owner_select').value || null;
+
+    apiFetch(API_BASE + '/imports/' + currentJobId + '/execute', {
+      method: 'POST',
+      headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        batch_name: batchName,
+        owner_id: ownerId,
+        dedup_strategy: strategy,
+      }),
+    }).then(function(data) {
+      btn.disabled = false;
+      btn.textContent = 'Import Contacts';
+      showSuccess(data);
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Import Contacts';
+      toast('Import failed: ' + err.message, 'error');
+    });
+  };
+
+  function showSuccess(data) {
+    var counts = data.counts || {};
+    var panel = document.getElementById('success_panel');
+    panel.style.display = 'block';
+    clearChildren(panel);
+
+    var inner = mkEl('div', { className: 'success-panel' });
+
+    var checkIcon = mkEl('div', { className: 'check-icon' }, '\u2713');
+    inner.appendChild(checkIcon);
+
+    var h2 = mkEl('h2', {}, 'Import Complete');
+    inner.appendChild(h2);
+
+    var p = mkEl('p', {}, 'Successfully imported ' +
+      (counts.contacts_created + counts.contacts_updated) +
+      ' contacts into batch "' + (data.batch_name || '') + '"');
+    inner.appendChild(p);
+
+    var countsDiv = mkEl('div', { className: 'success-counts' });
+    function addCount(num, label, colorClass) {
+      var stat = mkEl('div', { className: 'summary-stat' });
+      stat.appendChild(mkEl('span', { className: 'num' + (colorClass ? ' ' + colorClass : '') }, String(num)));
+      stat.appendChild(mkEl('span', { className: 'label' }, label));
+      countsDiv.appendChild(stat);
+    }
+    addCount(counts.contacts_created, 'Created', 'green');
+    addCount(counts.contacts_updated, 'Updated', 'yellow');
+    addCount(counts.contacts_skipped, 'Skipped', '');
+    addCount(counts.companies_created, 'New Cos', 'green');
+    addCount(counts.companies_linked, 'Linked Cos', 'yellow');
+    inner.appendChild(countsDiv);
+
+    var btns = mkEl('div', { style: 'display:flex;gap:10px;justify-content:center;' });
+    var aLink = mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts');
+    btns.appendChild(aLink);
+    var resetBtn = mkEl('button', { className: 'btn btn-ghost' }, 'Import Another');
+    resetBtn.addEventListener('click', function() { resetWizard(); });
+    btns.appendChild(resetBtn);
+    inner.appendChild(btns);
+
+    panel.appendChild(inner);
+    panel.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ---- Load owners ----
+
+  function loadOwners() {
+    apiFetch(API_BASE + '/batches').then(function(data) {
+      owners = data.owners || [];
+      var sel = document.getElementById('owner_select');
+      clearChildren(sel);
+      sel.appendChild(mkEl('option', { value: '' }, 'No owner'));
+      owners.forEach(function(o) {
+        sel.appendChild(mkEl('option', { value: o.id }, o.name));
+      });
+    }).catch(function() {});
+  }
+
+  // ---- Past imports ----
+
+  function loadPastImports() {
+    apiFetch(API_BASE + '/imports').then(function(data) {
+      var list = document.getElementById('past_imports');
+      clearChildren(list);
+      var imports = data.imports || [];
+      if (!imports.length) {
+        list.appendChild(mkEl('div', { style: 'color:var(--text-dim);font-size:0.85rem;padding:8px 0;' }, 'No previous imports'));
+        return;
+      }
+      imports.forEach(function(job) {
+        var row = mkEl('div', { className: 'import-row' });
+        row.appendChild(mkEl('span', { className: 'filename' }, job.filename));
+        row.appendChild(mkEl('span', { className: 'meta' }, (job.total_rows || 0) + ' rows'));
+
+        var date = job.created_at ? new Date(job.created_at).toLocaleDateString() : '';
+        row.appendChild(mkEl('span', { className: 'meta' }, date));
+
+        var statusClass = job.status === 'completed' ? 'completed' :
+                          job.status === 'error' ? 'error' :
+                          job.status === 'mapped' ? 'mapped' : 'uploaded';
+        row.appendChild(mkEl('span', { className: 'status-pill ' + statusClass }, job.status));
+
+        if (job.status === 'completed') {
+          row.appendChild(mkEl('span', { className: 'meta' },
+            (job.contacts_created || 0) + ' created, ' + (job.contacts_skipped || 0) + ' skipped'));
+        }
+        list.appendChild(row);
+      });
+    }).catch(function() {
+      var list = document.getElementById('past_imports');
+      clearChildren(list);
+      list.appendChild(mkEl('div', { style: 'color:var(--text-dim);font-size:0.85rem;' }, 'Could not load import history'));
+    });
+  }
+
+  // ---- Init ----
+
+  function initImport() {
+    setupDropZone();
+    setupDedupRadio();
+    loadOwners();
+    loadPastImports();
+  }
+
+  function init() {
+    LeadgenAuth.init(initImport);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

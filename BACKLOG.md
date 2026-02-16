@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-006
+**Next ID**: BL-007
 
 ## Must Have
 
@@ -38,6 +38,12 @@ Script to import LinkedIn Sales Navigator CSV exports into the contacts/companie
 
 Database tables and API endpoints for tracking individual pipeline stage executions (L1, L2, Person). Records timing, status, error details, and cost per stage run. Enables pipeline observability beyond the current progress webhook.
 
+### BL-006: Contact List Import & Cleanup
+**Status**: Phase 1 Done | **Effort**: M | **Spec**: `docs/specs/contact-import-cleanup.md`
+**Depends on**: — | **ADR**: `docs/adr/002-ai-column-mapping.md`
+
+Phase 1 (MVP): Upload CSV, AI column mapping, dedup preview, batch import. Phase 2 (future): enrichment depth selection, cost estimation, CSV export. Phase 3 (future): Person L1 verification workflow.
+
 ## Could Have
 
 _No items yet._
@@ -50,3 +56,6 @@ _No items yet._
 
 ### BL-001: Contacts & Companies Screens (Done 2026-02-13)
 Dashboard screens with infinite scroll, virtual DOM windowing, filters, detail modals, inline editing. ADR-001.
+
+### BL-006: Contact List Import & Cleanup — Phase 1 (Done 2026-02-13)
+CSV upload with AI column mapping, dedup preview, batch import. 80 unit tests. ADR-002.
