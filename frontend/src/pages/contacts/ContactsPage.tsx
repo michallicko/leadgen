@@ -92,21 +92,21 @@ export function ContactsPage() {
   ], [batchesData])
 
   const columns: Column<ContactListItem>[] = useMemo(() => [
-    { key: 'full_name', label: 'Name', sortKey: 'last_name', width: '16%' },
-    { key: 'job_title', label: 'Title', sortKey: 'job_title', width: '14%' },
-    { key: 'company_name', label: 'Company', width: '13%' },
-    { key: 'email_address', label: 'Email', sortKey: 'email_address', width: '16%', render: (c) => c.email_address ? (
+    { key: 'full_name', label: 'Name', sortKey: 'last_name', minWidth: '130px' },
+    { key: 'job_title', label: 'Title', sortKey: 'job_title', minWidth: '120px' },
+    { key: 'company_name', label: 'Company', minWidth: '120px' },
+    { key: 'email_address', label: 'Email', sortKey: 'email_address', minWidth: '140px', render: (c) => c.email_address ? (
       <a href={`mailto:${c.email_address}`} onClick={(e) => e.stopPropagation()} className="text-accent-cyan hover:underline truncate block">{c.email_address}</a>
     ) : '-' },
-    { key: 'contact_score', label: 'Score', sortKey: 'contact_score', width: '7%' },
-    { key: 'icp_fit', label: 'ICP Fit', sortKey: 'icp_fit', width: '10%', render: (c) => <Badge variant="icp" value={c.icp_fit} /> },
-    { key: 'message_status', label: 'Msg Status', sortKey: 'message_status', width: '10%', render: (c) => <Badge variant="msgStatus" value={c.message_status} /> },
-    { key: 'owner_name', label: 'Owner', width: '7%' },
-    { key: 'batch_name', label: 'Batch', width: '7%' },
+    { key: 'contact_score', label: 'Score', sortKey: 'contact_score', minWidth: '55px' },
+    { key: 'icp_fit', label: 'ICP Fit', sortKey: 'icp_fit', minWidth: '100px', shrink: false, render: (c) => <Badge variant="icp" value={c.icp_fit} /> },
+    { key: 'message_status', label: 'Msg Status', sortKey: 'message_status', minWidth: '100px', shrink: false, render: (c) => <Badge variant="msgStatus" value={c.message_status} /> },
+    { key: 'owner_name', label: 'Owner', minWidth: '70px' },
+    { key: 'batch_name', label: 'Batch', minWidth: '70px' },
   ], [])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
+    <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
         values={{ search, batch_name: batchName, owner_name: ownerName, icp_fit: icpFit, message_status: msgStatus }}

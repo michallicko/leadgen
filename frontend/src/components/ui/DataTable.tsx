@@ -9,6 +9,8 @@ export interface Column<T> {
   sortKey?: string
   render?: (item: T) => ReactNode
   width?: string
+  minWidth?: string
+  shrink?: boolean
 }
 
 interface DataTableProps<T> {
@@ -20,7 +22,6 @@ interface DataTableProps<T> {
   onLoadMore?: () => void
   hasMore?: boolean
   isLoading?: boolean
-  emptyIcon?: string
   emptyText?: string
 }
 
@@ -40,7 +41,6 @@ export function DataTable<T extends { id?: string }>({
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
 
-  // Observe container resize
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -53,7 +53,6 @@ export function DataTable<T extends { id?: string }>({
     return () => ro.disconnect()
   }, [])
 
-  // Scroll handler with rAF
   const rafId = useRef(0)
   const handleScroll = useCallback(() => {
     cancelAnimationFrame(rafId.current)
@@ -64,7 +63,6 @@ export function DataTable<T extends { id?: string }>({
     })
   }, [])
 
-  // Infinite load via IntersectionObserver
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !onLoadMore || !hasMore) return
@@ -80,13 +78,12 @@ export function DataTable<T extends { id?: string }>({
     return () => io.disconnect()
   }, [onLoadMore, hasMore, isLoading])
 
-  // Virtual window calculation
   const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER)
   const endIndex = Math.min(data.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER)
   const visibleData = data.slice(startIndex, endIndex)
   const offsetY = startIndex * ROW_HEIGHT
 
-  const handleSort = (col: Column<T>) => {
+  const handleSortClick = (col: Column<T>) => {
     if (!col.sortKey || !onSort) return
     const newDir = sort?.field === col.sortKey && sort.dir === 'asc' ? 'desc' : 'asc'
     onSort(col.sortKey, newDir)
@@ -107,18 +104,21 @@ export function DataTable<T extends { id?: string }>({
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-auto border border-border-solid rounded-lg bg-surface"
+      className="flex-1 min-h-0 overflow-auto border border-border-solid rounded-lg bg-surface"
     >
-      <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+      <table className="w-full text-sm border-collapse" style={{ minWidth: 700 }}>
         <thead className="sticky top-0 z-10 bg-surface-alt">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                style={{ width: col.width }}
-                onClick={() => handleSort(col)}
+                style={{
+                  width: col.width,
+                  minWidth: col.minWidth,
+                }}
+                onClick={() => handleSortClick(col)}
                 className={`
-                  text-left text-xs font-medium text-text-muted px-3 py-2.5 border-b border-border-solid
+                  text-left text-xs font-medium text-text-muted px-3 py-2.5 border-b border-border-solid whitespace-nowrap
                   ${col.sortKey ? 'cursor-pointer hover:text-text select-none' : ''}
                 `}
               >
@@ -135,7 +135,6 @@ export function DataTable<T extends { id?: string }>({
           </tr>
         </thead>
         <tbody>
-          {/* Top spacer */}
           {offsetY > 0 && (
             <tr><td colSpan={columns.length} style={{ height: offsetY, padding: 0, border: 0 }} /></tr>
           )}
@@ -147,7 +146,14 @@ export function DataTable<T extends { id?: string }>({
               style={{ height: ROW_HEIGHT }}
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-3 py-0 text-text truncate" style={{ width: col.width }}>
+                <td
+                  key={col.key}
+                  className={`px-3 py-0 text-text ${col.shrink !== false ? 'truncate' : ''}`}
+                  style={{
+                    maxWidth: col.width ?? '200px',
+                    minWidth: col.minWidth,
+                  }}
+                >
                   {col.render
                     ? col.render(item)
                     : (item as Record<string, unknown>)[col.key] as ReactNode ?? '-'}
@@ -155,17 +161,14 @@ export function DataTable<T extends { id?: string }>({
               ))}
             </tr>
           ))}
-          {/* Bottom spacer */}
           {endIndex < data.length && (
             <tr><td colSpan={columns.length} style={{ height: (data.length - endIndex) * ROW_HEIGHT, padding: 0, border: 0 }} /></tr>
           )}
         </tbody>
       </table>
 
-      {/* Sentinel for infinite load */}
       <div ref={sentinelRef} className="h-1" />
 
-      {/* Loading indicator */}
       {isLoading && (
         <div className="flex items-center justify-center py-4">
           <div className="w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />

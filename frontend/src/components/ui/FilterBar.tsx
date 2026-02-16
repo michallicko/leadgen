@@ -18,7 +18,7 @@ interface FilterBarProps {
 
 export function FilterBar({ filters, values, onChange, total, action }: FilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4">
+    <div className="flex flex-wrap items-center gap-2 mb-3">
       {filters.map((f) =>
         f.type === 'search' ? (
           <SearchInput
@@ -75,7 +75,7 @@ function SearchInput({
   useEffect(() => () => clearTimeout(timer.current), [])
 
   return (
-    <div className="relative">
+    <div className="relative flex-1 min-w-[180px] max-w-md">
       <svg
         width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
         className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim"
@@ -88,7 +88,7 @@ function SearchInput({
         value={local}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
-        className="pl-8 pr-3 py-1.5 text-sm bg-surface-alt border border-border-solid rounded-md text-text placeholder:text-text-dim focus:outline-none focus:border-accent w-56"
+        className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-alt border border-border-solid rounded-md text-text placeholder:text-text-dim focus:outline-none focus:border-accent"
       />
     </div>
   )

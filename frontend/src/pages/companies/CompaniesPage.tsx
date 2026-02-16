@@ -94,22 +94,22 @@ export function CompaniesPage() {
   ], [batchesData])
 
   const columns: Column<CompanyListItem>[] = useMemo(() => [
-    { key: 'name', label: 'Name', sortKey: 'name', width: '18%' },
-    { key: 'domain', label: 'Domain', sortKey: 'domain', width: '12%', render: (c) => c.domain ? (
+    { key: 'name', label: 'Name', sortKey: 'name', minWidth: '140px' },
+    { key: 'domain', label: 'Domain', sortKey: 'domain', minWidth: '100px', render: (c) => c.domain ? (
       <a href={`https://${c.domain}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-accent-cyan hover:underline truncate block">{c.domain}</a>
     ) : '-' },
-    { key: 'status', label: 'Status', sortKey: 'status', width: '12%', render: (c) => <Badge variant="status" value={c.status} /> },
-    { key: 'tier', label: 'Tier', sortKey: 'tier', width: '12%', render: (c) => <Badge variant="tier" value={c.tier} /> },
-    { key: 'owner_name', label: 'Owner', width: '8%' },
-    { key: 'batch_name', label: 'Batch', width: '8%' },
-    { key: 'industry', label: 'Industry', width: '10%' },
-    { key: 'hq_country', label: 'HQ', sortKey: 'hq_country', width: '6%' },
-    { key: 'triage_score', label: 'Score', sortKey: 'triage_score', width: '6%', render: (c) => c.triage_score != null ? c.triage_score.toFixed(1) : '-' },
-    { key: 'contact_count', label: 'Contacts', sortKey: 'contact_count', width: '8%' },
+    { key: 'status', label: 'Status', sortKey: 'status', minWidth: '110px', shrink: false, render: (c) => <Badge variant="status" value={c.status} /> },
+    { key: 'tier', label: 'Tier', sortKey: 'tier', minWidth: '110px', shrink: false, render: (c) => <Badge variant="tier" value={c.tier} /> },
+    { key: 'owner_name', label: 'Owner', minWidth: '70px' },
+    { key: 'batch_name', label: 'Batch', minWidth: '70px' },
+    { key: 'industry', label: 'Industry', minWidth: '90px' },
+    { key: 'hq_country', label: 'HQ', sortKey: 'hq_country', minWidth: '40px' },
+    { key: 'triage_score', label: 'Score', sortKey: 'triage_score', minWidth: '55px', render: (c) => c.triage_score != null ? c.triage_score.toFixed(1) : '-' },
+    { key: 'contact_count', label: 'Contacts', sortKey: 'contact_count', minWidth: '55px' },
   ], [])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
+    <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
         values={{ search, status, tier, batch_name: batchName, owner_name: ownerName }}
