@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 from sqlalchemy import String, Text, event
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.schema import ColumnDefault
 
 # Use SQLite for tests (no PG dependency needed for unit tests)
@@ -33,6 +33,10 @@ def _patch_pg_types_for_sqlite(app):
                     if column.server_default is not None and "uuid_generate" in str(column.server_default.arg):
                         column.server_default = None
                         column.default = ColumnDefault(_uuid_default)
+                elif isinstance(column.type, ARRAY):
+                    column.type = Text()
+                    if column.server_default is not None:
+                        column.server_default = None
                 elif isinstance(column.type, JSONB):
                     column.type = Text()
                     if column.server_default is not None:

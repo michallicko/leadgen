@@ -115,6 +115,16 @@ select option { background: var(--bg); color: var(--text); }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-alt); color: var(--text); }
 
+/* Google sign-in button */
+.btn-google {
+  background: #fff; color: #3c4043; font-weight: 600;
+  border: 1px solid #dadce0; border-radius: 6px; padding: 10px 20px;
+  display: inline-flex; align-items: center; gap: 10px;
+  cursor: pointer; transition: box-shadow 0.2s;
+}
+.btn-google:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.btn-google svg { flex-shrink: 0; }
+
 /* Top nav */
 .top-nav {
   display: flex; align-items: center; gap: 8px;
@@ -174,6 +184,22 @@ select option { background: var(--bg); color: var(--text); }
 .wizard-step.done { color: var(--success); }
 .wizard-step.done .step-num { background: rgba(52,211,153,0.15); color: var(--success); }
 
+/* Source tabs */
+.source-tabs {
+  display: flex; gap: 0; margin-bottom: 16px;
+}
+.source-tab {
+  flex: 1; padding: 12px 18px; text-align: center;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border-solid);
+  color: var(--text-muted); background: var(--surface);
+  transition: all 0.2s;
+}
+.source-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.source-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: none; }
+.source-tab:hover { color: var(--text); background: var(--surface-alt); }
+.source-tab.active { color: var(--accent-cyan); border-color: var(--accent-cyan); background: rgba(0,184,207,0.06); }
+
 /* Drop zone */
 .drop-zone {
   border: 2px dashed var(--border-solid);
@@ -199,6 +225,53 @@ select option { background: var(--bg); color: var(--text); }
   margin-top: 16px;
 }
 @media (max-width: 600px) { .upload-config { grid-template-columns: 1fr; } }
+
+/* Connected account */
+.connected-account {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-radius: var(--radius);
+  background: var(--surface-alt); margin-bottom: 16px;
+}
+.connected-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0;
+}
+.connected-email { font-weight: 500; flex: 1; }
+.connected-actions { display: flex; gap: 8px; }
+
+/* Google source checkboxes */
+.google-sources {
+  display: flex; gap: 16px; margin-bottom: 16px;
+}
+.google-sources label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.88rem; cursor: pointer; color: var(--text-muted);
+  padding: 10px 16px; border: 1px solid var(--border-solid); border-radius: 6px;
+  transition: all 0.2s;
+}
+.google-sources label:hover { border-color: var(--accent); color: var(--text); }
+.google-sources label.checked { border-color: var(--accent-cyan); color: var(--text); background: rgba(0,184,207,0.06); }
+.google-sources input[type="checkbox"] { accent-color: var(--accent-cyan); width: 16px; height: 16px; }
+
+/* Scan config */
+.scan-config { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+@media (max-width: 600px) { .scan-config { grid-template-columns: 1fr; } }
+
+/* Progress bar */
+.progress-wrap { margin: 20px 0; }
+.progress-bar-bg {
+  height: 8px; border-radius: 4px; background: var(--surface-alt);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan));
+  transition: width 0.5s ease;
+  width: 0%;
+}
+.progress-text {
+  font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;
+  display: flex; justify-content: space-between;
+}
 
 /* Mapping table */
 .mapping-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -469,18 +542,86 @@ select option { background: var(--bg); color: var(--text); }
     </div>
   </div>
 
-  <!-- Section 1: Upload -->
+  <!-- Section 1: Upload / Source -->
   <div id="section_upload" class="wizard-section visible">
     <div class="card">
-      <div class="card-title">Upload File</div>
+      <div class="card-title">Import Source</div>
 
-      <div class="drop-zone" id="drop_zone">
-        <input type="file" id="file_input" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-        <div class="drop-icon">&#128196;</div>
-        <div class="drop-text">Drop your file here or click to browse</div>
-        <div class="drop-hint">Max 10 MB. CSV (UTF-8/Latin-1) or Excel (.xlsx).</div>
+      <!-- Source tabs -->
+      <div class="source-tabs">
+        <div class="source-tab active" data-source="csv" onclick="setImportSource('csv')">CSV / Excel File</div>
+        <div class="source-tab" data-source="google" onclick="setImportSource('google')">Google Account</div>
       </div>
 
+      <!-- CSV panel -->
+      <div id="csv_panel">
+        <div class="drop-zone" id="drop_zone">
+          <input type="file" id="file_input" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <div class="drop-icon">&#128196;</div>
+          <div class="drop-text">Drop your file here or click to browse</div>
+          <div class="drop-hint">Max 10 MB. CSV (UTF-8/Latin-1) or Excel (.xlsx).</div>
+        </div>
+      </div>
+
+      <!-- Google panel -->
+      <div id="google_panel" style="display:none;">
+        <!-- OAuth connect -->
+        <div id="google_no_connection" style="text-align:center; padding: 24px 0;">
+          <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.9rem;">
+            Connect your Google account to import contacts from Gmail or Google Contacts.
+          </p>
+          <button class="btn-google" onclick="connectGoogle()">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign in with Google
+          </button>
+        </div>
+
+        <div id="google_connected" style="display:none;">
+          <div id="google_connection_row" class="connected-account"></div>
+
+          <!-- Source checkboxes -->
+          <div class="google-sources" id="google_sources">
+            <label id="lbl_contacts" class="checked">
+              <input type="checkbox" id="chk_contacts" checked onchange="updateGoogleSources()">
+              Google Contacts
+            </label>
+            <label id="lbl_gmail">
+              <input type="checkbox" id="chk_gmail" onchange="updateGoogleSources()">
+              Gmail Emails
+            </label>
+          </div>
+
+          <!-- Gmail scan config (only when Gmail checked) -->
+          <div id="gmail_scan_config" style="display:none;">
+            <div class="scan-config">
+              <div class="form-row">
+                <label>Date Range</label>
+                <select id="scan_date_range">
+                  <option value="30">Last 30 days</option>
+                  <option value="90" selected>Last 90 days</option>
+                  <option value="180">Last 180 days</option>
+                  <option value="0">All time</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Exclude Domains (comma-separated)</label>
+                <input type="text" id="scan_exclude_domains" placeholder="gmail.com, yahoo.com">
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;">
+            <button class="btn btn-primary" id="btn_google_fetch" onclick="fetchGoogleData()">Fetch &amp; Preview</button>
+          </div>
+        </div>
+
+        <div id="google_spinner" class="spinner-overlay" style="display:none;">
+          <div class="spinner-lg"></div>
+          <span id="google_spinner_text">Connecting...</span>
+        </div>
+      </div>
+
+      <!-- Shared: batch name + owner -->
       <div class="upload-config">
         <div class="form-row">
           <label>Batch Name</label>
@@ -507,7 +648,7 @@ select option { background: var(--bg); color: var(--text); }
     </div>
   </div>
 
-  <!-- Section 2: Column Mapping -->
+  <!-- Section 2: Column Mapping (CSV only) -->
   <div id="section_mapping" class="wizard-section">
     <div class="card">
       <div class="card-title">Column Mapping</div>
@@ -548,6 +689,19 @@ select option { background: var(--bg); color: var(--text); }
         <span>Running dedup analysis...</span>
       </div>
 
+      <!-- Gmail scan progress (shown during async scan) -->
+      <div id="scan_progress" style="display:none;">
+        <div class="progress-wrap">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="scan_progress_bar"></div>
+          </div>
+          <div class="progress-text">
+            <span id="scan_progress_phase">Scanning...</span>
+            <span id="scan_progress_count"></span>
+          </div>
+        </div>
+      </div>
+
       <div class="preview-scroll">
         <table class="preview-table">
           <thead id="preview_thead"></thead>
@@ -576,7 +730,7 @@ select option { background: var(--bg); color: var(--text); }
       </div>
 
       <div style="margin-top:16px; display:flex; gap:10px;">
-        <button class="btn btn-ghost" onclick="goToStep(2)">Back</button>
+        <button class="btn btn-ghost" id="btn_preview_back" onclick="goToStep(importSource === 'google' ? 1 : 2)">Back</button>
         <button class="btn btn-success" id="btn_import" onclick="executeImport()">Import Contacts</button>
       </div>
     </div>
@@ -590,6 +744,7 @@ select option { background: var(--bg); color: var(--text); }
 
 <script src="auth.js"></script>
 <script>
+var importSource = 'csv';
 (function() {
   'use strict';
 
@@ -598,6 +753,10 @@ select option { background: var(--bg); color: var(--text); }
   var currentMapping = null;
   var owners = [];
   var customFieldDefs = [];
+
+  // Google-specific state
+  var activeConnectionId = null;
+  var scanPollTimer = null;
 
   // ---- Helpers ----
 
@@ -650,6 +809,20 @@ select option { background: var(--bg); color: var(--text); }
     return el;
   }
 
+  // ---- Source tab switching ----
+
+  window.setImportSource = function(source) {
+    importSource = source;
+    document.querySelectorAll('.source-tab').forEach(function(tab) {
+      tab.classList.toggle('active', tab.getAttribute('data-source') === source);
+    });
+    document.getElementById('csv_panel').style.display = source === 'csv' ? '' : 'none';
+    document.getElementById('google_panel').style.display = source === 'google' ? '' : 'none';
+    if (source === 'google') {
+      loadConnections();
+    }
+  };
+
   // ---- Wizard navigation ----
 
   window.goToStep = function(step) {
@@ -660,8 +833,14 @@ select option { background: var(--bg); color: var(--text); }
     });
     document.querySelectorAll('.wizard-step').forEach(function(el) {
       var s = parseInt(el.getAttribute('data-step'));
-      el.classList.toggle('active', s === step);
-      el.classList.toggle('done', s < step);
+      if (importSource === 'google') {
+        // Google: step 1 → step 3 (skip mapping)
+        el.classList.toggle('active', s === step);
+        el.classList.toggle('done', s < step);
+      } else {
+        el.classList.toggle('active', s === step);
+        el.classList.toggle('done', s < step);
+      }
     });
   };
 
@@ -675,6 +854,8 @@ select option { background: var(--bg); color: var(--text); }
     clearChildren(document.getElementById('preview_thead'));
     document.getElementById('preview_summary').style.display = 'none';
     document.getElementById('success_panel').style.display = 'none';
+    document.getElementById('scan_progress').style.display = 'none';
+    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
     goToStep(1);
     loadPastImports();
   };
@@ -710,7 +891,6 @@ select option { background: var(--bg); color: var(--text); }
     var currentGroup = '';
     var optgroup = null;
 
-    // Standard target options
     TARGET_OPTIONS.forEach(function(opt) {
       if (opt.group && opt.group !== currentGroup) {
         optgroup = document.createElement('optgroup');
@@ -725,7 +905,6 @@ select option { background: var(--bg); color: var(--text); }
       (optgroup || sel).appendChild(o);
     });
 
-    // Existing custom field definitions grouped by entity type
     var contactCustom = customFieldDefs.filter(function(d) { return d.entity_type === 'contact'; });
     var companyCustom = customFieldDefs.filter(function(d) { return d.entity_type === 'company'; });
 
@@ -755,7 +934,6 @@ select option { background: var(--bg); color: var(--text); }
       sel.appendChild(optgroup);
     }
 
-    // If AI suggested a new custom field that doesn't exist yet, add it as an option
     if (suggestedCustomField && selectedValue && selectedValue.indexOf('.custom.') !== -1) {
       var alreadyExists = false;
       for (var i = 0; i < sel.options.length; i++) {
@@ -778,7 +956,7 @@ select option { background: var(--bg); color: var(--text); }
     return sel;
   }
 
-  // ---- Upload ----
+  // ---- CSV Upload ----
 
   function setupDropZone() {
     var zone = document.getElementById('drop_zone');
@@ -860,7 +1038,6 @@ select option { background: var(--bg); color: var(--text); }
     var samples = data.sample_rows || [];
     var warnings = data.mapping.warnings || [];
 
-    // Show warnings
     var banner = document.getElementById('mapping_warnings');
     if (warnings.length) {
       banner.style.display = 'block';
@@ -887,17 +1064,12 @@ select option { background: var(--bg); color: var(--text); }
       var target = m.target || '';
       var suggestedCF = m.suggested_custom_field || null;
 
-      // If AI suggested a custom field for an unmapped column, auto-select it
       if (!target && suggestedCF) {
         target = (suggestedCF.entity_type || 'contact') + '.custom.' + suggestedCF.field_key;
       }
 
-      // Unmapped columns show 0% confidence regardless of AI value
       var conf = target ? (m.confidence || 0) : 0;
       var confClass = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
-
-      var isCustom = target.indexOf('.custom.') !== -1;
-      var isNewCustom = isCustom && suggestedCF;
 
       var tr = document.createElement('tr');
 
@@ -916,14 +1088,13 @@ select option { background: var(--bg); color: var(--text); }
       sel.setAttribute('data-header', m.csv_header);
       td3.appendChild(sel);
 
-      // Badge + pencil edit for new custom fields
       var badge = mkEl('span', { className: 'cf-badge' });
       var popWrap = document.createElement('span');
       popWrap.className = 'cf-popover-wrap';
       var editBtn = document.createElement('button');
       editBtn.type = 'button';
       editBtn.className = 'cf-edit-btn';
-      editBtn.textContent = '\u270E'; // pencil unicode
+      editBtn.textContent = '\u270E';
       editBtn.title = 'Edit field name';
       var popover = document.createElement('div');
       popover.className = 'cf-popover';
@@ -980,7 +1151,6 @@ select option { background: var(--bg); color: var(--text); }
       td3.appendChild(badge);
       td3.appendChild(popWrap);
 
-      // When user changes the select, update badge/pencil visibility
       sel.addEventListener('change', function() {
         var v = sel.value || '';
         var hdr = sel.getAttribute('data-header');
@@ -1007,7 +1177,7 @@ select option { background: var(--bg); color: var(--text); }
     });
   }
 
-  // ---- Preview ----
+  // ---- Preview (CSV path) ----
 
   window.submitPreview = function() {
     if (!currentJobId) return;
@@ -1015,13 +1185,11 @@ select option { background: var(--bg); color: var(--text); }
     var btnPreview = document.getElementById('btn_preview');
     btnPreview.disabled = true;
 
-    // Collect user-adjusted mapping, preserving suggested_custom_field from original
     var originalMappings = (currentMapping && currentMapping.mappings) || [];
     var adjustedMappings = [];
     document.querySelectorAll('.mapping-select').forEach(function(sel) {
       var header = sel.getAttribute('data-header');
       var target = sel.value || null;
-      // Preserve original confidence, transform, and suggested_custom_field from AI
       var original = null;
       for (var i = 0; i < originalMappings.length; i++) {
         if (originalMappings[i].csv_header === header) { original = originalMappings[i]; break; }
@@ -1032,10 +1200,8 @@ select option { background: var(--bg); color: var(--text); }
         confidence: original ? (original.confidence || 0) : 0,
         transform: (original && original.target === target) ? (original.transform || null) : null,
       };
-      // Preserve suggested_custom_field if target is a custom field, with user-edited label
       if (target && target.indexOf('.custom.') !== -1 && original && original.suggested_custom_field) {
         entry.suggested_custom_field = Object.assign({}, original.suggested_custom_field);
-        // Read user-edited label from popover input
         var popWrapEl = sel.parentNode.querySelector('.cf-popover-wrap');
         if (popWrapEl && popWrapEl.style.display !== 'none') {
           var labelEl = popWrapEl.querySelector('.cf-label-input');
@@ -1073,7 +1239,6 @@ select option { background: var(--bg); color: var(--text); }
     var rows = data.preview_rows || [];
     var summary = data.summary || {};
 
-    // Summary bar (using safe DOM)
     var summaryBar = document.getElementById('preview_summary');
     summaryBar.style.display = 'flex';
     clearChildren(summaryBar);
@@ -1092,7 +1257,6 @@ select option { background: var(--bg); color: var(--text); }
     addStat(summary.new_companies, 'New Companies', 'green');
     addStat(summary.existing_companies, 'Existing Companies', 'yellow');
 
-    // Table header
     var thead = document.getElementById('preview_thead');
     clearChildren(thead);
     var headTr = document.createElement('tr');
@@ -1103,7 +1267,6 @@ select option { background: var(--bg); color: var(--text); }
     });
     thead.appendChild(headTr);
 
-    // Table body
     var tbody = document.getElementById('preview_body');
     clearChildren(tbody);
 
@@ -1112,7 +1275,6 @@ select option { background: var(--bg); color: var(--text); }
       var co = r.company || {};
       var tr = document.createElement('tr');
 
-      // Contact status badge
       var td0 = document.createElement('td');
       var badge = document.createElement('span');
       if (r.contact_status === 'new') {
@@ -1125,7 +1287,6 @@ select option { background: var(--bg); color: var(--text); }
       td0.appendChild(badge);
       tr.appendChild(td0);
 
-      // Data cells
       var ctName = ((ct.first_name || '') + ' ' + (ct.last_name || '')).trim();
       [ctName, ct.job_title, ct.email_address, co.name, co.domain].forEach(function(val) {
         var td = document.createElement('td');
@@ -1133,7 +1294,6 @@ select option { background: var(--bg); color: var(--text); }
         tr.appendChild(td);
       });
 
-      // Company status badge
       var tdCo = document.createElement('td');
       var coBadge = document.createElement('span');
       if (r.company_status === 'new') {
@@ -1175,14 +1335,20 @@ select option { background: var(--bg); color: var(--text); }
     var batchName = document.getElementById('batch_name').value || ('import-' + currentJobId.substring(0, 8));
     var ownerId = document.getElementById('owner_select').value || null;
 
-    apiFetch(API_BASE + '/imports/' + currentJobId + '/execute', {
+    var url, body;
+    if (importSource === 'google') {
+      url = API_BASE + '/gmail/contacts/' + currentJobId + '/execute';
+      body = { batch_name: batchName, dedup_strategy: strategy };
+      if (ownerId) body.owner_id = ownerId;
+    } else {
+      url = API_BASE + '/imports/' + currentJobId + '/execute';
+      body = { batch_name: batchName, owner_id: ownerId, dedup_strategy: strategy };
+    }
+
+    apiFetch(url, {
       method: 'POST',
       headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        batch_name: batchName,
-        owner_id: ownerId,
-        dedup_strategy: strategy,
-      }),
+      body: JSON.stringify(body),
     }).then(function(data) {
       btn.disabled = false;
       btn.textContent = 'Import Contacts';
@@ -1209,7 +1375,7 @@ select option { background: var(--bg); color: var(--text); }
     inner.appendChild(h2);
 
     var p = mkEl('p', {}, 'Successfully imported ' +
-      (counts.contacts_created + counts.contacts_updated) +
+      ((counts.contacts_created || 0) + (counts.contacts_updated || 0)) +
       ' contacts into batch "' + (data.batch_name || '') + '"');
     inner.appendChild(p);
 
@@ -1220,11 +1386,11 @@ select option { background: var(--bg); color: var(--text); }
       stat.appendChild(mkEl('span', { className: 'label' }, label));
       countsDiv.appendChild(stat);
     }
-    addCount(counts.contacts_created, 'Created', 'green');
-    addCount(counts.contacts_updated, 'Updated', 'yellow');
-    addCount(counts.contacts_skipped, 'Skipped', '');
-    addCount(counts.companies_created, 'New Cos', 'green');
-    addCount(counts.companies_linked, 'Linked Cos', 'yellow');
+    addCount(counts.contacts_created || 0, 'Created', 'green');
+    addCount(counts.contacts_updated || 0, 'Updated', 'yellow');
+    addCount(counts.contacts_skipped || 0, 'Skipped', '');
+    addCount(counts.companies_created || 0, 'New Cos', 'green');
+    addCount(counts.companies_linked || 0, 'Linked Cos', 'yellow');
     inner.appendChild(countsDiv);
 
     var btns = mkEl('div', { style: 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;' });
@@ -1279,7 +1445,6 @@ select option { background: var(--bg); color: var(--text); }
     panel.appendChild(inner);
     panel.scrollIntoView({ behavior: 'smooth' });
 
-    // Load initial details
     loadDetailRows(data.job_id, detailState, detailBody);
   }
 
@@ -1295,7 +1460,6 @@ select option { background: var(--bg); color: var(--text); }
         clearChildren(container);
         if (!data.rows || !data.rows.length) {
           container.appendChild(mkEl('div', { style: 'padding:16px;color:var(--text-dim);font-size:0.85rem;' }, 'No rows match this filter.'));
-          // Update conflicts tab count if available
           if (data.summary && data.summary.total_conflicts !== undefined) {
             var cTab = document.querySelector('.detail-tab[data-filter="conflicts"]');
             if (cTab && !cTab.querySelector('.tab-count')) {
@@ -1305,7 +1469,6 @@ select option { background: var(--bg); color: var(--text); }
           return;
         }
 
-        // Update conflicts tab count from summary
         if (data.summary && data.summary.total_conflicts !== undefined) {
           var cTab = document.querySelector('.detail-tab[data-filter="conflicts"]');
           if (cTab && !cTab.querySelector('.tab-count')) {
@@ -1331,7 +1494,6 @@ select option { background: var(--bg); color: var(--text); }
         var tbody = document.createElement('tbody');
 
         if (state.filter === 'conflicts') {
-          // Flatten: one row per conflict field
           data.rows.forEach(function(r) {
             (r.conflicts || []).forEach(function(c) {
               var tr = document.createElement('tr');
@@ -1383,7 +1545,6 @@ select option { background: var(--bg); color: var(--text); }
         scroll.appendChild(table);
         container.appendChild(scroll);
 
-        // Pagination
         if (data.total > data.per_page) {
           var totalPages = Math.ceil(data.total / data.per_page);
           var pagBar = mkEl('div', { style: 'display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;' });
@@ -1408,6 +1569,255 @@ select option { background: var(--bg); color: var(--text); }
       });
   }
 
+  // ---- Google OAuth ----
+
+  function loadConnections() {
+    apiFetch(API_BASE + '/oauth/connections').then(function(data) {
+      var conns = data.connections || [];
+      var noEl = document.getElementById('google_no_connection');
+      var connEl = document.getElementById('google_connected');
+
+      var activeConn = null;
+      for (var i = 0; i < conns.length; i++) {
+        if (conns[i].status === 'active') { activeConn = conns[i]; break; }
+      }
+
+      if (!activeConn) {
+        noEl.style.display = '';
+        connEl.style.display = 'none';
+        activeConnectionId = null;
+        return;
+      }
+
+      activeConnectionId = activeConn.id;
+      noEl.style.display = 'none';
+      connEl.style.display = '';
+
+      var row = document.getElementById('google_connection_row');
+      clearChildren(row);
+
+      var dot = mkEl('span', { className: 'connected-dot' });
+      row.appendChild(dot);
+
+      var email = mkEl('span', { className: 'connected-email' }, activeConn.provider_email);
+      row.appendChild(email);
+
+      var actions = mkEl('div', { className: 'connected-actions' });
+      var disconnectBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Disconnect');
+      disconnectBtn.addEventListener('click', function() { disconnectAccount(activeConn.id); });
+      actions.appendChild(disconnectBtn);
+      row.appendChild(actions);
+    }).catch(function(err) {
+      toast('Failed to load connections: ' + err.message, 'error');
+    });
+  }
+
+  window.connectGoogle = function() {
+    var returnUrl = window.location.href;
+    apiFetch(API_BASE + '/oauth/google/auth-url?scopes=both&return_url=' + encodeURIComponent(returnUrl))
+      .then(function(data) {
+        window.location.href = data.auth_url;
+      })
+      .catch(function(err) {
+        toast('Failed to start OAuth: ' + err.message, 'error');
+      });
+  };
+
+  function disconnectAccount(id) {
+    if (!confirm('Disconnect this Google account?')) return;
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+    fetch(API_BASE + '/oauth/connections/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: h
+    }).then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    }).then(function() {
+      toast('Account disconnected', 'success');
+      activeConnectionId = null;
+      loadConnections();
+    }).catch(function(err) {
+      toast('Disconnect failed: ' + err.message, 'error');
+    });
+  }
+
+  // ---- Google source checkboxes ----
+
+  window.updateGoogleSources = function() {
+    var chkContacts = document.getElementById('chk_contacts');
+    var chkGmail = document.getElementById('chk_gmail');
+    document.getElementById('lbl_contacts').classList.toggle('checked', chkContacts.checked);
+    document.getElementById('lbl_gmail').classList.toggle('checked', chkGmail.checked);
+    document.getElementById('gmail_scan_config').style.display = chkGmail.checked ? '' : 'none';
+  };
+
+  // ---- Google fetch / scan ----
+
+  window.fetchGoogleData = function() {
+    if (!activeConnectionId) {
+      toast('No Google account connected', 'error');
+      return;
+    }
+
+    var chkContacts = document.getElementById('chk_contacts');
+    var chkGmail = document.getElementById('chk_gmail');
+
+    if (!chkContacts.checked && !chkGmail.checked) {
+      toast('Select at least one source', 'error');
+      return;
+    }
+
+    // Auto-generate batch name if empty
+    var nameInput = document.getElementById('batch_name');
+    if (!nameInput.value) {
+      nameInput.value = 'google-import-' + new Date().toISOString().slice(0, 10);
+    }
+
+    if (chkContacts.checked) {
+      fetchGoogleContacts(chkGmail.checked);
+    } else if (chkGmail.checked) {
+      startGmailScan();
+    }
+  };
+
+  function fetchGoogleContacts(alsoScanGmail) {
+    var spinner = document.getElementById('google_spinner');
+    document.getElementById('google_spinner_text').textContent = 'Fetching contacts from Google...';
+    spinner.style.display = '';
+    document.getElementById('btn_google_fetch').disabled = true;
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/contacts/fetch', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ connection_id: activeConnectionId })
+    })
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
+      spinner.style.display = 'none';
+      if (!result.ok) {
+        toast(result.data.error || 'Fetch failed', 'error');
+        document.getElementById('btn_google_fetch').disabled = false;
+        return;
+      }
+      currentJobId = result.data.job_id;
+      toast('Found ' + result.data.total_contacts + ' contacts', 'success');
+
+      if (alsoScanGmail) {
+        // Start Gmail scan separately after contacts fetch
+        startGmailScan();
+      } else {
+        runGooglePreview();
+      }
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      document.getElementById('btn_google_fetch').disabled = false;
+      toast('Fetch failed: ' + err.message, 'error');
+    });
+  }
+
+  function startGmailScan() {
+    var spinner = document.getElementById('google_spinner');
+    document.getElementById('google_spinner_text').textContent = 'Starting Gmail scan...';
+    spinner.style.display = '';
+    document.getElementById('btn_google_fetch').disabled = true;
+
+    var dateRange = document.getElementById('scan_date_range').value;
+    var excludeDomains = document.getElementById('scan_exclude_domains').value;
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/scan/start', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        connection_id: activeConnectionId,
+        date_range: parseInt(dateRange) || null,
+        exclude_domains: excludeDomains ? excludeDomains.split(',').map(function(s) { return s.trim(); }) : [],
+        max_messages: 5000
+      })
+    })
+    .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+    .then(function(result) {
+      spinner.style.display = 'none';
+      if (!result.ok) {
+        toast(result.data.error || 'Scan start failed', 'error');
+        document.getElementById('btn_google_fetch').disabled = false;
+        return;
+      }
+      currentJobId = result.data.job_id;
+      goToStep(3);
+      pollScanProgress();
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      document.getElementById('btn_google_fetch').disabled = false;
+      toast('Scan failed: ' + err.message, 'error');
+    });
+  }
+
+  function pollScanProgress() {
+    var progressEl = document.getElementById('scan_progress');
+    progressEl.style.display = '';
+
+    scanPollTimer = setInterval(function() {
+      apiFetch(API_BASE + '/gmail/scan/' + currentJobId + '/status')
+        .then(function(data) {
+          var progress = data.scan_progress || {};
+          var bar = document.getElementById('scan_progress_bar');
+          var phase = document.getElementById('scan_progress_phase');
+          var count = document.getElementById('scan_progress_count');
+
+          var pct = progress.percent || 0;
+          bar.style.width = pct + '%';
+          phase.textContent = (progress.phase || 'scanning').replace(/_/g, ' ');
+          count.textContent = (progress.contacts_found || 0) + ' contacts found';
+
+          if (data.status === 'extracted' || data.status === 'error') {
+            clearInterval(scanPollTimer);
+            scanPollTimer = null;
+            progressEl.style.display = 'none';
+            if (data.status === 'error') {
+              toast('Scan failed: ' + (data.error || 'unknown error'), 'error');
+            } else {
+              toast('Scan complete! Found ' + (progress.contacts_found || 0) + ' contacts', 'success');
+              runGooglePreview();
+            }
+          }
+        })
+        .catch(function() {});
+    }, 3000);
+  }
+
+  function runGooglePreview() {
+    goToStep(3);
+    var spinner = document.getElementById('preview_spinner');
+    spinner.style.display = '';
+
+    var h = authHeaders();
+    h['Content-Type'] = 'application/json';
+
+    fetch(API_BASE + '/gmail/contacts/' + currentJobId + '/preview', {
+      method: 'POST',
+      headers: h,
+      body: '{}'
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      spinner.style.display = 'none';
+      renderPreview(data);
+    })
+    .catch(function(err) {
+      spinner.style.display = 'none';
+      toast('Preview failed: ' + err.message, 'error');
+    });
+  }
+
   // ---- Load owners ----
 
   function loadOwners() {
@@ -1419,7 +1829,6 @@ select option { background: var(--bg); color: var(--text); }
       owners.forEach(function(o) {
         sel.appendChild(mkEl('option', { value: o.id }, o.name));
       });
-      // Store custom field definitions for dynamic target options
       customFieldDefs = data.custom_fields || [];
     }).catch(function() {});
   }
@@ -1479,6 +1888,8 @@ select option { background: var(--bg); color: var(--text); }
       }
       currentJobId = data.id;
       currentMapping = data.column_mapping;
+      importSource = 'csv';
+      setImportSource('csv');
       renderMapping({
         mapping: data.column_mapping,
         sample_rows: data.sample_rows || [],
@@ -1515,6 +1926,20 @@ select option { background: var(--bg); color: var(--text); }
     });
   };
 
+  // ---- Handle OAuth callback ----
+
+  function handleOAuthCallback() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('connected') === 'true') {
+      // Came back from OAuth — switch to Google tab and load connections
+      setImportSource('google');
+      toast('Google account connected', 'success');
+      // Clean URL
+      var clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, '', clean);
+    }
+  }
+
   // ---- Init ----
 
   function initImport() {
@@ -1522,6 +1947,7 @@ select option { background: var(--bg); color: var(--text); }
     setupDedupRadio();
     loadOwners();
     loadPastImports();
+    handleOAuthCallback();
   }
 
   function init() {

@@ -12,6 +12,14 @@ All notable changes to the Leadgen Pipeline project.
   - On-demand endpoints: `POST /api/companies/<id>/enrich-registry`, `POST /api/companies/<id>/confirm-registry`
   - Dashboard: "Legal & Registers (ARES)" module in enrichment wizard, registry data section in company detail
   - Migration 012, ADR-003, 50 new tests
+- **Gmail Contact Extraction** (BL-025 + BL-026): Google OAuth integration, Google Contacts import, and Gmail email scan
+  - Google OAuth 2.0 flow with Fernet-encrypted token storage (`oauth_connections` table, migration 011)
+  - Google Contacts import via People API — structured field mapping, flows into existing dedup engine
+  - Gmail email scan — background thread parses message headers (From/To/CC), extracts signatures via batched Claude Haiku calls
+  - OAuth routes: connect/disconnect Google accounts (`/api/oauth/*`)
+  - Gmail routes: contacts fetch, scan start/status, dedup preview, execute import (`/api/gmail/*`)
+  - Google import integrated as source tab on Import page (CSV / Google Account)
+  - 82 new unit tests (google_oauth, google_contacts, gmail_routes, gmail_scanner)
 - **LLM Cost Logging**: Per-call cost tracking for all LLM API usage with super admin dashboard
   - `llm_usage_log` table with tenant/user attribution, token counts, cost (NUMERIC 10,6), duration, metadata
   - Logger service with model-specific pricing (Sonnet, Haiku, Opus) and Decimal arithmetic
