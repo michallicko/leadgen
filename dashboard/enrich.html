@@ -549,6 +549,20 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     person: ['l2', 'signals'], social: ['l2', 'signals'], career: ['l2'], contact_details: [], qc: []
   };
 
+  // Entity type per stage — used for projecting downstream eligible counts
+  var STAGE_ENTITY = {
+    l1: 'company', l2: 'company', signals: 'company', registry: 'company', news: 'company', qc: 'company',
+    person: 'contact', social: 'contact', career: 'contact', contact_details: 'contact'
+  };
+
+  // Ancestor chains — items flowing through these stages become eligible for downstream
+  var STAGE_ANCESTORS = {
+    l1: [],
+    l2: ['l1'], signals: ['l1'], registry: ['l1'], news: ['l1'],
+    person: ['l1', 'l2'], social: ['l1', 'l2'], career: ['l1', 'l2'], contact_details: ['l1', 'l2'],
+    qc: ['l1', 'l2', 'person']
+  };
+
   // State
   var enabledStages = {};
   var softDepsConfig = { person: true, social: true, career: true };
@@ -801,12 +815,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var statsEl = mkEl('div', { className: 'dag-node__stats' });
     statsEl.setAttribute('data-stats', code);
     if (isAvailable) {
-      var statText = eligible + ' eligible';
-      if (info && info.estimated_cost > 0) {
-        statText += ' \u00B7 ' + fmt$(info.estimated_cost);
-      } else if (info && info.cost_per_item === 0) {
-        statText += ' \u00B7 free';
-      }
+      var cpi = (info && info.cost_per_item != null) ? info.cost_per_item : 0;
+      var statText = eligible + ' eligible \u00B7 ' + (cpi === 0 ? 'free' : fmt$(cpi) + '/item');
       statsEl.textContent = statText;
     } else {
       statsEl.textContent = 'Coming soon';
@@ -896,12 +906,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       // Update stats
       var statsEl = document.querySelector('[data-stats="' + code + '"]');
       if (statsEl && dagMode === 'configure') {
-        var statText = eligible + ' eligible';
-        if (info.estimated_cost > 0) {
-          statText += ' \u00B7 ' + fmt$(info.estimated_cost);
-        } else if (info.cost_per_item === 0) {
-          statText += ' \u00B7 free';
-        }
+        var cpi = (info.cost_per_item != null) ? info.cost_per_item : 0;
+        var statText = eligible + ' eligible \u00B7 ' + (cpi === 0 ? 'free' : fmt$(cpi) + '/item');
         statsEl.textContent = statText;
       }
 
@@ -967,11 +973,32 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       $('#btn_run').disabled = true;
       return;
     }
+
+    // Build projected eligible per stage:
+    // For each enabled stage, projected = max(own eligible, max ancestor eligible)
+    // This accounts for items flowing through the pipeline
+    var projected = {};
+    STAGE_ORDER.forEach(function(code) {
+      var info = estimateData.stages && estimateData.stages[code];
+      var own = info ? (info.eligible_count || 0) : 0;
+      var ancestors = STAGE_ANCESTORS[code] || [];
+      var maxAncestor = 0;
+      ancestors.forEach(function(anc) {
+        if (enabledStages[anc]) {
+          var ancInfo = estimateData.stages && estimateData.stages[anc];
+          var ancEligible = ancInfo ? (ancInfo.eligible_count || 0) : 0;
+          if (ancEligible > maxAncestor) maxAncestor = ancEligible;
+        }
+      });
+      projected[code] = Math.max(own, maxAncestor);
+    });
+
     var total = 0;
     STAGE_ORDER.forEach(function(code) {
       if (!enabledStages[code]) return;
       var info = estimateData.stages && estimateData.stages[code];
-      if (info) total += (info.estimated_cost || 0);
+      var cpi = info ? (info.cost_per_item || 0) : 0;
+      total += projected[code] * cpi;
     });
     $('#dag_total_cost').textContent = fmt$(total);
 
