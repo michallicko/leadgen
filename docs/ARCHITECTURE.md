@@ -62,7 +62,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
 - **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/health`
-- **Services**: `pipeline_engine.py` (stage orchestration), `ares.py` (Czech ARES registry lookups), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking)
+- **Services**: `pipeline_engine.py` (stage orchestration), `registries/` (EU registry adapters: ARES/CZ, BRREG/NO, PRH/FI, recherche/FR), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
 
@@ -78,7 +78,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
 - **Schema**: 18 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `012_company_registry_data.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `013_registry_country.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -157,7 +157,11 @@ users ── user_tenant_roles ── tenants
 ## External Dependencies
 
 - **Airtable**: Data store for n8n workflows (dashboard APIs migrated to PG)
-- **ARES (ares.gov.cz)**: Czech public business register — ICO/DIC lookup, name search, commercial register (directors, capital). Free government API, no authentication. Used by the `ares` pipeline stage for Czech company enrichment.
+- **EU Government Registries** (all free, no auth): Company registry adapters under `api/services/registries/` with shared `BaseRegistryAdapter` pattern (ADR-004):
+  - **ARES (ares.gov.cz)**: Czech Republic — ICO/DIC, legal form, directors, capital, NACE codes, insolvency. Stage: `ares`
+  - **BRREG (data.brreg.no)**: Norway — organisasjonsnummer, legal form, NACE codes, capital, bankruptcy flags. Stage: `brreg`
+  - **PRH (avoindata.prh.fi)**: Finland — Y-tunnus, company form, TOL codes, trade register status. Stage: `prh`
+  - **recherche-entreprises (api.gouv.fr)**: France — SIREN, nature juridique, NAF codes, directors, administrative status. Stage: `recherche`
 - **Perplexity API**: L1/L2 company research
 - **Anthropic API**: AI analysis, message generation
 - **Lemlist**: Outreach campaign delivery

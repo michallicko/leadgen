@@ -5,13 +5,17 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
-- **ARES Registry Enrichment** (BL-017 partial): Czech public register data for companies via ares.gov.cz
-  - `company_registry_data` table: ICO, DIC, official name, legal form, directors, capital, NACE codes, insolvency flags
-  - ARES service (`api/services/ares.py`): ICO lookup, name search with fuzzy matching (Czech suffix stripping), VR (commercial register) for directors/capital
-  - Pipeline stage `ares`: direct Python HTTP calls (no n8n), $0.00 cost, integrated into pipeline engine with `DIRECT_STAGES` dispatch pattern
-  - On-demand endpoints: `POST /api/companies/<id>/enrich-registry`, `POST /api/companies/<id>/confirm-registry`
-  - Dashboard: "Legal & Registers (ARES)" module in enrichment wizard, registry data section in company detail
-  - Migration 012, ADR-003, 50 new tests
+- **EU Registry Adapters** (BL-017 partial): Company registry enrichment from 4 EU government APIs, all free ($0.00/lookup)
+  - **Registry adapter pattern** (`api/services/registries/`): `BaseRegistryAdapter` ABC with shared name matching (bigram Dice + legal suffix stripping), result storage, and pipeline dispatch. ADR-004.
+  - **Czech ARES** (`ares` stage): ICO/DIC, legal form, directors, capital, NACE codes, insolvency via ares.gov.cz
+  - **Norway BRREG** (`brreg` stage): organisasjonsnummer, legal form, NACE codes, capital, bankruptcy via data.brreg.no
+  - **Finland PRH** (`prh` stage): Y-tunnus, company form, TOL codes, trade register status via avoindata.prh.fi
+  - **France recherche** (`recherche` stage): SIREN, nature juridique, NAF codes, directors via api.gouv.fr
+  - `company_registry_data` table with `registry_country` discriminator (migration 013)
+  - Generic on-demand endpoint: `POST /api/companies/<id>/enrich-registry/<country>`
+  - Dashboard: 4 registry modules in enrichment wizard
+  - Backward-compatible import shim for existing `api/services/ares.py` references
+  - 62 new tests (adapters + parsers + routes)
 - **LLM Cost Logging**: Per-call cost tracking for all LLM API usage with super admin dashboard
   - `llm_usage_log` table with tenant/user attribution, token counts, cost (NUMERIC 10,6), duration, metadata
   - Logger service with model-specific pricing (Sonnet, Haiku, Opus) and Decimal arithmetic
