@@ -2,11 +2,12 @@
 
 import json
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
 from ..models import Batch, ImportJob, OAuthConnection, Owner, db
 from ..services.dedup import dedup_preview, execute_import
+from ..services.gmail_scanner import start_gmail_scan
 from ..services.google_contacts import fetch_google_contacts, parse_contacts_to_rows
 
 gmail_bp = Blueprint("gmail", __name__)
@@ -202,3 +203,90 @@ def execute_contacts_import(job_id):
         job.error = str(e)
         db.session.commit()
         return jsonify({"error": f"Import failed: {str(e)}"}), 500
+
+
+# ---- Gmail scan routes ----
+
+
+@gmail_bp.route("/api/gmail/scan/start", methods=["POST"])
+@require_auth
+def start_scan():
+    """Start a background Gmail scan.
+
+    Body: {
+        "connection_id": "...",
+        "date_range": 90,           # days (0 = all time)
+        "exclude_domains": ["..."],  # optional
+        "max_messages": 5000         # optional
+    }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    connection_id = body.get("connection_id")
+    if not connection_id:
+        return jsonify({"error": "connection_id is required"}), 400
+
+    conn = OAuthConnection.query.filter_by(
+        id=connection_id,
+        user_id=g.current_user.id,
+        tenant_id=str(tenant_id),
+        status="active",
+    ).first()
+    if not conn:
+        return jsonify({"error": "Active connection not found"}), 404
+
+    config = {
+        "date_range": body.get("date_range", 90),
+        "exclude_domains": body.get("exclude_domains", []),
+        "max_messages": min(body.get("max_messages", 5000), 10000),
+    }
+
+    job = ImportJob(
+        tenant_id=str(tenant_id),
+        user_id=g.current_user.id,
+        filename=f"gmail-scan-{conn.provider_email}",
+        total_rows=0,
+        headers=json.dumps([]),
+        source="gmail_scan",
+        oauth_connection_id=connection_id,
+        scan_config=json.dumps(config),
+        scan_progress=json.dumps({"phase": "starting", "percent": 0}),
+        status="scanning",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    start_gmail_scan(current_app, conn, str(job.id), config)
+
+    return jsonify({
+        "job_id": str(job.id),
+        "status": "scanning",
+    }), 201
+
+
+@gmail_bp.route("/api/gmail/scan/<job_id>/status", methods=["GET"])
+@require_auth
+def scan_status(job_id):
+    """Get scan progress for a Gmail scan job."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    job = ImportJob.query.filter_by(
+        id=job_id, tenant_id=str(tenant_id),
+    ).first()
+    if not job:
+        return jsonify({"error": "Import job not found"}), 404
+
+    progress_raw = job.scan_progress
+    progress = json.loads(progress_raw) if isinstance(progress_raw, str) else (progress_raw or {})
+
+    return jsonify({
+        "job_id": str(job.id),
+        "status": job.status,
+        "scan_progress": progress,
+        "error": job.error,
+    })
