@@ -298,6 +298,14 @@ select option { background: var(--bg); color: var(--text); }
 }
 .cf-badge.new { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
 .cf-badge.custom { background: rgba(110,44,139,0.15); color: var(--accent-hover); }
+.cf-label-input {
+  display: inline-block; margin-left: 6px; padding: 2px 6px;
+  font-size: 0.78rem; font-family: var(--font-body);
+  background: var(--surface-alt); border: 1px solid var(--border-solid);
+  border-radius: 4px; color: var(--text); width: 140px;
+  vertical-align: middle;
+}
+.cf-label-input:focus { outline: none; border-color: var(--accent-cyan); }
 
 /* Section transitions */
 .wizard-section { display: none; animation: fadeSlideIn 0.3s ease; }
@@ -376,6 +384,7 @@ select option { background: var(--bg); color: var(--text); }
       <a href="contacts.html" class="top-nav__link">Contacts</a>
       <a href="messages.html" class="top-nav__link">Messages</a>
       <a href="import.html" class="top-nav__link active" data-min-role="editor">Import</a>
+      <a href="llm-costs.html" class="top-nav__link" data-min-role="admin">LLM Costs</a>
       <a href="admin.html" class="top-nav__link" data-min-role="admin">Admin</a>
     </div>
     <span class="auth-user">
@@ -847,12 +856,54 @@ select option { background: var(--bg); color: var(--text); }
       var sel = buildTargetSelect(target, suggestedCF);
       sel.setAttribute('data-header', m.csv_header);
       td3.appendChild(sel);
-      // Badge for new or existing custom field
-      if (isNewCustom) {
-        td3.appendChild(mkEl('span', { className: 'cf-badge new' }, 'New'));
-      } else if (isCustom) {
-        td3.appendChild(mkEl('span', { className: 'cf-badge custom' }, 'Custom'));
+
+      // Badge + inline label input for new custom fields
+      var badge = mkEl('span', { className: 'cf-badge' });
+      var labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'cf-label-input';
+      labelInput.placeholder = 'Field label';
+
+      function updateBadge(val, scf) {
+        var isC = val.indexOf('.custom.') !== -1;
+        var isNew = isC && scf;
+        if (isNew) {
+          badge.className = 'cf-badge new';
+          badge.textContent = 'New';
+          badge.style.display = '';
+          labelInput.value = scf.field_label || val.split('.').pop().replace(/_/g, ' ');
+          labelInput.style.display = '';
+        } else if (isC) {
+          badge.className = 'cf-badge custom';
+          badge.textContent = 'Custom';
+          badge.style.display = '';
+          labelInput.style.display = 'none';
+        } else {
+          badge.style.display = 'none';
+          labelInput.style.display = 'none';
+        }
       }
+      updateBadge(target, suggestedCF);
+      td3.appendChild(badge);
+      td3.appendChild(labelInput);
+
+      // When user changes the select, update badge/label visibility
+      sel.addEventListener('change', function() {
+        var v = sel.value || '';
+        // Find if original mapping had a suggestion for this header
+        var hdr = sel.getAttribute('data-header');
+        var origSCF = null;
+        for (var i = 0; i < (currentMapping && currentMapping.mappings || []).length; i++) {
+          if (currentMapping.mappings[i].csv_header === hdr) {
+            origSCF = currentMapping.mappings[i].suggested_custom_field || null;
+            break;
+          }
+        }
+        // Only show "New" if target matches the original suggestion
+        var matchesSuggestion = origSCF && v === ((origSCF.entity_type || 'contact') + '.custom.' + origSCF.field_key);
+        updateBadge(v, matchesSuggestion ? origSCF : null);
+      });
+
       tr.appendChild(td3);
 
       var td4 = document.createElement('td');
@@ -890,9 +941,14 @@ select option { background: var(--bg); color: var(--text); }
         confidence: original ? (original.confidence || 0) : 0,
         transform: (original && original.target === target) ? (original.transform || null) : null,
       };
-      // Preserve suggested_custom_field if target is a custom field
+      // Preserve suggested_custom_field if target is a custom field, with user-edited label
       if (target && target.indexOf('.custom.') !== -1 && original && original.suggested_custom_field) {
-        entry.suggested_custom_field = original.suggested_custom_field;
+        entry.suggested_custom_field = Object.assign({}, original.suggested_custom_field);
+        // Read user-edited label from inline input
+        var labelEl = sel.parentNode.querySelector('.cf-label-input');
+        if (labelEl && labelEl.style.display !== 'none' && labelEl.value.trim()) {
+          entry.suggested_custom_field.field_label = labelEl.value.trim();
+        }
       }
       adjustedMappings.push(entry);
     });
