@@ -358,7 +358,8 @@ def import_status(job_id):
     if not job:
         return jsonify({"error": "Import job not found"}), 404
 
-    return jsonify(job.to_dict())
+    include_data = job.status in ("uploaded", "mapped")
+    return jsonify(job.to_dict(include_data=include_data))
 
 
 @imports_bp.route("/api/imports", methods=["GET"])

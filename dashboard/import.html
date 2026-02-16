@@ -354,6 +354,12 @@ select option { background: var(--bg); color: var(--text); }
 .import-row .status-pill.mapped { background: rgba(0,184,207,0.15); color: var(--accent-cyan); }
 .import-row .status-pill.uploaded { background: rgba(139,146,160,0.15); color: var(--text-muted); }
 .import-row .meta { color: var(--text-dim); font-size: 0.78rem; }
+.import-row .btn-resume {
+  padding: 3px 10px; border-radius: 4px; border: 1px solid var(--accent);
+  background: transparent; color: var(--accent); font-size: 0.72rem;
+  font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.import-row .btn-resume:hover { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
@@ -1118,12 +1124,42 @@ select option { background: var(--bg); color: var(--text); }
           row.appendChild(mkEl('span', { className: 'meta' },
             (job.contacts_created || 0) + ' created, ' + (job.contacts_skipped || 0) + ' skipped'));
         }
+        if (job.status === 'uploaded' || job.status === 'mapped') {
+          var resumeBtn = mkEl('button', { className: 'btn-resume' }, 'Resume');
+          resumeBtn.addEventListener('click', (function(jobId) {
+            return function() { resumeImport(jobId); };
+          })(job.id));
+          row.appendChild(resumeBtn);
+        }
         list.appendChild(row);
       });
     }).catch(function() {
       var list = document.getElementById('past_imports');
       clearChildren(list);
       list.appendChild(mkEl('div', { style: 'color:var(--text-dim);font-size:0.85rem;' }, 'Could not load import history'));
+    });
+  }
+
+  // ---- Resume past import ----
+
+  function resumeImport(jobId) {
+    toast('Loading import...', 'info');
+    apiFetch(API_BASE + '/imports/' + jobId + '/status').then(function(data) {
+      if (!data.column_mapping || !data.column_mapping.mappings) {
+        toast('This import has no mapping data to resume', 'error');
+        return;
+      }
+      currentJobId = data.id;
+      currentMapping = data.column_mapping;
+      renderMapping({
+        mapping: data.column_mapping,
+        sample_rows: data.sample_rows || [],
+        total_rows: data.total_rows,
+      });
+      goToStep(2);
+      toast('Resumed import of ' + data.filename + ' (' + data.total_rows + ' rows)', 'success');
+    }).catch(function(err) {
+      toast('Failed to resume: ' + err.message, 'error');
     });
   }
 
