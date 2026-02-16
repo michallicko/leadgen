@@ -215,6 +215,7 @@ def enrich_start():
         owner_id=owner_id,
         tier_filter=tier_filter,
         stage_run_ids=stage_run_ids,
+        sample_size=int(sample_size) if sample_size else None,
     )
 
     return jsonify({

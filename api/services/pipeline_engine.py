@@ -26,9 +26,9 @@ N8N_WEBHOOK_PATHS = {
 }
 
 # Stages that have workflows wired up (n8n or direct Python)
-AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche"}
+AVAILABLE_STAGES = {"l1", "l2", "person", "generate", "ares", "brreg", "prh", "recherche", "isir"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "ares", "brreg", "prh", "recherche"}
+DIRECT_STAGES = {"l1", "ares", "brreg", "prh", "recherche", "isir"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 
@@ -42,6 +42,7 @@ STAGE_PREDECESSORS = {
     "brreg": [],        # BRREG is independent
     "prh": [],          # PRH is independent
     "recherche": [],    # recherche is independent
+    "isir": [],         # ISIR insolvency check — independent
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
@@ -360,6 +361,21 @@ def _process_registry(company_id, tenant_id, adapter_code):
 _STAGE_TO_ADAPTER = {"brreg": "NO", "prh": "FI", "recherche": "FR"}
 
 
+def _process_isir(company_id, tenant_id):
+    """Process a company through ISIR insolvency check."""
+    from .registries.isir import enrich_company as isir_enrich
+
+    row = db.session.execute(
+        text("SELECT ico FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": str(tenant_id)},
+    ).fetchone()
+
+    if not row or not row[0]:
+        return {"status": "skipped", "reason": "no_ico", "enrichment_cost_usd": 0}
+
+    return isir_enrich(company_id, str(tenant_id), row[0])
+
+
 def _process_entity(stage, entity_id, tenant_id=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     if stage in DIRECT_STAGES:
@@ -368,6 +384,8 @@ def _process_entity(stage, entity_id, tenant_id=None):
             return enrich_l1(entity_id, tenant_id)
         if stage == "ares":
             return _process_ares(entity_id, tenant_id)
+        if stage == "isir":
+            return _process_isir(entity_id, tenant_id)
         adapter_code = _STAGE_TO_ADAPTER.get(stage)
         if adapter_code:
             return _process_registry(entity_id, tenant_id, adapter_code)
@@ -402,6 +420,7 @@ def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
                 _update_current_item(run_id, entity_name, "ok")
                 update_run(run_id, done=i + 1, cost_usd=total_cost, failed=failed)
             except Exception as e:
+                db.session.rollback()  # Reset aborted transaction
                 failed += 1
                 _update_current_item(run_id, entity_name, "failed")
                 logger.warning("Stage %s item %s failed: %s", stage, entity_id, e)
@@ -449,22 +468,24 @@ def _predecessors_terminal(predecessor_run_ids):
 
 def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
                        owner_id=None, tier_filter=None,
-                       predecessor_run_ids=None):
+                       predecessor_run_ids=None, sample_size=None):
     """Background thread: reactive stage that polls for new eligible IDs.
 
     - Polls eligible IDs every REACTIVE_POLL_INTERVAL seconds
     - Processes new ones (skipping already-processed IDs)
     - Terminates when predecessors are all terminal AND no new eligible IDs
     - L1 has no predecessors: processes initial set, then finishes
+    - sample_size: limit total entities processed across all polls
     """
     with app.app_context():
         processed_ids = set()
         total_cost = 0.0
         done_count = 0
         failed_count = 0
+        sample_remaining = sample_size  # None means unlimited
 
         update_run(run_id, status="running")
-        logger.info("Reactive stage %s started (run %s)", stage, run_id)
+        logger.info("Reactive stage %s started (run %s, sample=%s)", stage, run_id, sample_size)
 
         while True:
             # Check stop signal
@@ -472,6 +493,16 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
                 update_run(run_id, status="stopped", done=done_count,
                            failed=failed_count, cost_usd=total_cost)
                 logger.info("Reactive stage %s stopped at %d done", stage, done_count)
+                return
+
+            # Sample limit reached — finish
+            if sample_remaining is not None and sample_remaining <= 0:
+                final_status = "completed"
+                if failed_count > 0 and done_count == 0:
+                    final_status = "failed"
+                update_run(run_id, status=final_status, done=done_count,
+                           failed=failed_count, cost_usd=total_cost)
+                logger.info("Reactive stage %s sample limit reached: %d done", stage, done_count)
                 return
 
             # Query for eligible IDs
@@ -484,6 +515,10 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
                 continue
 
             new_ids = [eid for eid in all_eligible if eid not in processed_ids]
+
+            # Trim to sample limit
+            if sample_remaining is not None and len(new_ids) > sample_remaining:
+                new_ids = new_ids[:sample_remaining]
 
             if new_ids:
                 # Update total (dynamic: done + failed + new_eligible)
@@ -510,12 +545,18 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
                         update_run(run_id, done=done_count, cost_usd=total_cost,
                                    failed=failed_count)
                     except Exception as e:
+                        db.session.rollback()  # Reset aborted transaction
                         failed_count += 1
                         _update_current_item(run_id, entity_name, "failed")
                         logger.warning("Reactive stage %s item %s failed: %s",
                                        stage, entity_id, e)
                         update_run(run_id, done=done_count, failed=failed_count,
                                    cost_usd=total_cost, error=str(e)[:500])
+
+                    if sample_remaining is not None:
+                        sample_remaining -= 1
+                        if sample_remaining <= 0:
+                            break
             else:
                 # No new items — check termination condition
                 preds_done = _predecessors_terminal(predecessor_run_ids)
@@ -637,12 +678,14 @@ def coordinate_pipeline(app, pipeline_run_id, stage_run_ids):
 
 def start_pipeline_threads(app, pipeline_run_id, stages_to_run,
                            tenant_id, batch_id, owner_id=None,
-                           tier_filter=None, stage_run_ids=None):
+                           tier_filter=None, stage_run_ids=None,
+                           sample_size=None):
     """Spawn reactive stage threads for all stages + coordinator thread.
 
     Args:
         stages_to_run: list of stage names to run (e.g. ["l1", "l2", "person", "generate"])
         stage_run_ids: dict of stage_name → stage_run_id (pre-created)
+        sample_size: optional limit on how many entities to process per stage
     """
     threads = {}
 
@@ -659,6 +702,7 @@ def start_pipeline_threads(app, pipeline_run_id, stages_to_run,
                 "owner_id": owner_id,
                 "tier_filter": tier_filter,
                 "predecessor_run_ids": predecessor_run_ids,
+                "sample_size": sample_size,
             },
             daemon=True,
             name=f"reactive-{stage}-{run_id}",

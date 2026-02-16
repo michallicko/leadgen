@@ -335,7 +335,7 @@ class TestMapFields:
         assert mapped["hq_country"] == "Germany"
         assert mapped["geo_region"] == "dach"
         assert mapped["ownership_type"] == "private"
-        assert mapped["industry"] == "software"
+        assert mapped["industry"] == "software_saas"
         assert mapped["business_type"] == "software_saas"
         assert mapped["verified_revenue_eur_m"] == 42.0
         assert mapped["revenue_range"] == "medium"

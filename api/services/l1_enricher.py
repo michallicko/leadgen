@@ -590,11 +590,43 @@ def _map_ownership(raw):
 
 
 def _map_industry(raw):
-    """Map industry description to a normalized value."""
+    """Map industry description to an industry_enum value."""
     if not raw:
         return None
-    # Keep as-is but lowercase — the DB stores free-text industry values
-    return str(raw).strip().lower()[:200]
+    s = str(raw).strip().lower()
+
+    VALID_INDUSTRIES = {
+        "software_saas", "it", "professional_services", "financial_services",
+        "healthcare", "manufacturing", "retail", "media", "energy",
+        "telecom", "transport", "construction", "education", "public_sector", "other",
+    }
+    # Direct match
+    if s in VALID_INDUSTRIES:
+        return s
+
+    # Keyword mapping
+    keywords = {
+        "software_saas": ["software", "saas", "cloud", "app", "digital platform"],
+        "it": ["it ", "information tech", "cyber", "data center", "hosting", "tech"],
+        "professional_services": ["consult", "advisory", "legal", "accounting", "audit", "staffing", "recruitment"],
+        "financial_services": ["financ", "bank", "insur", "invest", "fintech", "payment"],
+        "healthcare": ["health", "medical", "pharma", "biotech", "hospital", "clinic"],
+        "manufacturing": ["manufactur", "industrial", "machinery", "production", "factory", "automation"],
+        "retail": ["retail", "e-commerce", "ecommerce", "shop", "consumer goods", "fashion"],
+        "media": ["media", "entertainment", "broadcast", "publishing", "gaming", "advertising"],
+        "energy": ["energy", "oil", "gas", "solar", "wind", "renewable", "power", "utility"],
+        "telecom": ["telecom", "mobile", "wireless", "network operator"],
+        "transport": ["transport", "logistics", "shipping", "freight", "aviation", "rail"],
+        "construction": ["construct", "building", "architect", "real estate", "property"],
+        "education": ["education", "university", "school", "training", "e-learning", "edtech"],
+        "public_sector": ["government", "public sector", "ngo", "non-profit", "municipal"],
+    }
+    for enum_val, kws in keywords.items():
+        for kw in kws:
+            if kw in s:
+                return enum_val
+
+    return "other"
 
 
 def _map_business_type(raw):
