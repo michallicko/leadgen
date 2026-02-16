@@ -400,7 +400,7 @@ def execute_import_job(job_id):
         parsed = [apply_mapping(row, mapping) for row in all_rows]
 
         # Execute import
-        counts = execute_import(
+        result = execute_import(
             tenant_id=str(tenant_id),
             parsed_rows=parsed,
             batch_id=batch.id,
@@ -409,11 +409,26 @@ def execute_import_job(job_id):
             strategy=strategy,
         )
 
+        counts = result["counts"]
+        dedup_rows = result["dedup_rows"]
+        total_conflicts = sum(
+            len(r.get("conflicts", [])) for r in dedup_rows
+        )
+
         job.contacts_created = counts["contacts_created"]
         job.contacts_updated = counts["contacts_updated"]
         job.contacts_skipped = counts["contacts_skipped"]
         job.companies_created = counts["companies_created"]
         job.companies_linked = counts["companies_linked"]
+        job.dedup_results = json.dumps({
+            "summary": {
+                "contacts_created": counts["contacts_created"],
+                "contacts_skipped": counts["contacts_skipped"],
+                "contacts_updated": counts["contacts_updated"],
+                "total_conflicts": total_conflicts,
+            },
+            "rows": dedup_rows,
+        })
         job.status = "completed"
         db.session.commit()
 
@@ -430,6 +445,66 @@ def execute_import_job(job_id):
         job.error = str(e)
         db.session.commit()
         return jsonify({"error": f"Import failed: {str(e)}"}), 500
+
+
+@imports_bp.route("/api/imports/<job_id>/results", methods=["GET"])
+@require_auth
+def import_results(job_id):
+    """Get detailed dedup results for a completed import.
+
+    Query params:
+      filter: all|created|skipped|updated|conflicts (default: all)
+      page: 1-based page number (default: 1)
+    Returns summary + paginated rows.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    job = ImportJob.query.filter_by(id=job_id, tenant_id=str(tenant_id)).first()
+    if not job:
+        return jsonify({"error": "Import job not found"}), 404
+
+    if job.status != "completed":
+        return jsonify({"error": "Import not yet completed"}), 400
+
+    raw = job.dedup_results
+    if isinstance(raw, str):
+        dedup_data = json.loads(raw) if raw else {}
+    else:
+        dedup_data = raw or {}
+
+    summary = dedup_data.get("summary", {})
+    all_rows = dedup_data.get("rows", [])
+
+    filter_type = request.args.get("filter", "all")
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = 50
+
+    if filter_type == "created":
+        filtered = [r for r in all_rows if r.get("action") == "created"]
+    elif filter_type == "skipped":
+        filtered = [r for r in all_rows if r.get("action") == "skipped"]
+    elif filter_type == "updated":
+        filtered = [r for r in all_rows if r.get("action") == "updated"]
+    elif filter_type == "conflicts":
+        filtered = [r for r in all_rows if r.get("conflicts")]
+    else:
+        filtered = all_rows
+
+    total = len(filtered)
+    start = (page - 1) * per_page
+    page_rows = filtered[start:start + per_page]
+
+    return jsonify({
+        "job_id": str(job.id),
+        "summary": summary,
+        "filter": filter_type,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "rows": page_rows,
+    })
 
 
 @imports_bp.route("/api/imports/<job_id>/status", methods=["GET"])

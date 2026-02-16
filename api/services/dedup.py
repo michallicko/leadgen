@@ -100,9 +100,12 @@ def update_empty_fields(existing, new_data, fields):
 
     Only updates fields that are currently NULL/empty on the existing record.
     Also merges _custom_fields if present.
-    Returns list of field names that were updated.
+    Returns (updated_fields, conflicts) where:
+      - updated_fields: list of field names that were updated
+      - conflicts: list of {field, existing, incoming} dicts for non-empty mismatches
     """
     updated = []
+    conflicts = []
     for field in fields:
         if field not in new_data or not new_data[field]:
             continue
@@ -110,6 +113,12 @@ def update_empty_fields(existing, new_data, fields):
         if not current:
             setattr(existing, field, new_data[field])
             updated.append(field)
+        elif str(current).strip().lower() != str(new_data[field]).strip().lower():
+            conflicts.append({
+                "field": field,
+                "existing": str(current),
+                "incoming": str(new_data[field]),
+            })
 
     # Merge custom fields
     if "_custom_fields" in new_data and new_data["_custom_fields"]:
@@ -123,7 +132,7 @@ def update_empty_fields(existing, new_data, fields):
         existing.custom_fields = existing_cf
         updated.append("custom_fields")
 
-    return updated
+    return updated, conflicts
 
 
 CONTACT_UPDATABLE_FIELDS = [
@@ -244,8 +253,10 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
         strategy: 'skip' | 'update' | 'create_new'
 
     Returns:
-        dict with counts: contacts_created, contacts_updated, contacts_skipped,
-                          companies_created, companies_linked
+        dict with:
+          counts: contacts_created, contacts_updated, contacts_skipped,
+                  companies_created, companies_linked
+          dedup_rows: list of per-row detail dicts (non-"created" rows for large imports)
     """
     counts = {
         "contacts_created": 0,
@@ -254,14 +265,19 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
         "companies_created": 0,
         "companies_linked": 0,
     }
+    dedup_rows = []
+    large_import = len(parsed_rows) > 1000
 
     # Cache companies created within this import: normalized_domain → Company, lower(name) → Company
     import_company_cache_domain = {}
     import_company_cache_name = {}
 
-    for row in parsed_rows:
+    for row_idx, row in enumerate(parsed_rows):
         contact_data = row.get("contact", {})
         company_data = row.get("company", {})
+
+        contact_name = contact_data.get("full_name", "")
+        company_name_display = company_data.get("name", "")
 
         # --- Resolve or create company ---
         company_id = None
@@ -275,7 +291,8 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
             if existing_co:
                 company_id = existing_co.id
                 # Always fill empty fields on matched company
-                updated = update_empty_fields(existing_co, company_data, COMPANY_UPDATABLE_FIELDS)
+                updated, _co_conflicts = update_empty_fields(
+                    existing_co, company_data, COMPANY_UPDATABLE_FIELDS)
                 if updated:
                     existing_co.import_job_id = import_job_id
                 counts["companies_linked"] += 1
@@ -322,6 +339,13 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
         full_name = contact_data.get("full_name")
         if not full_name:
             counts["contacts_skipped"] += 1
+            dedup_rows.append({
+                "row_idx": row_idx,
+                "action": "error",
+                "contact_name": contact_name,
+                "company_name": company_name_display,
+                "reason": "no_name",
+            })
             continue
 
         existing_ct, match_type = find_existing_contact(
@@ -335,8 +359,18 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
         if existing_ct:
             if strategy == "skip":
                 counts["contacts_skipped"] += 1
+                dedup_rows.append({
+                    "row_idx": row_idx,
+                    "action": "skipped",
+                    "contact_name": contact_name,
+                    "company_name": company_name_display,
+                    "match_type": match_type,
+                    "matched_contact_id": str(existing_ct.id),
+                    "matched_contact_name": existing_ct.full_name,
+                })
             elif strategy == "update":
-                updated = update_empty_fields(existing_ct, contact_data, CONTACT_UPDATABLE_FIELDS)
+                updated, ct_conflicts = update_empty_fields(
+                    existing_ct, contact_data, CONTACT_UPDATABLE_FIELDS)
                 if company_id and not existing_ct.company_id:
                     existing_ct.company_id = company_id
                 if owner_id and not existing_ct.owner_id:
@@ -345,21 +379,46 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                     existing_ct.batch_id = str(batch_id)
                 existing_ct.import_job_id = str(import_job_id)
                 counts["contacts_updated"] += 1
+                dedup_rows.append({
+                    "row_idx": row_idx,
+                    "action": "updated",
+                    "contact_name": contact_name,
+                    "company_name": company_name_display,
+                    "fields_updated": updated,
+                    "conflicts": ct_conflicts,
+                })
             elif strategy == "create_new":
                 _create_contact(
                     tenant_id, contact_data, company_id, batch_id,
                     owner_id, import_job_id,
                 )
                 counts["contacts_created"] += 1
+                if not large_import:
+                    dedup_rows.append({
+                        "row_idx": row_idx,
+                        "action": "created",
+                        "contact_name": contact_name,
+                        "company_name": company_name_display,
+                    })
         else:
             _create_contact(
                 tenant_id, contact_data, company_id, batch_id,
                 owner_id, import_job_id,
             )
             counts["contacts_created"] += 1
+            if not large_import:
+                dedup_rows.append({
+                    "row_idx": row_idx,
+                    "action": "created",
+                    "contact_name": contact_name,
+                    "company_name": company_name_display,
+                })
 
     db.session.flush()
-    return counts
+    return {
+        "counts": counts,
+        "dedup_rows": dedup_rows,
+    }
 
 
 def _create_contact(tenant_id, contact_data, company_id, batch_id,

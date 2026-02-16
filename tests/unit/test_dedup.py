@@ -118,17 +118,35 @@ class TestUpdateEmptyFields:
         # Dave Brown has no email
         ct = data["contacts"][4]
         assert ct.email_address is None
-        updated = update_empty_fields(ct, {"email_address": "dave@gamma.co"}, CONTACT_UPDATABLE_FIELDS)
+        updated, conflicts = update_empty_fields(ct, {"email_address": "dave@gamma.co"}, CONTACT_UPDATABLE_FIELDS)
         assert "email_address" in updated
         assert ct.email_address == "dave@gamma.co"
+        assert conflicts == []
 
     def test_does_not_overwrite_existing(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
         # John Doe already has email john@acme.com
         ct = data["contacts"][0]
-        updated = update_empty_fields(ct, {"email_address": "other@email.com"}, CONTACT_UPDATABLE_FIELDS)
+        updated, conflicts = update_empty_fields(ct, {"email_address": "other@email.com"}, CONTACT_UPDATABLE_FIELDS)
         assert "email_address" not in updated
         assert ct.email_address == "john@acme.com"
+        assert len(conflicts) == 1
+        assert conflicts[0]["field"] == "email_address"
+        assert conflicts[0]["existing"] == "john@acme.com"
+        assert conflicts[0]["incoming"] == "other@email.com"
+
+    def test_no_conflict_when_values_match(self, app, db, seed_companies_contacts):
+        data = seed_companies_contacts
+        ct = data["contacts"][0]
+        updated, conflicts = update_empty_fields(ct, {"email_address": "john@acme.com"}, CONTACT_UPDATABLE_FIELDS)
+        assert conflicts == []
+        assert "email_address" not in updated
+
+    def test_conflict_case_insensitive_match(self, app, db, seed_companies_contacts):
+        data = seed_companies_contacts
+        ct = data["contacts"][0]
+        updated, conflicts = update_empty_fields(ct, {"email_address": "JOHN@ACME.COM"}, CONTACT_UPDATABLE_FIELDS)
+        assert conflicts == []  # same value, different case = no conflict
 
 
 class TestDedupPreview:
@@ -192,11 +210,11 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"full_name": "New Guy", "email_address": "new@newco.com"}, "company": {"name": "Brand New Co", "domain": "newco.com"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
         )
-        assert counts["contacts_created"] == 1
-        assert counts["companies_created"] == 1
+        assert result["counts"]["contacts_created"] == 1
+        assert result["counts"]["companies_created"] == 1
 
     def test_skip_strategy_skips_duplicates(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
@@ -209,11 +227,17 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"full_name": "John Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
         )
-        assert counts["contacts_skipped"] == 1
-        assert counts["contacts_created"] == 0
+        assert result["counts"]["contacts_skipped"] == 1
+        assert result["counts"]["contacts_created"] == 0
+        # Verify dedup_rows has skip detail
+        rows = result["dedup_rows"]
+        assert len(rows) == 1
+        assert rows[0]["action"] == "skipped"
+        assert rows[0]["match_type"] == "email"
+        assert rows[0]["matched_contact_name"] == "John Doe"
 
     def test_update_strategy_fills_fields(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
@@ -227,11 +251,41 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"full_name": "Dave Brown", "email_address": "dave@gamma.co"}, "company": {"name": "Gamma LLC"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",
         )
-        assert counts["contacts_updated"] == 1
+        assert result["counts"]["contacts_updated"] == 1
         assert data["contacts"][4].email_address == "dave@gamma.co"
+        # Verify dedup_rows has update detail
+        rows = result["dedup_rows"]
+        assert len(rows) == 1
+        assert rows[0]["action"] == "updated"
+        assert "email_address" in rows[0]["fields_updated"]
+        assert rows[0]["conflicts"] == []
+
+    def test_update_strategy_detects_conflicts(self, app, db, seed_companies_contacts):
+        data = seed_companies_contacts
+        batch = data["batches"][0]
+        owner = data["owners"][0]
+        from api.models import User
+        user = User.query.first()
+        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+
+        # John Doe has job_title "CEO" — import with different title
+        parsed = [
+            {"contact": {"full_name": "John Doe", "email_address": "john@acme.com", "job_title": "CRO"}, "company": {"name": "Acme Corp"}},
+        ]
+        result = execute_import(
+            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",
+        )
+        assert result["counts"]["contacts_updated"] == 1
+        rows = result["dedup_rows"]
+        assert len(rows) == 1
+        assert rows[0]["action"] == "updated"
+        assert len(rows[0]["conflicts"]) == 1
+        assert rows[0]["conflicts"][0]["field"] == "job_title"
+        assert rows[0]["conflicts"][0]["existing"] == "CEO"
+        assert rows[0]["conflicts"][0]["incoming"] == "CRO"
 
     def test_create_new_strategy(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
@@ -246,10 +300,10 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"full_name": "John Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="create_new",
         )
-        assert counts["contacts_created"] == 1
+        assert result["counts"]["contacts_created"] == 1
         final_count = Contact.query.filter_by(tenant_id=str(data["tenant"].id)).count()
         assert final_count == initial_count + 1
 
@@ -264,11 +318,11 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"full_name": "Newcomer"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
         )
-        assert counts["companies_linked"] == 1
-        assert counts["companies_created"] == 0
+        assert result["counts"]["companies_linked"] == 1
+        assert result["counts"]["companies_created"] == 0
 
     def test_skips_contacts_without_name(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
@@ -281,7 +335,12 @@ class TestExecuteImport:
         parsed = [
             {"contact": {"email_address": "noname@test.com"}, "company": {"name": "SomeCo"}},
         ]
-        counts = execute_import(
+        result = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
         )
-        assert counts["contacts_skipped"] == 1
+        assert result["counts"]["contacts_skipped"] == 1
+        # Verify dedup_rows has error detail
+        rows = result["dedup_rows"]
+        assert len(rows) == 1
+        assert rows[0]["action"] == "error"
+        assert rows[0]["reason"] == "no_name"

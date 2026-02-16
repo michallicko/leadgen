@@ -323,6 +323,100 @@ def body_imports_empty_or_valid(resp):
     return "imports" in body
 
 
+class TestImportResults:
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_results_after_execute(self, mock_claude, client, seed_companies_contacts):
+        """Results endpoint returns dedup details after import."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
+                    json={"batch_name": "results-test", "dedup_strategy": "skip"})
+
+        resp = client.get(f"/api/imports/{job_id}/results", headers=headers)
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert "summary" in body
+        assert body["summary"]["contacts_created"] == 2
+        assert body["total"] >= 2
+        assert body["filter"] == "all"
+        assert body["page"] == 1
+
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_results_filter_skipped(self, mock_claude, client, seed_companies_contacts):
+        """Filter=skipped only returns skipped rows."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
+                    json={"batch_name": "filter-test", "dedup_strategy": "skip"})
+
+        resp = client.get(f"/api/imports/{job_id}/results?filter=skipped", headers=headers)
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["filter"] == "skipped"
+        # All rows are "created" in this test, so no skipped
+        assert body["total"] == 0
+
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_results_stores_dedup_results_on_job(self, mock_claude, client, seed_companies_contacts):
+        """dedup_results JSONB is populated on ImportJob after execute."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
+                    json={"batch_name": "dedup-store-test", "dedup_strategy": "skip"})
+
+        job = ImportJob.query.filter_by(id=job_id).first()
+        dedup = job.dedup_results
+        if isinstance(dedup, str):
+            dedup = json.loads(dedup)
+        assert "summary" in dedup
+        assert "rows" in dedup
+        assert dedup["summary"]["contacts_created"] == 2
+
+    def test_results_not_found(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        resp = client.get("/api/imports/00000000-0000-0000-0000-000000000000/results", headers=headers)
+        assert resp.status_code == 404
+
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_results_before_execute(self, mock_claude, client, seed_companies_contacts):
+        """Results endpoint returns 400 if import not yet completed."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        resp = client.get(f"/api/imports/{job_id}/results", headers=headers)
+        assert resp.status_code == 400
+
+
 MOCK_REMAPPED = {
     "mappings": [
         {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
