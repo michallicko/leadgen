@@ -95,7 +95,7 @@ body::after {
 .auth-logout:hover { border-color: var(--error); color: var(--error); }
 
 /* Layout */
-.container { max-width: 860px; margin: 0 auto; padding: 32px 16px; }
+.container { max-width: 920px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
 
@@ -187,7 +187,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 /* Form */
 .form-row { margin-bottom: 14px; }
 .form-row label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
-.form-row select, .form-row input {
+.form-row select, .form-row input[type="text"] {
   width: 100%;
   padding: 8px 12px;
   background: var(--bg);
@@ -199,31 +199,128 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 }
 .form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
 
-/* Stage cards */
-.stage-cards { display: grid; gap: 12px; margin-bottom: 20px; }
-.stage-card {
+/* Filter bar */
+.filter-bar {
   display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.filter-bar .form-row { margin-bottom: 0; flex: 1; min-width: 140px; }
+
+/* Tier chips */
+.tier-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.tier-chip {
+  display: inline-flex;
   align-items: center;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-solid);
+  background: transparent;
+  color: var(--text-dim);
+  transition: var(--transition);
+  user-select: none;
+}
+.tier-chip input { display: none; }
+.tier-chip.active { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
+
+/* Status chips (multi-select) */
+.status-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-solid);
+  background: transparent;
+  color: var(--text-dim);
+  transition: var(--transition);
+  user-select: none;
+}
+.status-chip input { display: none; }
+.status-chip.active { background: rgba(0,184,207,0.12); color: var(--accent-cyan); border-color: rgba(0,184,207,0.3); }
+
+/* Status breakdown grid */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.status-cell {
+  padding: 10px 12px;
+  background: var(--surface-alt);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.status-cell__value { font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; }
+.status-cell__label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+.status-cell--new .status-cell__value { color: var(--text); }
+.status-cell--passed .status-cell__value { color: var(--success); }
+.status-cell--review .status-cell__value { color: var(--warning); }
+.status-cell--failed .status-cell__value { color: var(--error); }
+.status-cell--enriched .status-cell__value { color: var(--accent-cyan); }
+
+/* Package cards (Step 2) */
+.pkg-cards { display: grid; gap: 14px; }
+.pkg-card {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   transition: var(--transition);
 }
-.stage-card.disabled { opacity: 0.4; }
-.stage-card__color {
-  width: 4px;
-  height: 36px;
-  border-radius: 2px;
+.pkg-card.disabled { opacity: 0.35; pointer-events: none; }
+.pkg-card__icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
   flex-shrink: 0;
+  align-self: start;
+  margin-top: 2px;
 }
-.stage-card__info { flex: 1; min-width: 0; }
-.stage-card__name { font-family: var(--font-title); font-size: 0.88rem; font-weight: 600; }
-.stage-card__detail { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
-.stage-card__cost { text-align: right; flex-shrink: 0; }
-.stage-card__cost-val { font-family: var(--font-title); font-size: 0.95rem; font-weight: 600; color: var(--accent-cyan); }
-.stage-card__cost-label { font-size: 0.72rem; color: var(--text-dim); }
+.pkg-card__body { min-width: 0; }
+.pkg-card__header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.pkg-card__name { font-family: var(--font-title); font-size: 0.92rem; font-weight: 600; }
+.pkg-card__badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pkg-card__desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 8px; }
+.pkg-card__fields { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.pkg-field {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.pkg-card__usecase { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
+.pkg-card__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 90px; }
+.pkg-card__cost { font-family: var(--font-title); font-size: 1rem; font-weight: 700; color: var(--accent-cyan); }
+.pkg-card__cost-label { font-size: 0.68rem; color: var(--text-dim); }
+.pkg-card__eligible { font-size: 0.78rem; color: var(--text-muted); text-align: right; }
 
 /* Toggle switch */
 .toggle {
@@ -324,133 +421,36 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   margin-bottom: 16px;
 }
 
-/* Coming soon badge */
-.coming-soon {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: rgba(90,97,112,0.15);
-  color: var(--text-dim);
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
 /* Progress counters */
-.progress-counters {
-  display: flex;
-  gap: 8px;
-  margin-left: 8px;
-}
-.progress-counter {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-.progress-counter--success { color: var(--success); }
-.progress-counter--error { color: var(--error); }
-.progress-counter--review { color: var(--warning); }
-.progress-counter .dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.progress-counter--success .dot { background: var(--success); }
-.progress-counter--error .dot { background: var(--error); }
-.progress-counter--review .dot { background: var(--warning); }
+.progress-counters { display: flex; gap: 10px; width: 130px; flex-shrink: 0; }
+.progress-counter { font-size: 0.72rem; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+.counter-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.counter-dot.green { background: var(--success); }
+.counter-dot.red { background: var(--error); }
+.counter-dot.amber { background: var(--warning); }
 
-/* Time remaining */
-.progress-stage__eta {
-  width: 90px;
-  text-align: right;
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  font-style: italic;
-}
+.progress-stage__eta { width: 90px; text-align: right; font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
 
 /* Completion badge */
 .completion-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
 }
 .completion-badge--ok { background: rgba(52,211,153,0.15); color: var(--success); cursor: default; }
 .completion-badge--review { background: rgba(251,191,36,0.15); color: var(--warning); }
 .completion-badge--review:hover { background: rgba(251,191,36,0.25); }
 
 /* Review list */
-.review-list {
-  margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.review-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.82rem;
-}
+.review-list { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.review-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
 .review-item:last-child { border-bottom: none; }
 .review-item__name { font-weight: 600; min-width: 140px; }
 .review-item__domain { color: var(--text-dim); min-width: 120px; }
 .review-item__flags { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; }
-.review-flag {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  background: rgba(251,191,36,0.1);
-  color: var(--warning);
-}
+.review-flag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: rgba(251,191,36,0.1); color: var(--warning); }
 .review-flag--error { background: rgba(248,113,113,0.1); color: var(--error); }
 .review-item__actions { display: flex; gap: 4px; flex-shrink: 0; }
 .review-item__actions .btn { padding: 3px 10px; font-size: 0.72rem; }
-
-/* Progress counters */
-.progress-counters {
-  display: flex;
-  gap: 10px;
-  width: 130px;
-  flex-shrink: 0;
-}
-.progress-counter {
-  font-size: 0.72rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.counter-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.counter-dot.green { background: var(--success); }
-.counter-dot.red { background: var(--error); }
-.counter-dot.amber { background: var(--warning); }
-
-/* Time estimate */
-.time-estimate {
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  margin-top: 10px;
-  font-style: italic;
-}
 
 /* Hidden */
 .hidden { display: none !important; }
@@ -471,10 +471,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 /* Responsive */
 @media (max-width: 640px) {
   .steps { flex-direction: column; }
-  .step-item { border-radius: 0; border-right: 1px solid var(--border); }
-  .step-item:first-child { border-radius: var(--radius) var(--radius) 0 0; }
-  .step-item:last-child { border-radius: 0 0 var(--radius) var(--radius); border-top: none; }
-  .step-item:not(:last-child) { border-bottom: none; border-right: 1px solid var(--border); }
+  .filter-bar { flex-direction: column; }
+  .pkg-card { grid-template-columns: 1fr; }
   .cost-bar { flex-direction: column; gap: 8px; text-align: center; }
 }
 </style>
@@ -504,46 +502,73 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 <div class="container">
   <h1>Enrich Contacts</h1>
-  <div class="subtitle" id="page_subtitle">Configure and run enrichment on your contacts.</div>
+  <div class="subtitle" id="page_subtitle">Select contacts to enrich, choose enrichment packages, and run.</div>
 
   <!-- Steps indicator -->
   <div class="steps">
-    <div class="step-item active" id="step_ind_1"><span class="step-num">1</span> Review Selection</div>
-    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> Configure &amp; Estimate</div>
+    <div class="step-item active" id="step_ind_1"><span class="step-num">1</span> Select &amp; Filter</div>
+    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> Choose Packages</div>
     <div class="step-item" id="step_ind_3"><span class="step-num">3</span> Processing</div>
   </div>
 
-  <!-- STEP 1: Review Selection -->
+  <!-- STEP 1: Select & Filter -->
   <div id="step_1">
     <div class="card">
-      <div class="card-title">Selection</div>
+      <div class="card-title">Filters</div>
 
       <div id="import_callout" class="callout hidden"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-row">
+      <div class="filter-bar">
+        <div class="form-row" style="min-width:160px;">
           <label for="batch_select">Batch</label>
           <select id="batch_select"><option value="">Loading...</option></select>
         </div>
-        <div class="form-row">
-          <label for="owner_select">Owner (optional)</label>
+        <div class="form-row" style="min-width:130px;">
+          <label for="owner_select">Owner</label>
           <select id="owner_select"><option value="">All owners</option></select>
         </div>
+        <div class="form-row" style="min-width:100px;">
+          <label for="status_select">Company Status</label>
+          <select id="status_select">
+            <option value="">All statuses</option>
+            <option value="new" selected>New</option>
+            <option value="triage_passed">Triage Passed</option>
+            <option value="needs_review">Needs Review</option>
+            <option value="enriched_l2">Enriched L2</option>
+            <option value="enrichment_failed">Failed</option>
+          </select>
+        </div>
+        <div class="form-row" style="min-width:180px;">
+          <label>Tier Filter</label>
+          <div class="tier-chips" id="tier_chips">
+            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
+            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
+            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
+            <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 4"> T4</label>
+            <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 5"> T5</label>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <div id="selection_summary" style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);"></div>
+    <!-- Status breakdown -->
+    <div id="status_breakdown" class="card hidden">
+      <div class="card-title">Company Status Breakdown</div>
+      <div class="status-grid" id="status_grid"></div>
+      <div id="selection_summary" style="margin-top:12px;font-size:0.82rem;color:var(--text-muted);"></div>
+    </div>
 
-      <div style="margin-top:16px;display:flex;gap:10px;">
-        <button class="btn btn-primary" id="btn_configure" disabled>Configure Enrichment</button>
-      </div>
+    <div style="margin-top:16px;display:flex;gap:10px;">
+      <button class="btn btn-primary" id="btn_configure" disabled>Choose Enrichment Packages</button>
     </div>
   </div>
 
-  <!-- STEP 2: Configure & Estimate -->
+  <!-- STEP 2: Choose Packages -->
   <div id="step_2" class="hidden">
     <div class="card">
-      <div class="card-title">Enrichment Stages</div>
-      <div class="stage-cards" id="stage_cards"></div>
+      <div class="card-title">Enrichment Packages</div>
+      <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:16px;">Toggle packages on/off. Each package enriches different data fields. Costs shown are estimates based on eligible count.</div>
+      <div class="pkg-cards" id="pkg_cards"></div>
     </div>
 
     <div class="cost-bar" id="cost_bar">
@@ -597,24 +622,78 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var currentPipelineRunId = null;
   var isSampleRun = false;
 
-  var STAGE_META = {
-    l1: { name: 'L1 Company Research', color: 'var(--l1-color)' },
-    l2: { name: 'L2 Deep Research', color: 'var(--l2-color)' },
-    person: { name: 'Person Enrichment', color: 'var(--person-color)' },
-    generate: { name: 'Message Generation', color: 'var(--generate-color)' },
-    ares: { name: 'Legal & Registers (ARES)', color: 'var(--ares-color)' }
+  // --- Package definitions ---
+  var PACKAGES = {
+    l1: {
+      name: 'Company Research',
+      icon: 'L1',
+      color: 'var(--l1-color)',
+      bgColor: 'rgba(0,184,207,0.12)',
+      desc: 'AI-powered company profile research via Perplexity. Identifies what the company does, its size, revenue range, B2B focus, and headquarters. QC validation flags dubious results for human review.',
+      fields: ['Industry', 'Employees', 'Revenue', 'B2B Focus', 'HQ Location', 'Summary', 'Tier'],
+      usecase: 'Best for: newly imported contacts that need initial qualification and tiering.',
+      comingSoon: false,
+      badge: null
+    },
+    ares: {
+      name: 'Legal & Registers (ARES)',
+      icon: 'CZ',
+      color: 'var(--ares-color)',
+      bgColor: 'rgba(59,130,246,0.12)',
+      desc: 'Czech public business register lookup via ARES (ares.gov.cz). Retrieves official company data including registration number, directors, registered capital, and insolvency status. Free government API.',
+      fields: ['ICO', 'DIC', 'Legal Form', 'Directors', 'Capital', 'NACE Codes', 'Insolvency', 'Address'],
+      usecase: 'Best for: Czech companies needing legal verification and due diligence. Zero cost.',
+      comingSoon: false,
+      badge: 'Free'
+    },
+    l2: {
+      name: 'Deep Company Research',
+      icon: 'L2',
+      color: 'var(--l2-color)',
+      bgColor: 'rgba(139,71,168,0.12)',
+      desc: 'In-depth competitive analysis: market position, tech stack, recent funding, key partnerships, and strategic direction. Builds on L1 research with deeper investigation.',
+      fields: ['Tech Stack', 'Funding', 'Competitors', 'Market Position', 'Partnerships'],
+      usecase: 'Best for: companies that passed triage and need detailed research before outreach.',
+      comingSoon: true,
+      badge: null
+    },
+    person: {
+      name: 'Person Enrichment',
+      icon: 'PE',
+      color: 'var(--person-color)',
+      bgColor: 'rgba(52,211,153,0.12)',
+      desc: 'Contact-level enrichment: verifies current role, finds direct contact details, analyzes LinkedIn profile, identifies reporting structure and tenure.',
+      fields: ['Role Verified', 'Email', 'Phone', 'LinkedIn', 'Reporting To', 'Tenure'],
+      usecase: 'Best for: contacts at enriched companies, before outreach message generation.',
+      comingSoon: true,
+      badge: null
+    },
+    generate: {
+      name: 'Message Generation',
+      icon: 'AI',
+      color: 'var(--generate-color)',
+      bgColor: 'rgba(251,191,36,0.12)',
+      desc: 'AI-crafted personalized outreach messages using company research, contact profile, and campaign context. Generates subject lines, opening hooks, and value propositions.',
+      fields: ['Subject Line', 'Email Body', 'Follow-up', 'LinkedIn Message'],
+      usecase: 'Best for: fully enriched contacts ready for campaign launch.',
+      comingSoon: true,
+      badge: null
+    }
   };
 
+  var STAGE_ORDER = ['l1', 'ares', 'l2', 'person', 'generate'];
+
   var estimateData = null;
-  var enabledStages = { l1: true, l2: false, person: false, generate: false, ares: true };
-  var COMING_SOON_STAGES = { l2: true, person: true, generate: true };
+  var enabledStages = {};
   var batchList = [];
   var ownerList = [];
   var stageStartTimes = {};
   var reviewItems = [];
+  var batchStats = null;
 
   // --- Utilities ---
   function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
 
   function mkEl(tag, attrs, text) {
     var el = document.createElement(tag);
@@ -661,6 +740,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     return params.get(name) || '';
   }
 
+  function getTiers() {
+    return $$('input[name="tier"]:checked').map(function(cb) { return cb.value; });
+  }
+
   // --- Step navigation ---
   function goStep(n) {
     [1, 2, 3].forEach(function(i) {
@@ -681,7 +764,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  // --- Step 1: Load batches and owners ---
+  // --- Step 1: Load batches, owners, stats ---
   function loadBatchesAndOwners() {
     apiFetch(API_BASE + '/batches').then(function(data) {
       batchList = data.batches || data || [];
@@ -694,7 +777,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       // Pre-select from URL param
       var urlBatch = getParam('batch_name');
-      if (urlBatch) sel.value = urlBatch;
+      if (urlBatch) {
+        sel.value = urlBatch;
+        loadBatchStats();
+      }
 
       // Load owners
       var ownerSel = $('#owner_select');
@@ -712,7 +798,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var urlOwner = getParam('owner_name');
       if (urlOwner) ownerSel.value = urlOwner;
 
-      updateSelectionSummary();
       checkConfigureEnabled();
 
       // Show import callout if coming from import
@@ -727,35 +812,83 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  function updateSelectionSummary() {
+  function loadBatchStats() {
     var batch = $('#batch_select').value;
-    var owner = $('#owner_select').value;
-    var summary = $('#selection_summary');
     if (!batch) {
-      summary.textContent = 'Select a batch to see eligible contacts.';
+      $('#status_breakdown').classList.add('hidden');
       return;
     }
-    var text = 'Batch: ' + batch;
-    if (owner) text += ' | Owner: ' + owner;
-    summary.textContent = text;
+
+    var tiers = getTiers();
+    apiFetch(API_BASE + '/batch-stats', {
+      method: 'POST',
+      body: JSON.stringify({ batch_name: batch, tier_filter: tiers })
+    }).then(function(data) {
+      batchStats = data;
+      renderStatusBreakdown(data);
+      checkConfigureEnabled();
+    }).catch(function(err) {
+      $('#selection_summary').textContent = 'Failed to load stats: ' + err.message;
+    });
+  }
+
+  function renderStatusBreakdown(data) {
+    var grid = $('#status_grid');
+    clearChildren(grid);
+
+    var sc = data.status_counts || {};
+    var items = [
+      { label: 'New', value: sc['New'] || 0, cls: 'new' },
+      { label: 'Triage Passed', value: sc['Triage: Passed'] || 0, cls: 'passed' },
+      { label: 'Needs Review', value: sc['Triage: Review'] || 0, cls: 'review' },
+      { label: 'Enriched L2', value: sc['Enriched L2'] || 0, cls: 'enriched' },
+      { label: 'Failed', value: (sc['Enrichment Failed'] || 0) + (sc['Enrichment L2 Failed'] || 0), cls: 'failed' }
+    ];
+
+    items.forEach(function(item) {
+      var cell = mkEl('div', { className: 'status-cell status-cell--' + item.cls });
+      cell.appendChild(mkEl('div', { className: 'status-cell__value' }, String(item.value)));
+      cell.appendChild(mkEl('div', { className: 'status-cell__label' }, item.label));
+      grid.appendChild(cell);
+    });
+
+    // Summary
+    var summary = $('#selection_summary');
+    var total = data.companies_total || 0;
+    var contacts = data.contacts_total || 0;
+    summary.textContent = total + ' companies, ' + contacts + ' contacts in this batch';
+
+    // Tier breakdown if available
+    var tierData = data.l2_eligible_by_tier || {};
+    var tierKeys = Object.keys(tierData);
+    if (tierKeys.length > 0) {
+      var tierLine = mkEl('div', { style: 'margin-top:6px;font-size:0.78rem;color:var(--text-dim);' });
+      tierLine.textContent = 'Tier breakdown: ' + tierKeys.map(function(t) {
+        return t.replace(/ - .*/, '') + ': ' + tierData[t];
+      }).join(', ');
+      summary.parentNode.appendChild(tierLine);
+    }
+
+    $('#status_breakdown').classList.remove('hidden');
   }
 
   function checkConfigureEnabled() {
     $('#btn_configure').disabled = !$('#batch_select').value;
   }
 
-  // --- Step 2: Fetch estimate and build stage cards ---
+  // --- Step 2: Fetch estimate and build package cards ---
   function fetchEstimate(callback) {
     var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
-    var stages = ['l1', 'l2', 'person', 'generate', 'ares'];
+    var tiers = getTiers();
 
     apiFetch(API_BASE + '/enrich/estimate', {
       method: 'POST',
       body: JSON.stringify({
         batch_name: batch,
         owner_name: owner || undefined,
-        stages: stages
+        tier_filter: tiers,
+        stages: STAGE_ORDER
       })
     }).then(function(data) {
       estimateData = data;
@@ -765,31 +898,66 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  function buildStageCards(data) {
-    var container = $('#stage_cards');
+  function buildPackageCards(data) {
+    var container = $('#pkg_cards');
     clearChildren(container);
-    var stages = ['l1', 'l2', 'person', 'generate', 'ares'];
 
-    stages.forEach(function(stage) {
+    // Reset enabled stages
+    enabledStages = {};
+
+    STAGE_ORDER.forEach(function(stage) {
+      var pkg = PACKAGES[stage];
       var info = data.stages[stage] || {};
-      var meta = STAGE_META[stage];
       var eligible = info.eligible_count || 0;
       var costPer = info.cost_per_item || 0;
-      var isComingSoon = !!COMING_SOON_STAGES[stage];
+      var isComingSoon = pkg.comingSoon;
       var hasItems = eligible > 0 && !isComingSoon;
 
-      enabledStages[stage] = hasItems && !isComingSoon;
+      enabledStages[stage] = hasItems;
 
-      var card = mkEl('div', { className: 'stage-card' + (!hasItems ? ' disabled' : '') });
-      if (isComingSoon) card.style.opacity = '0.35';
+      var card = mkEl('div', { className: 'pkg-card' + (isComingSoon ? ' disabled' : '') });
       card.setAttribute('data-stage', stage);
 
-      var colorBar = mkEl('div', { className: 'stage-card__color' });
-      colorBar.style.background = meta.color;
+      // Icon
+      var iconEl = mkEl('div', { className: 'pkg-card__icon' });
+      iconEl.style.background = pkg.bgColor;
+      iconEl.style.color = pkg.color;
+      iconEl.textContent = pkg.icon;
+
+      // Body
+      var body = mkEl('div', { className: 'pkg-card__body' });
+
+      // Header: name + badge + toggle
+      var header = mkEl('div', { className: 'pkg-card__header' });
+      header.appendChild(mkEl('div', { className: 'pkg-card__name' }, pkg.name));
+      if (isComingSoon) {
+        var badge = mkEl('span', { className: 'pkg-card__badge', style: 'background:rgba(90,97,112,0.2);color:var(--text-dim);' }, 'Coming Soon');
+        header.appendChild(badge);
+      } else if (pkg.badge) {
+        var freeBadge = mkEl('span', { className: 'pkg-card__badge', style: 'background:rgba(52,211,153,0.15);color:var(--success);' }, pkg.badge);
+        header.appendChild(freeBadge);
+      }
+      body.appendChild(header);
+
+      // Description
+      body.appendChild(mkEl('div', { className: 'pkg-card__desc' }, pkg.desc));
+
+      // Fields
+      var fieldsEl = mkEl('div', { className: 'pkg-card__fields' });
+      pkg.fields.forEach(function(f) {
+        fieldsEl.appendChild(mkEl('span', { className: 'pkg-field' }, f));
+      });
+      body.appendChild(fieldsEl);
+
+      // Use case
+      body.appendChild(mkEl('div', { className: 'pkg-card__usecase' }, pkg.usecase));
+
+      // Right side: toggle + cost + eligible
+      var right = mkEl('div', { className: 'pkg-card__right' });
 
       var toggle = mkEl('label', { className: 'toggle' });
       var input = mkEl('input', { type: 'checkbox' });
-      input.checked = hasItems && !isComingSoon;
+      input.checked = hasItems;
       input.disabled = !hasItems || isComingSoon;
       input.setAttribute('data-stage', stage);
       input.addEventListener('change', function() {
@@ -799,33 +967,26 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var slider = mkEl('span', { className: 'toggle-slider' });
       toggle.appendChild(input);
       toggle.appendChild(slider);
+      right.appendChild(toggle);
 
-      var infoDiv = mkEl('div', { className: 'stage-card__info' });
-      var nameRow = mkEl('div', { className: 'stage-card__name' });
-      nameRow.textContent = meta.name;
-      if (isComingSoon) {
-        var badge = mkEl('span', {
-          className: 'pill pill-idle',
-          style: 'margin-left:8px;font-size:0.65rem;vertical-align:middle;'
-        }, 'Coming soon');
-        nameRow.appendChild(badge);
+      if (!isComingSoon) {
+        var costWrap = mkEl('div', { style: 'text-align:right;' });
+        var costVal = mkEl('div', { className: 'pkg-card__cost' }, fmt$(info.estimated_cost || 0));
+        costVal.setAttribute('data-stage-cost', stage);
+        costWrap.appendChild(costVal);
+        if (costPer > 0) {
+          costWrap.appendChild(mkEl('div', { className: 'pkg-card__cost-label' }, fmt$(costPer) + '/item'));
+        } else {
+          costWrap.appendChild(mkEl('div', { className: 'pkg-card__cost-label' }, 'free'));
+        }
+        right.appendChild(costWrap);
+
+        right.appendChild(mkEl('div', { className: 'pkg-card__eligible' }, eligible + ' eligible'));
       }
-      infoDiv.appendChild(nameRow);
-      var detailText = isComingSoon ? 'Not yet available' : (eligible + ' eligible');
-      if (!isComingSoon && costPer) detailText += ' \u00B7 ' + fmt$(costPer) + '/item';
-      if (!isComingSoon && !eligible) detailText = '0 eligible';
-      infoDiv.appendChild(mkEl('div', { className: 'stage-card__detail' }, detailText));
 
-      var costDiv = mkEl('div', { className: 'stage-card__cost' });
-      var costVal = mkEl('div', { className: 'stage-card__cost-val' }, isComingSoon ? '\u2014' : fmt$(info.estimated_cost || 0));
-      costVal.setAttribute('data-stage-cost', stage);
-      costDiv.appendChild(costVal);
-      costDiv.appendChild(mkEl('div', { className: 'stage-card__cost-label' }, isComingSoon ? '' : 'estimated'));
-
-      card.appendChild(colorBar);
-      card.appendChild(toggle);
-      card.appendChild(infoDiv);
-      card.appendChild(costDiv);
+      card.appendChild(iconEl);
+      card.appendChild(body);
+      card.appendChild(right);
       container.appendChild(card);
     });
 
@@ -835,20 +996,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function updateTotalCost() {
     if (!estimateData) return;
     var total = 0;
-    ['l1', 'l2', 'person', 'generate', 'ares'].forEach(function(stage) {
+    STAGE_ORDER.forEach(function(stage) {
       var info = estimateData.stages[stage] || {};
       var stageCost = enabledStages[stage] ? (info.estimated_cost || 0) : 0;
       total += stageCost;
       var el = document.querySelector('[data-stage-cost="' + stage + '"]');
       if (el) el.textContent = enabledStages[stage] ? fmt$(info.estimated_cost || 0) : '$0.00';
-      var card = document.querySelector('.stage-card[data-stage="' + stage + '"]');
-      if (card) {
-        if (enabledStages[stage] && (info.eligible_count || 0) > 0) {
-          card.classList.remove('disabled');
-        } else {
-          card.classList.add('disabled');
-        }
-      }
     });
     $('#total_cost').textContent = fmt$(total);
 
@@ -858,9 +1011,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getEnabledStages() {
-    return ['l1', 'l2', 'person', 'generate', 'ares'].filter(function(s) {
-      return enabledStages[s] && !COMING_SOON_STAGES[s];
-    });
+    return STAGE_ORDER.filter(function(s) { return enabledStages[s] && !PACKAGES[s].comingSoon; });
   }
 
   // --- Step 3: Start pipeline and poll ---
@@ -868,11 +1019,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
     var stages = getEnabledStages();
+    var tiers = getTiers();
     isSampleRun = !!sampleSize;
 
     var body = { batch_name: batch, stages: stages };
     if (owner) body.owner_name = owner;
     if (sampleSize) body.sample_size = sampleSize;
+    if (tiers.length > 0) body.tier_filter = tiers;
 
     apiFetch(API_BASE + '/enrich/start', {
       method: 'POST',
@@ -893,23 +1046,22 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     stageStartTimes = {};
 
     stages.forEach(function(stage) {
-      var meta = STAGE_META[stage];
+      var pkg = PACKAGES[stage];
       var row = mkEl('div', { className: 'progress-stage' });
       row.setAttribute('data-progress-stage', stage);
 
-      var nameEl = mkEl('div', { className: 'progress-stage__name' }, stage.toUpperCase());
-      nameEl.style.color = meta.color;
+      var nameEl = mkEl('div', { className: 'progress-stage__name' }, pkg.name);
+      nameEl.style.color = pkg.color;
 
       var barWrap = mkEl('div', { className: 'progress-bar-wrap' });
       var barFill = mkEl('div', { className: 'progress-bar-fill' });
       barFill.style.width = '0%';
-      barFill.style.background = meta.color;
+      barFill.style.background = pkg.color;
       barWrap.appendChild(barFill);
 
       var countEl = mkEl('div', { className: 'progress-stage__count' }, '0/0');
       countEl.setAttribute('data-count', stage);
 
-      // Success/error/review counters (populated by updateProgressUI)
       var countersEl = mkEl('div', { className: 'progress-counters' });
       countersEl.setAttribute('data-counters', stage);
 
@@ -934,7 +1086,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       container.appendChild(row);
     });
 
-    // Add review list container after progress stages
     var reviewContainer = mkEl('div', { className: 'hidden', id: 'review_list_container' });
     reviewContainer.setAttribute('style', 'margin-top:12px;');
     container.parentNode.appendChild(reviewContainer);
@@ -951,9 +1102,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       .then(function(data) {
         updateProgressUI(data);
         checkCompletion(data);
-      }).catch(function() {
-        // ignore transient errors
-      });
+      }).catch(function() {});
   }
 
   function updateProgressUI(data) {
@@ -981,7 +1130,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       if (costEl) costEl.textContent = fmt$(s.cost || 0);
       if (barEl && total > 0) barEl.style.width = Math.round(done / total * 100) + '%';
 
-      // Update success/error counters
       if (countersEl && done > 0) {
         clearChildren(countersEl);
         if (success > 0) {
@@ -998,7 +1146,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         }
       }
 
-      // ETA calculation
       if (etaEl && s.status === 'running' && done > 0 && done < total) {
         if (!stageStartTimes[stage]) stageStartTimes[stage] = Date.now();
         var elapsed = Date.now() - stageStartTimes[stage];
@@ -1006,11 +1153,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         var remaining = (total - done) * avgPerItem;
         etaEl.textContent = formatDuration(remaining);
       } else if (etaEl) {
-        if (s.status === 'running' && done === 0) {
-          etaEl.textContent = 'Starting...';
-        } else {
-          etaEl.textContent = '';
-        }
+        etaEl.textContent = (s.status === 'running' && done === 0) ? 'Starting...' : '';
       }
 
       if (pillEl) {
@@ -1066,19 +1209,15 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       contBtn.addEventListener('click', function() {
         panel.classList.add('hidden');
         goStep(2);
-        fetchEstimate(function(d) { buildStageCards(d); });
+        fetchEstimate(function(d) { buildPackageCards(d); });
       });
       actions.appendChild(contBtn);
     }
 
-    // Load review items to check if any need review
     loadReviewItems();
 
-    var viewContacts = mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts');
-    actions.appendChild(viewContacts);
-
-    var viewCompanies = mkEl('a', { className: 'btn btn-ghost', href: 'companies.html' }, 'View Companies');
-    actions.appendChild(viewCompanies);
+    actions.appendChild(mkEl('a', { className: 'btn btn-primary', href: 'contacts.html' }, 'View Contacts'));
+    actions.appendChild(mkEl('a', { className: 'btn btn-ghost', href: 'companies.html' }, 'View Companies'));
   }
 
   // --- Review list ---
@@ -1090,12 +1229,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       .then(function(data) {
         reviewItems = data.items || [];
         updateReviewBadge();
-        if (reviewItems.length > 0) {
-          renderReviewList();
-        }
-      }).catch(function() {
-        // non-critical
-      });
+        if (reviewItems.length > 0) renderReviewList();
+      }).catch(function() {});
   }
 
   function updateReviewBadge() {
@@ -1104,30 +1239,24 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     if (reviewItems.length === 0) {
       reviewContainer.classList.add('hidden');
-      // Update pill to green check
       var pillEl = document.querySelector('[data-pill="l1"]');
       if (pillEl && pillEl.textContent === 'COMPLETED') {
         var parent = pillEl.parentNode;
         clearChildren(parent);
-        var badge = mkEl('span', { className: 'completion-badge completion-badge--ok' }, '\u2713 Done');
-        parent.appendChild(badge);
+        parent.appendChild(mkEl('span', { className: 'completion-badge completion-badge--ok' }, '\u2713 Done'));
       }
       return;
     }
 
-    // Show amber badge
     var pillEl = document.querySelector('[data-pill="l1"]');
     if (pillEl) {
       var parent = pillEl.parentNode;
       clearChildren(parent);
       var badge = mkEl('span', { className: 'completion-badge completion-badge--review' });
       badge.textContent = reviewItems.length + ' need review';
-      badge.addEventListener('click', function() {
-        reviewContainer.classList.toggle('hidden');
-      });
+      badge.addEventListener('click', function() { reviewContainer.classList.toggle('hidden'); });
       parent.appendChild(badge);
     }
-
     reviewContainer.classList.remove('hidden');
   }
 
@@ -1136,8 +1265,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     if (!container) return;
     clearChildren(container);
 
-    var title = mkEl('div', { className: 'card-title', style: 'margin-bottom:8px;' }, 'Companies Needing Review');
-    container.appendChild(title);
+    container.appendChild(mkEl('div', { className: 'card-title', style: 'margin-bottom:8px;' }, 'Companies Needing Review'));
 
     var list = mkEl('div', { className: 'review-list' });
 
@@ -1157,7 +1285,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       row.appendChild(flagsEl);
 
       var actionsEl = mkEl('div', { className: 'review-item__actions' });
-
       var retryBtn = mkEl('button', { className: 'btn btn-ghost btn-sm' }, 'Retry');
       retryBtn.addEventListener('click', function() { resolveItem(item.id, 'retry', row); });
       actionsEl.appendChild(retryBtn);
@@ -1176,15 +1303,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function resolveItem(companyId, action, rowEl) {
-    // Disable buttons
     var buttons = rowEl.querySelectorAll('button');
     buttons.forEach(function(b) { b.disabled = true; });
 
     apiFetch(API_BASE + '/enrich/resolve', {
       method: 'POST',
       body: JSON.stringify({ company_id: companyId, action: action })
-    }).then(function(data) {
-      // Remove from review list
+    }).then(function() {
       reviewItems = reviewItems.filter(function(i) { return i.id !== companyId; });
       rowEl.style.opacity = '0.3';
       setTimeout(function() {
@@ -1213,14 +1338,30 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   // --- Event bindings ---
   function bindEvents() {
     $('#batch_select').addEventListener('change', function() {
-      updateSelectionSummary();
+      loadBatchStats();
       checkConfigureEnabled();
     });
-    $('#owner_select').addEventListener('change', updateSelectionSummary);
+    $('#owner_select').addEventListener('change', loadBatchStats);
+    $('#status_select').addEventListener('change', loadBatchStats);
+
+    // Tier chip toggles
+    $$('.tier-chip').forEach(function(chip) {
+      var cb = chip.querySelector('input');
+      chip.addEventListener('click', function(e) {
+        if (e.target.tagName === 'INPUT') return;
+        cb.checked = !cb.checked;
+        chip.classList.toggle('active', cb.checked);
+        loadBatchStats();
+      });
+      cb.addEventListener('change', function() {
+        chip.classList.toggle('active', cb.checked);
+        loadBatchStats();
+      });
+    });
 
     $('#btn_configure').addEventListener('click', function() {
       fetchEstimate(function(data) {
-        buildStageCards(data);
+        buildPackageCards(data);
         goStep(2);
       });
     });
