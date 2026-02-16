@@ -297,7 +297,7 @@ def get_company(company_id):
     # Contacts summary
     contact_rows = db.session.execute(
         db.text("""
-            SELECT ct.id, ct.full_name, ct.job_title, ct.email_address,
+            SELECT ct.id, ct.first_name, ct.last_name, ct.job_title, ct.email_address,
                    ct.contact_score, ct.icp_fit, ct.message_status
             FROM contacts ct
             WHERE ct.company_id = :id
@@ -307,12 +307,14 @@ def get_company(company_id):
     ).fetchall()
     company["contacts"] = [{
         "id": str(r[0]),
-        "full_name": r[1],
-        "job_title": r[2],
-        "email_address": r[3],
-        "contact_score": r[4],
-        "icp_fit": display_icp_fit(r[5]),
-        "message_status": r[6],
+        "full_name": ((r[1] or "") + " " + (r[2] or "")).strip(),
+        "first_name": r[1],
+        "last_name": r[2],
+        "job_title": r[3],
+        "email_address": r[4],
+        "contact_score": r[5],
+        "icp_fit": display_icp_fit(r[6]),
+        "message_status": r[7],
     } for r in contact_rows]
 
     return jsonify(company)

@@ -112,7 +112,7 @@ class TestListContacts:
         other = Tenant(name="Other Corp", slug="other-corp", is_active=True)
         db.session.add(other)
         db.session.flush()
-        ct = Contact(tenant_id=other.id, full_name="Hidden Person")
+        ct = Contact(tenant_id=other.id, first_name="Hidden", last_name="Person")
         db.session.add(ct)
         db.session.commit()
 

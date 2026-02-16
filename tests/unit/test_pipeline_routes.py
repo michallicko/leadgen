@@ -66,7 +66,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
     for i in range(3):
         ct = Contact(
             tenant_id=seed_tenant.id,
-            full_name=f"Contact {i}",
+            first_name=f"Contact", last_name=f"{i}",
             company_id=c_enriched.id,
             batch_id=batch.id,
             owner_id=owner.id,
@@ -78,7 +78,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
     # Add contacts eligible for generate stage (processed, not_started)
     ct_gen = Contact(
         tenant_id=seed_tenant.id,
-        full_name="Gen Contact",
+        first_name="Gen", last_name="Contact",
         company_id=c_enriched.id,
         batch_id=batch.id,
         owner_id=owner.id,

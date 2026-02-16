@@ -63,7 +63,7 @@ ELIGIBILITY_QUERIES = {
         WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
-        ORDER BY ct.full_name
+        ORDER BY ct.last_name, ct.first_name
     """,
     "generate": """
         SELECT ct.id FROM contacts ct
