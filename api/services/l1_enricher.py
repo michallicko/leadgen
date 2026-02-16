@@ -71,7 +71,7 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
   "markets": ["list", "of", "markets"],
   "founded": "YYYY or null",
   "ownership": "Public|Private|Family-owned|PE-backed (name)|VC-backed|Government|Cooperative|Unknown",
-  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|manufacturing|retail|media|energy|telecom|transport|construction|education|public_sector|other",
+  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|pharma_biotech|manufacturing|automotive|aerospace_defense|retail|hospitality|media|energy|telecom|transport|construction|real_estate|agriculture|education|public_sector|other",
   "business_model": "EXACTLY ONE OF: manufacturer|distributor|service_provider|saas|platform|other",
   "revenue_eur_m": "Annual revenue in EUR millions (number) or 'unverified'",
   "revenue_year": "YYYY of the revenue figure",
@@ -597,27 +597,35 @@ def _map_industry(raw):
 
     VALID_INDUSTRIES = {
         "software_saas", "it", "professional_services", "financial_services",
-        "healthcare", "manufacturing", "retail", "media", "energy",
-        "telecom", "transport", "construction", "education", "public_sector", "other",
+        "healthcare", "pharma_biotech", "manufacturing", "automotive",
+        "aerospace_defense", "retail", "hospitality", "media", "energy",
+        "telecom", "transport", "construction", "real_estate", "agriculture",
+        "education", "public_sector", "other",
     }
     # Direct match
     if s in VALID_INDUSTRIES:
         return s
 
-    # Keyword mapping
+    # Keyword mapping — more specific patterns first to avoid false matches
     keywords = {
+        "pharma_biotech": ["pharma", "biotech", "life science", "drug", "clinical trial"],
+        "aerospace_defense": ["aerospace", "defense", "defence", "military", "space", "satellite", "avionics"],
+        "automotive": ["automotive", "car ", "vehicle", "motor", "auto parts", "ev charging"],
         "software_saas": ["software", "saas", "cloud", "app", "digital platform"],
         "it": ["it ", "information tech", "cyber", "data center", "hosting", "tech"],
         "professional_services": ["consult", "advisory", "legal", "accounting", "audit", "staffing", "recruitment"],
         "financial_services": ["financ", "bank", "insur", "invest", "fintech", "payment"],
-        "healthcare": ["health", "medical", "pharma", "biotech", "hospital", "clinic"],
+        "healthcare": ["health", "medical", "hospital", "clinic", "dental", "care"],
+        "real_estate": ["real estate", "property", "reit", "commercial space", "office space"],
         "manufacturing": ["manufactur", "industrial", "machinery", "production", "factory", "automation"],
         "retail": ["retail", "e-commerce", "ecommerce", "shop", "consumer goods", "fashion"],
+        "hospitality": ["hotel", "restaurant", "hospitality", "tourism", "travel", "food service", "catering"],
         "media": ["media", "entertainment", "broadcast", "publishing", "gaming", "advertising"],
-        "energy": ["energy", "oil", "gas", "solar", "wind", "renewable", "power", "utility"],
+        "energy": ["energy", "oil", "gas", "solar", "wind", "renewable", "power", "utility", "waste-to-energy"],
+        "agriculture": ["agricult", "farming", "agri", "food production", "crop", "livestock", "agtech"],
         "telecom": ["telecom", "mobile", "wireless", "network operator"],
-        "transport": ["transport", "logistics", "shipping", "freight", "aviation", "rail"],
-        "construction": ["construct", "building", "architect", "real estate", "property"],
+        "transport": ["transport", "logistics", "shipping", "freight", "aviation", "rail", "maritime"],
+        "construction": ["construct", "building", "architect", "civil engineer"],
         "education": ["education", "university", "school", "training", "e-learning", "edtech"],
         "public_sector": ["government", "public sector", "ngo", "non-profit", "municipal"],
     }
