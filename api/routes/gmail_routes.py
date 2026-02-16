@@ -282,6 +282,8 @@ def start_scan():
 @require_auth
 def scan_status(job_id):
     """Get scan progress for a Gmail scan job."""
+    from datetime import datetime, timezone
+
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
@@ -291,6 +293,14 @@ def scan_status(job_id):
     ).first()
     if not job:
         return jsonify({"error": "Import job not found"}), 404
+
+    # Detect orphaned scans (thread killed by deploy/restart)
+    if job.status == "scanning" and job.created_at:
+        age = (datetime.now(timezone.utc) - job.created_at.replace(tzinfo=timezone.utc)).total_seconds()
+        if age > 120:  # 2 minutes with no completion
+            job.status = "error"
+            job.error = "Scan timed out (server may have restarted). Please try again."
+            db.session.commit()
 
     progress_raw = job.scan_progress
     progress = json.loads(progress_raw) if isinstance(progress_raw, str) else (progress_raw or {})
