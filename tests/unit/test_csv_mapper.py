@@ -115,17 +115,18 @@ class TestBuildMappingPrompt:
 
 class TestApplyMapping:
     def test_simple_mapping(self):
-        row = {"Name": "John Doe", "Position": "CEO", "Company": "Acme"}
+        row = {"First": "John", "Last": "Doe", "Position": "CEO", "Company": "Acme"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "First", "target": "contact.first_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Last", "target": "contact.last_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Position", "target": "contact.job_title", "confidence": 0.8, "transform": None},
                 {"csv_header": "Company", "target": "company.name", "confidence": 0.9, "transform": None},
             ],
-            "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "John Doe"
+        assert result["contact"]["first_name"] == "John"
+        assert result["contact"]["last_name"] == "Doe"
         assert result["contact"]["job_title"] == "CEO"
         assert result["company"]["name"] == "Acme"
 
@@ -135,7 +136,6 @@ class TestApplyMapping:
             "mappings": [
                 {"csv_header": "Website", "target": "company.domain", "confidence": 0.9, "transform": "extract_domain"},
             ],
-            "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
         assert result["company"]["domain"] == "acme.com"
@@ -146,38 +146,34 @@ class TestApplyMapping:
             "mappings": [
                 {"csv_header": "Level", "target": "contact.seniority_level", "confidence": 0.8, "transform": "normalize_enum"},
             ],
-            "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
         assert result["contact"]["seniority_level"] == "c_level"
 
-    def test_combine_columns(self):
+    def test_first_last_name_separate_columns(self):
         row = {"First": "John", "Last": "Doe", "Email": "j@test.com"}
         mapping = {
             "mappings": [
-                {"csv_header": "First", "target": "contact.full_name", "confidence": 0.9, "transform": "combine_first_last"},
-                {"csv_header": "Last", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "First", "target": "contact.first_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Last", "target": "contact.last_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
-            ],
-            "combine_columns": [
-                {"sources": ["First", "Last"], "target": "contact.full_name", "separator": " "},
             ],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "John Doe"
+        assert result["contact"]["first_name"] == "John"
+        assert result["contact"]["last_name"] == "Doe"
         assert result["contact"]["email_address"] == "j@test.com"
 
     def test_unmapped_columns_ignored(self):
         row = {"Name": "John", "Internal ID": "12345"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Internal ID", "target": None, "confidence": 0, "transform": None},
             ],
-            "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "John"
+        assert result["contact"]["first_name"] == "John"
         assert "Internal ID" not in result["contact"]
         assert "Internal ID" not in result["company"]
 
@@ -185,13 +181,12 @@ class TestApplyMapping:
         row = {"Name": "John", "Email": ""}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
             ],
-            "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "John"
+        assert result["contact"]["first_name"] == "John"
         assert "email_address" not in result["contact"]
 
 
@@ -205,10 +200,9 @@ class TestCallClaudeForMapping:
         mock_response.content = [MagicMock()]
         mock_response.content[0].text = json.dumps({
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
             ],
             "warnings": [],
-            "combine_columns": [],
         })
 
         mock_response.model = "claude-sonnet-4-5-20250929"
@@ -227,7 +221,7 @@ class TestCallClaudeForMapping:
             result, usage_info = call_claude_for_mapping(["Name"], [{"Name": "John"}])
 
         assert len(result["mappings"]) == 1
-        assert result["mappings"][0]["target"] == "contact.full_name"
+        assert result["mappings"][0]["target"] == "contact.first_name"
         assert result["warnings"] == []
         assert usage_info["model"] == "claude-sonnet-4-5-20250929"
         assert usage_info["input_tokens"] == 100
@@ -240,7 +234,7 @@ class TestCallClaudeForMapping:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock()]
-        mock_response.content[0].text = '```json\n{"mappings": [], "warnings": [], "combine_columns": []}\n```'
+        mock_response.content[0].text = '```json\n{"mappings": [], "warnings": []}\n```'
         mock_response.model = "claude-sonnet-4-5-20250929"
         mock_response.usage = MagicMock()
         mock_response.usage.input_tokens = 80
@@ -265,13 +259,13 @@ class TestApplyMappingCustomFields:
         row = {"Name": "John", "Alt Email": "alt@test.com"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.8, "transform": None},
             ],
             "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "John"
+        assert result["contact"]["first_name"] == "John"
         assert result["contact"]["_custom_fields"]["email_secondary"] == "alt@test.com"
 
     def test_custom_company_field(self):
@@ -291,7 +285,7 @@ class TestApplyMappingCustomFields:
         row = {"Name": "Jane", "Notes": "VIP", "Source ID": "ext-42"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Notes", "target": "contact.custom.internal_notes", "confidence": 0.7, "transform": None},
                 {"csv_header": "Source ID", "target": "contact.custom.source_id", "confidence": 0.7, "transform": None},
             ],
@@ -305,7 +299,7 @@ class TestApplyMappingCustomFields:
         row = {"Name": "John", "Notes": ""}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Notes", "target": "contact.custom.notes", "confidence": 0.7, "transform": None},
             ],
             "combine_columns": [],
@@ -317,21 +311,22 @@ class TestApplyMappingCustomFields:
         row = {"Name": "Jane", "Email": "jane@test.com", "Priority": "High"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.9, "transform": None},
+                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
                 {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
                 {"csv_header": "Priority", "target": "contact.custom.priority", "confidence": 0.7, "transform": None},
             ],
             "combine_columns": [],
         }
         result = apply_mapping(row, mapping)
-        assert result["contact"]["full_name"] == "Jane"
+        assert result["contact"]["first_name"] == "Jane"
         assert result["contact"]["email_address"] == "jane@test.com"
         assert result["contact"]["_custom_fields"]["priority"] == "High"
 
 
 class TestTargetFields:
     def test_contact_fields_present(self):
-        assert "full_name" in TARGET_FIELDS["contact"]
+        assert "first_name" in TARGET_FIELDS["contact"]
+        assert "last_name" in TARGET_FIELDS["contact"]
         assert "email_address" in TARGET_FIELDS["contact"]
         assert "linkedin_url" in TARGET_FIELDS["contact"]
 

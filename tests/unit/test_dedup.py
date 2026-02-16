@@ -82,7 +82,8 @@ class TestFindExistingContact:
         data = seed_companies_contacts
         ct, match_type = find_existing_contact(data["tenant"].id, email="john@acme.com")
         assert ct is not None
-        assert ct.full_name == "John Doe"
+        assert ct.first_name == "John"
+        assert ct.last_name == "Doe"
         assert match_type == "email"
 
     def test_match_by_email_case_insensitive(self, app, db, seed_companies_contacts):
@@ -95,7 +96,8 @@ class TestFindExistingContact:
         data = seed_companies_contacts
         ct, match_type = find_existing_contact(
             data["tenant"].id,
-            full_name="Dave Brown",
+            first_name="Dave",
+            last_name="Brown",
             company_name="Gamma LLC",
         )
         assert ct is not None
@@ -106,7 +108,7 @@ class TestFindExistingContact:
         ct, match_type = find_existing_contact(
             data["tenant"].id,
             email="nobody@nowhere.com",
-            full_name="Nobody",
+            first_name="Nobody",
         )
         assert ct is None
         assert match_type is None
@@ -135,8 +137,8 @@ class TestDedupPreview:
     def test_detects_existing_contact(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
         parsed = [
-            {"contact": {"full_name": "John Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
-            {"contact": {"full_name": "New Person", "email_address": "new@new.com"}, "company": {"name": "New Co"}},
+            {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
+            {"contact": {"first_name": "New", "last_name": "Person", "email_address": "new@new.com"}, "company": {"name": "New Co"}},
         ]
         results = dedup_preview(str(data["tenant"].id), parsed)
         assert len(results) == 2
@@ -147,7 +149,7 @@ class TestDedupPreview:
     def test_detects_existing_company(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
         parsed = [
-            {"contact": {"full_name": "New Person"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
+            {"contact": {"first_name": "New", "last_name": "Person"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
         ]
         results = dedup_preview(str(data["tenant"].id), parsed)
         assert results[0]["company_status"] == "existing"
@@ -156,8 +158,8 @@ class TestDedupPreview:
     def test_detects_intra_file_dup(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
         parsed = [
-            {"contact": {"full_name": "New A", "email_address": "same@email.com"}, "company": {"name": "NewCo"}},
-            {"contact": {"full_name": "New B", "email_address": "same@email.com"}, "company": {"name": "NewCo"}},
+            {"contact": {"first_name": "New", "last_name": "A", "email_address": "same@email.com"}, "company": {"name": "NewCo"}},
+            {"contact": {"first_name": "New", "last_name": "B", "email_address": "same@email.com"}, "company": {"name": "NewCo"}},
         ]
         results = dedup_preview(str(data["tenant"].id), parsed)
         assert results[0]["contact_status"] == "new"
@@ -190,7 +192,7 @@ class TestExecuteImport:
         job = self._make_job(db, data["tenant"].id, user.id, batch.id)
 
         parsed = [
-            {"contact": {"full_name": "New Guy", "email_address": "new@newco.com"}, "company": {"name": "Brand New Co", "domain": "newco.com"}},
+            {"contact": {"first_name": "New", "last_name": "Guy", "email_address": "new@newco.com"}, "company": {"name": "Brand New Co", "domain": "newco.com"}},
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
@@ -207,7 +209,7 @@ class TestExecuteImport:
         job = self._make_job(db, data["tenant"].id, user.id, batch.id)
 
         parsed = [
-            {"contact": {"full_name": "John Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
+            {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
@@ -225,7 +227,7 @@ class TestExecuteImport:
 
         # Dave Brown (contacts[4]) has no email
         parsed = [
-            {"contact": {"full_name": "Dave Brown", "email_address": "dave@gamma.co"}, "company": {"name": "Gamma LLC"}},
+            {"contact": {"first_name": "Dave", "last_name": "Brown", "email_address": "dave@gamma.co"}, "company": {"name": "Gamma LLC"}},
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",
@@ -244,7 +246,7 @@ class TestExecuteImport:
         initial_count = Contact.query.filter_by(tenant_id=str(data["tenant"].id)).count()
 
         parsed = [
-            {"contact": {"full_name": "John Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
+            {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="create_new",
@@ -262,7 +264,7 @@ class TestExecuteImport:
         job = self._make_job(db, data["tenant"].id, user.id, batch.id)
 
         parsed = [
-            {"contact": {"full_name": "Newcomer"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
+            {"contact": {"first_name": "Newcomer"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
@@ -279,7 +281,7 @@ class TestExecuteImport:
         job = self._make_job(db, data["tenant"].id, user.id, batch.id)
 
         parsed = [
-            {"contact": {"email_address": "noname@test.com"}, "company": {"name": "SomeCo"}},
+            {"contact": {"email_address": "noname@test.com"}, "company": {"name": "SomeCo"}}  # no first_name,
         ]
         counts = execute_import(
             str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",

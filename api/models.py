@@ -201,8 +201,15 @@ class Contact(db.Model):
     company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
-    full_name = db.Column(db.Text, nullable=False)
+    first_name = db.Column(db.Text, nullable=False)
+    last_name = db.Column(db.Text, nullable=False, default="")
     job_title = db.Column(db.Text)
+
+    @property
+    def full_name(self):
+        if self.last_name:
+            return self.first_name + " " + self.last_name
+        return self.first_name
     email_address = db.Column(db.Text)
     linkedin_url = db.Column(db.Text)
     phone_number = db.Column(db.Text)

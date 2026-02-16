@@ -10,7 +10,7 @@ from api.models import Contact, CustomFieldDefinition, ImportJob, db
 from tests.conftest import auth_header
 
 
-SAMPLE_CSV = "Name,Email,Company,Title\nJohn Doe,john@test.com,TestCo,CEO\nJane Smith,jane@other.com,OtherCo,CTO\n"
+SAMPLE_CSV = "First Name,Last Name,Email,Company,Title\nJohn,Doe,john@test.com,TestCo,CEO\nJane,Smith,jane@other.com,OtherCo,CTO\n"
 
 
 def _create_xlsx_bytes(headers, rows):
@@ -26,13 +26,13 @@ def _create_xlsx_bytes(headers, rows):
 
 MOCK_MAPPING = {
     "mappings": [
-        {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "First Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "Last Name", "target": "contact.last_name", "confidence": 0.95, "transform": None},
         {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
         {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
         {"csv_header": "Title", "target": "contact.job_title", "confidence": 0.85, "transform": None},
     ],
     "warnings": [],
-    "combine_columns": [],
 }
 
 MOCK_USAGE_INFO = {
@@ -56,7 +56,7 @@ class TestUploadCSV:
         body = resp.get_json()
         assert body["total_rows"] == 2
         assert body["job_id"]
-        assert body["mapping"]["mappings"][0]["target"] == "contact.full_name"
+        assert body["mapping"]["mappings"][0]["target"] == "contact.first_name"
         assert body["mapping_confidence"] > 0
 
     def test_upload_no_file(self, client, seed_companies_contacts):
@@ -80,10 +80,10 @@ class TestUploadCSV:
         headers["X-Namespace"] = "test-corp"
 
         xlsx_bytes = _create_xlsx_bytes(
-            ["Name", "Email", "Company", "Title"],
+            ["First Name", "Last Name", "Email", "Company", "Title"],
             [
-                {"Name": "John Doe", "Email": "john@test.com", "Company": "TestCo", "Title": "CEO"},
-                {"Name": "Jane Smith", "Email": "jane@other.com", "Company": "OtherCo", "Title": "CTO"},
+                {"First Name": "John", "Last Name": "Doe", "Email": "john@test.com", "Company": "TestCo", "Title": "CEO"},
+                {"First Name": "Jane", "Last Name": "Smith", "Email": "jane@other.com", "Company": "OtherCo", "Title": "CTO"},
             ],
         )
         data = {"file": (io.BytesIO(xlsx_bytes), "contacts.xlsx")}
@@ -92,7 +92,7 @@ class TestUploadCSV:
         body = resp.get_json()
         assert body["total_rows"] == 2
         assert body["job_id"]
-        assert body["headers"] == ["Name", "Email", "Company", "Title"]
+        assert body["headers"] == ["First Name", "Last Name", "Email", "Company", "Title"]
         assert body["mapping_confidence"] > 0
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
@@ -241,10 +241,10 @@ class TestExecuteImport:
         headers["X-Namespace"] = "test-corp"
 
         xlsx_bytes = _create_xlsx_bytes(
-            ["Name", "Email", "Company", "Title"],
+            ["First Name", "Last Name", "Email", "Company", "Title"],
             [
-                {"Name": "Xls One", "Email": "xls1@test.com", "Company": "XlsCo", "Title": "VP"},
-                {"Name": "Xls Two", "Email": "xls2@test.com", "Company": "XlsCo", "Title": "Dir"},
+                {"First Name": "Xls", "Last Name": "One", "Email": "xls1@test.com", "Company": "XlsCo", "Title": "VP"},
+                {"First Name": "Xls", "Last Name": "Two", "Email": "xls2@test.com", "Company": "XlsCo", "Title": "Dir"},
             ],
         )
         data = {"file": (io.BytesIO(xlsx_bytes), "team.xlsx")}
@@ -325,7 +325,8 @@ def body_imports_empty_or_valid(resp):
 
 MOCK_REMAPPED = {
     "mappings": [
-        {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "First Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "Last Name", "target": "contact.last_name", "confidence": 0.95, "transform": None},
         {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
         {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
         {"csv_header": "Title", "target": "contact.job_title", "confidence": 0.85, "transform": None,
@@ -333,7 +334,6 @@ MOCK_REMAPPED = {
                                     "field_label": "Title Note", "field_type": "text"}},
     ],
     "warnings": [],
-    "combine_columns": [],
 }
 
 
@@ -356,7 +356,7 @@ class TestRemapImport:
         resp = client.post(f"/api/imports/{job_id}/remap", headers=json_headers, json={})
         assert resp.status_code == 200
         body = resp.get_json()
-        assert body["mapping"]["mappings"][3].get("suggested_custom_field") is not None
+        assert body["mapping"]["mappings"][4].get("suggested_custom_field") is not None
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_remap_completed_fails(self, mock_claude, client, seed_companies_contacts):
@@ -380,20 +380,20 @@ class TestRemapImport:
 
 MOCK_MAPPING_WITH_CUSTOM = {
     "mappings": [
-        {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "First Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "Last Name", "target": "contact.last_name", "confidence": 0.95, "transform": None},
         {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
         {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
         {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.80, "transform": None},
         {"csv_header": "Tax ID", "target": "company.custom.tax_id", "confidence": 0.75, "transform": None},
     ],
     "warnings": [],
-    "combine_columns": [],
 }
 
 SAMPLE_CSV_WITH_CUSTOM = (
-    "Name,Email,Company,Alt Email,Tax ID\n"
-    "John Doe,john@newco.com,NewCo,alt@john.com,DE123\n"
-    "Jane Smith,jane@newco.com,NewCo,alt@jane.com,DE123\n"
+    "First Name,Last Name,Email,Company,Alt Email,Tax ID\n"
+    "John,Doe,john@newco.com,NewCo,alt@john.com,DE123\n"
+    "Jane,Smith,jane@newco.com,NewCo,alt@jane.com,DE123\n"
 )
 
 
@@ -449,7 +449,7 @@ class TestCustomFieldImport:
         # Check the stored custom_fields on contacts
         tenant_id = seed_companies_contacts["tenant"].id
         ct = Contact.query.filter_by(
-            tenant_id=str(tenant_id), full_name="John Doe", email_address="john@newco.com",
+            tenant_id=str(tenant_id), first_name="John", last_name="Doe", email_address="john@newco.com",
         ).first()
         assert ct is not None
         cf = ct.custom_fields
@@ -498,7 +498,8 @@ class TestCustomFieldImport:
         """User-edited field_label in suggested_custom_field should be used for definition."""
         mapping_with_label = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+                {"csv_header": "First Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
+                {"csv_header": "Last Name", "target": "contact.last_name", "confidence": 0.95, "transform": None},
                 {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
                 {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
                 {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.80,
@@ -508,7 +509,6 @@ class TestCustomFieldImport:
                  }},
             ],
             "warnings": [],
-            "combine_columns": [],
         }
         mock_claude.return_value = (mapping_with_label, MOCK_USAGE_INFO)
         headers = auth_header(client)

@@ -344,7 +344,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
       <table class="data-table">
         <thead>
           <tr>
-            <th data-sort="full_name">Name <span class="sort-arrow"></span></th>
+            <th data-sort="last_name">Name <span class="sort-arrow"></span></th>
             <th data-sort="job_title">Title <span class="sort-arrow"></span></th>
             <th>Company</th>
             <th data-sort="email_address">Email <span class="sort-arrow"></span></th>
@@ -387,7 +387,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
   var state = {
     page: 1,
     pageSize: 50,
-    sort: 'full_name',
+    sort: 'last_name',
     sortDir: 'asc',
     total: 0,
     items: [],
@@ -700,7 +700,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
     // Header
     var header = el('div', { className: 'detail-section' });
     var hg = el('div', { className: 'detail-grid' });
-    hg.appendChild(field('Full Name', c.full_name));
+    hg.appendChild(field('First Name', c.first_name));
+    hg.appendChild(field('Last Name', c.last_name));
     hg.appendChild(field('Job Title', c.job_title));
     if (c.linkedin_url) {
       hg.appendChild(fieldLink('LinkedIn', c.linkedin_url));

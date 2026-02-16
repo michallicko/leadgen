@@ -650,7 +650,8 @@ select option { background: var(--bg); color: var(--text); }
 
   var TARGET_OPTIONS = [
     { value: '', label: '-- Unmapped --', group: '' },
-    { value: 'contact.full_name', label: 'Full Name', group: 'Contact' },
+    { value: 'contact.first_name', label: 'First Name', group: 'Contact' },
+    { value: 'contact.last_name', label: 'Last Name', group: 'Contact' },
     { value: 'contact.job_title', label: 'Job Title', group: 'Contact' },
     { value: 'contact.email_address', label: 'Email', group: 'Contact' },
     { value: 'contact.linkedin_url', label: 'LinkedIn URL', group: 'Contact' },
@@ -1092,7 +1093,8 @@ select option { background: var(--bg); color: var(--text); }
       tr.appendChild(td0);
 
       // Data cells
-      [ct.full_name, ct.job_title, ct.email_address, co.name, co.domain].forEach(function(val) {
+      var ctName = ((ct.first_name || '') + ' ' + (ct.last_name || '')).trim();
+      [ctName, ct.job_title, ct.email_address, co.name, co.domain].forEach(function(val) {
         var td = document.createElement('td');
         td.textContent = val || '';
         tr.appendChild(td);

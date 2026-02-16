@@ -59,7 +59,7 @@ def find_existing_company(tenant_id, name=None, domain=None):
 
 
 def find_existing_contact(tenant_id, linkedin_url=None, email=None,
-                          full_name=None, company_name=None):
+                          first_name=None, last_name=None, company_name=None):
     """Find an existing contact by LinkedIn URL, email, or name+company.
 
     Returns (Contact, match_type) or (None, None).
@@ -82,10 +82,11 @@ def find_existing_contact(tenant_id, linkedin_url=None, email=None,
         if match:
             return match, "email"
 
-    if full_name and company_name:
+    if first_name and company_name:
         match = Contact.query.filter(
             Contact.tenant_id == str(tenant_id),
-            func.lower(Contact.full_name) == full_name.strip().lower(),
+            func.lower(Contact.first_name) == first_name.strip().lower(),
+            func.lower(Contact.last_name) == (last_name or "").strip().lower(),
         ).join(Company, Contact.company_id == Company.id).filter(
             func.lower(Company.name) == company_name.strip().lower(),
         ).first()
@@ -202,13 +203,13 @@ def dedup_preview(tenant_id, parsed_rows):
         # Contact dedup
         linkedin = (contact_data.get("linkedin_url") or "").strip().lower().rstrip("/")
         email = (contact_data.get("email_address") or "").strip().lower()
-        name = (contact_data.get("full_name") or "").strip().lower()
 
         existing_ct, match_type = find_existing_contact(
             tenant_id,
             linkedin_url=contact_data.get("linkedin_url"),
             email=contact_data.get("email_address"),
-            full_name=contact_data.get("full_name"),
+            first_name=contact_data.get("first_name"),
+            last_name=contact_data.get("last_name"),
             company_name=company_data.get("name"),
         )
         if existing_ct:
@@ -319,8 +320,8 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                         import_company_cache_name[norm_name] = new_co
 
         # --- Resolve or create contact ---
-        full_name = contact_data.get("full_name")
-        if not full_name:
+        first_name = contact_data.get("first_name")
+        if not first_name:
             counts["contacts_skipped"] += 1
             continue
 
@@ -328,7 +329,8 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
             tenant_id,
             linkedin_url=contact_data.get("linkedin_url"),
             email=contact_data.get("email_address"),
-            full_name=full_name,
+            first_name=first_name,
+            last_name=contact_data.get("last_name"),
             company_name=co_name,
         )
 
@@ -370,7 +372,8 @@ def _create_contact(tenant_id, contact_data, company_id, batch_id,
         company_id=str(company_id) if company_id else None,
         owner_id=str(owner_id) if owner_id else None,
         batch_id=str(batch_id),
-        full_name=contact_data["full_name"],
+        first_name=contact_data["first_name"],
+        last_name=contact_data.get("last_name", ""),
         job_title=contact_data.get("job_title"),
         email_address=contact_data.get("email_address"),
         linkedin_url=contact_data.get("linkedin_url"),

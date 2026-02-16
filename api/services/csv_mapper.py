@@ -10,7 +10,7 @@ import time
 
 TARGET_FIELDS = {
     "contact": [
-        "full_name", "job_title", "email_address", "linkedin_url",
+        "first_name", "last_name", "job_title", "email_address", "linkedin_url",
         "phone_number", "location_city", "location_country",
         "seniority_level", "department", "contact_source", "language",
     ],
@@ -75,21 +75,16 @@ Respond with ONLY valid JSON (no markdown fences). The JSON must be an object wi
   - "target": the target field name (prefixed with "contact." or "company."), or null if no match
   - "confidence": number 0.0-1.0
   - "transform": null, or one of:
-    - "combine_first_last" (for first_name column that should combine with last_name into full_name)
     - "extract_domain" (for company URL/website → domain)
     - "normalize_enum" (for free text → DB enum value)
   - "suggested_custom_field": (optional) if target is null and the column has useful data, suggest a new
     custom field: {{"entity_type": "contact"|"company", "field_key": "snake_case_key",
     "field_label": "Display Name", "field_type": "text"|"number"|"url"|"email"|"date"|"select"}}
 - "warnings": array of strings for any issues (missing required fields, ambiguous mappings, etc.)
-- "combine_columns": array of objects describing columns to combine, each with:
-  - "sources": array of csv_header names to combine
-  - "target": the target field
-  - "separator": string to join with (e.g. " ")
 
 Rules:
-- full_name is required. If you see separate first_name/last_name columns, mark the first one with
-  transform "combine_first_last" and map both to contact.full_name in combine_columns.
+- first_name is required. Map first name columns to contact.first_name and last name columns to
+  contact.last_name. These are separate DB columns.
 - Company name is required if any company fields are present.
 - If a column clearly contains a website URL, map to company.domain with transform "extract_domain".
 - Prefer exact matches over fuzzy matches.
@@ -234,32 +229,12 @@ def apply_mapping(row, mapping_result):
     contact = {}
     company = {}
     mappings = {m["csv_header"]: m for m in mapping_result.get("mappings", [])}
-    combine_columns = mapping_result.get("combine_columns", [])
 
-    # Handle combine_columns first (e.g. first_name + last_name → full_name)
-    combined_targets = set()
-    for combo in combine_columns:
-        sources = combo["sources"]
-        target = combo["target"]
-        separator = combo.get("separator", " ")
-        parts = [str(row.get(s, "")).strip() for s in sources if row.get(s)]
-        if parts:
-            value = separator.join(parts)
-            entity, field = target.split(".", 1)
-            if entity == "contact":
-                contact[field] = value
-            else:
-                company[field] = value
-            combined_targets.add(target)
-
-    # Apply individual mappings (skip columns already handled by combine)
     for header, value in row.items():
         m = mappings.get(header)
         if not m or not m.get("target"):
             continue
         target = m["target"]
-        if target in combined_targets:
-            continue
 
         value = str(value).strip() if value else None
         if not value:

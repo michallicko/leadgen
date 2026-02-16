@@ -35,7 +35,7 @@ def _parse_jsonb(v):
     return v
 
 ALLOWED_SORT = {
-    "full_name", "job_title", "email_address", "contact_score",
+    "last_name", "first_name", "job_title", "email_address", "contact_score",
     "icp_fit", "message_status", "created_at",
 }
 
@@ -55,11 +55,11 @@ def list_contacts():
     icp_fit = request.args.get("icp_fit", "").strip()
     message_status = request.args.get("message_status", "").strip()
     company_id = request.args.get("company_id", "").strip()
-    sort = request.args.get("sort", "full_name").strip()
+    sort = request.args.get("sort", "last_name").strip()
     sort_dir = request.args.get("sort_dir", "asc").strip().lower()
 
     if sort not in ALLOWED_SORT:
-        sort = "full_name"
+        sort = "last_name"
     if sort_dir not in ("asc", "desc"):
         sort_dir = "asc"
 
@@ -68,7 +68,8 @@ def list_contacts():
 
     if search:
         where.append(
-            "(LOWER(ct.full_name) LIKE LOWER(:search) OR LOWER(ct.email_address) LIKE LOWER(:search)"
+            "(LOWER(ct.first_name) LIKE LOWER(:search) OR LOWER(ct.last_name) LIKE LOWER(:search)"
+            " OR LOWER(ct.email_address) LIKE LOWER(:search)"
             " OR LOWER(ct.job_title) LIKE LOWER(:search))"
         )
         params["search"] = f"%{search}%"
@@ -125,7 +126,7 @@ def list_contacts():
     rows = db.session.execute(
         db.text(f"""
             SELECT
-                ct.id, ct.full_name, ct.job_title,
+                ct.id, ct.first_name, ct.last_name, ct.job_title,
                 co.id AS company_id, co.name AS company_name,
                 ct.email_address, ct.contact_score, ct.icp_fit,
                 ct.message_status,
@@ -143,18 +144,23 @@ def list_contacts():
 
     contacts = []
     for r in rows:
+        first = r[1] or ""
+        last = r[2] or ""
+        full_name = (first + " " + last).strip() if last else first
         contacts.append({
             "id": str(r[0]),
-            "full_name": r[1],
-            "job_title": r[2],
-            "company_id": str(r[3]) if r[3] else None,
-            "company_name": r[4],
-            "email_address": r[5],
-            "contact_score": r[6],
-            "icp_fit": display_icp_fit(r[7]),
-            "message_status": r[8],
-            "owner_name": r[9],
-            "batch_name": r[10],
+            "full_name": full_name,
+            "first_name": first,
+            "last_name": last,
+            "job_title": r[3],
+            "company_id": str(r[4]) if r[4] else None,
+            "company_name": r[5],
+            "email_address": r[6],
+            "contact_score": r[7],
+            "icp_fit": display_icp_fit(r[8]),
+            "message_status": r[9],
+            "owner_name": r[10],
+            "batch_name": r[11],
         })
 
     return jsonify({
@@ -176,7 +182,7 @@ def get_contact(contact_id):
     row = db.session.execute(
         db.text("""
             SELECT
-                ct.id, ct.full_name, ct.job_title,
+                ct.id, ct.first_name, ct.last_name, ct.job_title,
                 ct.email_address, ct.linkedin_url, ct.phone_number,
                 ct.profile_photo_url,
                 ct.seniority_level, ct.department,
@@ -206,47 +212,51 @@ def get_contact(contact_id):
     if not row:
         return jsonify({"error": "Contact not found"}), 404
 
+    first = row[1] or ""
+    last = row[2] or ""
     contact = {
         "id": str(row[0]),
-        "full_name": row[1],
-        "job_title": row[2],
-        "email_address": row[3],
-        "linkedin_url": row[4],
-        "phone_number": row[5],
-        "profile_photo_url": row[6],
-        "seniority_level": display_seniority(row[7]),
-        "department": display_department(row[8]),
-        "location_city": row[9],
-        "location_country": row[10],
-        "icp_fit": display_icp_fit(row[11]),
-        "relationship_status": display_relationship_status(row[12]),
-        "contact_source": display_contact_source(row[13]),
-        "language": display_language(row[14]),
-        "message_status": row[15],
-        "ai_champion": row[16],
-        "ai_champion_score": row[17],
-        "authority_score": row[18],
-        "contact_score": row[19],
-        "enrichment_cost_usd": float(row[20]) if row[20] is not None else None,
-        "processed_enrich": row[21],
-        "email_lookup": row[22],
-        "duplicity_check": row[23],
-        "duplicity_conflict": row[24],
-        "duplicity_detail": row[25],
-        "notes": row[26],
-        "error": row[27],
-        "custom_fields": _parse_jsonb(row[28]),
-        "created_at": _iso(row[29]),
-        "updated_at": _iso(row[30]),
+        "first_name": first,
+        "last_name": last,
+        "full_name": (first + " " + last).strip() if last else first,
+        "job_title": row[3],
+        "email_address": row[4],
+        "linkedin_url": row[5],
+        "phone_number": row[6],
+        "profile_photo_url": row[7],
+        "seniority_level": display_seniority(row[8]),
+        "department": display_department(row[9]),
+        "location_city": row[10],
+        "location_country": row[11],
+        "icp_fit": display_icp_fit(row[12]),
+        "relationship_status": display_relationship_status(row[13]),
+        "contact_source": display_contact_source(row[14]),
+        "language": display_language(row[15]),
+        "message_status": row[16],
+        "ai_champion": row[17],
+        "ai_champion_score": row[18],
+        "authority_score": row[19],
+        "contact_score": row[20],
+        "enrichment_cost_usd": float(row[21]) if row[21] is not None else None,
+        "processed_enrich": row[22],
+        "email_lookup": row[23],
+        "duplicity_check": row[24],
+        "duplicity_conflict": row[25],
+        "duplicity_detail": row[26],
+        "notes": row[27],
+        "error": row[28],
+        "custom_fields": _parse_jsonb(row[29]),
+        "created_at": _iso(row[30]),
+        "updated_at": _iso(row[31]),
         "company": {
-            "id": str(row[31]),
-            "name": row[32],
-            "domain": row[33],
-            "status": display_status(row[34]),
-            "tier": display_tier(row[35]),
-        } if row[31] else None,
-        "owner_name": row[36],
-        "batch_name": row[37],
+            "id": str(row[32]),
+            "name": row[33],
+            "domain": row[34],
+            "status": display_status(row[35]),
+            "tier": display_tier(row[36]),
+        } if row[32] else None,
+        "owner_name": row[37],
+        "batch_name": row[38],
     }
 
     # Contact enrichment
