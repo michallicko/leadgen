@@ -20,10 +20,30 @@
 - Review existing docs (`docs/`) to understand the bigger picture before designing
 - Specs are living documents — update them as requirements evolve
 
-### 2. Branch Per Feature
+### 2. Branch Per Feature (Worktree Isolation)
 - Create a git branch for each major feature: `feature/{name}`
 - Branch from `main`, merge back to `main` only when the feature is **fully complete**
 - "Fully complete" = spec requirements met + tests passing + docs updated
+- **Parallel work uses git worktrees** — multiple Claude instances run simultaneously on different features
+- Worktree directory: `.worktrees/` (gitignored, project-local)
+- **CRITICAL: Never `git checkout` or `git switch` branches.** You will corrupt other instances' work.
+- Instead, verify you're in the correct worktree for your branch:
+  ```bash
+  # Check your current branch — if wrong, you're in the wrong directory
+  git branch --show-current
+  ```
+- **Creating a new worktree** (when starting a new feature):
+  ```bash
+  git worktree add .worktrees/{feature-name} -b feature/{feature-name}
+  cd .worktrees/{feature-name}
+  ```
+- **Using an existing worktree** (when resuming work):
+  ```bash
+  # Main repo dir has one branch; others are in .worktrees/
+  cd /Users/michal/git/leadgen-pipeline/.worktrees/{feature-name}
+  ```
+- **Listing active worktrees**: `git worktree list`
+- **Cleanup after merge**: `git worktree remove .worktrees/{feature-name}`
 
 ### 3. Test-Driven Verification
 - **E2E tests** (`tests/e2e/`): Cover key specs and user flows. Written against the spec before implementation.
@@ -71,6 +91,7 @@ Every feature must pass ALL of these before it is considered complete:
 
 ```
 leadgen-pipeline/
+  .worktrees/             # Git worktrees for parallel feature work (gitignored)
   api/                    # Flask API (auth, tenants, users, messages, batches)
   dashboard/              # Static frontend (HTML/JS/CSS)
   deploy/                 # Deployment scripts and Docker compose overlays
