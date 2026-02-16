@@ -548,3 +548,19 @@ class Message(db.Model):
     review_notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class EntityStageCompletion(db.Model):
+    __tablename__ = "entity_stage_completions"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"), nullable=False)
+    pipeline_run_id = db.Column(UUID(as_uuid=False), db.ForeignKey("pipeline_runs.id"))
+    entity_type = db.Column(db.Text, nullable=False)
+    entity_id = db.Column(UUID(as_uuid=False), nullable=False)
+    stage = db.Column(db.Text, nullable=False)
+    status = db.Column(db.Text, nullable=False, default="completed")
+    cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    error = db.Column(db.Text)
+    completed_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
