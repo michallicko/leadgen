@@ -38,7 +38,7 @@ class TestGetStagesForEntityType:
         codes = {s["code"] for s in company_stages}
         assert "l1" in codes
         assert "l2" in codes
-        assert "ares" in codes
+        assert "registry" in codes
         assert "qc" in codes
         assert "person" not in codes
         assert "generate" not in codes
@@ -75,14 +75,14 @@ class TestTopoSort:
         assert result.index("person") < result.index("generate")
 
     def test_parallel_after_l1(self):
-        """L2, signals, and registries are all after L1 but parallel to each other."""
+        """L2, signals, and registry are all after L1 but parallel to each other."""
         from api.services.stage_registry import topo_sort
 
-        stages = ["l1", "l2", "signals", "ares"]
+        stages = ["l1", "l2", "signals", "registry"]
         result = topo_sort(stages)
         assert result[0] == "l1"
-        # L2, signals, ares can be in any order as long as after L1
-        assert set(result[1:]) == {"l2", "signals", "ares"}
+        # L2, signals, registry can be in any order as long as after L1
+        assert set(result[1:]) == {"l2", "signals", "registry"}
 
     def test_soft_deps_on_by_default(self):
         """Person has soft dep on L2 — should come after L2 when enabled."""
@@ -106,7 +106,7 @@ class TestTopoSort:
         """QC (terminal) should come after all other enabled stages."""
         from api.services.stage_registry import topo_sort
 
-        stages = ["l1", "l2", "ares", "qc"]
+        stages = ["l1", "l2", "registry", "qc"]
         result = topo_sort(stages)
         assert result[-1] == "qc"
 
@@ -178,19 +178,29 @@ class TestEstimateCost:
     def test_free_stages(self):
         from api.services.stage_registry import estimate_cost
 
-        cost = estimate_cost(["ares", "brreg"], 100)
+        cost = estimate_cost(["registry"], 100)
         assert cost == 0.0
 
 
 class TestCountryGate:
-    def test_registry_stages_have_country_gate(self):
+    def test_registry_has_country_gate(self):
         from api.services.stage_registry import get_stage
 
-        for code in ["ares", "brreg", "prh", "recherche", "isir"]:
-            stage = get_stage(code)
-            assert stage["country_gate"] is not None, f"{code} should have country_gate"
-            assert "countries" in stage["country_gate"]
-            assert "tlds" in stage["country_gate"]
+        stage = get_stage("registry")
+        assert stage["country_gate"] is not None
+        assert "countries" in stage["country_gate"]
+        assert "tlds" in stage["country_gate"]
+        # Unified gate covers all 4 countries
+        countries = stage["country_gate"]["countries"]
+        assert "CZ" in countries
+        assert "NO" in countries
+        assert "FI" in countries
+        assert "FR" in countries
+        tlds = stage["country_gate"]["tlds"]
+        assert ".cz" in tlds
+        assert ".no" in tlds
+        assert ".fi" in tlds
+        assert ".fr" in tlds
 
     def test_non_registry_stages_no_gate(self):
         from api.services.stage_registry import get_stage
@@ -198,3 +208,28 @@ class TestCountryGate:
         for code in ["l1", "l2", "signals", "person", "generate", "qc"]:
             stage = get_stage(code)
             assert stage["country_gate"] is None, f"{code} should not have country_gate"
+
+
+class TestStageFields:
+    def test_stage_fields_has_entries(self):
+        from api.services.stage_registry import STAGE_FIELDS
+
+        assert len(STAGE_FIELDS) > 0
+
+    def test_stage_fields_covers_registry_stages(self):
+        from api.services.stage_registry import STAGE_FIELDS, STAGE_REGISTRY
+
+        for code in STAGE_REGISTRY:
+            assert code in STAGE_FIELDS, f"STAGE_FIELDS missing entry for {code}"
+
+    def test_l1_fields(self):
+        from api.services.stage_registry import STAGE_FIELDS
+
+        assert "Industry" in STAGE_FIELDS["l1"]
+        assert "Summary" in STAGE_FIELDS["l1"]
+
+    def test_registry_fields(self):
+        from api.services.stage_registry import STAGE_FIELDS
+
+        assert "Official Name" in STAGE_FIELDS["registry"]
+        assert "Insolvency" in STAGE_FIELDS["registry"]

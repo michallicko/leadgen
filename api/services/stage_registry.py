@@ -36,50 +36,20 @@ STAGE_REGISTRY = {
         "cost_default_usd": 0.05,
         "country_gate": None,
     },
-    "ares": {
+    "registry": {
         "entity_type": "company",
         "hard_deps": ["l1"],
         "soft_deps": [],
         "execution_mode": "native",
-        "display_name": "ARES (CZ)",
+        "display_name": "Legal & Registry",
         "cost_default_usd": 0.00,
-        "country_gate": {"countries": ["CZ", "Czech Republic"], "tlds": [".cz"]},
-    },
-    "brreg": {
-        "entity_type": "company",
-        "hard_deps": ["l1"],
-        "soft_deps": [],
-        "execution_mode": "native",
-        "display_name": "BRREG (NO)",
-        "cost_default_usd": 0.00,
-        "country_gate": {"countries": ["NO", "Norway", "Norge"], "tlds": [".no"]},
-    },
-    "prh": {
-        "entity_type": "company",
-        "hard_deps": ["l1"],
-        "soft_deps": [],
-        "execution_mode": "native",
-        "display_name": "PRH (FI)",
-        "cost_default_usd": 0.00,
-        "country_gate": {"countries": ["FI", "Finland", "Suomi"], "tlds": [".fi"]},
-    },
-    "recherche": {
-        "entity_type": "company",
-        "hard_deps": ["l1"],
-        "soft_deps": [],
-        "execution_mode": "native",
-        "display_name": "Recherche (FR)",
-        "cost_default_usd": 0.00,
-        "country_gate": {"countries": ["FR", "France"], "tlds": [".fr"]},
-    },
-    "isir": {
-        "entity_type": "company",
-        "hard_deps": ["l1"],
-        "soft_deps": [],
-        "execution_mode": "native",
-        "display_name": "ISIR Insolvency (CZ)",
-        "cost_default_usd": 0.00,
-        "country_gate": {"countries": ["CZ", "Czech Republic"], "tlds": [".cz"]},
+        "country_gate": {
+            "countries": ["CZ", "Czech Republic", "Czechia",
+                          "NO", "Norway", "Norge",
+                          "FI", "Finland", "Suomi",
+                          "FR", "France"],
+            "tlds": [".cz", ".no", ".fi", ".fr"],
+        },
     },
     "person": {
         "entity_type": "contact",
@@ -109,6 +79,16 @@ STAGE_REGISTRY = {
         "country_gate": None,
         "is_terminal": True,
     },
+}
+
+STAGE_FIELDS = {
+    "l1": ["Industry", "Business Model", "Revenue", "Employees", "Summary", "Triage Score"],
+    "l2": ["Company Intel", "News", "AI Opportunities", "Tech Stack", "Pain Hypothesis"],
+    "registry": ["Official Name", "Legal Form", "Registration Status", "Credibility Score", "Insolvency"],
+    "signals": [],
+    "person": ["Person Summary", "LinkedIn Profile", "Relationship Synthesis"],
+    "generate": ["Message Status", "Outreach Copy"],
+    "qc": ["Quality Flags", "Data Completeness"],
 }
 
 

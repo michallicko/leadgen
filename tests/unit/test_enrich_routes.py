@@ -127,11 +127,14 @@ class TestEnrichEstimate:
         assert data["stages"]["l1"]["eligible_count"] == 5
         assert data["stages"]["l1"]["cost_per_item"] == 0.02
         assert data["stages"]["l1"]["estimated_cost"] == 0.10
+        assert "fields" in data["stages"]["l1"]
+        assert "Industry" in data["stages"]["l1"]["fields"]
 
         # L2: 2 eligible at $0.08 = $0.16
         assert data["stages"]["l2"]["eligible_count"] == 2
         assert data["stages"]["l2"]["cost_per_item"] == 0.08
         assert data["stages"]["l2"]["estimated_cost"] == 0.16
+        assert "fields" in data["stages"]["l2"]
 
         # Person: 3 eligible at $0.04 = $0.12
         assert data["stages"]["person"]["eligible_count"] == 3

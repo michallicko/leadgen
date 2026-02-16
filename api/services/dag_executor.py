@@ -201,10 +201,6 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
                     country_conditions.append(f"e.domain LIKE :cg_tld_{i}")
                     params[f"cg_tld_{i}"] = f"%{tld}"
 
-            # ISIR also needs ICO
-            if stage_code == "isir":
-                country_conditions.append("e.ico IS NOT NULL")
-
             if country_conditions:
                 where_clauses.append(f"({' OR '.join(country_conditions)})")
 
@@ -283,9 +279,6 @@ def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, batch_id):
         for i, tld in enumerate(tlds):
             gate_conditions.append(f"c.domain LIKE :tld_{i}")
             params[f"tld_{i}"] = f"%{tld}"
-
-    if stage_code == "isir":
-        gate_conditions.append("c.ico IS NOT NULL")
 
     if not gate_conditions:
         return 0
