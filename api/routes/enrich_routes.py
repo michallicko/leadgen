@@ -14,6 +14,7 @@ from ..services.pipeline_engine import (
     start_pipeline_threads,
     _process_entity,
 )
+from ..services.stage_registry import STAGE_FIELDS
 
 enrich_bp = Blueprint("enrich", __name__)
 
@@ -112,6 +113,7 @@ def enrich_estimate():
             "eligible_count": eligible,
             "cost_per_item": cost_per_item,
             "estimated_cost": estimated_cost,
+            "fields": STAGE_FIELDS.get(stage, []),
         }
 
     return jsonify({

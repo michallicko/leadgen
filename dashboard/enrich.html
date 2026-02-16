@@ -63,31 +63,9 @@ body::after {
 }
 
 /* Layout */
-.container { max-width: 1200px; margin: 0 auto; padding: 32px 16px; }
+.container { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
-
-/* Steps */
-.steps { display: flex; gap: 0; margin-bottom: 32px; }
-.step-item {
-  display: flex; align-items: center; gap: 8px; flex: 1;
-  padding: 10px 16px; background: var(--surface);
-  border: 1px solid var(--border); font-size: 0.82rem;
-  color: var(--text-dim); cursor: default;
-}
-.step-item:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.step-item:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.step-item:not(:last-child) { border-right: none; }
-.step-num {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--surface-alt); font-size: 0.7rem;
-  font-weight: 700; color: var(--text-dim); flex-shrink: 0;
-}
-.step-item.active { color: var(--text); border-color: var(--accent); }
-.step-item.active .step-num { background: var(--accent); color: #fff; }
-.step-item.done { color: var(--success); border-color: rgba(52,211,153,0.2); }
-.step-item.done .step-num { background: var(--success); color: #0D0F14; }
 
 /* Card */
 .card {
@@ -149,21 +127,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .tier-chip input { display: none; }
 .tier-chip.active { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
 
-/* Status grid */
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 8px; margin-top: 12px;
-}
-.status-cell { padding: 10px 12px; background: var(--surface-alt); border-radius: var(--radius); text-align: center; }
-.status-cell__value { font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; }
-.status-cell__label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
-.status-cell--new .status-cell__value { color: var(--text); }
-.status-cell--passed .status-cell__value { color: var(--success); }
-.status-cell--review .status-cell__value { color: var(--warning); }
-.status-cell--failed .status-cell__value { color: var(--error); }
-.status-cell--enriched .status-cell__value { color: var(--accent-cyan); }
-
 /* Toggle switch */
 .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
 .toggle input { opacity: 0; width: 0; height: 0; }
@@ -202,7 +165,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ===== DAG LAYOUT ===== */
+/* ===== DAG CONTROLS ===== */
 .dag-controls {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px; background: var(--surface);
@@ -215,51 +178,34 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .dag-controls__cost { font-family: var(--font-title); font-size: 1.1rem; font-weight: 700; color: var(--accent-cyan); }
 .dag-controls__actions { display: flex; gap: 8px; align-items: center; }
 
+/* ===== DAG VERTICAL LAYOUT ===== */
 .dag-wrapper {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 32px 24px;
   margin-bottom: 16px;
-  overflow-x: auto;
 }
 
 .dag-container {
   position: relative;
-  min-height: 500px;
 }
 
-.dag-columns {
-  display: flex;
-  gap: 20px;
-  position: relative;
-  z-index: 2;
-  min-width: 900px;
-}
-
-.dag-col {
+.dag-rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 48px;
   align-items: center;
-  justify-content: center;
-  flex: 1;
-  min-width: 0;
+  position: relative;
+  z-index: 2;
 }
 
-.dag-col--wide { flex: 1.4; }
-
-.dag-col__label {
-  font-family: var(--font-title);
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-  text-align: center;
-  width: 100%;
+.dag-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* SVG edge layer */
@@ -273,12 +219,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* ===== DAG NODE ===== */
 .dag-node {
-  width: 100%;
-  max-width: 180px;
+  width: 220px;
+  max-width: 260px;
   background: var(--surface-alt);
   border: 1px solid var(--border-solid);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 12px 14px;
   transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
   position: relative;
 }
@@ -325,7 +271,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   margin-bottom: 4px;
 }
 
-.dag-node__progress { margin-top: 4px; }
+.dag-node__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.dag-node__field-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.dag-node__progress { margin-top: 6px; }
 
 .dag-node__bar-wrap {
   height: 4px;
@@ -381,6 +345,16 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .soft-dep-badge:not(.active) .soft-dep-badge__dot { background: var(--text-dim); opacity: 0.4; }
 .soft-dep-badge:not(.active) { text-decoration: line-through; opacity: 0.5; }
 
+.dag-node__status-icon {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; font-weight: 700;
+  z-index: 3;
+}
+
 /* ===== NODE STATES ===== */
 .dag-node[data-state="disabled"] { opacity: 0.25; pointer-events: none; }
 .dag-node[data-state="pending"] { border-style: dashed; border-color: var(--text-dim); }
@@ -388,6 +362,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .dag-node[data-state="running"] { border-color: var(--accent-cyan); box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); animation: nodeGlow 2s ease-in-out infinite; }
 .dag-node[data-state="completed"] { border-color: var(--success); box-shadow: 0 0 12px -4px rgba(52,211,153,0.3); }
 .dag-node[data-state="failed"] { border-color: var(--error); box-shadow: 0 0 12px -4px rgba(248,113,113,0.3); }
+
+.dag-node[data-state="completed"] .dag-node__status-icon { background: var(--success); color: #0D0F14; }
+.dag-node[data-state="failed"] .dag-node__status-icon { background: var(--error); color: #fff; }
+.dag-node[data-state="running"] .dag-node__status-icon { background: var(--accent-cyan); color: #0D0F14; }
 
 @keyframes nodeGlow {
   0%, 100% { box-shadow: 0 0 16px -4px rgba(0,184,207,0.4); }
@@ -407,28 +385,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 }
 
 @keyframes barberpole { to { background-position: 12px 0; } }
-
-/* Compact registry node */
-.dag-node--compact { max-width: 180px; padding: 6px 10px; }
-.dag-node--compact .dag-node__header { margin-bottom: 0; }
-.dag-node--compact .dag-node__icon { width: 22px; height: 22px; font-size: 0.6rem; border-radius: 4px; }
-.dag-node--compact .dag-node__name { font-size: 0.7rem; }
-.dag-node--compact .dag-node__stats { margin-bottom: 0; font-size: 0.65rem; }
-.dag-node--compact .dag-node__progress { display: none; }
-
-.dag-node__status-icon {
-  position: absolute;
-  top: -6px; right: -6px;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.6rem; font-weight: 700;
-  z-index: 3;
-}
-
-.dag-node[data-state="completed"] .dag-node__status-icon { background: var(--success); color: #0D0F14; }
-.dag-node[data-state="failed"] .dag-node__status-icon { background: var(--error); color: #fff; }
-.dag-node[data-state="running"] .dag-node__status-icon { background: var(--accent-cyan); color: #0D0F14; }
 
 /* ===== EDGE STATES ===== */
 .dag-edge { fill: none; stroke-width: 1.5; transition: stroke 0.3s, opacity 0.3s; }
@@ -472,13 +428,12 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* Responsive */
 @media (max-width: 768px) {
-  .dag-columns { flex-direction: column; min-width: auto; gap: 16px; }
-  .dag-col { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .dag-rows { gap: 32px; }
+  .dag-row { flex-direction: column; align-items: center; }
   .dag-edges { display: none; }
-  .dag-node { max-width: 200px; }
+  .dag-node { max-width: 280px; width: 100%; }
   .dag-controls { flex-direction: column; text-align: center; }
   .dag-controls__actions { justify-content: center; }
-  .steps { flex-direction: column; }
   .filter-bar { flex-direction: column; }
 }
 
@@ -493,82 +448,62 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 <div class="container">
   <h1>Enrichment Pipeline</h1>
-  <div class="subtitle" id="page_subtitle">Configure enrichment stages and run the DAG pipeline.</div>
+  <div class="subtitle" id="page_subtitle">Configure and run the DAG enrichment pipeline.</div>
 
-  <!-- Steps -->
-  <div class="steps">
-    <div class="step-item active" id="step_ind_1"><span class="step-num">1</span> Select &amp; Filter</div>
-    <div class="step-item" id="step_ind_2"><span class="step-num">2</span> DAG Pipeline</div>
-  </div>
-
-  <!-- STEP 1: Select & Filter -->
-  <div id="step_1">
-    <div class="card">
-      <div class="card-title">Filters</div>
-      <div id="import_callout" class="callout hidden"></div>
-      <div class="filter-bar">
-        <div class="form-row" style="min-width:160px;">
-          <label for="batch_select">Batch</label>
-          <select id="batch_select"><option value="">Loading...</option></select>
-        </div>
-        <div class="form-row" style="min-width:130px;">
-          <label for="owner_select">Owner</label>
-          <select id="owner_select"><option value="">All owners</option></select>
-        </div>
-        <div class="form-row" style="min-width:180px;">
-          <label>Tier Filter</label>
-          <div class="tier-chips" id="tier_chips">
-            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
-            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
-            <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
-            <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 4"> T4</label>
-            <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 5"> T5</label>
-          </div>
+  <!-- Filters (always visible) -->
+  <div class="card">
+    <div class="card-title">Filters</div>
+    <div id="import_callout" class="callout hidden"></div>
+    <div class="filter-bar">
+      <div class="form-row" style="min-width:160px;">
+        <label for="batch_select">Batch</label>
+        <select id="batch_select"><option value="">Loading...</option></select>
+      </div>
+      <div class="form-row" style="min-width:130px;">
+        <label for="owner_select">Owner</label>
+        <select id="owner_select"><option value="">All owners</option></select>
+      </div>
+      <div class="form-row" style="min-width:180px;">
+        <label>Tier Filter</label>
+        <div class="tier-chips" id="tier_chips">
+          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
+          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
+          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
+          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 4"> T4</label>
+          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 5"> T5</label>
         </div>
       </div>
-    </div>
-
-    <div id="status_breakdown" class="card hidden">
-      <div class="card-title">Company Status Breakdown</div>
-      <div class="status-grid" id="status_grid"></div>
-      <div id="selection_summary" style="margin-top:12px;font-size:0.82rem;color:var(--text-muted);"></div>
-    </div>
-
-    <div style="margin-top:16px;display:flex;gap:10px;">
-      <button class="btn btn-primary" id="btn_configure" disabled>Configure DAG Pipeline</button>
     </div>
   </div>
 
-  <!-- STEP 2: DAG Pipeline -->
-  <div id="step_2" class="hidden">
-    <div class="dag-controls" id="dag_controls">
-      <div class="dag-controls__info">
-        <span class="dag-controls__info-item" id="dag_batch_info"></span>
-        <span class="dag-controls__info-item">Est: <strong class="dag-controls__cost" id="dag_total_cost">$0.00</strong></span>
-        <span class="dag-controls__info-item" id="dag_pipeline_status"></span>
-      </div>
-      <div class="dag-controls__actions">
-        <button class="btn btn-ghost btn-sm" id="btn_back">Back</button>
-        <button class="btn btn-success" id="btn_run">Run Enabled</button>
-        <button class="btn btn-error btn-sm hidden" id="btn_stop_dag">Stop All</button>
-      </div>
+  <!-- DAG Controls -->
+  <div class="dag-controls" id="dag_controls">
+    <div class="dag-controls__info">
+      <span class="dag-controls__info-item" id="dag_batch_info"></span>
+      <span class="dag-controls__info-item">Est: <strong class="dag-controls__cost" id="dag_total_cost">$0.00</strong></span>
+      <span class="dag-controls__info-item" id="dag_pipeline_status"></span>
     </div>
-
-    <div class="dag-wrapper">
-      <div class="dag-container" id="dag_container">
-        <svg class="dag-edges" id="dag_edges"></svg>
-        <div class="dag-columns" id="dag_columns"></div>
-      </div>
+    <div class="dag-controls__actions">
+      <button class="btn btn-success" id="btn_run" disabled>Run Enabled</button>
+      <button class="btn btn-error btn-sm hidden" id="btn_stop_dag">Stop All</button>
     </div>
+  </div>
 
-    <div class="dag-summary" id="dag_summary"></div>
-
-    <div id="completion_panel" class="completion-panel hidden">
-      <div id="completion_icon" style="font-size:2rem;margin-bottom:8px;"></div>
-      <div id="completion_title" style="font-family:var(--font-title);font-size:1.1rem;font-weight:600;margin-bottom:6px;"></div>
-      <div id="completion_detail" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;"></div>
-      <div id="completion_actions" style="display:flex;gap:10px;justify-content:center;"></div>
+  <!-- DAG Visualization -->
+  <div class="dag-wrapper">
+    <div class="dag-container" id="dag_container">
+      <svg class="dag-edges" id="dag_edges"></svg>
+      <div class="dag-rows" id="dag_rows"></div>
     </div>
+  </div>
+
+  <div class="dag-summary" id="dag_summary"></div>
+
+  <div id="completion_panel" class="completion-panel hidden">
+    <div id="completion_icon" style="font-size:2rem;margin-bottom:8px;"></div>
+    <div id="completion_title" style="font-family:var(--font-title);font-size:1.1rem;font-weight:600;margin-bottom:6px;"></div>
+    <div id="completion_detail" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;"></div>
+    <div id="completion_actions" style="display:flex;gap:10px;justify-content:center;"></div>
   </div>
 </div>
 
@@ -584,42 +519,33 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var currentPipelineRunId = null;
   var dagMode = 'configure'; // 'configure' | 'running' | 'completed'
 
-  // --- Stage definitions for DAG ---
+  // --- Stage definitions for vertical DAG ---
   var DAG_STAGES = {
-    l1:        { col: 0, icon: 'L1', color: '#00B8CF', bg: 'rgba(0,184,207,0.12)',    name: 'L1 Company Profile',   compact: false, available: true },
-    l2:        { col: 1, icon: 'L2', color: '#8B47A8', bg: 'rgba(139,71,168,0.12)',    name: 'L2 Deep Research',     compact: false, available: true },
-    signals:   { col: 1, icon: 'SS', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',    name: 'Strategic Signals',    compact: false, available: false },
-    ares:      { col: 1, icon: 'CZ', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'ARES (CZ)',            compact: true,  available: true, gate: 'CZ' },
-    brreg:     { col: 1, icon: 'NO', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'BRREG (NO)',           compact: true,  available: true, gate: 'NO' },
-    prh:       { col: 1, icon: 'FI', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'PRH (FI)',             compact: true,  available: true, gate: 'FI' },
-    recherche: { col: 1, icon: 'FR', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'Recherche (FR)',       compact: true,  available: true, gate: 'FR' },
-    isir:      { col: 1, icon: 'IS', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',     name: 'ISIR (CZ)',            compact: true,  available: true, gate: 'CZ' },
-    person:    { col: 2, icon: 'PE', color: '#34D399', bg: 'rgba(52,211,153,0.12)',    name: 'Person Enrichment',    compact: false, available: true },
-    generate:  { col: 3, icon: 'MG', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',    name: 'Message Generation',   compact: false, available: true },
-    qc:        { col: 4, icon: 'QC', color: '#8B92A0', bg: 'rgba(139,146,160,0.12)',   name: 'Quality Check',        compact: false, available: false }
+    l1:       { row: 0, icon: 'L1', color: '#00B8CF', bg: 'rgba(0,184,207,0.12)',    name: 'L1 Company Profile',   available: true },
+    l2:       { row: 1, icon: 'L2', color: '#8B47A8', bg: 'rgba(139,71,168,0.12)',    name: 'L2 Deep Research',     available: true },
+    signals:  { row: 1, icon: 'SS', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',    name: 'Strategic Signals',    available: false },
+    registry: { row: 1, icon: 'LR', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',    name: 'Legal & Registry',     available: true },
+    person:   { row: 2, icon: 'PE', color: '#34D399', bg: 'rgba(52,211,153,0.12)',    name: 'Person Enrichment',    available: true },
+    generate: { row: 3, icon: 'MG', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',    name: 'Message Generation',   available: true },
+    qc:       { row: 4, icon: 'QC', color: '#8B92A0', bg: 'rgba(139,146,160,0.12)',   name: 'Quality Check',        available: false }
   };
 
-  var STAGE_ORDER = ['l1', 'l2', 'signals', 'ares', 'brreg', 'prh', 'recherche', 'isir', 'person', 'generate', 'qc'];
+  var STAGE_ORDER = ['l1', 'l2', 'signals', 'registry', 'person', 'generate', 'qc'];
 
   var HARD_DEPS = {
-    l1: [], l2: ['l1'], signals: ['l1'],
-    ares: ['l1'], brreg: ['l1'], prh: ['l1'], recherche: ['l1'], isir: ['l1'],
+    l1: [], l2: ['l1'], signals: ['l1'], registry: ['l1'],
     person: ['l1'], generate: ['person'], qc: []
   };
   var SOFT_DEPS = {
-    l1: [], l2: [], signals: [],
-    ares: [], brreg: [], prh: [], recherche: [], isir: [],
+    l1: [], l2: [], signals: [], registry: [],
     person: ['l2', 'signals'], generate: ['l2', 'signals'], qc: []
   };
-
-  var COL_LABELS = ['Source', 'Enrichment', 'Contacts', 'Outreach', 'QC'];
 
   // State
   var enabledStages = {};
   var softDepsConfig = { person: true, generate: true };
   var estimateData = null;
   var batchList = [];
-  var batchStats = null;
   var stageStatus = {};
 
   // --- Utilities ---
@@ -674,27 +600,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     return $$('input[name="tier"]:checked').map(function(cb) { return cb.value; });
   }
 
-  // --- Step navigation ---
-  function goStep(n) {
-    [1, 2].forEach(function(i) {
-      var el = $('#step_' + i);
-      var ind = $('#step_ind_' + i);
-      if (i === n) {
-        el.classList.remove('hidden');
-        ind.classList.add('active');
-        ind.classList.remove('done');
-      } else if (i < n) {
-        el.classList.add('hidden');
-        ind.classList.remove('active');
-        ind.classList.add('done');
-      } else {
-        el.classList.add('hidden');
-        ind.classList.remove('active', 'done');
-      }
-    });
-  }
-
-  // --- Step 1: Load batches, owners, stats ---
+  // --- Load batches and owners ---
   function loadBatchesAndOwners() {
     apiFetch(API_BASE + '/batches').then(function(data) {
       batchList = data.batches || data || [];
@@ -706,10 +612,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       });
 
       var urlBatch = getParam('batch_name');
-      if (urlBatch) {
-        sel.value = urlBatch;
-        loadBatchStats();
-      }
+      if (urlBatch) sel.value = urlBatch;
 
       var ownerSel = $('#owner_select');
       var uniqueOwners = {};
@@ -725,77 +628,35 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       var urlOwner = getParam('owner_name');
       if (urlOwner) ownerSel.value = urlOwner;
 
-      checkConfigureEnabled();
-
       var importJobId = getParam('import_job_id');
       if (importJobId && urlBatch) {
         var callout = $('#import_callout');
         callout.textContent = 'Enriching contacts imported into batch "' + urlBatch + '"';
         callout.classList.remove('hidden');
       }
+
+      // Fetch estimate immediately if batch is selected
+      if (sel.value) {
+        fetchEstimate(function(data) { buildDAG(data); });
+      } else {
+        buildDAG(null);
+      }
     }).catch(function(err) {
-      $('#selection_summary').textContent = 'Failed to load batches: ' + err.message;
+      console.error('Failed to load batches:', err);
     });
   }
 
-  function loadBatchStats() {
+  // --- Estimate ---
+  function fetchEstimate(callback) {
     var batch = $('#batch_select').value;
     if (!batch) {
-      $('#status_breakdown').classList.add('hidden');
+      estimateData = null;
+      if (callback) callback(null);
       return;
     }
 
-    var tiers = getTiers();
-    apiFetch(API_BASE + '/batch-stats', {
-      method: 'POST',
-      body: JSON.stringify({ batch_name: batch, tier_filter: tiers })
-    }).then(function(data) {
-      batchStats = data;
-      renderStatusBreakdown(data);
-      checkConfigureEnabled();
-    }).catch(function(err) {
-      $('#selection_summary').textContent = 'Failed to load stats: ' + err.message;
-    });
-  }
-
-  function renderStatusBreakdown(data) {
-    var grid = $('#status_grid');
-    clearChildren(grid);
-
-    var sc = data.status_counts || {};
-    var items = [
-      { label: 'New', value: sc['New'] || 0, cls: 'new' },
-      { label: 'Triage Passed', value: sc['Triage: Passed'] || 0, cls: 'passed' },
-      { label: 'Needs Review', value: sc['Triage: Review'] || 0, cls: 'review' },
-      { label: 'Enriched L2', value: sc['Enriched L2'] || 0, cls: 'enriched' },
-      { label: 'Failed', value: (sc['Enrichment Failed'] || 0) + (sc['Enrichment L2 Failed'] || 0), cls: 'failed' }
-    ];
-
-    items.forEach(function(item) {
-      var cell = mkEl('div', { className: 'status-cell status-cell--' + item.cls });
-      cell.appendChild(mkEl('div', { className: 'status-cell__value' }, String(item.value)));
-      cell.appendChild(mkEl('div', { className: 'status-cell__label' }, item.label));
-      grid.appendChild(cell);
-    });
-
-    var summary = $('#selection_summary');
-    var total = data.companies_total || 0;
-    var contacts = data.contacts_total || 0;
-    summary.textContent = total + ' companies, ' + contacts + ' contacts in this batch';
-
-    $('#status_breakdown').classList.remove('hidden');
-  }
-
-  function checkConfigureEnabled() {
-    $('#btn_configure').disabled = !$('#batch_select').value;
-  }
-
-  // --- Step 2: DAG building ---
-  function fetchEstimate(callback) {
-    var batch = $('#batch_select').value;
     var owner = $('#owner_select').value;
     var tiers = getTiers();
-
     var availableStages = STAGE_ORDER.filter(function(s) { return DAG_STAGES[s].available; });
 
     apiFetch(API_BASE + '/enrich/estimate', {
@@ -809,50 +670,39 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     }).then(function(data) {
       estimateData = data;
       if (callback) callback(data);
+      else updateDAGFromEstimate(data);
     }).catch(function(err) {
-      alert('Failed to get estimate: ' + err.message);
+      console.error('Estimate failed:', err);
     });
   }
 
+  // --- DAG building ---
   function buildDAG(data) {
-    var container = $('#dag_columns');
+    var container = $('#dag_rows');
     clearChildren(container);
 
     // Reset state
     enabledStages = {};
-    dagMode = 'configure';
     stageStatus = {};
 
-    // Update controls info (safe DOM methods, no innerHTML)
-    var batchInfoEl = $('#dag_batch_info');
-    clearChildren(batchInfoEl);
-    var batch = $('#batch_select').value;
-    var owner = $('#owner_select').value;
-    var batchStrong = mkEl('strong', {}, batch);
-    batchInfoEl.appendChild(batchStrong);
-    if (owner) {
-      batchInfoEl.appendChild(document.createTextNode(' \u00B7 ' + owner));
-    }
+    updateBatchInfo();
 
-    // Group stages by column
-    var columns = {};
+    // Group stages by row
+    var rows = {};
     STAGE_ORDER.forEach(function(code) {
       var stage = DAG_STAGES[code];
-      var col = stage.col;
-      if (!columns[col]) columns[col] = [];
-      columns[col].push(code);
+      var row = stage.row;
+      if (!rows[row]) rows[row] = [];
+      rows[row].push(code);
     });
 
-    // Build columns
-    var colKeys = Object.keys(columns).sort(function(a, b) { return Number(a) - Number(b); });
-    colKeys.forEach(function(colIdx) {
-      var colEl = mkEl('div', { className: 'dag-col' + (colIdx === '1' ? ' dag-col--wide' : '') });
-      colEl.setAttribute('data-col', colIdx);
+    // Build rows
+    var rowKeys = Object.keys(rows).sort(function(a, b) { return Number(a) - Number(b); });
+    rowKeys.forEach(function(rowIdx) {
+      var rowEl = mkEl('div', { className: 'dag-row' });
+      rowEl.setAttribute('data-row', rowIdx);
 
-      var label = mkEl('div', { className: 'dag-col__label' }, COL_LABELS[Number(colIdx)] || '');
-      colEl.appendChild(label);
-
-      columns[colIdx].forEach(function(code) {
+      rows[rowIdx].forEach(function(code) {
         var stage = DAG_STAGES[code];
         var info = (data && data.stages && data.stages[code]) || {};
         var eligible = info.eligible_count || 0;
@@ -862,10 +712,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         enabledStages[code] = hasEligible;
 
         var nodeEl = buildNode(code, stage, info, isAvailable);
-        colEl.appendChild(nodeEl);
+        rowEl.appendChild(nodeEl);
       });
 
-      container.appendChild(colEl);
+      container.appendChild(rowEl);
     });
 
     updateTotalCost();
@@ -877,9 +727,9 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   function buildNode(code, stage, info, isAvailable) {
     var eligible = (info && info.eligible_count) || 0;
     var hasEligible = eligible > 0 && isAvailable;
-    var isCompact = stage.compact;
+    var fields = (info && info.fields) || [];
 
-    var nodeEl = mkEl('div', { className: 'dag-node' + (isCompact ? ' dag-node--compact' : '') });
+    var nodeEl = mkEl('div', { className: 'dag-node' });
     nodeEl.setAttribute('data-stage', code);
     nodeEl.setAttribute('data-state', !isAvailable ? 'disabled' : (hasEligible ? 'eligible' : 'pending'));
 
@@ -898,8 +748,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     if (!isAvailable) {
       header.appendChild(mkEl('span', { className: 'dag-node__badge', style: 'background:rgba(90,97,112,0.2);color:var(--text-dim);' }, 'Soon'));
-    } else if (stage.gate) {
-      header.appendChild(mkEl('span', { className: 'dag-node__badge', style: 'background:rgba(59,130,246,0.12);color:#3B82F6;' }, stage.gate));
     }
 
     // Toggle
@@ -921,52 +769,55 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     nodeEl.appendChild(header);
 
     // Stats line
-    if (!isCompact) {
-      var statsEl = mkEl('div', { className: 'dag-node__stats' });
-      statsEl.setAttribute('data-stats', code);
-      if (isAvailable) {
-        var statText = eligible + ' eligible';
-        if (info && info.estimated_cost > 0) {
-          statText += ' \u00B7 ' + fmt$(info.estimated_cost);
-        } else if (info && info.cost_per_item === 0) {
-          statText += ' \u00B7 free';
-        }
-        statsEl.textContent = statText;
-      } else {
-        statsEl.textContent = 'Coming soon';
+    var statsEl = mkEl('div', { className: 'dag-node__stats' });
+    statsEl.setAttribute('data-stats', code);
+    if (isAvailable) {
+      var statText = eligible + ' eligible';
+      if (info && info.estimated_cost > 0) {
+        statText += ' \u00B7 ' + fmt$(info.estimated_cost);
+      } else if (info && info.cost_per_item === 0) {
+        statText += ' \u00B7 free';
       }
-      nodeEl.appendChild(statsEl);
-
-      // Progress (hidden in configure mode)
-      var progressEl = mkEl('div', { className: 'dag-node__progress hidden' });
-      progressEl.setAttribute('data-progress', code);
-
-      var barWrap = mkEl('div', { className: 'dag-node__bar-wrap' });
-      var barFill = mkEl('div', { className: 'dag-node__bar-fill', style: 'background:' + stage.color + ';' });
-      barFill.setAttribute('data-bar', code);
-      barWrap.appendChild(barFill);
-      progressEl.appendChild(barWrap);
-
-      var countsEl = mkEl('div', { className: 'dag-node__counts' });
-      var doneEl = mkEl('span', {}, '0/0');
-      doneEl.setAttribute('data-done', code);
-      countsEl.appendChild(doneEl);
-      var costEl = mkEl('span', { className: 'cost' }, '$0.00');
-      costEl.setAttribute('data-node-cost', code);
-      countsEl.appendChild(costEl);
-      progressEl.appendChild(countsEl);
-
-      nodeEl.appendChild(progressEl);
+      statsEl.textContent = statText;
     } else {
-      var compactStats = mkEl('div', { className: 'dag-node__stats' });
-      compactStats.setAttribute('data-stats', code);
-      compactStats.textContent = isAvailable ? (eligible + ' eligible \u00B7 free') : 'Coming soon';
-      nodeEl.appendChild(compactStats);
+      statsEl.textContent = 'Coming soon';
     }
+    nodeEl.appendChild(statsEl);
+
+    // Field tags
+    if (fields.length > 0) {
+      var fieldsEl = mkEl('div', { className: 'dag-node__fields' });
+      fieldsEl.setAttribute('data-fields', code);
+      fields.forEach(function(f) {
+        fieldsEl.appendChild(mkEl('span', { className: 'dag-node__field-tag' }, f));
+      });
+      nodeEl.appendChild(fieldsEl);
+    }
+
+    // Progress (hidden in configure mode)
+    var progressEl = mkEl('div', { className: 'dag-node__progress hidden' });
+    progressEl.setAttribute('data-progress', code);
+
+    var barWrap = mkEl('div', { className: 'dag-node__bar-wrap' });
+    var barFill = mkEl('div', { className: 'dag-node__bar-fill', style: 'background:' + stage.color + ';' });
+    barFill.setAttribute('data-bar', code);
+    barWrap.appendChild(barFill);
+    progressEl.appendChild(barWrap);
+
+    var countsEl = mkEl('div', { className: 'dag-node__counts' });
+    var doneEl = mkEl('span', {}, '0/0');
+    doneEl.setAttribute('data-done', code);
+    countsEl.appendChild(doneEl);
+    var costEl = mkEl('span', { className: 'cost' }, '$0.00');
+    costEl.setAttribute('data-node-cost', code);
+    countsEl.appendChild(costEl);
+    progressEl.appendChild(countsEl);
+
+    nodeEl.appendChild(progressEl);
 
     // Soft dependency badges (only for person, generate)
     var softDeps = SOFT_DEPS[code] || [];
-    if (softDeps.length > 0 && !isCompact) {
+    if (softDeps.length > 0) {
       var sdContainer = mkEl('div', { className: 'dag-node__soft-deps' });
       softDeps.forEach(function(dep) {
         var depStage = DAG_STAGES[dep];
@@ -993,6 +844,73 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     return nodeEl;
   }
 
+  function updateDAGFromEstimate(data) {
+    if (!data || !data.stages) return;
+
+    updateBatchInfo();
+
+    STAGE_ORDER.forEach(function(code) {
+      var stage = DAG_STAGES[code];
+      if (!stage.available) return;
+
+      var info = data.stages[code] || {};
+      var eligible = info.eligible_count || 0;
+      var hasEligible = eligible > 0;
+
+      // Update toggle
+      var toggleInput = document.querySelector('[data-toggle="' + code + '"]');
+      if (toggleInput && dagMode === 'configure') {
+        toggleInput.checked = hasEligible;
+        enabledStages[code] = hasEligible;
+      }
+
+      // Update stats
+      var statsEl = document.querySelector('[data-stats="' + code + '"]');
+      if (statsEl && dagMode === 'configure') {
+        var statText = eligible + ' eligible';
+        if (info.estimated_cost > 0) {
+          statText += ' \u00B7 ' + fmt$(info.estimated_cost);
+        } else if (info.cost_per_item === 0) {
+          statText += ' \u00B7 free';
+        }
+        statsEl.textContent = statText;
+      }
+
+      // Update field tags
+      var fieldsEl = document.querySelector('[data-fields="' + code + '"]');
+      if (fieldsEl && info.fields && info.fields.length > 0) {
+        clearChildren(fieldsEl);
+        info.fields.forEach(function(f) {
+          fieldsEl.appendChild(mkEl('span', { className: 'dag-node__field-tag' }, f));
+        });
+      }
+
+      // Update state
+      if (dagMode === 'configure') {
+        updateNodeState(code);
+      }
+    });
+
+    updateTotalCost();
+    drawEdges();
+  }
+
+  function updateBatchInfo() {
+    var batchInfoEl = $('#dag_batch_info');
+    clearChildren(batchInfoEl);
+    var batch = $('#batch_select').value;
+    var owner = $('#owner_select').value;
+    if (batch) {
+      var batchStrong = mkEl('strong', {}, batch);
+      batchInfoEl.appendChild(batchStrong);
+      if (owner) {
+        batchInfoEl.appendChild(document.createTextNode(' \u00B7 ' + owner));
+      }
+    } else {
+      batchInfoEl.textContent = 'Select a batch';
+    }
+  }
+
   function updateNodeState(code) {
     var nodeEl = document.querySelector('[data-stage="' + code + '"]');
     if (!nodeEl) return;
@@ -1015,7 +933,11 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function updateTotalCost() {
-    if (!estimateData) return;
+    if (!estimateData) {
+      $('#dag_total_cost').textContent = '$0.00';
+      $('#btn_run').disabled = true;
+      return;
+    }
     var total = 0;
     STAGE_ORDER.forEach(function(code) {
       if (!enabledStages[code]) return;
@@ -1025,10 +947,10 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     $('#dag_total_cost').textContent = fmt$(total);
 
     var anyEnabled = Object.keys(enabledStages).some(function(s) { return enabledStages[s]; });
-    $('#btn_run').disabled = !anyEnabled;
+    $('#btn_run').disabled = !anyEnabled || dagMode !== 'configure';
   }
 
-  // --- Edge rendering ---
+  // --- Vertical edge rendering ---
   function drawEdges() {
     var svg = $('#dag_edges');
     clearChildren(svg);
@@ -1066,13 +988,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var fromRect = fromNode.getBoundingClientRect();
     var toRect = toNode.getBoundingClientRect();
 
-    var x1 = fromRect.right - containerRect.left;
-    var y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
-    var x2 = toRect.left - containerRect.left;
-    var y2 = toRect.top + toRect.height / 2 - containerRect.top;
+    // Vertical layout: bottom-center of source → top-center of target
+    var x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+    var y1 = fromRect.bottom - containerRect.top;
+    var x2 = toRect.left + toRect.width / 2 - containerRect.left;
+    var y2 = toRect.top - containerRect.top;
 
-    var dx = Math.max((x2 - x1) * 0.4, 20);
-    var d = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
+    var dy = Math.max((y2 - y1) * 0.4, 15);
+    var d = 'M' + x1 + ',' + y1 + ' C' + x1 + ',' + (y1 + dy) + ' ' + x2 + ',' + (y2 - dy) + ' ' + x2 + ',' + y2;
 
     var path = mkSvg('path', { d: d });
     path.setAttribute('data-from', fromCode);
@@ -1143,15 +1066,16 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       $('#btn_run').classList.add('hidden');
       $('#btn_stop_dag').classList.remove('hidden');
-      $('#btn_back').disabled = true;
 
       $$('[data-toggle]').forEach(function(input) { input.disabled = true; });
 
       STAGE_ORDER.forEach(function(code) {
         var progressEl = document.querySelector('[data-progress="' + code + '"]');
         var statsEl = document.querySelector('[data-stats="' + code + '"]');
+        var fieldsEl = document.querySelector('[data-fields="' + code + '"]');
         if (progressEl && enabledStages[code]) progressEl.classList.remove('hidden');
         if (statsEl && enabledStages[code]) statsEl.classList.add('hidden');
+        if (fieldsEl && enabledStages[code]) fieldsEl.classList.add('hidden');
 
         if (!enabledStages[code]) {
           var nodeEl = document.querySelector('[data-stage="' + code + '"]');
@@ -1256,7 +1180,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     $('#dag_total_cost').textContent = fmt$(totalCost);
 
-    // Update pipeline status badge (safe DOM, no innerHTML)
+    // Update pipeline status badge
     var statusEl = $('#dag_pipeline_status');
     clearChildren(statusEl);
     if (pipeline.status) {
@@ -1318,7 +1242,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     panel.classList.remove('hidden');
 
     $('#btn_stop_dag').classList.add('hidden');
-    $('#btn_back').disabled = false;
 
     var isSuccess = pipeline.status === 'completed';
     var isStopped = pipeline.status === 'stopped';
@@ -1347,12 +1270,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       dagMode = 'configure';
       currentPipelineRunId = null;
       stageStatus = {};
+      clearChildren($('#dag_summary'));
+      clearChildren($('#dag_pipeline_status'));
       fetchEstimate(function(data) {
         buildDAG(data);
         $('#btn_run').classList.remove('hidden');
         $('#btn_run').disabled = false;
         $('#btn_run').textContent = 'Run Enabled';
-        clearChildren($('#dag_pipeline_status'));
+        $$('[data-toggle]').forEach(function(input) { input.disabled = !DAG_STAGES[input.getAttribute('data-toggle')].available; });
       });
     });
     actions.appendChild(rerunBtn);
@@ -1363,11 +1288,34 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
   // --- Event bindings ---
   function bindEvents() {
+    var filterDebounce;
+    function onFilterChange() {
+      clearTimeout(filterDebounce);
+      filterDebounce = setTimeout(function() {
+        if (dagMode !== 'configure') return;
+        var batch = $('#batch_select').value;
+        if (batch) {
+          fetchEstimate(null);
+        } else {
+          estimateData = null;
+          buildDAG(null);
+        }
+        updateBatchInfo();
+      }, 200);
+    }
+
     $('#batch_select').addEventListener('change', function() {
-      loadBatchStats();
-      checkConfigureEnabled();
+      if (dagMode !== 'configure') return;
+      var batch = this.value;
+      if (batch) {
+        fetchEstimate(function(data) { buildDAG(data); });
+      } else {
+        estimateData = null;
+        buildDAG(null);
+      }
     });
-    $('#owner_select').addEventListener('change', loadBatchStats);
+
+    $('#owner_select').addEventListener('change', onFilterChange);
 
     $$('.tier-chip').forEach(function(chip) {
       var cb = chip.querySelector('input');
@@ -1375,29 +1323,16 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         if (e.target.tagName === 'INPUT') return;
         cb.checked = !cb.checked;
         chip.classList.toggle('active', cb.checked);
-        loadBatchStats();
+        onFilterChange();
       });
       cb.addEventListener('change', function() {
         chip.classList.toggle('active', cb.checked);
-        loadBatchStats();
-      });
-    });
-
-    $('#btn_configure').addEventListener('click', function() {
-      fetchEstimate(function(data) {
-        buildDAG(data);
-        goStep(2);
+        onFilterChange();
       });
     });
 
     $('#btn_run').addEventListener('click', startDagPipeline);
     $('#btn_stop_dag').addEventListener('click', stopDagPipeline);
-    $('#btn_back').addEventListener('click', function() {
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      dagMode = 'configure';
-      currentPipelineRunId = null;
-      goStep(1);
-    });
 
     var resizeTimeout;
     window.addEventListener('resize', function() {

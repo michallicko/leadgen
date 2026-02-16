@@ -127,12 +127,12 @@ class TestRecordCompletion:
         with app.app_context():
             record_completion(
                 seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
-                "company", data["companies"][3].id, "ares",
+                "company", data["companies"][3].id, "registry",
                 status="skipped",
             )
 
         result = db.session.query(EntityStageCompletion).filter_by(
-            entity_id=data["companies"][3].id, stage="ares",
+            entity_id=data["companies"][3].id, stage="registry",
         ).first()
         assert result.status == "skipped"
 
@@ -211,8 +211,8 @@ class TestBuildEligibilityQuery:
             # Should find contact(s) for first company
             assert len(ids) == 1
 
-    def test_ares_country_gate(self, app, db, seed_tenant):
-        """ARES only returns Czech companies."""
+    def test_registry_country_gate(self, app, db, seed_tenant):
+        """Registry returns companies matching CZ, NO, FI, or FR — not US."""
         from api.services.dag_executor import get_dag_eligible_ids, record_completion
 
         data = _seed_dag_data(db, seed_tenant)
@@ -226,32 +226,14 @@ class TestBuildEligibilityQuery:
                 )
 
             ids = get_dag_eligible_ids(
-                "ares", data["pipeline_run"].id,
+                "registry", data["pipeline_run"].id,
                 seed_tenant.id, data["batch"].id,
             )
-            # Only Czech Co (hq_country=CZ)
-            assert len(ids) == 1
-            assert ids[0] == str(data["companies"][0].id)
-
-    def test_brreg_country_gate(self, app, db, seed_tenant):
-        """BRREG only returns Norwegian companies."""
-        from api.services.dag_executor import get_dag_eligible_ids, record_completion
-
-        data = _seed_dag_data(db, seed_tenant)
-
-        with app.app_context():
-            for c in data["companies"]:
-                record_completion(
-                    seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
-                    "company", c.id, "l1",
-                )
-
-            ids = get_dag_eligible_ids(
-                "brreg", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
-            )
-            assert len(ids) == 1
-            assert ids[0] == str(data["companies"][1].id)
+            # CZ, NO, FI, FR match — US does not
+            company_ids = {str(c.id) for c in data["companies"]}
+            us_id = str(data["companies"][3].id)  # USA Co
+            assert len(ids) == 4
+            assert us_id not in ids
 
     def test_already_completed_excluded(self, app, db, seed_tenant):
         """Entities that already have a completion for this stage are excluded."""
