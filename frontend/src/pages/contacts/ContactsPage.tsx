@@ -1,5 +1,4 @@
 import { useMemo, useCallback } from 'react'
-import { useParams } from 'react-router'
 import { useContacts, useContact, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
 import { useCompany } from '../../api/queries/useCompanies'
 import { useBatches } from '../../api/queries/useBatches'
@@ -18,7 +17,7 @@ import {
 } from '../../lib/display'
 
 export function ContactsPage() {
-  const { namespace: _namespace } = useParams<{ namespace: string }>()
+  // namespace extracted from URL by useEntityStack
 
   // Entity stack for cross-entity modal navigation
   const stack = useEntityStack('contact')
