@@ -1699,26 +1699,36 @@ var importSource = 'csv';
     })
     .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
     .then(function(result) {
-      spinner.style.display = 'none';
       if (!result.ok) {
-        toast(result.data.error || 'Fetch failed', 'error');
-        document.getElementById('btn_google_fetch').disabled = false;
+        toast(result.data.error || 'Contacts fetch failed', 'error');
+        if (alsoScanGmail) {
+          startGmailScan(false);
+        } else {
+          spinner.style.display = 'none';
+          document.getElementById('btn_google_fetch').disabled = false;
+        }
         return;
       }
       currentJobId = result.data.job_id;
-      toast('Found ' + result.data.total_contacts + ' contacts', 'success');
+      var count = result.data.total_contacts || 0;
+      if (count > 0) toast('Google Contacts: ' + count + ' found', 'success');
 
       if (alsoScanGmail) {
-        // Start Gmail scan in background — contacts job stays as currentJobId
-        startGmailScan(true);
-      } else {
+        startGmailScan(count > 0);
+      } else if (count > 0) {
+        spinner.style.display = 'none';
         runGooglePreview();
+      } else {
+        spinner.style.display = 'none';
+        document.getElementById('btn_google_fetch').disabled = false;
+        toast('No contacts found in Google Contacts', 'info');
       }
     })
     .catch(function(err) {
       spinner.style.display = 'none';
       document.getElementById('btn_google_fetch').disabled = false;
       toast('Fetch failed: ' + err.message, 'error');
+      if (alsoScanGmail) startGmailScan(false);
     });
   }
 
@@ -1755,12 +1765,11 @@ var importSource = 'csv';
       }
       var found = result.data.total_contacts || 0;
       toast('Gmail scan: ' + found + ' contacts from ' + (result.data.messages_scanned || 0) + ' messages', 'success');
-      if (!hasContactsJob) {
+      // Always use scan job if it found contacts
+      if (found > 0) {
         currentJobId = result.data.job_id;
-      } else {
-        scanJobId = result.data.job_id;
       }
-      // Preview whichever job has contacts (prefer scan if gmail-only, contacts job otherwise)
+      scanJobId = result.data.job_id;
       runGooglePreview();
     })
     .catch(function(err) {
