@@ -492,3 +492,48 @@ class TestCustomFieldImport:
             tenant_id=str(tenant_id), entity_type="contact", field_key="email_secondary",
         ).count()
         assert count == 1
+
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_execute_uses_user_edited_label(self, mock_claude, client, seed_companies_contacts):
+        """User-edited field_label in suggested_custom_field should be used for definition."""
+        mapping_with_label = {
+            "mappings": [
+                {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+                {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
+                {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
+                {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.80,
+                 "transform": None, "suggested_custom_field": {
+                     "entity_type": "contact", "field_key": "email_secondary",
+                     "field_label": "Secondary Email Address", "field_type": "email",
+                 }},
+            ],
+            "warnings": [],
+            "combine_columns": [],
+        }
+        mock_claude.return_value = (mapping_with_label, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV_WITH_CUSTOM.encode()), "custom.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        # Override mapping with user-edited label before execute
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        client.post(f"/api/imports/{job_id}/preview", headers=json_headers, json={"mapping": mapping_with_label})
+
+        resp = client.post(
+            f"/api/imports/{job_id}/execute",
+            headers=json_headers,
+            json={"batch_name": "label-test", "dedup_strategy": "skip"},
+        )
+        assert resp.status_code == 200
+
+        tenant_id = seed_companies_contacts["tenant"].id
+        cfd = CustomFieldDefinition.query.filter_by(
+            tenant_id=str(tenant_id), entity_type="contact", field_key="email_secondary",
+        ).first()
+        assert cfd is not None
+        assert cfd.field_label == "Secondary Email Address"
+        assert cfd.field_type == "email"

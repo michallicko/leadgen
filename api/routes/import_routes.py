@@ -32,21 +32,13 @@ def _auto_create_custom_field_defs(tenant_id, mapping):
             parts = target.split(".", 2)
             if len(parts) == 3 and parts[1] == "custom":
                 entity_type, _, field_key = parts
-                label = m.get("csv_header", field_key.replace("_", " ").title())
+                # Prefer user-edited label from suggested_custom_field, fall back to csv_header
+                suggestion = m.get("suggested_custom_field") or {}
+                label = suggestion.get("field_label") or m.get("csv_header", field_key.replace("_", " ").title())
+                field_type = suggestion.get("field_type", "text")
                 needed[(entity_type, field_key)] = {
                     "label": label,
-                    "field_type": "text",
-                }
-
-        # Handle suggested_custom_field for unmapped columns
-        suggestion = m.get("suggested_custom_field")
-        if suggestion and not target:
-            et = suggestion.get("entity_type", "contact")
-            fk = suggestion.get("field_key", "")
-            if et and fk:
-                needed[(et, fk)] = {
-                    "label": suggestion.get("field_label", fk.replace("_", " ").title()),
-                    "field_type": suggestion.get("field_type", "text"),
+                    "field_type": field_type,
                 }
 
     for (entity_type, field_key), info in needed.items():
