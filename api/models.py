@@ -265,12 +265,21 @@ class ImportJob(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
+    @staticmethod
+    def _parse_jsonb(v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            import json
+            return json.loads(v) if v else None
+        return v
+
     def to_dict(self, include_data=False):
         d = {
             "id": str(self.id),
             "filename": self.filename,
             "total_rows": self.total_rows,
-            "column_mapping": self.column_mapping,
+            "column_mapping": self._parse_jsonb(self.column_mapping),
             "mapping_confidence": float(self.mapping_confidence) if self.mapping_confidence else None,
             "contacts_created": self.contacts_created,
             "contacts_updated": self.contacts_updated,
@@ -278,15 +287,15 @@ class ImportJob(db.Model):
             "companies_created": self.companies_created,
             "companies_linked": self.companies_linked,
             "dedup_strategy": self.dedup_strategy,
-            "dedup_results": self.dedup_results,
+            "dedup_results": self._parse_jsonb(self.dedup_results),
             "status": self.status,
             "error": self.error,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
         if include_data:
-            d["headers"] = self.headers
-            d["sample_rows"] = self.sample_rows
+            d["headers"] = self._parse_jsonb(self.headers)
+            d["sample_rows"] = self._parse_jsonb(self.sample_rows)
         return d
 
 
