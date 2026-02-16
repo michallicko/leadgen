@@ -62,7 +62,7 @@ Company: {company_name}
 {contacts_section}
 {claims_section}
 
-Return this exact JSON structure:
+Return this exact JSON structure (use ONLY the listed enum values — no free text for constrained fields):
 {{
   "company_name": "Official company name as found in research",
   "summary": "2-3 sentence description of what the company does",
@@ -70,9 +70,9 @@ Return this exact JSON structure:
   "hq": "City, Country",
   "markets": ["list", "of", "markets"],
   "founded": "YYYY or null",
-  "ownership": "Public/Private/Family-owned/PE-backed (name)/VC-backed/Government/Cooperative/Unknown",
-  "industry": "Primary industry sector",
-  "business_model": "SaaS/Services/Manufacturing/Retail/Marketplace/Platform/Other",
+  "ownership": "Public|Private|Family-owned|PE-backed (name)|VC-backed|Government|Cooperative|Unknown",
+  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|manufacturing|retail|media|energy|telecom|transport|construction|education|public_sector|other",
+  "business_model": "EXACTLY ONE OF: manufacturer|distributor|service_provider|saas|platform|other",
   "revenue_eur_m": "Annual revenue in EUR millions (number) or 'unverified'",
   "revenue_year": "YYYY of the revenue figure",
   "revenue_source": "Where the revenue figure comes from",
@@ -630,30 +630,32 @@ def _map_industry(raw):
 
 
 def _map_business_type(raw):
-    """Map business model/type description to enum value."""
+    """Map business model/type description to business_type enum value."""
     if not raw:
         return None
 
     s = str(raw).strip().lower()
 
-    type_map = {
-        "saas": "software_saas",
-        "software": "software_saas",
-        "services": "services",
-        "consulting": "services",
-        "manufacturing": "manufacturing",
-        "retail": "retail",
-        "e-commerce": "retail",
-        "ecommerce": "retail",
-        "marketplace": "marketplace",
-        "platform": "platform",
-    }
+    VALID_TYPES = {"manufacturer", "distributor", "service_provider", "saas", "platform", "other"}
+    if s in VALID_TYPES:
+        return s
 
+    type_map = {
+        "saas": "saas",
+        "software": "saas",
+        "manufactur": "manufacturer",
+        "service": "service_provider",
+        "consult": "service_provider",
+        "distribut": "distributor",
+        "wholesale": "distributor",
+        "platform": "platform",
+        "marketplace": "platform",
+    }
     for key, value in type_map.items():
         if key in s:
             return value
 
-    return s[:50]
+    return "other"
 
 
 def _revenue_to_bucket(rev_m):
