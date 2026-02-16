@@ -461,9 +461,10 @@ select option { background: var(--bg); color: var(--text); }
         </table>
       </div>
 
-      <div style="margin-top:16px; display:flex; gap:10px;">
+      <div style="margin-top:16px; display:flex; gap:10px; align-items:center;">
         <button class="btn btn-ghost" onclick="goToStep(1)">Back</button>
         <button class="btn btn-primary" id="btn_preview" onclick="submitPreview()">Preview Import</button>
+        <button class="btn btn-ghost" id="btn_remap" onclick="remapWithAI()" style="margin-left:auto;">Re-analyze with AI</button>
       </div>
     </div>
   </div>
@@ -815,8 +816,6 @@ select option { background: var(--bg); color: var(--text); }
         sampleVal = String(samples[0][m.csv_header]);
       }
 
-      var conf = m.confidence || 0;
-      var confClass = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
       var target = m.target || '';
       var suggestedCF = m.suggested_custom_field || null;
 
@@ -824,6 +823,10 @@ select option { background: var(--bg); color: var(--text); }
       if (!target && suggestedCF) {
         target = (suggestedCF.entity_type || 'contact') + '.custom.' + suggestedCF.field_key;
       }
+
+      // Unmapped columns show 0% confidence regardless of AI value
+      var conf = target ? (m.confidence || 0) : 0;
+      var confClass = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
 
       var isCustom = target.indexOf('.custom.') !== -1;
       var isNewCustom = isCustom && suggestedCF;
@@ -876,15 +879,20 @@ select option { background: var(--bg); color: var(--text); }
     document.querySelectorAll('.mapping-select').forEach(function(sel) {
       var header = sel.getAttribute('data-header');
       var target = sel.value || null;
-      var entry = { csv_header: header, target: target, confidence: 1.0, transform: null };
+      // Preserve original confidence, transform, and suggested_custom_field from AI
+      var original = null;
+      for (var i = 0; i < originalMappings.length; i++) {
+        if (originalMappings[i].csv_header === header) { original = originalMappings[i]; break; }
+      }
+      var entry = {
+        csv_header: header,
+        target: target,
+        confidence: original ? (original.confidence || 0) : 0,
+        transform: (original && original.target === target) ? (original.transform || null) : null,
+      };
       // Preserve suggested_custom_field if target is a custom field
-      if (target && target.indexOf('.custom.') !== -1) {
-        for (var i = 0; i < originalMappings.length; i++) {
-          if (originalMappings[i].csv_header === header && originalMappings[i].suggested_custom_field) {
-            entry.suggested_custom_field = originalMappings[i].suggested_custom_field;
-            break;
-          }
-        }
+      if (target && target.indexOf('.custom.') !== -1 && original && original.suggested_custom_field) {
+        entry.suggested_custom_field = original.suggested_custom_field;
       }
       adjustedMappings.push(entry);
     });
@@ -1162,6 +1170,30 @@ select option { background: var(--bg); color: var(--text); }
       toast('Failed to resume: ' + err.message, 'error');
     });
   }
+
+  // ---- Re-analyze with AI ----
+
+  window.remapWithAI = function() {
+    if (!currentJobId) return;
+    var btn = document.getElementById('btn_remap');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    apiFetch(API_BASE + '/imports/' + currentJobId + '/remap', {
+      method: 'POST',
+      headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+      body: '{}',
+    }).then(function(data) {
+      btn.disabled = false;
+      btn.textContent = 'Re-analyze with AI';
+      currentMapping = data.mapping;
+      renderMapping(data);
+      toast('AI re-analysis complete', 'success');
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Re-analyze with AI';
+      toast('Re-analysis failed: ' + err.message, 'error');
+    });
+  };
 
   // ---- Init ----
 

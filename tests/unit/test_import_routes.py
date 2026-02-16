@@ -323,6 +323,61 @@ def body_imports_empty_or_valid(resp):
     return "imports" in body
 
 
+MOCK_REMAPPED = {
+    "mappings": [
+        {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},
+        {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.95, "transform": None},
+        {"csv_header": "Company", "target": "company.name", "confidence": 0.90, "transform": None},
+        {"csv_header": "Title", "target": "contact.job_title", "confidence": 0.85, "transform": None,
+         "suggested_custom_field": {"entity_type": "contact", "field_key": "title_note",
+                                    "field_label": "Title Note", "field_type": "text"}},
+    ],
+    "warnings": [],
+    "combine_columns": [],
+}
+
+
+class TestRemapImport:
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_remap_updates_mapping(self, mock_claude, client, seed_companies_contacts):
+        """Re-analyze should update the job's column mapping."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        # Now remap with a different mock response
+        mock_claude.return_value = (MOCK_REMAPPED, MOCK_USAGE_INFO)
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        resp = client.post(f"/api/imports/{job_id}/remap", headers=json_headers, json={})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["mapping"]["mappings"][3].get("suggested_custom_field") is not None
+
+    @patch("api.routes.import_routes.call_claude_for_mapping")
+    def test_remap_completed_fails(self, mock_claude, client, seed_companies_contacts):
+        """Cannot remap a completed import."""
+        mock_claude.return_value = (MOCK_MAPPING, MOCK_USAGE_INFO)
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
+        upload_resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
+        job_id = upload_resp.get_json()["job_id"]
+
+        json_headers = dict(headers)
+        json_headers["Content-Type"] = "application/json"
+        client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
+                    json={"batch_name": "remap-test", "dedup_strategy": "skip"})
+
+        resp = client.post(f"/api/imports/{job_id}/remap", headers=json_headers, json={})
+        assert resp.status_code == 400
+
+
 MOCK_MAPPING_WITH_CUSTOM = {
     "mappings": [
         {"csv_header": "Name", "target": "contact.full_name", "confidence": 0.95, "transform": None},

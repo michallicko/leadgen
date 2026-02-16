@@ -222,6 +222,60 @@ def upload_csv():
     }), 201
 
 
+@imports_bp.route("/api/imports/<job_id>/remap", methods=["POST"])
+@require_auth
+def remap_import(job_id):
+    """Re-run AI column mapping on an existing import job's CSV data.
+
+    Uses the current prompt (with custom field support) to generate fresh suggestions.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    job = ImportJob.query.filter_by(id=job_id, tenant_id=str(tenant_id)).first()
+    if not job:
+        return jsonify({"error": "Import job not found"}), 404
+
+    if job.status == "completed":
+        return jsonify({"error": "Cannot remap a completed import"}), 400
+
+    headers, rows = _parse_csv_text(job.raw_csv)
+    if not headers:
+        return jsonify({"error": "Could not parse stored CSV"}), 400
+
+    sample_rows = [{h: row.get(h, "") for h in headers} for row in rows[:5]]
+
+    custom_defs_rows = CustomFieldDefinition.query.filter_by(
+        tenant_id=str(tenant_id), is_active=True,
+    ).all()
+    custom_defs = [d.to_dict() for d in custom_defs_rows]
+
+    try:
+        mapping_result, _usage = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
+    except Exception as e:
+        return jsonify({"error": f"AI mapping failed: {str(e)}"}), 500
+
+    confidences = [m.get("confidence", 0) for m in mapping_result.get("mappings", [])
+                   if m.get("target")]
+    avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+
+    job.column_mapping = json.dumps(mapping_result)
+    job.mapping_confidence = round(avg_confidence, 2)
+    job.status = "mapped"
+    db.session.commit()
+
+    return jsonify({
+        "job_id": str(job.id),
+        "filename": job.filename,
+        "total_rows": job.total_rows,
+        "headers": headers,
+        "sample_rows": sample_rows,
+        "mapping": mapping_result,
+        "mapping_confidence": round(avg_confidence, 2),
+    })
+
+
 @imports_bp.route("/api/imports/<job_id>/preview", methods=["POST"])
 @require_auth
 def preview_import(job_id):
