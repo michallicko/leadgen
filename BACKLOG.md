@@ -13,10 +13,10 @@ Structured backlog for the leadgen-pipeline project. Items are prioritized using
 Dashboard screens for browsing, filtering, and viewing contacts and companies from the PostgreSQL database. Replaces direct Airtable access for day-to-day operations. Includes search, status filters, detail views, infinite scroll with virtual DOM windowing.
 
 ### BL-002: L1 Workflow Postgres Migration
-**Status**: Refined | **Effort**: M | **Spec**: `docs/specs/l1-postgres-migration.md`
+**Status**: In Progress | **Effort**: M | **Spec**: `docs/specs/l1-native-enrichment.md`
 **Depends on**: — | **Theme**: Platform Foundation
 
-Migrate the L1 Company enrichment n8n workflow to write directly to PostgreSQL instead of Airtable. First step in eliminating the Airtable dependency from the enrichment pipeline. Requires n8n Postgres credential setup and workflow node changes.
+Migrate the L1 Company enrichment from n8n to native Python. L1 enricher implemented (`l1_enricher.py`) with Perplexity sonar API, QC validation, research storage, and review workflow. Branch: `feature/l1-native-enrichment`. Pending: deploy + production QC.
 
 ### BL-003: Full Workflow Migration (L2/Person/Orchestrator)
 **Status**: Idea | **Effort**: XL | **Spec**: —
@@ -49,10 +49,10 @@ Validate contact email addresses: format check, MX record verification, disposab
 Select contacts from the dashboard and trigger enrichment for missing fields via Perplexity/Claude. Shows credit cost estimate before execution. Progress tracking per contact. Results written back to contact/company records. First user-facing feature powered by the Python pipeline engine.
 
 ### BL-015: Python Pipeline Engine
-**Status**: Idea | **Effort**: L | **Spec**: —
+**Status**: In Progress | **Effort**: L | **Spec**: —
 **Depends on**: BL-002 | **Theme**: Platform Foundation
 
-Port enrichment pipeline stages from n8n to Python classes (L1Enrichment, L2Enrichment, PersonEnrichment, etc.). DB-backed job queue, built-in credit tracking, tenant-isolated execution contexts. Full test coverage per stage. Replaces n8n as the orchestration layer — see Technical Strategy Phase 2.
+Port enrichment pipeline stages from n8n to Python. L1 stage ported (ADR-003). Hybrid dispatch: `_process_entity()` routes L1 to native Python, L2/Person/Generate still via n8n webhooks. Remaining: port L2, Person, Generate stages.
 
 ### BL-016: Modular Enrichment Framework
 **Status**: Idea | **Effort**: L | **Spec**: —
