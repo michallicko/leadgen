@@ -28,6 +28,12 @@ class BaseRegistryAdapter(ABC):
     request_delay = 0.3         # Seconds between API calls
     timeout = 10                # HTTP timeout seconds
 
+    # Capability metadata for orchestrator
+    provides_fields = []        # Standardized field names this register fills
+    requires_inputs = ["name"]  # Required inputs ("name", "ico", etc.)
+    depends_on = []             # Adapter keys that must run first (e.g. ["CZ"])
+    is_supplementary = False    # If True, augments another adapter's data
+
     @abstractmethod
     def lookup_by_id(self, reg_id):
         """Look up a company by registration number.
@@ -56,8 +62,12 @@ class BaseRegistryAdapter(ABC):
         return False
 
     def enrich_company(self, company_id, tenant_id, name, reg_id=None,
-                       hq_country=None, domain=None):
+                       hq_country=None, domain=None, store=True):
         """Orchestrate registry enrichment for a single company.
+
+        Args:
+            store: If True (default), persist results to DB. If False, return
+                   result dict without storing — used by RegistryOrchestrator.
 
         Returns dict with status, method, confidence, etc.
         """
@@ -103,7 +113,8 @@ class BaseRegistryAdapter(ABC):
         if not result:
             return {"status": "no_match", "reason": "id_not_found"}
 
-        self.store_result(company_id, result, method, confidence, raw_response)
+        if store:
+            self.store_result(company_id, result, method, confidence, raw_response)
 
         return {
             "status": "enriched",
@@ -111,6 +122,8 @@ class BaseRegistryAdapter(ABC):
             "official_name": result.get("official_name"),
             "method": method,
             "confidence": confidence,
+            "data": result,
+            "raw_response": raw_response,
         }
 
     def name_similarity(self, query, candidate):

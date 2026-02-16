@@ -48,6 +48,13 @@ class RechercheAdapter(BaseRegistryAdapter):
     request_delay = 0.2  # 7 req/s documented limit
     timeout = 10
 
+    provides_fields = [
+        "registration_id", "official_name", "legal_form",
+        "registration_status", "date_established", "registered_address",
+        "nace_codes", "directors",
+    ]
+    requires_inputs = ["name"]
+
     def lookup_by_id(self, siren):
         """Look up by SIREN number."""
         url = f"{RECHERCHE_BASE_URL}/search"

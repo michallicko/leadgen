@@ -38,6 +38,13 @@ class BrregAdapter(BaseRegistryAdapter):
     request_delay = 0.3
     timeout = 10
 
+    provides_fields = [
+        "registration_id", "official_name", "legal_form",
+        "registration_status", "date_established", "registered_address",
+        "nace_codes", "registered_capital", "insolvency_flag",
+    ]
+    requires_inputs = ["name"]
+
     def lookup_by_id(self, org_nr):
         """Look up by organisasjonsnummer."""
         url = f"{BRREG_BASE_URL}/enheter/{org_nr}"

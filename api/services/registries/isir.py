@@ -17,6 +17,8 @@ from xml.etree import ElementTree as ET
 import requests
 from sqlalchemy import text
 
+from .base import BaseRegistryAdapter
+
 logger = logging.getLogger(__name__)
 
 ISIR_ENDPOINT = "https://isir.justice.cz:8443/isir_cuzk_ws/IsirWsCuzkService"
@@ -295,3 +297,74 @@ def store_result(company_id, tenant_id, ico, proceedings, raw):
         )
 
     db.session.commit()
+
+
+class IsirAdapter(BaseRegistryAdapter):
+    """ISIR adapter for the unified registry orchestrator.
+
+    Supplementary adapter — depends on CZ (ARES) to obtain the ICO first.
+    Only provides insolvency data, not general company registration info.
+    """
+
+    country_code = "CZ"
+    country_names = ["Czech Republic", "Czechia", "CZ",
+                     "Česká republika", "Ceska republika"]
+    domain_tlds = [".cz"]
+    legal_suffixes = []
+    request_delay = ISIR_DELAY
+    timeout = ISIR_TIMEOUT
+
+    provides_fields = ["insolvency_proceedings", "insolvency_flag"]
+    requires_inputs = ["ico"]
+    depends_on = ["CZ"]
+    is_supplementary = True
+
+    def lookup_by_id(self, ico):
+        """Query ISIR by ICO, return structured result or None."""
+        result = query_by_ico(ico)
+        if result.get("error"):
+            return None
+        proceedings = result["proceedings"]
+        active = [p for p in proceedings if p.get("is_active")]
+        return {
+            "has_insolvency": len(proceedings) > 0,
+            "proceedings": proceedings,
+            "total_proceedings": len(proceedings),
+            "active_proceedings": len(active),
+            "raw": result["raw"],
+        }
+
+    def search_by_name(self, name, max_results=5):
+        """ISIR has no name search — requires ICO."""
+        raise NotImplementedError("ISIR requires ICO, not name search")
+
+    def enrich_company(self, company_id, tenant_id, name, reg_id=None,
+                       hq_country=None, domain=None, store=True):
+        """Run ISIR enrichment. reg_id is the ICO."""
+        ico = reg_id
+        if not ico:
+            return {"status": "skipped", "reason": "no_ico",
+                    "enrichment_cost_usd": 0}
+
+        result_data = self.lookup_by_id(ico)
+        if result_data is None:
+            return {"status": "error", "error": "isir_query_failed",
+                    "enrichment_cost_usd": 0}
+
+        if store:
+            store_result(
+                company_id=company_id,
+                tenant_id=tenant_id,
+                ico=ico,
+                proceedings=result_data["proceedings"],
+                raw=result_data["raw"],
+            )
+
+        return {
+            "status": "enriched",
+            "has_insolvency": result_data["has_insolvency"],
+            "total_proceedings": result_data["total_proceedings"],
+            "active_proceedings": result_data["active_proceedings"],
+            "data": result_data,
+            "enrichment_cost_usd": 0,
+        }

@@ -43,6 +43,14 @@ class AresAdapter(BaseRegistryAdapter):
     request_delay = ARES_DELAY
     timeout = ARES_TIMEOUT
 
+    provides_fields = [
+        "registration_id", "tax_id", "official_name", "legal_form",
+        "registration_status", "date_established", "registered_address",
+        "nace_codes", "directors", "registered_capital", "insolvency_flag",
+        "registration_court",
+    ]
+    requires_inputs = ["name"]
+
     def lookup_by_id(self, ico):
         """Look up by ICO."""
         url = f"{ARES_BASE_URL}/ekonomicke-subjekty/{ico}"
@@ -77,11 +85,12 @@ class AresAdapter(BaseRegistryAdapter):
             return []
 
     def enrich_company(self, company_id, tenant_id, name, reg_id=None,
-                       hq_country=None, domain=None):
+                       hq_country=None, domain=None, store=True):
         """ARES enrichment with VR (commercial register) follow-up."""
         # Use base class for initial lookup + store
         result = super().enrich_company(
-            company_id, tenant_id, name, reg_id, hq_country, domain)
+            company_id, tenant_id, name, reg_id, hq_country, domain,
+            store=store)
 
         # If enriched, also fetch VR data
         if result.get("status") == "enriched" and result.get("ico"):
@@ -89,7 +98,17 @@ class AresAdapter(BaseRegistryAdapter):
             vr_data = self.lookup_vr(result["ico"])
             if vr_data:
                 raw_vr = vr_data.pop("_raw", None)
-                self._update_vr_data(company_id, vr_data, raw_vr)
+                if store:
+                    self._update_vr_data(company_id, vr_data, raw_vr)
+                # Merge VR data into result for orchestrator
+                if result.get("data"):
+                    result["data"].update({
+                        "directors": vr_data.get("directors", []),
+                        "registered_capital": vr_data.get("registered_capital"),
+                        "registration_court": vr_data.get("registration_court"),
+                        "registration_number": vr_data.get("registration_number"),
+                    })
+                result["raw_vr_response"] = raw_vr
 
         return result
 

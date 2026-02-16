@@ -23,8 +23,11 @@ def get_adapter(country_code):
 
 
 def get_all_adapters():
-    """Return dict of all registered adapters {country_code: adapter}."""
-    for code in ("CZ", "NO", "FI", "FR"):
+    """Return dict of all registered adapters {key: adapter}.
+
+    Keys: CZ, NO, FI, FR for main adapters; CZ_ISIR for supplementary.
+    """
+    for code in ("CZ", "NO", "FI", "FR", "CZ_ISIR"):
         get_adapter(code)
     return dict(_adapters)
 
@@ -55,6 +58,9 @@ def _load_adapter(code):
         elif code == "FR":
             from .recherche import RechercheAdapter
             return RechercheAdapter()
+        elif code == "CZ_ISIR":
+            from .isir import IsirAdapter
+            return IsirAdapter()
     except ImportError:
         pass
     return None

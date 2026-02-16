@@ -34,6 +34,13 @@ class PrhAdapter(BaseRegistryAdapter):
     request_delay = 0.3
     timeout = 10
 
+    provides_fields = [
+        "registration_id", "official_name", "legal_form",
+        "registration_status", "date_established", "registered_address",
+        "nace_codes",
+    ]
+    requires_inputs = ["name"]
+
     def lookup_by_id(self, business_id):
         """Look up by Y-tunnus (business ID)."""
         url = f"{PRH_BASE_URL}/companies"
