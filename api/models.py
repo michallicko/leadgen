@@ -185,6 +185,23 @@ class CompanyEnrichmentL2(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+class CompanyEnrichmentL1(db.Model):
+    __tablename__ = "company_enrichment_l1"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    triage_notes = db.Column(db.Text)
+    pre_score = db.Column(db.Numeric(4, 1))
+    research_query = db.Column(db.Text)
+    raw_response = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    confidence = db.Column(db.Numeric(3, 2))
+    quality_score = db.Column(db.SmallInteger)
+    qc_flags = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class CompanyRegistryData(db.Model):
     __tablename__ = "company_registry_data"
 
@@ -288,6 +305,15 @@ class ContactEnrichment(db.Model):
     person_summary = db.Column(db.Text)
     linkedin_profile_summary = db.Column(db.Text)
     relationship_synthesis = db.Column(db.Text)
+    ai_champion = db.Column(db.Boolean, default=False)
+    ai_champion_score = db.Column(db.SmallInteger)
+    authority_score = db.Column(db.SmallInteger)
+    career_trajectory = db.Column(db.Text)
+    previous_companies = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    speaking_engagements = db.Column(db.Text)
+    publications = db.Column(db.Text)
+    twitter_handle = db.Column(db.Text)
+    github_username = db.Column(db.Text)
     enriched_at = db.Column(db.DateTime(timezone=True))
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
