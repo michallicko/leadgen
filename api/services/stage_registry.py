@@ -20,7 +20,7 @@ STAGE_REGISTRY = {
     },
     "l2": {
         "entity_type": "company",
-        "hard_deps": ["l1"],
+        "hard_deps": ["triage"],
         "soft_deps": [],
         "execution_mode": "webhook",
         "display_name": "L2 Deep Research",
@@ -96,6 +96,16 @@ STAGE_REGISTRY = {
         "cost_default_usd": 0.01,
         "country_gate": None,
     },
+    "triage": {
+        "entity_type": "company",
+        "hard_deps": ["l1"],
+        "soft_deps": [],
+        "execution_mode": "native",
+        "display_name": "Triage",
+        "cost_default_usd": 0.00,
+        "country_gate": None,
+        "is_gate": True,
+    },
     "qc": {
         "entity_type": "company",
         "hard_deps": [],
@@ -106,6 +116,26 @@ STAGE_REGISTRY = {
         "country_gate": None,
         "is_terminal": True,
     },
+}
+
+# ---------------------------------------------------------------------------
+# Boost model mapping: standard vs upgraded models per stage
+# ---------------------------------------------------------------------------
+
+BOOST_MODELS = {
+    "l1":              {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "l2":              {"standard": "sonar-pro", "boost": "sonar-reasoning-pro",  "cost_boost": 0.30},
+    "person":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.20},
+    "signals":         {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.10},
+    "news":            {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.08},
+    "social":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "career":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "contact_details": {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.02},
+}
+
+ANTHROPIC_BOOST = {
+    "standard": "claude-haiku-4-5-20251001",
+    "boost": "claude-sonnet-4-5-20241022",
 }
 
 STAGE_FIELDS: Dict[str, List[dict]] = {
@@ -369,6 +399,30 @@ def resolve_deps(stage_code: str, soft_deps_enabled: Optional[Dict[str, bool]] =
         deps.extend(entry.get("soft_deps", []))
 
     return deps
+
+
+def get_model_for_stage(stage_code, boost=False, provider="perplexity"):
+    """Get the model name for a stage based on boost flag and provider.
+
+    Args:
+        stage_code: Stage code (e.g., "l1", "l2")
+        boost: Whether boost mode is enabled
+        provider: "perplexity" or "anthropic"
+
+    Returns:
+        Model name string
+    """
+    if provider == "anthropic":
+        key = "boost" if boost else "standard"
+        return ANTHROPIC_BOOST[key]
+
+    # Perplexity models
+    cfg = BOOST_MODELS.get(stage_code)
+    if cfg is None:
+        return "sonar-pro" if boost else "sonar"
+
+    key = "boost" if boost else "standard"
+    return cfg[key]
 
 
 def estimate_cost(stage_codes: List[str], entity_count: int) -> float:
