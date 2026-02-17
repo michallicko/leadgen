@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status
-from ..models import Campaign, CampaignTemplate, db
+from ..models import Campaign, CampaignContact, CampaignTemplate, db
 
 campaigns_bp = Blueprint("campaigns", __name__)
 
@@ -318,3 +318,207 @@ def list_campaign_templates():
         })
 
     return jsonify({"templates": templates})
+
+
+# ── Campaign Contacts ─────────────────────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/contacts", methods=["GET"])
+@require_auth
+def list_campaign_contacts(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign exists
+    campaign = db.session.execute(
+        db.text("SELECT id FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    rows = db.session.execute(
+        db.text("""
+            SELECT
+                cc.id, cc.status, cc.enrichment_gaps, cc.generation_cost, cc.error,
+                cc.added_at, cc.generated_at,
+                ct.id AS contact_id, ct.first_name, ct.last_name, ct.job_title,
+                ct.email_address, ct.linkedin_url, ct.contact_score, ct.icp_fit,
+                co.id AS company_id, co.name AS company_name, co.tier, co.status AS company_status
+            FROM campaign_contacts cc
+            JOIN contacts ct ON cc.contact_id = ct.id
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            ORDER BY ct.contact_score DESC NULLS LAST, ct.last_name
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    contacts = []
+    for r in rows:
+        contacts.append({
+            "campaign_contact_id": str(r[0]),
+            "status": r[1],
+            "enrichment_gaps": _parse_jsonb(r[2]) or [],
+            "generation_cost": float(r[3]) if r[3] else 0,
+            "error": r[4],
+            "added_at": _format_ts(r[5]),
+            "generated_at": _format_ts(r[6]),
+            "contact_id": str(r[7]),
+            "first_name": r[8],
+            "last_name": r[9],
+            "full_name": ((r[8] or "") + " " + (r[9] or "")).strip(),
+            "job_title": r[10],
+            "email_address": r[11],
+            "linkedin_url": r[12],
+            "contact_score": r[13],
+            "icp_fit": r[14],
+            "company_id": str(r[15]) if r[15] else None,
+            "company_name": r[16],
+            "company_tier": r[17],
+            "company_status": r[18],
+        })
+
+    return jsonify({"contacts": contacts, "total": len(contacts)})
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/contacts", methods=["POST"])
+@require_role("editor")
+def add_campaign_contacts(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign exists and is in draft or ready state
+    campaign = db.session.execute(
+        db.text("SELECT status FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+    if campaign[0] not in ("draft", "ready"):
+        return jsonify({"error": "Can only add contacts to draft or ready campaigns"}), 400
+
+    body = request.get_json(silent=True) or {}
+    contact_ids = body.get("contact_ids", [])
+    company_ids = body.get("company_ids", [])
+
+    if not contact_ids and not company_ids:
+        return jsonify({"error": "contact_ids or company_ids required"}), 400
+
+    # If company_ids provided, resolve all contacts for those companies
+    if company_ids:
+        cid_placeholders = ", ".join(f":cid_{i}" for i in range(len(company_ids)))
+        cid_params = {f"cid_{i}": v for i, v in enumerate(company_ids)}
+        cid_params["t"] = tenant_id
+        company_contacts = db.session.execute(
+            db.text(f"SELECT id FROM contacts WHERE tenant_id = :t AND company_id IN ({cid_placeholders})"),
+            cid_params,
+        ).fetchall()
+        contact_ids = list(set(contact_ids + [str(r[0]) for r in company_contacts]))
+
+    if not contact_ids:
+        return jsonify({"error": "No contacts found for given criteria"}), 400
+
+    # Verify contacts belong to tenant
+    id_placeholders = ", ".join(f":id_{i}" for i in range(len(contact_ids)))
+    id_params = {f"id_{i}": v for i, v in enumerate(contact_ids)}
+    id_params["t"] = tenant_id
+    valid = db.session.execute(
+        db.text(f"SELECT id FROM contacts WHERE tenant_id = :t AND id IN ({id_placeholders})"),
+        id_params,
+    ).fetchall()
+    valid_ids = {str(r[0]) for r in valid}
+
+    # Get existing assignments to skip duplicates
+    existing = db.session.execute(
+        db.text("""
+            SELECT contact_id FROM campaign_contacts
+            WHERE campaign_id = :cid AND tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    existing_ids = {str(r[0]) for r in existing}
+
+    added = 0
+    skipped = 0
+    for cid in contact_ids:
+        if cid not in valid_ids:
+            continue
+        if cid in existing_ids:
+            skipped += 1
+            continue
+        cc = CampaignContact(
+            campaign_id=campaign_id,
+            contact_id=cid,
+            tenant_id=tenant_id,
+            status="pending",
+        )
+        db.session.add(cc)
+        added += 1
+
+    # Flush ORM inserts so the count subquery can see them
+    if added > 0:
+        db.session.flush()
+        db.session.execute(
+            db.text("""
+                UPDATE campaigns
+                SET total_contacts = (
+                    SELECT COUNT(*) FROM campaign_contacts WHERE campaign_id = :cid
+                )
+                WHERE id = :cid
+            """),
+            {"cid": campaign_id},
+        )
+
+    db.session.commit()
+
+    return jsonify({"added": added, "skipped": skipped, "total": added + len(existing_ids)})
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/contacts", methods=["DELETE"])
+@require_role("editor")
+def remove_campaign_contacts(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign = db.session.execute(
+        db.text("SELECT status FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+    if campaign[0] not in ("draft", "ready"):
+        return jsonify({"error": "Can only remove contacts from draft or ready campaigns"}), 400
+
+    body = request.get_json(silent=True) or {}
+    contact_ids = body.get("contact_ids", [])
+    if not contact_ids:
+        return jsonify({"error": "contact_ids required"}), 400
+
+    id_placeholders = ", ".join(f":id_{i}" for i in range(len(contact_ids)))
+    del_params = {f"id_{i}": v for i, v in enumerate(contact_ids)}
+    del_params["cid"] = campaign_id
+    del_params["t"] = tenant_id
+    result = db.session.execute(
+        db.text(f"DELETE FROM campaign_contacts WHERE campaign_id = :cid AND tenant_id = :t AND contact_id IN ({id_placeholders})"),
+        del_params,
+    )
+    removed = result.rowcount
+
+    # Update total_contacts count
+    db.session.execute(
+        db.text("""
+            UPDATE campaigns
+            SET total_contacts = (
+                SELECT COUNT(*) FROM campaign_contacts WHERE campaign_id = :cid
+            )
+            WHERE id = :cid
+        """),
+        {"cid": campaign_id},
+    )
+    db.session.commit()
+
+    return jsonify({"removed": removed})

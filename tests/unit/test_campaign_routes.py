@@ -241,6 +241,170 @@ class TestDeleteCampaign:
         assert resp.status_code == 404
 
 
+class TestCampaignContacts:
+    """BL-032: Campaign contacts — add, list, remove contacts from campaigns."""
+
+    def _create_campaign(self, client, headers, name="Test Campaign"):
+        resp = client.post("/api/campaigns", headers=headers, json={"name": name})
+        return resp.get_json()["id"]
+
+    def test_add_contacts_by_ids(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        contact_ids = [str(data["contacts"][0].id), str(data["contacts"][1].id)]
+        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
+            "contact_ids": contact_ids,
+        })
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert result["added"] == 2
+        assert result["skipped"] == 0
+        assert result["total"] == 2
+
+    def test_add_contacts_by_company(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        # Company[0] = Acme Corp with contacts[0] and contacts[1]
+        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
+            "company_ids": [str(data["companies"][0].id)],
+        })
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert result["added"] == 2  # John Doe + Jane Smith
+
+    def test_add_contacts_skips_duplicates(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        contact_ids = [str(data["contacts"][0].id)]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        # Add same contact again
+        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        result = resp.get_json()
+        assert result["added"] == 0
+        assert result["skipped"] == 1
+
+    def test_add_contacts_requires_ids(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        cid = self._create_campaign(client, headers)
+
+        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={})
+        assert resp.status_code == 400
+
+    def test_add_contacts_only_draft_or_ready(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        # Move to ready then generating
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"})
+
+        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
+            "contact_ids": [str(data["contacts"][0].id)],
+        })
+        assert resp.status_code == 400
+        assert "draft or ready" in resp.get_json()["error"].lower()
+
+    def test_list_campaign_contacts(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        # Add 3 contacts
+        contact_ids = [str(c.id) for c in data["contacts"][:3]]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        resp = client.get(f"/api/campaigns/{cid}/contacts", headers=headers)
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert result["total"] == 3
+        assert len(result["contacts"]) == 3
+        # Check contact fields are returned
+        c = result["contacts"][0]
+        assert "contact_id" in c
+        assert "full_name" in c
+        assert "company_name" in c
+        assert "status" in c
+
+    def test_list_contacts_empty_campaign(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        cid = self._create_campaign(client, headers)
+
+        resp = client.get(f"/api/campaigns/{cid}/contacts", headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()["total"] == 0
+
+    def test_list_contacts_nonexistent_campaign(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get("/api/campaigns/00000000-0000-0000-0000-000000000099/contacts", headers=headers)
+        assert resp.status_code == 404
+
+    def test_remove_contacts(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        contact_ids = [str(c.id) for c in data["contacts"][:3]]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        # Remove first contact
+        resp = client.delete(f"/api/campaigns/{cid}/contacts", headers=headers, json={
+            "contact_ids": [contact_ids[0]],
+        })
+        assert resp.status_code == 200
+        assert resp.get_json()["removed"] == 1
+
+        # Verify only 2 remain
+        resp = client.get(f"/api/campaigns/{cid}/contacts", headers=headers)
+        assert resp.get_json()["total"] == 2
+
+    def test_remove_contacts_only_draft_or_ready(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        # Add a contact, then move to generating
+        contact_ids = [str(data["contacts"][0].id)]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"})
+
+        resp = client.delete(f"/api/campaigns/{cid}/contacts", headers=headers, json={
+            "contact_ids": contact_ids,
+        })
+        assert resp.status_code == 400
+
+    def test_campaign_detail_shows_contact_count(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign(client, headers)
+
+        contact_ids = [str(c.id) for c in data["contacts"][:4]]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        resp = client.get(f"/api/campaigns/{cid}", headers=headers)
+        assert resp.get_json()["total_contacts"] == 4
+
+
 class TestCampaignTemplates:
     def test_list_system_templates(self, client, seed_companies_contacts, db):
         from api.models import CampaignTemplate
