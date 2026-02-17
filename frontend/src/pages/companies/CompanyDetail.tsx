@@ -111,9 +111,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         <div className="mb-4 p-3 bg-surface-alt rounded-lg border border-border-solid">
           <p className="text-xs text-text-muted mb-2">This company requires attention:</p>
           <CorrectiveActionButtons
-            entityId={company.id}
-            entityType="company"
-            currentStatus={company.status}
+            companyId={company.id}
           />
         </div>
       )}
