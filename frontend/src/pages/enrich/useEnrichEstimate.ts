@@ -19,7 +19,7 @@ export function useEnrichEstimate(
   reEnrichPayload?: Record<string, { enabled: boolean; horizon: string | null }>,
 ) {
   return useQuery({
-    queryKey: ['enrich-estimate', filters.batch, filters.owner, filters.tier, filters.status, filters.entityIds, filters.limit, enabledStages, reEnrichPayload],
+    queryKey: ['enrich-estimate', filters.batch, filters.owner, filters.tier, filters.entityIds, filters.limit, enabledStages, reEnrichPayload],
     queryFn: () => {
       const body: Record<string, unknown> = {
         batch_name: filters.batch,
@@ -28,7 +28,6 @@ export function useEnrichEstimate(
       }
       if (filters.owner) body.owner_name = filters.owner
       if (filters.tier) body.tier_filter = [filters.tier]
-      if (filters.status) body.status_filter = filters.status
       if (filters.limit) body.limit = Number(filters.limit)
       if (filters.entityIds) {
         body.entity_ids = filters.entityIds.split(',').map((s) => s.trim()).filter(Boolean)

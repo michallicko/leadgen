@@ -24,11 +24,9 @@ export interface ReEnrichConfig {
 export type DagMode = 'configure' | 'running' | 'completed'
 
 export interface EnrichFilters {
-  search: string
   batch: string
   owner: string
   tier: string
-  status: string
   entityIds: string
   limit: string
 }
