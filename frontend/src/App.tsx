@@ -9,6 +9,7 @@ import { CompaniesPage } from './pages/companies/CompaniesPage'
 import { ContactsPage } from './pages/contacts/ContactsPage'
 import { MessagesPage } from './pages/messages/MessagesPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
+import { EnrichPage } from './pages/enrich/EnrichPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,7 +36,7 @@ export default function App() {
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="import" element={<PlaceholderPage title="Import Contacts" />} />
-              {/* enrich is served as vanilla HTML by Caddy — not handled by React */}
+              <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="playbook" element={<PlaceholderPage title="ICP Summary" />} />

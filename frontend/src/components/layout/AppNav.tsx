@@ -233,7 +233,7 @@ export function AppNav() {
             const isActive = page.path === currentPage
 
             // Pages served by vanilla HTML need full-page navigation
-            const isExternal = page.path === 'enrich' || page.path === 'import'
+            const isExternal = page.path === 'import'
             const linkProps = {
               key: page.id,
               className: `px-3 py-1 rounded text-[0.78rem] font-medium no-underline transition-colors ${
