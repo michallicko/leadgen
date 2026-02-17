@@ -107,3 +107,77 @@ export function useDeleteCampaign() {
     },
   })
 }
+
+// ── Campaign Contacts ──────────────────────────────────
+
+export interface CampaignContactItem {
+  campaign_contact_id: string
+  status: string
+  enrichment_gaps: string[]
+  generation_cost: number
+  error: string | null
+  added_at: string | null
+  generated_at: string | null
+  contact_id: string
+  first_name: string | null
+  last_name: string | null
+  full_name: string
+  job_title: string | null
+  email_address: string | null
+  linkedin_url: string | null
+  contact_score: number | null
+  icp_fit: string | null
+  company_id: string | null
+  company_name: string | null
+  company_tier: string | null
+  company_status: string | null
+}
+
+interface CampaignContactsResponse {
+  contacts: CampaignContactItem[]
+  total: number
+}
+
+export function useCampaignContacts(campaignId: string | null) {
+  return useQuery({
+    queryKey: ['campaign-contacts', campaignId],
+    queryFn: () => apiFetch<CampaignContactsResponse>(`/campaigns/${campaignId}/contacts`),
+    enabled: !!campaignId,
+  })
+}
+
+export function useAddCampaignContacts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ campaignId, contactIds, companyIds }: {
+      campaignId: string
+      contactIds?: string[]
+      companyIds?: string[]
+    }) =>
+      apiFetch<{ added: number; skipped: number; total: number }>(
+        `/campaigns/${campaignId}/contacts`,
+        { method: 'POST', body: { contact_ids: contactIds, company_ids: companyIds } },
+      ),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-contacts', vars.campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaign', vars.campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
+export function useRemoveCampaignContacts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ campaignId, contactIds }: { campaignId: string; contactIds: string[] }) =>
+      apiFetch<{ removed: number }>(
+        `/campaigns/${campaignId}/contacts`,
+        { method: 'DELETE', body: { contact_ids: contactIds } },
+      ),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-contacts', vars.campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaign', vars.campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}

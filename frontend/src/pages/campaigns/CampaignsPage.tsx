@@ -1,12 +1,20 @@
 import { useState, useMemo, useCallback } from 'react'
 import {
   useCampaigns,
+  useCampaign,
   useCampaignTemplates,
   useCreateCampaign,
   useDeleteCampaign,
   type Campaign,
 } from '../../api/queries/useCampaigns'
+import { useEntityStack } from '../../hooks/useEntityStack'
 import { DataTable, type Column } from '../../components/ui/DataTable'
+import { DetailModal } from '../../components/ui/DetailModal'
+import { CampaignDetail } from './CampaignDetail'
+import { ContactDetail } from '../contacts/ContactDetail'
+import { useContact } from '../../api/queries/useContacts'
+import { CompanyDetail } from '../companies/CompanyDetail'
+import { useCompany } from '../../api/queries/useCompanies'
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
@@ -35,6 +43,9 @@ export function CampaignsPage() {
   const createCampaign = useCreateCampaign()
   const deleteCampaign = useDeleteCampaign()
 
+  // Entity stack for modal navigation
+  const stack = useEntityStack('campaign')
+
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -42,6 +53,21 @@ export function CampaignsPage() {
 
   const campaigns = useMemo(() => data?.campaigns ?? [], [data])
   const templates = useMemo(() => templateData?.templates ?? [], [templateData])
+
+  // Detail data for whichever entity is at top of stack
+  const isCampaignOpen = stack.current?.type === 'campaign'
+  const isContactOpen = stack.current?.type === 'contact'
+  const isCompanyOpen = stack.current?.type === 'company'
+
+  const { data: campaignDetail, isLoading: campaignLoading } = useCampaign(
+    isCampaignOpen ? stack.current!.id : null,
+  )
+  const { data: contactDetail, isLoading: contactLoading } = useContact(
+    isContactOpen ? stack.current!.id : null,
+  )
+  const { data: companyDetail, isLoading: companyLoading } = useCompany(
+    isCompanyOpen ? stack.current!.id : null,
+  )
 
   const handleCreate = useCallback(async () => {
     if (!newName.trim()) return
@@ -149,6 +175,29 @@ export function CampaignsPage() {
     [handleDelete],
   )
 
+  // Modal title
+  const modalTitle = isCampaignOpen
+    ? (campaignDetail?.name ?? 'Campaign')
+    : isContactOpen
+      ? (contactDetail?.full_name ?? 'Contact')
+      : isCompanyOpen
+        ? (companyDetail?.name ?? 'Company')
+        : ''
+
+  const modalSubtitle = isCampaignOpen
+    ? (campaignDetail?.description ?? undefined)
+    : isContactOpen
+      ? (contactDetail?.job_title ?? undefined)
+      : isCompanyOpen
+        ? (companyDetail?.domain ?? undefined)
+        : undefined
+
+  const modalLoading = isCampaignOpen
+    ? campaignLoading
+    : isContactOpen
+      ? contactLoading
+      : companyLoading
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -226,8 +275,31 @@ export function CampaignsPage() {
           data={campaigns}
           isLoading={isLoading}
           emptyText="No campaigns yet. Click 'New Campaign' to create one."
+          onRowClick={(c) => stack.open('campaign', c.id)}
         />
       </div>
+
+      {/* Detail modal */}
+      <DetailModal
+        isOpen={!!stack.current}
+        onClose={stack.close}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        isLoading={modalLoading}
+        canGoBack={stack.depth > 1}
+        onBack={stack.pop}
+        breadcrumb={stack.depth > 1 ? 'Back' : undefined}
+      >
+        {isCampaignOpen && campaignDetail && (
+          <CampaignDetail campaign={campaignDetail} onNavigate={stack.push} />
+        )}
+        {isContactOpen && contactDetail && (
+          <ContactDetail contact={contactDetail} onNavigate={stack.push} />
+        )}
+        {isCompanyOpen && companyDetail && (
+          <CompanyDetail company={companyDetail} onNavigate={stack.push} />
+        )}
+      </DetailModal>
     </div>
   )
 }
