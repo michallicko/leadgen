@@ -10,6 +10,7 @@ import {
 import { Tabs, type TabDef } from '../../components/ui/Tabs'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
 import { CorrectiveActionButtons } from '../../components/ui/CorrectiveActionButtons'
+import { RichText } from '../../components/ui/RichText'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
   STATUS_DISPLAY, STATUS_REVERSE,
@@ -209,50 +210,120 @@ export function CompanyDetail({ company, onNavigate }: Props) {
   })
 
   // Intelligence tab (only if L2 or registry data exists)
+  // Helper: safely extract string from L2 data (handles arrays like quick_wins)
+  const l2Text = (key: string): string | null => {
+    if (!l2) return null
+    const raw = l2[key]
+    if (raw == null || raw === '') return null
+    if (typeof raw === 'string') return raw === '-' ? null : raw
+    if (Array.isArray(raw)) {
+      // quick_wins is [{title, description}, …]
+      return raw
+        .map((item, i) => {
+          if (typeof item === 'string') return `${i + 1}. ${item}`
+          if (typeof item === 'object' && item !== null) {
+            const obj = item as Record<string, unknown>
+            const title = obj.title || obj.name || ''
+            const desc = obj.description || obj.detail || ''
+            return `${i + 1}. **${title}** — ${desc}`
+          }
+          return `${i + 1}. ${String(item)}`
+        })
+        .join('\n')
+    }
+    return String(raw)
+  }
+
+  /** Render a prose section — heading + rich text. Skips if content is empty. */
+  const ProseSection = ({ title, content }: { title: string; content: string | null }) => {
+    if (!content) return null
+    return (
+      <div>
+        <h3 className="text-sm font-semibold text-text mb-2">{title}</h3>
+        <RichText text={content} />
+      </div>
+    )
+  }
+
   if (l2 || reg) {
     tabs.push({
       id: 'intelligence',
       label: 'Intelligence',
       content: (
-        <div className="space-y-1">
+        <div className="max-w-3xl space-y-8">
           {l2 && (
             <>
-              <SectionDivider title="L2 Enrichment" />
-              <div className="space-y-4 mb-6">
-                <Field label="Company Intel" value={l2.company_intel} className="col-span-full" source={l2Source} />
-                <Field label="Recent News" value={l2.recent_news} className="col-span-full" source={l2Source} />
-                <Field label="AI Opportunities" value={l2.ai_opportunities} className="col-span-full" source={l2Source} />
-                <Field label="Pain Hypothesis" value={l2.pain_hypothesis} className="col-span-full" source={l2Source} />
-                <Field label="Relevant Case Study" value={l2.relevant_case_study} className="col-span-full" source={l2Source} />
-                <Field label="Digital Initiatives" value={l2.digital_initiatives} className="col-span-full" source={l2Source} />
-                <Field label="Quick Wins" value={l2.quick_wins} className="col-span-full" source={l2Source} />
-                <Field label="Industry Pain Points" value={l2.industry_pain_points} className="col-span-full" source={l2Source} />
-                <Field label="Cross-Functional Pain" value={l2.cross_functional_pain} className="col-span-full" source={l2Source} />
-                <Field label="Adoption Barriers" value={l2.adoption_barriers} className="col-span-full" source={l2Source} />
-                <Field label="Competitor AI Moves" value={l2.competitor_ai_moves} className="col-span-full" source={l2Source} />
-              </div>
-              <FieldGrid cols={3}>
-                <Field label="Leadership Changes" value={l2.leadership_changes} source={l2Source} />
-                <Field label="Hiring Signals" value={l2.hiring_signals} source={l2Source} />
-                <Field label="Key Products" value={l2.key_products} source={l2Source} />
-                <Field label="Customer Segments" value={l2.customer_segments} source={l2Source} />
-                <Field label="Competitors" value={l2.competitors} source={l2Source} />
-                <Field label="Tech Stack" value={l2.tech_stack} source={l2Source} />
-                <Field label="Funding History" value={l2.funding_history} source={l2Source} />
-                <Field label="EU Grants" value={l2.eu_grants} source={l2Source} />
-                <Field label="Leadership Team" value={l2.leadership_team} source={l2Source} />
-                <Field label="AI Hiring" value={l2.ai_hiring} source={l2Source} />
-                <Field label="Tech Partnerships" value={l2.tech_partnerships} source={l2Source} />
-                <Field label="Certifications" value={l2.certifications} source={l2Source} />
-              </FieldGrid>
+              {/* ---- Company Profile ---- */}
+              <section className="space-y-5">
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Company Profile</h2>
+                <ProseSection title="Key Products & Services" content={l2Text('key_products')} />
+                <ProseSection title="Customer Segments" content={l2Text('customer_segments')} />
+                <ProseSection title="Competitors" content={l2Text('competitors')} />
+              </section>
+
+              {/* ---- Leadership & People ---- */}
+              <section className="space-y-5 border-t border-border/40 pt-8">
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Leadership & People</h2>
+                <ProseSection title="Leadership Team" content={l2Text('leadership_team')} />
+                <ProseSection title="Leadership Changes" content={l2Text('leadership_changes')} />
+                <ProseSection title="Hiring Signals" content={l2Text('hiring_signals')} />
+                <ProseSection title="AI Hiring Activity" content={l2Text('ai_hiring')} />
+              </section>
+
+              {/* ---- Technology & Digital ---- */}
+              <section className="space-y-5 border-t border-border/40 pt-8">
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Technology & Digital</h2>
+                <ProseSection title="Digital Initiatives" content={l2Text('digital_initiatives')} />
+                <ProseSection title="Tech Stack" content={l2Text('tech_stack')} />
+                <ProseSection title="Technology Partnerships" content={l2Text('tech_partnerships')} />
+                <ProseSection title="Certifications" content={l2Text('certifications')} />
+              </section>
+
+              {/* ---- Market Intelligence ---- */}
+              <section className="space-y-5 border-t border-border/40 pt-8">
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Market Intelligence</h2>
+                <ProseSection title="Recent News" content={l2Text('recent_news')} />
+                <ProseSection title="Funding History" content={l2Text('funding_history')} />
+                <ProseSection title="EU Grants" content={l2Text('eu_grants')} />
+                <ProseSection title="Competitor AI Moves" content={l2Text('competitor_ai_moves')} />
+              </section>
+
+              {/* ---- AI Opportunity Assessment ---- */}
+              <section className="space-y-5 border-t border-border/40 pt-8">
+                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">AI Opportunity Assessment</h2>
+                <ProseSection title="AI Opportunities" content={l2Text('ai_opportunities')} />
+                <ProseSection title="Pain Hypothesis" content={l2Text('pain_hypothesis')} />
+                <ProseSection title="Industry Pain Points" content={l2Text('industry_pain_points')} />
+                <ProseSection title="Cross-Functional Pain" content={l2Text('cross_functional_pain')} />
+                <ProseSection title="Quick Wins" content={l2Text('quick_wins')} />
+                <ProseSection title="Adoption Barriers" content={l2Text('adoption_barriers')} />
+                <ProseSection title="Relevant Case Study" content={l2Text('relevant_case_study')} />
+              </section>
+
+              {/* ---- Enrichment Quality (metadata) ---- */}
+              {l2Text('company_intel') && (
+                <section className="space-y-3 border-t border-border/40 pt-8">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Enrichment Quality</h2>
+                  <div className="bg-surface-alt/50 rounded-lg border border-border/30 p-4">
+                    <RichText text={l2Text('company_intel')!} className="text-text-muted" />
+                  </div>
+                  {l2Source && (
+                    <p className="text-xs text-text-dim">
+                      Enriched {l2Source.timestamp ? new Date(l2Source.timestamp).toLocaleDateString() : '—'}
+                      {l2Source.cost != null && ` · $${Number(l2Source.cost).toFixed(4)}`}
+                    </p>
+                  )}
+                </section>
+              )}
             </>
           )}
 
+          {/* ---- Legal & Registry ---- */}
           {reg && (
-            <>
-              <SectionDivider title="Legal & Registry" />
+            <section className="space-y-4 border-t border-border/40 pt-8">
+              <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Legal & Registry</h2>
               {reg.credibility_score != null && (
-                <div className="mb-3">
+                <div className="mb-1">
                   <span className="text-xs text-text-muted">Credibility Score:</span>
                   <span className="ml-2 text-sm font-medium text-accent-cyan">{String(reg.credibility_score)}%</span>
                 </div>
@@ -299,7 +370,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                   </div>
                 </>
               )}
-            </>
+            </section>
           )}
         </div>
       ),
