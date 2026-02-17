@@ -447,7 +447,7 @@ class TestEnrichmentCheck:
         for stage in ["l1_company", "l2_deep_research"]:
             comp = EntityStageCompletion(
                 tenant_id=data["tenant"].id,
-                batch_id=data["batches"][0].id,
+                tag_id=data["tags"][0].id,
                 entity_type="company",
                 entity_id=company_id,
                 stage=stage,
@@ -456,7 +456,7 @@ class TestEnrichmentCheck:
             db.session.add(comp)
         person_comp = EntityStageCompletion(
             tenant_id=data["tenant"].id,
-            batch_id=data["batches"][0].id,
+            tag_id=data["tags"][0].id,
             entity_type="contact",
             entity_id=contact_id,
             stage="person",
@@ -482,7 +482,7 @@ class TestEnrichmentCheck:
         # Only L1 completed
         comp = EntityStageCompletion(
             tenant_id=data["tenant"].id,
-            batch_id=data["batches"][0].id,
+            tag_id=data["tags"][0].id,
             entity_type="company",
             entity_id=str(data["companies"][0].id),
             stage="l1_company",

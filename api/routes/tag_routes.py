@@ -4,18 +4,18 @@ from ..auth import require_auth, resolve_tenant
 from ..display import display_message_status, display_status, display_tier, tier_db_values
 from ..models import CustomFieldDefinition, db
 
-batch_bp = Blueprint("batches", __name__)
+tag_bp = Blueprint("tags", __name__)
 
 
-@batch_bp.route("/api/batches", methods=["GET"])
+@tag_bp.route("/api/tags", methods=["GET"])
 @require_auth
-def list_batches():
+def list_tags():
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    batches = db.session.execute(
-        db.text("SELECT name FROM batches WHERE tenant_id = :t AND is_active = true ORDER BY name"),
+    tags = db.session.execute(
+        db.text("SELECT name FROM tags WHERE tenant_id = :t AND is_active = true ORDER BY name"),
         {"t": tenant_id},
     ).fetchall()
 
@@ -35,35 +35,35 @@ def list_batches():
     ).order_by(CustomFieldDefinition.entity_type, CustomFieldDefinition.display_order).all()
 
     return jsonify({
-        "batches": [{"name": r[0]} for r in batches],
+        "tags": [{"name": r[0]} for r in tags],
         "owners": [{"id": str(r[0]), "name": r[1]} for r in owners],
         "custom_fields": [d.to_dict() for d in custom_defs],
     })
 
 
-@batch_bp.route("/api/batch-stats", methods=["POST"])
+@tag_bp.route("/api/tag-stats", methods=["POST"])
 @require_auth
-def batch_stats():
+def tag_stats():
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner", "")
     tier_filter = body.get("tier_filter", [])
 
-    if not batch_name:
-        return jsonify({"error": "batch_name required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name required"}), 400
 
-    # Resolve batch_id
-    batch_row = db.session.execute(
-        db.text("SELECT id FROM batches WHERE tenant_id = :t AND name = :n"),
-        {"t": tenant_id, "n": batch_name},
+    # Resolve tag_id
+    tag_row = db.session.execute(
+        db.text("SELECT id FROM tags WHERE tenant_id = :t AND name = :n"),
+        {"t": tenant_id, "n": tag_name},
     ).fetchone()
-    if not batch_row:
-        return jsonify({"error": "Batch not found"}), 404
-    batch_id = batch_row[0]
+    if not tag_row:
+        return jsonify({"error": "Tag not found"}), 404
+    tag_id = tag_row[0]
 
     # Resolve owner filter
     owner_id = None
@@ -76,14 +76,14 @@ def batch_stats():
             owner_id = owner_row[0]
 
     # Build WHERE clause for companies
-    co_where = "c.tenant_id = :t AND c.batch_id = :b"
-    params = {"t": tenant_id, "b": batch_id}
+    co_where = "c.tenant_id = :t AND c.tag_id = :b"
+    params = {"t": tenant_id, "b": tag_id}
     if owner_id:
         co_where += " AND c.owner_id = :o"
         params["o"] = owner_id
 
-    # Total contacts in batch (with optional owner filter)
-    ct_where = "ct.tenant_id = :t AND ct.batch_id = :b"
+    # Total contacts in tag (with optional owner filter)
+    ct_where = "ct.tenant_id = :t AND ct.tag_id = :b"
     ct_params = dict(params)
     if owner_id:
         ct_where += " AND ct.owner_id = :o"
@@ -169,7 +169,7 @@ def batch_stats():
             SELECT COUNT(*)
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
-            WHERE ct.tenant_id = :t AND ct.batch_id = :b AND c.status = 'enriched_l2'
+            WHERE ct.tenant_id = :t AND ct.tag_id = :b AND c.status = 'enriched_l2'
             {tier_sql}
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
@@ -182,7 +182,7 @@ def batch_stats():
             SELECT COUNT(*)
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
-            WHERE ct.tenant_id = :t AND ct.batch_id = :b AND c.status = 'enriched_l2'
+            WHERE ct.tenant_id = :t AND ct.tag_id = :b AND c.status = 'enriched_l2'
             {tier_sql}
             AND ct.processed_enrich = true
             {"AND ct.owner_id = :o" if owner_id else ""}
@@ -195,7 +195,7 @@ def batch_stats():
         db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
-            WHERE ct.tenant_id = :t AND ct.batch_id = :b AND ct.error IS NOT NULL
+            WHERE ct.tenant_id = :t AND ct.tag_id = :b AND ct.error IS NOT NULL
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
         ct_params,
@@ -206,7 +206,7 @@ def batch_stats():
         db.text(f"""
             SELECT ct.message_status, COUNT(*)
             FROM contacts ct
-            WHERE ct.tenant_id = :t AND ct.batch_id = :b
+            WHERE ct.tenant_id = :t AND ct.tag_id = :b
             {"AND ct.owner_id = :o" if owner_id else ""}
             AND ct.message_status IS NOT NULL
             GROUP BY ct.message_status

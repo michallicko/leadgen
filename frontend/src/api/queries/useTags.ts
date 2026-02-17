@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../client'
 
-interface Batch {
+interface Tag {
   name: string
 }
 
@@ -20,16 +20,16 @@ interface CustomFieldDef {
   display_order: number
 }
 
-interface BatchesResponse {
-  batches: Batch[]
+interface TagsResponse {
+  tags: Tag[]
   owners: Owner[]
   custom_fields: CustomFieldDef[]
 }
 
-export function useBatches() {
+export function useTags() {
   return useQuery({
-    queryKey: ['batches'],
-    queryFn: () => apiFetch<BatchesResponse>('/batches'),
+    queryKey: ['tags'],
+    queryFn: () => apiFetch<TagsResponse>('/tags'),
     staleTime: 5 * 60_000,
   })
 }

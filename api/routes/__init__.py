@@ -1,5 +1,5 @@
 from .auth_routes import auth_bp
-from .batch_routes import batch_bp
+from .tag_routes import tag_bp
 from .campaign_routes import campaigns_bp
 from .company_routes import companies_bp
 from .contact_routes import contacts_bp
@@ -21,7 +21,7 @@ def register_blueprints(app):
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(tenants_bp)
-    app.register_blueprint(batch_bp)
+    app.register_blueprint(tag_bp)
     app.register_blueprint(messages_bp)
     app.register_blueprint(campaigns_bp)
     app.register_blueprint(pipeline_bp)

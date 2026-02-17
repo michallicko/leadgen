@@ -8,7 +8,7 @@ export interface CompanyListItem {
   status: string | null
   tier: string | null
   owner_name: string | null
-  batch_name: string | null
+  tag_name: string | null
   industry: string | null
   hq_country: string | null
   triage_score: number | null
@@ -76,7 +76,7 @@ export interface CompanyDetail {
   created_at: string | null
   updated_at: string | null
   owner_name: string | null
-  batch_name: string | null
+  tag_name: string | null
   ico: string | null
   enrichment_l2: Record<string, unknown> | null
   registry_data: Record<string, unknown> | null
@@ -88,7 +88,7 @@ export interface CompanyFilters {
   search?: string
   status?: string
   tier?: string
-  batch_name?: string
+  tag_name?: string
   owner_name?: string
   sort?: string
   sort_dir?: string
@@ -107,7 +107,7 @@ export function useCompanies(filters: CompanyFilters) {
       if (filters.search) params.search = filters.search
       if (filters.status) params.status = filters.status
       if (filters.tier) params.tier = filters.tier
-      if (filters.batch_name) params.batch_name = filters.batch_name
+      if (filters.tag_name) params.tag_name = filters.tag_name
       if (filters.owner_name) params.owner_name = filters.owner_name
       if (filters.sort) params.sort = filters.sort
       if (filters.sort_dir) params.sort_dir = filters.sort_dir

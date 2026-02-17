@@ -14,15 +14,15 @@ def _uuid():
 
 @pytest.fixture
 def seed_pipeline_data(db, seed_tenant, seed_super_admin):
-    """Create batch, owner, and some companies for pipeline tests."""
-    from api.models import Batch, Company, Contact, Owner
+    """Create tag, owner, and some companies for pipeline tests."""
+    from api.models import Tag, Company, Contact, Owner
 
     owner = Owner(tenant_id=seed_tenant.id, name="Michal", is_active=True)
     db.session.add(owner)
     db.session.flush()
 
-    batch = Batch(tenant_id=seed_tenant.id, name="batch-test", is_active=True)
-    db.session.add(batch)
+    tag = Tag(tenant_id=seed_tenant.id, name="batch-test", is_active=True)
+    db.session.add(tag)
     db.session.flush()
 
     companies = []
@@ -31,7 +31,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
             tenant_id=seed_tenant.id,
             name=f"Company {i}",
             domain=f"company{i}.com",
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner.id,
             status="new",
         )
@@ -43,7 +43,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="Already Passed",
         domain="passed.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="triage_passed",
     )
@@ -54,7 +54,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="Enriched Co",
         domain="enriched.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="enriched_l2",
     )
@@ -68,7 +68,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
             tenant_id=seed_tenant.id,
             first_name=f"Contact", last_name=f"{i}",
             company_id=c_enriched.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner.id,
             processed_enrich=False,
         )
@@ -80,7 +80,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         first_name="Gen", last_name="Contact",
         company_id=c_enriched.id,
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         processed_enrich=True,
         message_status="not_started",
@@ -92,7 +92,7 @@ def seed_pipeline_data(db, seed_tenant, seed_super_admin):
     db.session.commit()
     return {
         "tenant": seed_tenant,
-        "batch": batch,
+        "tag": tag,
         "owner": owner,
         "companies": companies,
         "contacts": contacts,
@@ -111,7 +111,7 @@ class TestPipelineStart:
                 "/api/pipeline/start",
                 json={
                     "stage": "l1",
-                    "batch_name": "batch-test",
+                    "tag_name": "batch-test",
                     "owner": "Michal",
                 },
                 headers=headers,
@@ -133,7 +133,7 @@ class TestPipelineStart:
                 "/api/pipeline/start",
                 json={
                     "stage": "l2",
-                    "batch_name": "batch-test",
+                    "tag_name": "batch-test",
                 },
                 headers=headers,
             )
@@ -153,7 +153,7 @@ class TestPipelineStart:
                 "/api/pipeline/start",
                 json={
                     "stage": "person",
-                    "batch_name": "batch-test",
+                    "tag_name": "batch-test",
                 },
                 headers=headers,
             )
@@ -172,7 +172,7 @@ class TestPipelineStart:
             "/api/pipeline/start",
             json={
                 "stage": "generate",
-                "batch_name": "batch-test",
+                "tag_name": "batch-test",
             },
             headers=headers,
         )
@@ -185,7 +185,7 @@ class TestPipelineStart:
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"batch_name": "batch-test"},
+            json={"tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -197,7 +197,7 @@ class TestPipelineStart:
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "review", "batch_name": "batch-test"},
+            json={"stage": "review", "tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -209,7 +209,7 @@ class TestPipelineStart:
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "bogus", "batch_name": "batch-test"},
+            json={"stage": "bogus", "tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -225,7 +225,7 @@ class TestPipelineStart:
             headers=headers,
         )
         assert resp.status_code == 400
-        assert "batch_name is required" in resp.get_json()["error"]
+        assert "tag_name is required" in resp.get_json()["error"]
 
     def test_start_nonexistent_batch(self, client, seed_pipeline_data):
         headers = auth_header(client)
@@ -233,11 +233,11 @@ class TestPipelineStart:
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "l1", "batch_name": "no-such-batch"},
+            json={"stage": "l1", "tag_name": "no-such-batch"},
             headers=headers,
         )
         assert resp.status_code == 404
-        assert "Batch not found" in resp.get_json()["error"]
+        assert "Tag not found" in resp.get_json()["error"]
 
     def test_start_no_eligible(self, client, db, seed_pipeline_data):
         """All companies already past L1 — none eligible."""
@@ -254,7 +254,7 @@ class TestPipelineStart:
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "l1", "batch_name": "batch-test"},
+            json={"stage": "l1", "tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -268,20 +268,20 @@ class TestPipelineStart:
         # Insert a running stage_run manually
         db.session.execute(
             db.text("""
-                INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total)
+                INSERT INTO stage_runs (id, tenant_id, tag_id, stage, status, total)
                 VALUES (:id, :t, :b, 'l1', 'running', 5)
             """),
             {
                 "id": _uuid(),
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
 
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "l1", "batch_name": "batch-test"},
+            json={"stage": "l1", "tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 409
@@ -290,7 +290,7 @@ class TestPipelineStart:
     def test_start_unauthenticated(self, client, seed_pipeline_data):
         resp = client.post(
             "/api/pipeline/start",
-            json={"stage": "l1", "batch_name": "batch-test"},
+            json={"stage": "l1", "tag_name": "batch-test"},
         )
         assert resp.status_code == 401
 
@@ -304,13 +304,13 @@ class TestPipelineStop:
         run_id = _uuid()
         db.session.execute(
             db.text("""
-                INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total)
+                INSERT INTO stage_runs (id, tenant_id, tag_id, stage, status, total)
                 VALUES (:id, :t, :b, 'l1', 'running', 5)
             """),
             {
                 "id": run_id,
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
@@ -337,13 +337,13 @@ class TestPipelineStop:
         run_id = _uuid()
         db.session.execute(
             db.text("""
-                INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total, done)
+                INSERT INTO stage_runs (id, tenant_id, tag_id, stage, status, total, done)
                 VALUES (:id, :t, :b, 'l1', 'completed', 5, 5)
             """),
             {
                 "id": run_id,
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
@@ -374,7 +374,7 @@ class TestPipelineStatus:
         headers["X-Namespace"] = seed_pipeline_data["tenant"].slug
 
         resp = client.get(
-            "/api/pipeline/status?batch_name=batch-test",
+            "/api/pipeline/status?tag_name=batch-test",
             headers=headers,
         )
         assert resp.status_code == 200
@@ -394,19 +394,19 @@ class TestPipelineStatus:
 
         db.session.execute(
             db.text("""
-                INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total, done, failed, cost_usd)
+                INSERT INTO stage_runs (id, tenant_id, tag_id, stage, status, total, done, failed, cost_usd)
                 VALUES (:id, :t, :b, 'l1', 'running', 10, 3, 1, 0.0234)
             """),
             {
                 "id": _uuid(),
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
 
         resp = client.get(
-            "/api/pipeline/status?batch_name=batch-test",
+            "/api/pipeline/status?tag_name=batch-test",
             headers=headers,
         )
         assert resp.status_code == 200
@@ -426,20 +426,20 @@ class TestPipelineStatus:
         pipeline_id = _uuid()
         db.session.execute(
             db.text("""
-                INSERT INTO pipeline_runs (id, tenant_id, batch_id, status, cost_usd, stages)
+                INSERT INTO pipeline_runs (id, tenant_id, tag_id, status, cost_usd, stages)
                 VALUES (:id, :t, :b, 'running', 0.5, :stages)
             """),
             {
                 "id": pipeline_id,
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
                 "stages": '{"l1": "fake-id-1", "l2": "fake-id-2"}',
             },
         )
         db.session.commit()
 
         resp = client.get(
-            "/api/pipeline/status?batch_name=batch-test",
+            "/api/pipeline/status?tag_name=batch-test",
             headers=headers,
         )
         assert resp.status_code == 200
@@ -457,7 +457,7 @@ class TestPipelineStatus:
         assert resp.status_code == 400
 
     def test_status_unauthenticated(self, client):
-        resp = client.get("/api/pipeline/status?batch_name=test")
+        resp = client.get("/api/pipeline/status?tag_name=test")
         assert resp.status_code == 401
 
 
@@ -470,7 +470,7 @@ class TestPipelineRunAll:
             resp = client.post(
                 "/api/pipeline/run-all",
                 json={
-                    "batch_name": "batch-test",
+                    "tag_name": "batch-test",
                     "owner": "Michal",
                 },
                 headers=headers,
@@ -493,7 +493,7 @@ class TestPipelineRunAll:
             headers=headers,
         )
         assert resp.status_code == 400
-        assert "batch_name is required" in resp.get_json()["error"]
+        assert "tag_name is required" in resp.get_json()["error"]
 
     def test_run_all_duplicate_blocked(self, client, db, seed_pipeline_data):
         """Cannot run-all when a pipeline is already running."""
@@ -502,20 +502,20 @@ class TestPipelineRunAll:
 
         db.session.execute(
             db.text("""
-                INSERT INTO pipeline_runs (id, tenant_id, batch_id, status)
+                INSERT INTO pipeline_runs (id, tenant_id, tag_id, status)
                 VALUES (:id, :t, :b, 'running')
             """),
             {
                 "id": _uuid(),
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
 
         resp = client.post(
             "/api/pipeline/run-all",
-            json={"batch_name": "batch-test"},
+            json={"tag_name": "batch-test"},
             headers=headers,
         )
         assert resp.status_code == 409
@@ -524,7 +524,7 @@ class TestPipelineRunAll:
     def test_run_all_unauthenticated(self, client, seed_pipeline_data):
         resp = client.post(
             "/api/pipeline/run-all",
-            json={"batch_name": "batch-test"},
+            json={"tag_name": "batch-test"},
         )
         assert resp.status_code == 401
 
@@ -537,13 +537,13 @@ class TestPipelineStopAll:
         pipeline_id = _uuid()
         db.session.execute(
             db.text("""
-                INSERT INTO pipeline_runs (id, tenant_id, batch_id, status)
+                INSERT INTO pipeline_runs (id, tenant_id, tag_id, status)
                 VALUES (:id, :t, :b, 'running')
             """),
             {
                 "id": pipeline_id,
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()
@@ -570,13 +570,13 @@ class TestPipelineStopAll:
         pipeline_id = _uuid()
         db.session.execute(
             db.text("""
-                INSERT INTO pipeline_runs (id, tenant_id, batch_id, status)
+                INSERT INTO pipeline_runs (id, tenant_id, tag_id, status)
                 VALUES (:id, :t, :b, 'completed')
             """),
             {
                 "id": pipeline_id,
                 "t": str(seed_pipeline_data["tenant"].id),
-                "b": str(seed_pipeline_data["batch"].id),
+                "b": str(seed_pipeline_data["tag"].id),
             },
         )
         db.session.commit()

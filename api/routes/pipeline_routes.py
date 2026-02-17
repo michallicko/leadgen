@@ -40,14 +40,14 @@ def _fmt_dt(val):
     return val.isoformat() if hasattr(val, "isoformat") else str(val)
 
 
-def _resolve_batch(tenant_id, batch_name):
-    """Look up batch by name, return (batch_id, error_response)."""
+def _resolve_tag(tenant_id, tag_name):
+    """Look up tag by name, return (tag_id, error_response)."""
     row = db.session.execute(
-        text("SELECT id FROM batches WHERE tenant_id = :t AND name = :n"),
-        {"t": str(tenant_id), "n": batch_name},
+        text("SELECT id FROM tags WHERE tenant_id = :t AND name = :n"),
+        {"t": str(tenant_id), "n": tag_name},
     ).fetchone()
     if not row:
-        return None, (jsonify({"error": "Batch not found"}), 404)
+        return None, (jsonify({"error": "Tag not found"}), 404)
     return row[0], None
 
 
@@ -71,7 +71,7 @@ def pipeline_start():
 
     body = request.get_json(silent=True) or {}
     stage = body.get("stage", "")
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner", "")
     tier_filter = body.get("tier_filter", [])
 
@@ -83,30 +83,30 @@ def pipeline_start():
         if stage in COMING_SOON_STAGES:
             return jsonify({"error": f"Stage '{stage}' is not yet available"}), 400
         return jsonify({"error": f"Unknown stage: {stage}"}), 400
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
     owner_id = _resolve_owner(tenant_id, owner_name)
 
-    # Check no run already active for this stage+batch
+    # Check no run already active for this stage+tag
     existing = db.session.execute(
         text("""
             SELECT id FROM stage_runs
-            WHERE tenant_id = :t AND batch_id = :b AND stage = :s
+            WHERE tenant_id = :t AND tag_id = :b AND stage = :s
               AND status IN ('pending', 'running')
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id), "s": stage},
+        {"t": str(tenant_id), "b": str(tag_id), "s": stage},
     ).fetchone()
     if existing:
-        return jsonify({"error": f"Stage '{stage}' is already running for this batch"}), 409
+        return jsonify({"error": f"Stage '{stage}' is already running for this tag"}), 409
 
     # Get eligible entities
-    entity_ids = get_eligible_ids(tenant_id, batch_id, stage, owner_id, tier_filter)
+    entity_ids = get_eligible_ids(tenant_id, tag_id, stage, owner_id, tier_filter)
     if not entity_ids:
         return jsonify({"error": "No eligible items found for this stage"}), 400
 
@@ -119,7 +119,7 @@ def pipeline_start():
 
     run = StageRun(
         tenant_id=str(tenant_id),
-        batch_id=str(batch_id),
+        tag_id=str(tag_id),
         owner_id=str(owner_id) if owner_id else None,
         stage=stage,
         status="pending",
@@ -178,11 +178,11 @@ def pipeline_status():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    batch_name = request.args.get("batch_name", "")
-    if not batch_name:
-        return jsonify({"error": "batch_name query param required"}), 400
+    tag_name = request.args.get("tag_name", "")
+    if not tag_name:
+        return jsonify({"error": "tag_name query param required"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
@@ -192,17 +192,17 @@ def pipeline_status():
             stages[stage_name] = {"status": "unavailable"}
             continue
 
-        # Find most recent run for this stage+batch
+        # Find most recent run for this stage+tag
         row = db.session.execute(
             text("""
                 SELECT id, status, total, done, failed, cost_usd, error,
                        started_at, completed_at, updated_at, config
                 FROM stage_runs
-                WHERE tenant_id = :t AND batch_id = :b AND stage = :s
+                WHERE tenant_id = :t AND tag_id = :b AND stage = :s
                 ORDER BY started_at DESC
                 LIMIT 1
             """),
-            {"t": str(tenant_id), "b": str(batch_id), "s": stage_name},
+            {"t": str(tenant_id), "b": str(tag_id), "s": stage_name},
         ).fetchone()
 
         if not row:
@@ -233,17 +233,17 @@ def pipeline_status():
                     pass
             stages[stage_name] = stage_data
 
-    # Include pipeline run status if one exists for this batch
+    # Include pipeline run status if one exists for this tag
     pipeline_obj = None
     prow = db.session.execute(
         text("""
             SELECT id, status, cost_usd, stages, started_at, completed_at, updated_at
             FROM pipeline_runs
-            WHERE tenant_id = :t AND batch_id = :b
+            WHERE tenant_id = :t AND tag_id = :b
             ORDER BY started_at DESC
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchone()
     if prow:
         stages_json = prow[3]
@@ -281,31 +281,31 @@ def pipeline_run_all():
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner", "")
     tier_filter = body.get("tier_filter", [])
 
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
     owner_id = _resolve_owner(tenant_id, owner_name)
 
-    # Check no pipeline already running for this batch
+    # Check no pipeline already running for this tag
     existing = db.session.execute(
         text("""
             SELECT id FROM pipeline_runs
-            WHERE tenant_id = :t AND batch_id = :b
+            WHERE tenant_id = :t AND tag_id = :b
               AND status IN ('running', 'stopping')
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchone()
     if existing:
-        return jsonify({"error": "A pipeline is already running for this batch"}), 409
+        return jsonify({"error": "A pipeline is already running for this tag"}), 409
 
     # Create pipeline_run record
     config = {}
@@ -316,7 +316,7 @@ def pipeline_run_all():
 
     pipeline_run = PipelineRun(
         tenant_id=str(tenant_id),
-        batch_id=str(batch_id),
+        tag_id=str(tag_id),
         owner_id=str(owner_id) if owner_id else None,
         status="running",
         config=json.dumps(config) if config else "{}",
@@ -333,7 +333,7 @@ def pipeline_run_all():
 
         sr = StageRun(
             tenant_id=str(tenant_id),
-            batch_id=str(batch_id),
+            tag_id=str(tag_id),
             owner_id=str(owner_id) if owner_id else None,
             stage=stage,
             status="pending",
@@ -354,7 +354,7 @@ def pipeline_run_all():
         pipeline_run_id,
         PIPELINE_STAGES,
         tenant_id,
-        batch_id,
+        tag_id,
         owner_id=owner_id,
         tier_filter=tier_filter,
         stage_run_ids=stage_run_ids,
@@ -431,7 +431,7 @@ def pipeline_dag_run():
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner", "")
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
@@ -440,8 +440,8 @@ def pipeline_dag_run():
     entity_ids = body.get("entity_ids", [])
     re_enrich = body.get("re_enrich", {})
 
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
 
@@ -471,24 +471,24 @@ def pipeline_dag_run():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
     owner_id = _resolve_owner(tenant_id, owner_name)
 
-    # Check no pipeline already running for this batch
+    # Check no pipeline already running for this tag
     existing = db.session.execute(
         text("""
             SELECT id FROM pipeline_runs
-            WHERE tenant_id = :t AND batch_id = :b
+            WHERE tenant_id = :t AND tag_id = :b
               AND status IN ('running', 'stopping')
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchone()
     if existing:
-        return jsonify({"error": "A pipeline is already running for this batch"}), 409
+        return jsonify({"error": "A pipeline is already running for this tag"}), 409
 
     # Build config
     config = {"mode": "dag", "stages": stages}
@@ -508,7 +508,7 @@ def pipeline_dag_run():
     # Create pipeline_run record
     pipeline_run = PipelineRun(
         tenant_id=str(tenant_id),
-        batch_id=str(batch_id),
+        tag_id=str(tag_id),
         owner_id=str(owner_id) if owner_id else None,
         status="running",
         config=json.dumps(config),
@@ -525,7 +525,7 @@ def pipeline_dag_run():
 
         sr = StageRun(
             tenant_id=str(tenant_id),
-            batch_id=str(batch_id),
+            tag_id=str(tag_id),
             owner_id=str(owner_id) if owner_id else None,
             stage=stage_code,
             status="pending",
@@ -545,7 +545,7 @@ def pipeline_dag_run():
         pipeline_run_id,
         sorted_stages,
         tenant_id,
-        batch_id,
+        tag_id,
         owner_id=owner_id,
         tier_filter=tier_filter,
         stage_run_ids=stage_run_ids,
@@ -570,11 +570,11 @@ def pipeline_dag_status():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    batch_name = request.args.get("batch_name", "")
-    if not batch_name:
-        return jsonify({"error": "batch_name query param required"}), 400
+    tag_name = request.args.get("tag_name", "")
+    if not tag_name:
+        return jsonify({"error": "tag_name query param required"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
@@ -583,16 +583,16 @@ def pipeline_dag_status():
         text("""
             SELECT id, status, cost_usd, stages, config, started_at, completed_at, updated_at
             FROM pipeline_runs
-            WHERE tenant_id = :t AND batch_id = :b
+            WHERE tenant_id = :t AND tag_id = :b
               AND CAST(config AS TEXT) LIKE '%%mode%%dag%%'
             ORDER BY started_at DESC
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchone()
 
     if not prow:
-        return jsonify({"error": "No DAG pipeline run found for this batch"}), 404
+        return jsonify({"error": "No DAG pipeline run found for this tag"}), 404
 
     pipeline_run_id = str(prow[0])
     stages_json = prow[3]

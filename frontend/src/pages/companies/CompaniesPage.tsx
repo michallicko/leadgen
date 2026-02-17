@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react'
 import { useParams } from 'react-router'
 import { useCompanies, useCompany, type CompanyListItem, type CompanyFilters } from '../../api/queries/useCompanies'
 import { useContact } from '../../api/queries/useContacts'
-import { useBatches } from '../../api/queries/useBatches'
+import { useTags } from '../../api/queries/useTags'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useEntityStack } from '../../hooks/useEntityStack'
 import { DataTable, type Column } from '../../components/ui/DataTable'
@@ -27,22 +27,22 @@ export function CompaniesPage() {
   const [search, setSearch] = useLocalStorage('co_filter_search', '')
   const [status, setStatus] = useLocalStorage('co_filter_status', '')
   const [tier, setTier] = useLocalStorage('co_filter_tier', '')
-  const [batchName, setBatchName] = useLocalStorage('co_filter_batch', '')
+  const [tagName, setTagName] = useLocalStorage('co_filter_tag', '')
   const [ownerName, setOwnerName] = useLocalStorage('co_filter_owner', '')
   const [sortField, setSortField] = useLocalStorage('co_sort_field', 'name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('co_sort_dir', 'asc')
 
-  const { data: batchesData } = useBatches()
+  const { data: tagsData } = useTags()
 
   const filters: CompanyFilters = useMemo(() => ({
     search,
     status,
     tier,
-    batch_name: batchName,
+    tag_name: tagName,
     owner_name: ownerName,
     sort: sortField,
     sort_dir: sortDir,
-  }), [search, status, tier, batchName, ownerName, sortField, sortDir])
+  }), [search, status, tier, tagName, ownerName, sortField, sortDir])
 
   const {
     data,
@@ -73,10 +73,10 @@ export function CompaniesPage() {
       case 'search': setSearch(value); break
       case 'status': setStatus(value); break
       case 'tier': setTier(value); break
-      case 'batch_name': setBatchName(value); break
+      case 'tag_name': setTagName(value); break
       case 'owner_name': setOwnerName(value); break
     }
-  }, [setSearch, setStatus, setTier, setBatchName, setOwnerName])
+  }, [setSearch, setStatus, setTier, setTagName, setOwnerName])
 
   const handleSort = useCallback((field: string, dir: 'asc' | 'desc') => {
     setSortField(field)
@@ -87,9 +87,9 @@ export function CompaniesPage() {
     { key: 'search', label: 'companies', type: 'search' as const, placeholder: 'Search name or domain...' },
     { key: 'status', label: 'Status', type: 'select' as const, options: filterOptions(STATUS_DISPLAY) },
     { key: 'tier', label: 'Tier', type: 'select' as const, options: filterOptions(TIER_DISPLAY) },
-    { key: 'batch_name', label: 'Batch', type: 'select' as const, options: (batchesData?.batches ?? []).map((b) => ({ value: b.name, label: b.name })) },
-    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (batchesData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
-  ], [batchesData])
+    { key: 'tag_name', label: 'Tag', type: 'select' as const, options: (tagsData?.tags ?? []).map((b) => ({ value: b.name, label: b.name })) },
+    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
+  ], [tagsData])
 
   const columns: Column<CompanyListItem>[] = useMemo(() => [
     { key: 'name', label: 'Name', sortKey: 'name', minWidth: '140px' },
@@ -99,7 +99,7 @@ export function CompaniesPage() {
     { key: 'status', label: 'Status', sortKey: 'status', minWidth: '110px', shrink: false, render: (c) => <Badge variant="status" value={c.status} /> },
     { key: 'tier', label: 'Tier', sortKey: 'tier', minWidth: '110px', shrink: false, render: (c) => <Badge variant="tier" value={c.tier} /> },
     { key: 'owner_name', label: 'Owner', minWidth: '70px' },
-    { key: 'batch_name', label: 'Batch', minWidth: '70px' },
+    { key: 'tag_name', label: 'Tag', minWidth: '70px' },
     { key: 'industry', label: 'Industry', minWidth: '90px' },
     { key: 'hq_country', label: 'HQ', sortKey: 'hq_country', minWidth: '40px' },
     { key: 'triage_score', label: 'Score', sortKey: 'triage_score', minWidth: '55px', render: (c) => c.triage_score != null ? c.triage_score.toFixed(1) : '-' },
@@ -110,7 +110,7 @@ export function CompaniesPage() {
     <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
-        values={{ search, status, tier, batch_name: batchName, owner_name: ownerName }}
+        values={{ search, status, tier, tag_name: tagName, owner_name: ownerName }}
         onChange={handleFilterChange}
         total={total}
         action={

@@ -258,14 +258,14 @@ class TestExecuteContactsImport:
         resp = client.post(
             f"/api/gmail/contacts/{job.id}/execute",
             headers=headers,
-            json={"batch_name": "google-import-test", "dedup_strategy": "skip"},
+            json={"tag_name": "google-import-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
         body = resp.get_json()
         assert body["status"] == "completed"
         assert body["counts"]["contacts_created"] == 2
         assert body["counts"]["companies_created"] == 2
-        assert body["batch_name"] == "google-import-test"
+        assert body["tag_name"] == "google-import-test"
 
         # Verify the mock was called with correct tenant_id and strategy
         call_kwargs = mock_exec.call_args
@@ -283,7 +283,7 @@ class TestExecuteContactsImport:
         resp = client.post(
             f"/api/gmail/contacts/{job.id}/execute",
             headers=headers,
-            json={"batch_name": "dup-test", "dedup_strategy": "skip"},
+            json={"tag_name": "dup-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 400
         assert "already" in resp.get_json()["error"].lower()

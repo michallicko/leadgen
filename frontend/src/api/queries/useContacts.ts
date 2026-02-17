@@ -14,7 +14,7 @@ export interface ContactListItem {
   icp_fit: string | null
   message_status: string | null
   owner_name: string | null
-  batch_name: string | null
+  tag_name: string | null
 }
 
 interface ContactsPage {
@@ -77,7 +77,7 @@ export interface ContactDetail {
     tier: string | null
   } | null
   owner_name: string | null
-  batch_name: string | null
+  tag_name: string | null
   enrichment: {
     person_summary: string | null
     linkedin_profile_summary: string | null
@@ -90,7 +90,7 @@ export interface ContactDetail {
 
 export interface ContactFilters {
   search?: string
-  batch_name?: string
+  tag_name?: string
   owner_name?: string
   icp_fit?: string
   message_status?: string
@@ -109,7 +109,7 @@ export function useContacts(filters: ContactFilters) {
         page_size: String(PAGE_SIZE),
       }
       if (filters.search) params.search = filters.search
-      if (filters.batch_name) params.batch_name = filters.batch_name
+      if (filters.tag_name) params.tag_name = filters.tag_name
       if (filters.owner_name) params.owner_name = filters.owner_name
       if (filters.icp_fit) params.icp_fit = filters.icp_fit
       if (filters.message_status) params.message_status = filters.message_status

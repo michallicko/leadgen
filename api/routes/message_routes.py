@@ -49,12 +49,12 @@ def list_messages():
                 co.id AS company_id, co.name AS company_name,
                 co.tier, co.domain, co.status AS company_status,
                 o.name AS owner_name,
-                b.name AS batch_name
+                b.name AS tag_name
             FROM messages m
             LEFT JOIN contacts ct ON m.contact_id = ct.id
             LEFT JOIN companies co ON ct.company_id = co.id
             LEFT JOIN owners o ON m.owner_id = o.id
-            LEFT JOIN batches b ON m.batch_id = b.id
+            LEFT JOIN tags b ON m.tag_id = b.id
             LEFT JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
             WHERE {where_clause}
             ORDER BY ct.contact_score DESC NULLS LAST, m.sequence_step, m.variant
@@ -87,7 +87,7 @@ def list_messages():
                 "contact_score": r[17],
                 "icp_fit": r[18],
                 "owner_name": r[24],
-                "batch_name": r[25],
+                "tag_name": r[25],
             },
             "company": {
                 "id": str(r[19]) if r[19] else None,

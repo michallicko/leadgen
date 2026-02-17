@@ -19,10 +19,10 @@ export function useEnrichEstimate(
   reEnrichPayload?: Record<string, { enabled: boolean; horizon: string | null }>,
 ) {
   return useQuery({
-    queryKey: ['enrich-estimate', filters.batch, filters.owner, filters.tier, filters.status, filters.entityIds, filters.limit, enabledStages, reEnrichPayload],
+    queryKey: ['enrich-estimate', filters.tag, filters.owner, filters.tier, filters.status, filters.entityIds, filters.limit, enabledStages, reEnrichPayload],
     queryFn: () => {
       const body: Record<string, unknown> = {
-        batch_name: filters.batch,
+        tag_name: filters.tag,
         stages: enabledStages,
         soft_deps: softDepsPayload,
       }
@@ -42,7 +42,7 @@ export function useEnrichEstimate(
         body,
       })
     },
-    enabled: !!filters.batch && enabledStages.length > 0,
+    enabled: !!filters.tag && enabledStages.length > 0,
     staleTime: 10_000,
   })
 }

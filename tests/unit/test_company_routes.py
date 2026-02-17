@@ -61,7 +61,7 @@ class TestListCompanies:
     def test_filter_by_batch(self, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        resp = client.get("/api/companies?batch_name=batch-2", headers=headers)
+        resp = client.get("/api/companies?tag_name=batch-2", headers=headers)
         data = resp.get_json()
         assert data["total"] == 2
 

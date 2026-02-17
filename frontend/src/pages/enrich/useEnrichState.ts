@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { useBatches } from '../../api/queries/useBatches'
+import { useTags } from '../../api/queries/useTags'
 import { filterOptions, STATUS_DISPLAY, TIER_DISPLAY } from '../../lib/display'
 import { STAGES } from './stageConfig'
 import type { FilterConfig } from '../../components/ui/FilterBar'
@@ -23,7 +23,7 @@ function defaultEnabledStages(): Record<string, boolean> {
 export function useEnrichState() {
   // Filter state (persisted)
   const [search, setSearch] = useLocalStorage('en_filter_search', '')
-  const [batch, setBatch] = useLocalStorage('en_filter_batch', '')
+  const [tag, setTag] = useLocalStorage('en_filter_tag', '')
   const [owner, setOwner] = useLocalStorage('en_filter_owner', '')
   const [tier, setTier] = useLocalStorage('en_filter_tier', '')
   const [status, setStatus] = useLocalStorage('en_filter_status', '')
@@ -51,15 +51,15 @@ export function useEnrichState() {
   // Pipeline run ID
   const [pipelineRunId, setPipelineRunId] = useState<string | null>(null)
 
-  // Batches data for filter options
-  const { data: batchesData } = useBatches()
+  // Tags data for filter options
+  const { data: tagsData } = useTags()
 
   // Filter change handler
   const handleFilterChange = useCallback(
     (key: string, value: string) => {
       const setters: Record<string, (v: string) => void> = {
         search: setSearch,
-        batch: setBatch,
+        tag: setTag,
         owner: setOwner,
         tier: setTier,
         status: setStatus,
@@ -68,13 +68,13 @@ export function useEnrichState() {
       }
       setters[key]?.(value)
     },
-    [setSearch, setBatch, setOwner, setTier, setStatus, setEntityIds, setLimit],
+    [setSearch, setTag, setOwner, setTier, setStatus, setEntityIds, setLimit],
   )
 
   // Filter values object
   const filters: EnrichFilters = useMemo(
-    () => ({ search, batch, owner, tier, status, entityIds, limit }),
-    [search, batch, owner, tier, status, entityIds, limit],
+    () => ({ search, tag, owner, tier, status, entityIds, limit }),
+    [search, tag, owner, tier, status, entityIds, limit],
   )
 
   // FilterConfig array
@@ -87,16 +87,16 @@ export function useEnrichState() {
         placeholder: 'Search company, contact...',
       },
       {
-        key: 'batch',
-        label: 'Batch',
+        key: 'tag',
+        label: 'Tag',
         type: 'select' as const,
-        options: (batchesData?.batches ?? []).map((b) => ({ value: b.name, label: b.name })),
+        options: (tagsData?.tags ?? []).map((b) => ({ value: b.name, label: b.name })),
       },
       {
         key: 'owner',
         label: 'Owner',
         type: 'select' as const,
-        options: (batchesData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })),
+        options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })),
       },
       {
         key: 'tier',
@@ -125,7 +125,7 @@ export function useEnrichState() {
         max: 10000,
       },
     ],
-    [batchesData],
+    [tagsData],
   )
 
   // Stage toggle handler

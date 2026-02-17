@@ -85,8 +85,8 @@ class Owner(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
 
-class Batch(db.Model):
-    __tablename__ = "batches"
+class Tag(db.Model):
+    __tablename__ = "tags"
 
     id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
@@ -101,7 +101,7 @@ class Company(db.Model):
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
     name = db.Column(db.Text, nullable=False)
     domain = db.Column(db.Text)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     status = db.Column(db.Text)
     tier = db.Column(db.Text)
@@ -142,6 +142,11 @@ class Company(db.Model):
     has_insolvency = db.Column(db.Boolean, default=False)
     credibility_score = db.Column(db.SmallInteger)
     credibility_factors = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    website_url = db.Column(db.Text)
+    linkedin_url = db.Column(db.Text)
+    logo_url = db.Column(db.Text)
+    last_enriched_at = db.Column(db.DateTime(timezone=True))
+    data_quality_score = db.Column(db.SmallInteger)
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -174,6 +179,94 @@ class CompanyEnrichmentL2(db.Model):
     cross_functional_pain = db.Column(db.Text)
     adoption_barriers = db.Column(db.Text)
     competitor_ai_moves = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentL1(db.Model):
+    __tablename__ = "company_enrichment_l1"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    triage_notes = db.Column(db.Text)
+    pre_score = db.Column(db.Numeric(4, 1))
+    research_query = db.Column(db.Text)
+    raw_response = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    confidence = db.Column(db.Numeric(3, 2))
+    quality_score = db.Column(db.SmallInteger)
+    qc_flags = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentProfile(db.Model):
+    __tablename__ = "company_enrichment_profile"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_intel = db.Column(db.Text)
+    key_products = db.Column(db.Text)
+    customer_segments = db.Column(db.Text)
+    competitors = db.Column(db.Text)
+    tech_stack = db.Column(db.Text)
+    leadership_team = db.Column(db.Text)
+    certifications = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentSignals(db.Model):
+    __tablename__ = "company_enrichment_signals"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    digital_initiatives = db.Column(db.Text)
+    leadership_changes = db.Column(db.Text)
+    hiring_signals = db.Column(db.Text)
+    ai_hiring = db.Column(db.Text)
+    tech_partnerships = db.Column(db.Text)
+    competitor_ai_moves = db.Column(db.Text)
+    ai_adoption_level = db.Column(db.Text)
+    news_confidence = db.Column(db.Text)
+    growth_indicators = db.Column(db.Text)
+    job_posting_count = db.Column(db.Integer)
+    hiring_departments = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentMarket(db.Model):
+    __tablename__ = "company_enrichment_market"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    recent_news = db.Column(db.Text)
+    funding_history = db.Column(db.Text)
+    eu_grants = db.Column(db.Text)
+    media_sentiment = db.Column(db.Text)
+    press_releases = db.Column(db.Text)
+    thought_leadership = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentOpportunity(db.Model):
+    __tablename__ = "company_enrichment_opportunity"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    pain_hypothesis = db.Column(db.Text)
+    relevant_case_study = db.Column(db.Text)
+    ai_opportunities = db.Column(db.Text)
+    quick_wins = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    industry_pain_points = db.Column(db.Text)
+    cross_functional_pain = db.Column(db.Text)
+    adoption_barriers = db.Column(db.Text)
     enriched_at = db.Column(db.DateTime(timezone=True))
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -283,6 +376,15 @@ class ContactEnrichment(db.Model):
     person_summary = db.Column(db.Text)
     linkedin_profile_summary = db.Column(db.Text)
     relationship_synthesis = db.Column(db.Text)
+    ai_champion = db.Column(db.Boolean, default=False)
+    ai_champion_score = db.Column(db.SmallInteger)
+    authority_score = db.Column(db.SmallInteger)
+    career_trajectory = db.Column(db.Text)
+    previous_companies = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    speaking_engagements = db.Column(db.Text)
+    publications = db.Column(db.Text)
+    twitter_handle = db.Column(db.Text)
+    github_username = db.Column(db.Text)
     enriched_at = db.Column(db.DateTime(timezone=True))
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -296,7 +398,7 @@ class Contact(db.Model):
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
     company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     first_name = db.Column(db.Text, nullable=False)
     last_name = db.Column(db.Text, nullable=False, default="")
     job_title = db.Column(db.Text)
@@ -332,6 +434,9 @@ class Contact(db.Model):
     notes = db.Column(db.Text)
     error = db.Column(db.Text)
     custom_fields = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    last_enriched_at = db.Column(db.DateTime(timezone=True))
+    employment_verified_at = db.Column(db.DateTime(timezone=True))
+    employment_status = db.Column(db.Text)
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -343,7 +448,7 @@ class ImportJob(db.Model):
     id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
     user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=False)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     filename = db.Column(db.Text, nullable=False)
     file_size_bytes = db.Column(db.Integer)
@@ -411,7 +516,7 @@ class StageRun(db.Model):
 
     id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     stage = db.Column(db.Text, nullable=False)
     status = db.Column(db.Text, nullable=False, default="pending")
@@ -432,7 +537,7 @@ class PipelineRun(db.Model):
     id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
     execution_id = db.Column(db.Text)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     total_companies = db.Column(db.Integer, default=0)
     total_contacts = db.Column(db.Integer, default=0)
@@ -576,7 +681,7 @@ class Message(db.Model):
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
     contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False)
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     label = db.Column(db.Text)
     channel = db.Column(db.Text, nullable=False)
     sequence_step = db.Column(db.SmallInteger, default=1)
@@ -604,7 +709,7 @@ class Campaign(db.Model):
     name = db.Column(db.Text, nullable=False)
     lemlist_campaign_id = db.Column(db.Text)
     channel = db.Column(db.Text)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     is_active = db.Column(db.Boolean, default=True)
     # New campaign columns (migration 018)
     status = db.Column(db.Text, default="draft")
@@ -657,7 +762,7 @@ class EntityStageCompletion(db.Model):
 
     id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"), nullable=False)
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"), nullable=False)
     pipeline_run_id = db.Column(UUID(as_uuid=False), db.ForeignKey("pipeline_runs.id"))
     entity_type = db.Column(db.Text, nullable=False)
     entity_id = db.Column(UUID(as_uuid=False), nullable=False)

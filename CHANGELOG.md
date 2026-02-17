@@ -5,6 +5,17 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Enrichment Field Audit** (BL-045): Restructure enrichment data model for modularity and extensibility
+  - Rename `batches` → `tags` across entire codebase (models, API, frontend, tests — 41 files)
+  - New `company_enrichment_l1` table: triage_notes, pre_score, research_query, raw_response, confidence, quality_score, qc_flags
+  - Split `company_enrichment_l2` into 4 module tables: profile, signals, market, opportunity
+  - Expand `contact_enrichment` with scoring fields (ai_champion, authority_score) and gap fields (career_trajectory, publications, social handles)
+  - L1 enricher dual-writes to both companies table and company_enrichment_l1
+  - Company/contact detail API endpoints JOIN new enrichment tables with backward-compat fallback
+  - Stage registry STAGE_FIELDS updated to reference new tables
+  - 5 new company fields (website_url, linkedin_url, logo_url, last_enriched_at, data_quality_score)
+  - 3 new contact fields (last_enriched_at, employment_verified_at, employment_status)
+  - Migrations 019-024 (Phase D migration 024 deferred — requires 1-week verification period)
 - **Campaign System Phase 1** (BL-031 through BL-036, ADR-006): Full outreach engine — create campaigns, assign contacts, configure templates, generate AI messages, review on Messages page
   - **BL-031**: Migration 018 (campaigns extended, campaign_contacts, campaign_templates with 3 system presets), SQLAlchemy models, campaign CRUD API, CampaignsPage under Reach pillar. 19 tests.
   - **BL-032**: Campaign contacts API — add by contact IDs or company IDs, remove, list with enrichment data. Duplicate detection, total_contacts auto-update. ContactPicker overlay with search + multi-select. CampaignDetail with entity stack navigation. 12 tests.

@@ -188,7 +188,7 @@ class TestExecuteImport:
         resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "test-import", "dedup_strategy": "skip"},
+            json={"tag_name": "test-import", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
         body = resp.get_json()
@@ -209,8 +209,8 @@ class TestExecuteImport:
 
         json_headers = dict(headers)
         json_headers["Content-Type"] = "application/json"
-        client.post(f"/api/imports/{job_id}/execute", headers=json_headers, json={"batch_name": "test-import"})
-        resp2 = client.post(f"/api/imports/{job_id}/execute", headers=json_headers, json={"batch_name": "test-import"})
+        client.post(f"/api/imports/{job_id}/execute", headers=json_headers, json={"tag_name": "test-import"})
+        resp2 = client.post(f"/api/imports/{job_id}/execute", headers=json_headers, json={"tag_name": "test-import"})
         assert resp2.status_code == 400
         assert "already" in resp2.get_json()["error"].lower()
 
@@ -267,7 +267,7 @@ class TestExecuteImport:
         exec_resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "xlsx-import", "dedup_strategy": "skip"},
+            json={"tag_name": "xlsx-import", "dedup_strategy": "skip"},
         )
         assert exec_resp.status_code == 200
         body = exec_resp.get_json()
@@ -338,7 +338,7 @@ class TestImportResults:
         json_headers = dict(headers)
         json_headers["Content-Type"] = "application/json"
         client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
-                    json={"batch_name": "results-test", "dedup_strategy": "skip"})
+                    json={"tag_name": "results-test", "dedup_strategy": "skip"})
 
         resp = client.get(f"/api/imports/{job_id}/results", headers=headers)
         assert resp.status_code == 200
@@ -363,7 +363,7 @@ class TestImportResults:
         json_headers = dict(headers)
         json_headers["Content-Type"] = "application/json"
         client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
-                    json={"batch_name": "filter-test", "dedup_strategy": "skip"})
+                    json={"tag_name": "filter-test", "dedup_strategy": "skip"})
 
         resp = client.get(f"/api/imports/{job_id}/results?filter=skipped", headers=headers)
         assert resp.status_code == 200
@@ -386,7 +386,7 @@ class TestImportResults:
         json_headers = dict(headers)
         json_headers["Content-Type"] = "application/json"
         client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
-                    json={"batch_name": "dedup-store-test", "dedup_strategy": "skip"})
+                    json={"tag_name": "dedup-store-test", "dedup_strategy": "skip"})
 
         job = ImportJob.query.filter_by(id=job_id).first()
         dedup = job.dedup_results
@@ -466,7 +466,7 @@ class TestRemapImport:
         json_headers = dict(headers)
         json_headers["Content-Type"] = "application/json"
         client.post(f"/api/imports/{job_id}/execute", headers=json_headers,
-                    json={"batch_name": "remap-test", "dedup_strategy": "skip"})
+                    json={"tag_name": "remap-test", "dedup_strategy": "skip"})
 
         resp = client.post(f"/api/imports/{job_id}/remap", headers=json_headers, json={})
         assert resp.status_code == 400
@@ -508,7 +508,7 @@ class TestCustomFieldImport:
         resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "custom-test", "dedup_strategy": "skip"},
+            json={"tag_name": "custom-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
 
@@ -535,7 +535,7 @@ class TestCustomFieldImport:
         resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "custom-val-test", "dedup_strategy": "skip"},
+            json={"tag_name": "custom-val-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
         assert resp.get_json()["counts"]["contacts_created"] == 2
@@ -577,7 +577,7 @@ class TestCustomFieldImport:
         resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "no-dup-test", "dedup_strategy": "skip"},
+            json={"tag_name": "no-dup-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
 
@@ -620,7 +620,7 @@ class TestCustomFieldImport:
         resp = client.post(
             f"/api/imports/{job_id}/execute",
             headers=json_headers,
-            json={"batch_name": "label-test", "dedup_strategy": "skip"},
+            json={"tag_name": "label-test", "dedup_strategy": "skip"},
         )
         assert resp.status_code == 200
 

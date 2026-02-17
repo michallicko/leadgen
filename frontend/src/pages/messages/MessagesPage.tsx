@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useEffect } from 'react'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../api/queries/useMessages'
-import { useBatches } from '../../api/queries/useBatches'
+import { useTags } from '../../api/queries/useTags'
 import { useCampaigns } from '../../api/queries/useCampaigns'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useToast } from '../../components/ui/Toast'
@@ -52,7 +52,7 @@ export function MessagesPage() {
   }), [status, ownerName, channel, campaignId])
 
   const { data, isLoading, refetch, isRefetching } = useMessages(filters)
-  const { data: batchesData } = useBatches()
+  const { data: tagsData } = useTags()
   const { data: campaignsData } = useCampaigns()
   const batchMutation = useBatchUpdateMessages()
 
@@ -146,11 +146,11 @@ export function MessagesPage() {
   )
 
   const filterConfigs: FilterConfig[] = useMemo(() => [
-    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (batchesData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
+    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
     { key: 'status', label: 'Status', type: 'select' as const, options: filterOptions(REVIEW_STATUS_DISPLAY) },
     { key: 'channel', label: 'Channel', type: 'select' as const, options: CHANNEL_OPTIONS },
     { key: 'campaign_id', label: 'Campaign', type: 'select' as const, options: campaignOptions },
-  ], [batchesData, campaignOptions])
+  ], [tagsData, campaignOptions])
 
   // Entity detail modal
   const isCompanyOpen = stack.current?.type === 'company'

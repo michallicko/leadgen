@@ -1,12 +1,12 @@
 /**
- * DagControls — top bar with batch info, total cost, and run/stop buttons.
+ * DagControls — top bar with tag info, total cost, and run/stop buttons.
  */
 
 import type { DagMode } from './StageCard.types'
 
 interface DagControlsProps {
   mode: DagMode
-  batchName: string
+  tagName: string
   estimatedCost: number
   runningCost: number
   enabledCount: number
@@ -23,7 +23,7 @@ function fmtCost(v: number): string {
 
 export function DagControls({
   mode,
-  batchName,
+  tagName,
   estimatedCost,
   runningCost,
   enabledCount,
@@ -33,12 +33,12 @@ export function DagControls({
 }: DagControlsProps) {
   return (
     <div className="flex items-center justify-between mb-4 px-1">
-      {/* Left: batch info + cost */}
+      {/* Left: tag info + cost */}
       <div className="flex items-center gap-4">
-        {batchName && (
+        {tagName && (
           <span className="text-sm text-text">
-            <span className="text-text-muted">Batch:</span>{' '}
-            <span className="font-medium">{batchName}</span>
+            <span className="text-text-muted">Tag:</span>{' '}
+            <span className="font-medium">{tagName}</span>
           </span>
         )}
 
@@ -60,7 +60,7 @@ export function DagControls({
         {mode === 'configure' && (
           <button
             onClick={onRun}
-            disabled={enabledCount === 0 || !batchName || isLoading}
+            disabled={enabledCount === 0 || !tagName || isLoading}
             className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Loading...' : `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`}
