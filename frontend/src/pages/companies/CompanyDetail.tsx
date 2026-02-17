@@ -217,15 +217,17 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     if (raw == null || raw === '') return null
     if (typeof raw === 'string') return raw === '-' ? null : raw
     if (Array.isArray(raw)) {
-      // quick_wins is [{title, description}, …]
+      // quick_wins is [{use_case, impact, evidence, complexity}, …]
       return raw
         .map((item, i) => {
           if (typeof item === 'string') return `${i + 1}. ${item}`
           if (typeof item === 'object' && item !== null) {
             const obj = item as Record<string, unknown>
-            const title = obj.title || obj.name || ''
-            const desc = obj.description || obj.detail || ''
-            return `${i + 1}. **${title}** — ${desc}`
+            const title = obj.use_case || obj.title || obj.name || ''
+            const desc = obj.impact || obj.description || obj.detail || ''
+            const extra = obj.complexity ? ` (${obj.complexity})` : ''
+            if (!title && !desc) return `${i + 1}. ${JSON.stringify(obj)}`
+            return `${i + 1}. **${title}**${extra} — ${desc}`
           }
           return `${i + 1}. ${String(item)}`
         })
@@ -245,6 +247,9 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     )
   }
 
+  /** Check if any of the given L2 keys have content */
+  const hasAnyL2 = (...keys: string[]) => keys.some((k) => l2Text(k) != null)
+
   if (l2 || reg) {
     tabs.push({
       id: 'intelligence',
@@ -254,51 +259,61 @@ export function CompanyDetail({ company, onNavigate }: Props) {
           {l2 && (
             <>
               {/* ---- Company Profile ---- */}
-              <section className="space-y-5">
-                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Company Profile</h2>
-                <ProseSection title="Key Products & Services" content={l2Text('key_products')} />
-                <ProseSection title="Customer Segments" content={l2Text('customer_segments')} />
-                <ProseSection title="Competitors" content={l2Text('competitors')} />
-              </section>
+              {hasAnyL2('key_products', 'customer_segments', 'competitors') && (
+                <section className="space-y-5">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Company Profile</h2>
+                  <ProseSection title="Key Products & Services" content={l2Text('key_products')} />
+                  <ProseSection title="Customer Segments" content={l2Text('customer_segments')} />
+                  <ProseSection title="Competitors" content={l2Text('competitors')} />
+                </section>
+              )}
 
               {/* ---- Leadership & People ---- */}
-              <section className="space-y-5 border-t border-border/40 pt-8">
-                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Leadership & People</h2>
-                <ProseSection title="Leadership Team" content={l2Text('leadership_team')} />
-                <ProseSection title="Leadership Changes" content={l2Text('leadership_changes')} />
-                <ProseSection title="Hiring Signals" content={l2Text('hiring_signals')} />
-                <ProseSection title="AI Hiring Activity" content={l2Text('ai_hiring')} />
-              </section>
+              {hasAnyL2('leadership_team', 'leadership_changes', 'hiring_signals', 'ai_hiring') && (
+                <section className="space-y-5 border-t border-border/40 pt-8">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Leadership & People</h2>
+                  <ProseSection title="Leadership Team" content={l2Text('leadership_team')} />
+                  <ProseSection title="Leadership Changes" content={l2Text('leadership_changes')} />
+                  <ProseSection title="Hiring Signals" content={l2Text('hiring_signals')} />
+                  <ProseSection title="AI Hiring Activity" content={l2Text('ai_hiring')} />
+                </section>
+              )}
 
               {/* ---- Technology & Digital ---- */}
-              <section className="space-y-5 border-t border-border/40 pt-8">
-                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Technology & Digital</h2>
-                <ProseSection title="Digital Initiatives" content={l2Text('digital_initiatives')} />
-                <ProseSection title="Tech Stack" content={l2Text('tech_stack')} />
-                <ProseSection title="Technology Partnerships" content={l2Text('tech_partnerships')} />
-                <ProseSection title="Certifications" content={l2Text('certifications')} />
-              </section>
+              {hasAnyL2('digital_initiatives', 'tech_stack', 'tech_partnerships', 'certifications') && (
+                <section className="space-y-5 border-t border-border/40 pt-8">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Technology & Digital</h2>
+                  <ProseSection title="Digital Initiatives" content={l2Text('digital_initiatives')} />
+                  <ProseSection title="Tech Stack" content={l2Text('tech_stack')} />
+                  <ProseSection title="Technology Partnerships" content={l2Text('tech_partnerships')} />
+                  <ProseSection title="Certifications" content={l2Text('certifications')} />
+                </section>
+              )}
 
               {/* ---- Market Intelligence ---- */}
-              <section className="space-y-5 border-t border-border/40 pt-8">
-                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Market Intelligence</h2>
-                <ProseSection title="Recent News" content={l2Text('recent_news')} />
-                <ProseSection title="Funding History" content={l2Text('funding_history')} />
-                <ProseSection title="EU Grants" content={l2Text('eu_grants')} />
-                <ProseSection title="Competitor AI Moves" content={l2Text('competitor_ai_moves')} />
-              </section>
+              {hasAnyL2('recent_news', 'funding_history', 'eu_grants', 'competitor_ai_moves') && (
+                <section className="space-y-5 border-t border-border/40 pt-8">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Market Intelligence</h2>
+                  <ProseSection title="Recent News" content={l2Text('recent_news')} />
+                  <ProseSection title="Funding History" content={l2Text('funding_history')} />
+                  <ProseSection title="EU Grants" content={l2Text('eu_grants')} />
+                  <ProseSection title="Competitor AI Moves" content={l2Text('competitor_ai_moves')} />
+                </section>
+              )}
 
               {/* ---- AI Opportunity Assessment ---- */}
-              <section className="space-y-5 border-t border-border/40 pt-8">
-                <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">AI Opportunity Assessment</h2>
-                <ProseSection title="AI Opportunities" content={l2Text('ai_opportunities')} />
-                <ProseSection title="Pain Hypothesis" content={l2Text('pain_hypothesis')} />
-                <ProseSection title="Industry Pain Points" content={l2Text('industry_pain_points')} />
-                <ProseSection title="Cross-Functional Pain" content={l2Text('cross_functional_pain')} />
-                <ProseSection title="Quick Wins" content={l2Text('quick_wins')} />
-                <ProseSection title="Adoption Barriers" content={l2Text('adoption_barriers')} />
-                <ProseSection title="Relevant Case Study" content={l2Text('relevant_case_study')} />
-              </section>
+              {hasAnyL2('ai_opportunities', 'pain_hypothesis', 'industry_pain_points', 'cross_functional_pain', 'quick_wins', 'adoption_barriers', 'relevant_case_study') && (
+                <section className="space-y-5 border-t border-border/40 pt-8">
+                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">AI Opportunity Assessment</h2>
+                  <ProseSection title="AI Opportunities" content={l2Text('ai_opportunities')} />
+                  <ProseSection title="Pain Hypothesis" content={l2Text('pain_hypothesis')} />
+                  <ProseSection title="Industry Pain Points" content={l2Text('industry_pain_points')} />
+                  <ProseSection title="Cross-Functional Pain" content={l2Text('cross_functional_pain')} />
+                  <ProseSection title="Quick Wins" content={l2Text('quick_wins')} />
+                  <ProseSection title="Adoption Barriers" content={l2Text('adoption_barriers')} />
+                  <ProseSection title="Relevant Case Study" content={l2Text('relevant_case_study')} />
+                </section>
+              )}
 
               {/* ---- Enrichment Quality (metadata) ---- */}
               {l2Text('company_intel') && (
