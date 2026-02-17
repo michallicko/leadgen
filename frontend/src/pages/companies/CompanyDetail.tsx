@@ -8,6 +8,7 @@ import {
   CollapsibleSection, SectionDivider, MiniTable,
 } from '../../components/ui/DetailField'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
+import { CorrectiveActionButtons } from '../../components/ui/CorrectiveActionButtons'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
   STATUS_DISPLAY, STATUS_REVERSE,
@@ -104,6 +105,18 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
         {company.batch_name && <span className="text-xs text-text-dim">{company.batch_name}</span>}
       </div>
+
+      {/* Corrective actions for failed/review entities */}
+      {company.status && ['Needs Review', 'Enrichment Failed', 'Enrichment L2 Failed'].includes(company.status) && (
+        <div className="mb-4 p-3 bg-surface-alt rounded-lg border border-border-solid">
+          <p className="text-xs text-text-muted mb-2">This company requires attention:</p>
+          <CorrectiveActionButtons
+            entityId={company.id}
+            entityType="company"
+            currentStatus={company.status}
+          />
+        </div>
+      )}
 
       {/* Classification */}
       <SectionDivider title="Classification" />
@@ -372,15 +385,13 @@ export function CompanyDetail({ company, onNavigate }: Props) {
       <CollapsibleSection title="Enrichment Timeline">
         <EnrichmentTimeline entries={[
           { label: 'Created', timestamp: company.created_at },
-          { label: 'L1 Enrichment', timestamp: company.updated_at, cost: company.enrichment_cost_usd,
-            detail: company.triage_score != null ? `Triage score: ${company.triage_score.toFixed(2)}` : null },
-          ...(l2 && (l2.enriched_at as string) ? [{
-            label: 'L2 Enrichment', timestamp: l2.enriched_at as string,
-            cost: (l2.enrichment_cost_usd as number | null) ?? null,
-          }] : []),
-          ...(reg && (reg.enriched_at as string) ? [{
-            label: 'Registry Lookup', timestamp: reg.enriched_at as string,
-          }] : []),
+          ...company.stage_completions.map((sc) => ({
+            label: sc.stage.toUpperCase(),
+            timestamp: sc.completed_at,
+            cost: sc.cost_usd,
+            status: sc.status as 'completed' | 'failed' | 'skipped',
+            error: sc.error,
+          })),
         ]} />
       </CollapsibleSection>
 

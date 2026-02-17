@@ -85,7 +85,16 @@ export interface ContactDetail {
     enriched_at: string | null
     enrichment_cost_usd: number | null
   } | null
+  stage_completions: StageCompletion[]
   messages: ContactMessage[]
+}
+
+export interface StageCompletion {
+  stage: string
+  status: string
+  cost_usd: number
+  error: string | null
+  completed_at: string | null
 }
 
 export interface ContactFilters {

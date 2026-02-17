@@ -80,8 +80,17 @@ export interface CompanyDetail {
   ico: string | null
   enrichment_l2: Record<string, unknown> | null
   registry_data: Record<string, unknown> | null
+  stage_completions: StageCompletion[]
   tags: CompanyTag[]
   contacts: CompanyContactSummary[]
+}
+
+export interface StageCompletion {
+  stage: string
+  status: string
+  cost_usd: number
+  error: string | null
+  completed_at: string | null
 }
 
 export interface CompanyFilters {

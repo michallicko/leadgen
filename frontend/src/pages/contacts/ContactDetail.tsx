@@ -290,11 +290,13 @@ export function ContactDetail({ contact, onNavigate }: Props) {
       <CollapsibleSection title="Enrichment Timeline">
         <EnrichmentTimeline entries={[
           { label: 'Created', timestamp: contact.created_at },
-          ...(contact.enrichment?.enriched_at ? [{
-            label: 'Person Enrichment',
-            timestamp: contact.enrichment.enriched_at,
-            cost: contact.enrichment.enrichment_cost_usd,
-          }] : []),
+          ...contact.stage_completions.map((sc) => ({
+            label: sc.stage.toUpperCase(),
+            timestamp: sc.completed_at,
+            cost: sc.cost_usd,
+            status: sc.status as 'completed' | 'failed' | 'skipped',
+            error: sc.error,
+          })),
         ]} />
       </CollapsibleSection>
 

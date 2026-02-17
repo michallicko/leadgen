@@ -259,6 +259,24 @@ def get_contact(contact_id):
         "batch_name": row[38],
     }
 
+    # Stage completions
+    sc_rows = db.session.execute(
+        db.text("""
+            SELECT stage, status, cost_usd, error, completed_at
+            FROM entity_stage_completions
+            WHERE entity_id = :id
+            ORDER BY completed_at ASC NULLS LAST
+        """),
+        {"id": contact_id},
+    ).fetchall()
+    contact["stage_completions"] = [{
+        "stage": r[0],
+        "status": r[1],
+        "cost_usd": float(r[2]) if r[2] is not None else 0,
+        "error": r[3],
+        "completed_at": _iso(r[4]),
+    } for r in sc_rows]
+
     # Contact enrichment
     enrich_row = db.session.execute(
         db.text("""

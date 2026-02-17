@@ -378,6 +378,24 @@ def get_company(company_id):
         else:
             company["registry_data"] = None
 
+    # Stage completions
+    sc_rows = db.session.execute(
+        db.text("""
+            SELECT stage, status, cost_usd, error, completed_at
+            FROM entity_stage_completions
+            WHERE entity_id = :id
+            ORDER BY completed_at ASC NULLS LAST
+        """),
+        {"id": company_id},
+    ).fetchall()
+    company["stage_completions"] = [{
+        "stage": r[0],
+        "status": r[1],
+        "cost_usd": float(r[2]) if r[2] is not None else 0,
+        "error": r[3],
+        "completed_at": _iso(r[4]),
+    } for r in sc_rows]
+
     # Tags
     tag_rows = db.session.execute(
         db.text("SELECT category, value FROM company_tags WHERE company_id = :id ORDER BY category, value"),
