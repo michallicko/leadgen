@@ -405,6 +405,121 @@ class TestCampaignContacts:
         assert resp.get_json()["total_contacts"] == 4
 
 
+class TestEnrichmentCheck:
+    """BL-034: Enrichment readiness check for campaign contacts."""
+
+    def _create_campaign_with_contacts(self, client, headers, data, contact_indices):
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Readiness Test"})
+        cid = resp.get_json()["id"]
+        contact_ids = [str(data["contacts"][i].id) for i in contact_indices]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        return cid
+
+    def test_enrichment_check_no_completions(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign_with_contacts(client, headers, data, [0, 1, 2])
+
+        resp = client.post(f"/api/campaigns/{cid}/enrichment-check", headers=headers)
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert result["summary"]["total"] == 3
+        assert result["summary"]["needs_enrichment"] == 3
+        assert result["summary"]["ready"] == 0
+        # All contacts should have gaps
+        for c in result["contacts"]:
+            assert len(c["gaps"]) > 0
+
+    def test_enrichment_check_with_completions(self, client, seed_companies_contacts, db):
+        from api.models import EntityStageCompletion
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+
+        # Use contact[0] (John Doe @ Acme Corp)
+        cid = self._create_campaign_with_contacts(client, headers, data, [0])
+
+        # Add all completions for Acme Corp company + contact
+        company_id = str(data["companies"][0].id)
+        contact_id = str(data["contacts"][0].id)
+        for stage in ["l1_company", "l2_deep_research"]:
+            comp = EntityStageCompletion(
+                tenant_id=data["tenant"].id,
+                batch_id=data["batches"][0].id,
+                entity_type="company",
+                entity_id=company_id,
+                stage=stage,
+                status="completed",
+            )
+            db.session.add(comp)
+        person_comp = EntityStageCompletion(
+            tenant_id=data["tenant"].id,
+            batch_id=data["batches"][0].id,
+            entity_type="contact",
+            entity_id=contact_id,
+            stage="person",
+            status="completed",
+        )
+        db.session.add(person_comp)
+        db.session.commit()
+
+        resp = client.post(f"/api/campaigns/{cid}/enrichment-check", headers=headers)
+        result = resp.get_json()
+        assert result["summary"]["ready"] == 1
+        assert result["summary"]["needs_enrichment"] == 0
+        assert result["contacts"][0]["ready"] is True
+        assert result["contacts"][0]["gaps"] == []
+
+    def test_enrichment_check_partial(self, client, seed_companies_contacts, db):
+        from api.models import EntityStageCompletion
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+        cid = self._create_campaign_with_contacts(client, headers, data, [0])
+
+        # Only L1 completed
+        comp = EntityStageCompletion(
+            tenant_id=data["tenant"].id,
+            batch_id=data["batches"][0].id,
+            entity_type="company",
+            entity_id=str(data["companies"][0].id),
+            stage="l1_company",
+            status="completed",
+        )
+        db.session.add(comp)
+        db.session.commit()
+
+        resp = client.post(f"/api/campaigns/{cid}/enrichment-check", headers=headers)
+        result = resp.get_json()
+        assert result["summary"]["needs_enrichment"] == 1
+        gaps = result["contacts"][0]["gaps"]
+        assert "l2_deep_research" in gaps
+        assert "person" in gaps
+        assert "l1_company" not in gaps
+
+    def test_enrichment_check_empty_campaign(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Empty"})
+        cid = resp.get_json()["id"]
+
+        resp = client.post(f"/api/campaigns/{cid}/enrichment-check", headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()["summary"]["total"] == 0
+
+    def test_enrichment_check_nonexistent_campaign(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post(
+            "/api/campaigns/00000000-0000-0000-0000-000000000099/enrichment-check",
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+
 class TestCampaignTemplates:
     def test_list_system_templates(self, client, seed_companies_contacts, db):
         from api.models import CampaignTemplate

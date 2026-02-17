@@ -522,3 +522,127 @@ def remove_campaign_contacts(campaign_id):
     db.session.commit()
 
     return jsonify({"removed": removed})
+
+
+# ── Enrichment Readiness Check ───────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/enrichment-check", methods=["POST"])
+@require_role("editor")
+def enrichment_check(campaign_id):
+    """Check enrichment readiness for all contacts in a campaign.
+
+    For each contact, checks whether their company has completed L1 and L2
+    enrichment stages, and whether the contact has completed person enrichment.
+    Returns per-contact readiness and a summary.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign = db.session.execute(
+        db.text("SELECT id FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    # Get all campaign contacts with their company info
+    contacts = db.session.execute(
+        db.text("""
+            SELECT
+                cc.id AS cc_id, cc.contact_id, cc.status AS cc_status,
+                ct.company_id, ct.first_name, ct.last_name,
+                co.name AS company_name
+            FROM campaign_contacts cc
+            JOIN contacts ct ON cc.contact_id = ct.id
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    if not contacts:
+        return jsonify({
+            "contacts": [],
+            "summary": {"total": 0, "ready": 0, "needs_enrichment": 0},
+        })
+
+    # Get all completed stages for relevant entities
+    company_ids = list({str(r[3]) for r in contacts if r[3]})
+    contact_ids = list({str(r[1]) for r in contacts})
+
+    # Build completions lookup: entity_id -> set of completed stages
+    completions = {}
+    if company_ids or contact_ids:
+        all_entity_ids = company_ids + contact_ids
+        ph = ", ".join(f":eid_{i}" for i in range(len(all_entity_ids)))
+        params = {f"eid_{i}": v for i, v in enumerate(all_entity_ids)}
+        params["t"] = tenant_id
+        rows = db.session.execute(
+            db.text(f"""
+                SELECT entity_id, stage
+                FROM entity_stage_completions
+                WHERE tenant_id = :t AND status = 'completed' AND entity_id IN ({ph})
+            """),
+            params,
+        ).fetchall()
+        for r in rows:
+            eid = str(r[0])
+            completions.setdefault(eid, set()).add(r[1])
+
+    # Check each contact's readiness
+    result_contacts = []
+    ready_count = 0
+    needs_enrichment_count = 0
+
+    for row in contacts:
+        cc_id, contact_id, cc_status, company_id, first_name, last_name, company_name = row
+        gaps = []
+        company_stages = completions.get(str(company_id), set()) if company_id else set()
+        contact_stages = completions.get(str(contact_id), set())
+
+        if "l1_company" not in company_stages:
+            gaps.append("l1_company")
+        if "l2_deep_research" not in company_stages:
+            gaps.append("l2_deep_research")
+        if "person" not in contact_stages:
+            gaps.append("person")
+
+        is_ready = len(gaps) == 0
+        if is_ready:
+            ready_count += 1
+        else:
+            needs_enrichment_count += 1
+
+        # Update campaign_contact status
+        new_status = "enrichment_ok" if is_ready else "enrichment_needed"
+        if cc_status in ("pending", "enrichment_ok", "enrichment_needed"):
+            db.session.execute(
+                db.text("""
+                    UPDATE campaign_contacts
+                    SET status = :s, enrichment_gaps = :g
+                    WHERE id = :id
+                """),
+                {"s": new_status, "g": json.dumps(gaps), "id": cc_id},
+            )
+
+        result_contacts.append({
+            "campaign_contact_id": str(cc_id),
+            "contact_id": str(contact_id),
+            "full_name": ((first_name or "") + " " + (last_name or "")).strip(),
+            "company_name": company_name,
+            "ready": is_ready,
+            "gaps": gaps,
+        })
+
+    db.session.commit()
+
+    return jsonify({
+        "contacts": result_contacts,
+        "summary": {
+            "total": len(contacts),
+            "ready": ready_count,
+            "needs_enrichment": needs_enrichment_count,
+        },
+    })
