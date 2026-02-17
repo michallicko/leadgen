@@ -5,14 +5,14 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
-- **Campaign CRUD + Data Model** (BL-031, ADR-006): Foundation for outreach engine — campaign management with template presets
-  - Migration 018: extended `campaigns` table (status, template_config, generation_config), new `campaign_contacts` junction, new `campaign_templates` with 3 system presets
-  - SQLAlchemy models: `Campaign`, `CampaignContact`, `CampaignTemplate`
-  - API: `GET/POST /api/campaigns`, `GET/PATCH/DELETE /api/campaigns/<id>`, `GET /api/campaign-templates`
-  - Status machine: draft → ready → generating → review → approved → exported → archived (validated transitions)
-  - CampaignsPage under Reach pillar with create dialog, template selector, DataTable
-  - 14 backlog items (BL-031 through BL-044) added to Theme 2: Outreach Engine
-  - 19 new unit tests covering all CRUD operations, status transitions, template loading
+- **Campaign System Phase 1** (BL-031 through BL-036, ADR-006): Full outreach engine — create campaigns, assign contacts, configure templates, generate AI messages, review on Messages page
+  - **BL-031**: Migration 018 (campaigns extended, campaign_contacts, campaign_templates with 3 system presets), SQLAlchemy models, campaign CRUD API, CampaignsPage under Reach pillar. 19 tests.
+  - **BL-032**: Campaign contacts API — add by contact IDs or company IDs, remove, list with enrichment data. Duplicate detection, total_contacts auto-update. ContactPicker overlay with search + multi-select. CampaignDetail with entity stack navigation. 12 tests.
+  - **BL-033**: Template presets (LinkedIn + Email, Email 3-Step, LinkedIn Only). Step toggle, tone selector (professional/casual/bold/empathetic), custom instructions. TemplateSelector + StepConfigurator in CampaignDetail.
+  - **BL-034**: Enrichment readiness check — queries entity_stage_completions per campaign contact. Returns per-contact readiness (ready/needs_l1/needs_l2/needs_person), summary counts, cost estimate. 5 tests.
+  - **BL-035**: Message generation engine — background thread generates messages via Claude Haiku API per contact × enabled step. Channel-specific prompts (LinkedIn 300 chars, email with subject). Cost estimation, LLM logging, progress tracking. Campaign status transitions (ready → generating → review). 7 tests.
+  - **BL-036**: Campaign filter on Messages page — campaign_id query param on GET /api/messages, Campaign dropdown in FilterBar, useMessages hook updated. 2 tests.
+  - Total: 47 new unit tests, all passing
 - **Enrichment DAG Model** (BL-015, BL-016, ADR-005): Replace linear `company.status` routing with DAG-based stage completion tracking
   - `entity_stage_completions` table: per-entity, per-stage completion records with cost and error tracking (migration 016)
   - Stage registry (`stage_registry.py`): 11 configurable stages with hard/soft dependencies, country gates, execution modes

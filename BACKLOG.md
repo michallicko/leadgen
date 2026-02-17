@@ -97,37 +97,37 @@ Two use cases: (1) **Transactional** — enrichment notifications, import status
 Data model: `tenant_email_configs` table (mode, domain, subdomain, encrypted API key, verification status). Send logic checks mode and uses the appropriate Resend API key. Domain conflict auto-detected on registration attempt.
 
 ### BL-031: Campaign CRUD + Data Model
-**Status**: In Progress | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
+**Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
 **Depends on**: — | **ADR**: `docs/adr/006-campaign-data-model.md` | **Theme**: Outreach Engine
 
 Extend campaigns table with status, template config, generation config. New campaign_contacts junction table and campaign_templates table. CRUD API endpoints + CampaignsPage under Reach pillar. Foundation for message generation pipeline.
 
 ### BL-032: Assign Contacts to Campaign
-**Status**: Idea | **Effort**: M | **Spec**: —
+**Status**: Done | **Effort**: M | **Spec**: —
 **Depends on**: BL-031 | **Theme**: Outreach Engine
 
 Contact picker with filters (batch, company, owner, tags). Add/remove contacts from campaign. Duplicate detection. Campaign detail shows contact count.
 
 ### BL-033: Configure Message Types (Template Presets)
-**Status**: Idea | **Effort**: M | **Spec**: —
+**Status**: Done | **Effort**: M | **Spec**: —
 **Depends on**: BL-031 | **Theme**: Outreach Engine
 
 Template preset selector (LinkedIn + Email, Email 3-Step, LinkedIn Only). Toggle steps on/off. Configure tone, language, custom instructions. System templates seeded in migration.
 
 ### BL-034: Enrichment Readiness Check
-**Status**: Idea | **Effort**: S | **Spec**: —
+**Status**: Done | **Effort**: S | **Spec**: —
 **Depends on**: BL-032 | **Theme**: Outreach Engine
 
 API endpoint checking entity_stage_completions per campaign contact. Returns readiness summary (X/Y ready, Z need enrichment). Cost estimate for missing enrichment.
 
 ### BL-035: Message Generation Engine
-**Status**: Idea | **Effort**: XL | **Spec**: —
+**Status**: Done | **Effort**: XL | **Spec**: —
 **Depends on**: BL-032, BL-033 | **Theme**: Outreach Engine
 
 Core generation service. Background thread processes contacts, calls Claude API per message step, writes to messages table. Channel-specific constraints, prompt templates, cost logging, progress tracking.
 
 ### BL-036: Review Campaign Messages
-**Status**: Idea | **Effort**: S | **Spec**: —
+**Status**: Done | **Effort**: S | **Spec**: —
 **Depends on**: BL-035 | **Theme**: Outreach Engine
 
 Campaign filter on Messages page. Campaign-level bulk approve. Campaign detail shows generated/approved/rejected counts.
