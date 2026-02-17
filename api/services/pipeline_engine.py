@@ -27,7 +27,7 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "registry", "triage"}
+DIRECT_STAGES = {"l1", "l2", "registry", "triage"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 # Legacy aliases for backward compat with old API calls
@@ -438,6 +438,9 @@ def _process_entity(stage, entity_id, tenant_id=None, previous_data=None,
         if stage == "l1":
             from .l1_enricher import enrich_l1
             return enrich_l1(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "l2":
+            from .l2_enricher import enrich_l2
+            return enrich_l2(entity_id, tenant_id, previous_data=previous_data)
         if stage == "registry":
             return _process_registry_unified(entity_id, tenant_id)
         if stage == "triage":

@@ -641,6 +641,137 @@ class TestTriageGateIntegration:
 
 
 # ---------------------------------------------------------------------------
+# L2 enrichment integration
+# ---------------------------------------------------------------------------
+
+class TestL2Integration:
+    """Test L2 stage dispatch through _process_entity."""
+
+    def _setup_company_for_l2(self, db, company, tenant_id):
+        """Set company to triage_passed + insert L1 enrichment data."""
+        from sqlalchemy import text as sa_text
+
+        db.session.execute(sa_text("""
+            UPDATE companies
+            SET status = 'triage_passed', tier = 'tier_1',
+                industry = 'software_saas'
+            WHERE id = :id
+        """), {"id": str(company.id)})
+
+        raw = json.dumps({
+            "company_name": company.name,
+            "summary": "A B2B SaaS platform",
+            "b2b": True,
+            "industry": "software_saas",
+            "revenue_eur_m": 10.0,
+            "employees": 120,
+            "hq": "Berlin, Germany",
+        })
+        db.session.execute(sa_text("""
+            INSERT INTO company_enrichment_l1 (company_id, raw_response, qc_flags,
+                enrichment_cost_usd)
+            VALUES (:cid, :raw, '[]', 0)
+            ON CONFLICT (company_id) DO UPDATE
+            SET raw_response = :raw, qc_flags = '[]'
+        """), {"cid": str(company.id), "raw": raw})
+        db.session.commit()
+
+    def test_l2_dispatches_to_direct_enricher(self, app, db, seed_tenant):
+        """L2 stage dispatches to enrich_l2 (not n8n webhook)."""
+        from unittest.mock import patch, MagicMock
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.009}
+                result = _process_entity("l2", str(company.id),
+                                         str(seed_tenant.id))
+
+            mock_l2.assert_called_once_with(
+                str(company.id), str(seed_tenant.id), previous_data=None,
+            )
+            assert result["enrichment_cost_usd"] == 0.009
+
+    def test_l2_does_not_call_n8n(self, app, db, seed_tenant):
+        """L2 stage should NOT call n8n webhook anymore."""
+        from unittest.mock import patch, MagicMock
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2, \
+                 patch("api.services.pipeline_engine.call_n8n_webhook") as mock_n8n:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.005}
+                _process_entity("l2", str(company.id),
+                                str(seed_tenant.id))
+
+            mock_n8n.assert_not_called()
+
+    def test_l2_passes_previous_data(self, app, db, seed_tenant):
+        """L2 stage forwards previous_data to enricher."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            prev = {"l1": {"summary": "test"}}
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.01}
+                _process_entity("l2", str(company.id),
+                                str(seed_tenant.id),
+                                previous_data=prev)
+
+            mock_l2.assert_called_once_with(
+                str(company.id), str(seed_tenant.id), previous_data=prev,
+            )
+
+    def test_l2_eligible_after_triage_passed(self, app, db, seed_tenant):
+        """L2 DAG eligibility requires triage completed."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Before triage: no L2 eligible
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            ids_before = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids_before) == 0
+
+            # After triage completed: L2 eligible
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="completed",
+            )
+            ids_after = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids_after) == 1
+            assert ids_after[0] == str(company.id)
+
+
+# ---------------------------------------------------------------------------
 # Old endpoints still work
 # ---------------------------------------------------------------------------
 
