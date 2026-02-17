@@ -736,44 +736,65 @@ def _parse_confidence(raw):
 # QC validation
 # ---------------------------------------------------------------------------
 
-def _validate_research(research, original_name):
-    """Run QC checks on parsed research. Returns list of flag strings."""
+QC_DEFAULTS = {
+    "name_similarity_min": 0.6,
+    "min_critical_fields": 4,
+    "confidence_min": 0.4,
+    "summary_min_length": 30,
+    "max_revenue_m": 50000,
+    "max_revenue_per_employee": 500_000,
+    "max_employees": 500_000,
+}
+
+
+def _validate_research(research, original_name, qc_config=None):
+    """Run QC checks on parsed research. Returns list of flag strings.
+
+    Args:
+        research: Parsed research dict from Perplexity
+        original_name: Company name from DB for name matching
+        qc_config: Optional dict of threshold overrides (keys from QC_DEFAULTS)
+    """
+    cfg = dict(QC_DEFAULTS)
+    if qc_config:
+        cfg.update(qc_config)
+
     flags = []
 
     # Name mismatch
     research_name = research.get("company_name", "")
     if research_name and original_name:
         similarity = _name_similarity(original_name, research_name)
-        if similarity < 0.6:
+        if similarity < cfg["name_similarity_min"]:
             flags.append("name_mismatch")
 
-    # Missing critical fields (need at least 4 of 5)
+    # Missing critical fields
     critical_fields = ["summary", "hq", "industry", "employees", "revenue_eur_m"]
     populated = sum(1 for f in critical_fields
                     if research.get(f) and str(research.get(f)).lower()
                     not in ("unverified", "unknown", "null", "none", "n/a"))
-    if populated < 4:
+    if populated < cfg["min_critical_fields"]:
         flags.append("incomplete_research")
 
     # Revenue sanity
     revenue = _parse_revenue(research.get("revenue_eur_m"))
     employees = _parse_employees(research.get("employees"))
     if revenue is not None:
-        if revenue > 50000:  # >50B EUR
+        if revenue > cfg["max_revenue_m"]:
             flags.append("revenue_implausible")
         elif employees and employees > 0 and revenue > 0:
-            ratio = (revenue * 1_000_000) / employees  # Convert M to absolute
-            if ratio > 500_000:
+            ratio = (revenue * 1_000_000) / employees
+            if ratio > cfg["max_revenue_per_employee"]:
                 flags.append("revenue_implausible")
 
     # Employee sanity
     if employees is not None:
-        if employees > 500_000 or employees < 0:
+        if employees > cfg["max_employees"] or employees < 0:
             flags.append("employees_implausible")
 
     # Low confidence
     confidence = _parse_confidence(research.get("confidence"))
-    if confidence is not None and confidence < 0.4:
+    if confidence is not None and confidence < cfg["confidence_min"]:
         flags.append("low_confidence")
 
     # B2B unclear
@@ -783,7 +804,7 @@ def _validate_research(research, original_name):
 
     # Summary too short
     summary = research.get("summary", "")
-    if isinstance(summary, str) and len(summary.strip()) < 30:
+    if isinstance(summary, str) and len(summary.strip()) < cfg["summary_min_length"]:
         flags.append("summary_too_short")
 
     # Merge Perplexity's own flags — look for high-severity indicators

@@ -489,6 +489,89 @@ class TestValidateResearch:
         assert "source_warning" not in flags
 
 
+class TestQCThresholdsConfigurable:
+    """Test that QC thresholds can be overridden via config dict."""
+
+    def setup_method(self):
+        from api.services.l1_enricher import _validate_research, QC_DEFAULTS
+        self.validate = _validate_research
+        self.defaults = QC_DEFAULTS
+
+    def _good_research(self, **overrides):
+        base = {
+            "company_name": "Acme Corp",
+            "summary": "A leading software company based in Germany with 500 employees.",
+            "b2b": True,
+            "hq": "Berlin, Germany",
+            "industry": "Software",
+            "employees": 500,
+            "revenue_eur_m": 42,
+            "confidence": 0.8,
+        }
+        base.update(overrides)
+        return base
+
+    def test_defaults_exist(self):
+        """QC_DEFAULTS dict should be importable with all threshold keys."""
+        assert "name_similarity_min" in self.defaults
+        assert "min_critical_fields" in self.defaults
+        assert "confidence_min" in self.defaults
+        assert "summary_min_length" in self.defaults
+
+    def test_name_similarity_custom_threshold(self):
+        """Lower name_similarity_min should pass previously-flagged names."""
+        # "Acme Corp" vs "Acme Corporation" fails at 0.6 but passes at 0.3
+        research = self._good_research(company_name="Acme Corporation Ltd")
+        # Default should NOT flag (similar enough)
+        flags = self.validate(research, "Acme Corp")
+        assert "name_mismatch" not in flags
+
+        # Very different name should still flag
+        research2 = self._good_research(company_name="Completely Different Inc")
+        flags2 = self.validate(research2, "Acme Corp", qc_config={"name_similarity_min": 0.3})
+        assert "name_mismatch" in flags2
+
+    def test_lenient_name_threshold_passes_close_names(self):
+        """With a very low threshold, close-ish names should pass."""
+        research = self._good_research(company_name="Completely Different Inc")
+        # With default 0.6 it fails
+        flags_default = self.validate(research, "Acme Corp")
+        assert "name_mismatch" in flags_default
+        # With 0.0 threshold everything passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"name_similarity_min": 0.0})
+        assert "name_mismatch" not in flags_lenient
+
+    def test_critical_fields_threshold_configurable(self):
+        """Lower min_critical_fields should pass research with fewer fields."""
+        # Only 3 of 5 fields → fails at threshold 4
+        research = self._good_research(employees="unverified", revenue_eur_m="unverified")
+        flags_strict = self.validate(research, "Acme Corp")
+        assert "incomplete_research" in flags_strict
+        # Passes at threshold 3
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"min_critical_fields": 3})
+        assert "incomplete_research" not in flags_lenient
+
+    def test_confidence_threshold_configurable(self):
+        """Custom confidence_min should change when low_confidence fires."""
+        research = self._good_research(confidence=0.35)
+        # Default 0.4 → flags it
+        flags_default = self.validate(research, "Acme Corp")
+        assert "low_confidence" in flags_default
+        # Threshold 0.3 → passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"confidence_min": 0.3})
+        assert "low_confidence" not in flags_lenient
+
+    def test_summary_length_configurable(self):
+        """Custom summary_min_length should change when summary_too_short fires."""
+        research = self._good_research(summary="A decent company summary")
+        # Default 30 → flags (24 chars)
+        flags_default = self.validate(research, "Acme Corp")
+        assert "summary_too_short" in flags_default
+        # Threshold 20 → passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"summary_min_length": 20})
+        assert "summary_too_short" not in flags_lenient
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (with DB, mocked Perplexity)
 # ---------------------------------------------------------------------------
