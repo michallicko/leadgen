@@ -18,6 +18,7 @@ export interface StageDef {
   row: number
   available: boolean
   isTerminal?: boolean
+  isGate?: boolean
   countryGate?: { countries: string[]; tlds: string[] }
 }
 
@@ -45,12 +46,28 @@ const STAGE_DEFS: StageDef[] = [
     row: 0,
     available: true,
   },
+  {
+    code: 'triage',
+    displayName: 'Triage',
+    entityType: 'company',
+    hardDeps: ['l1'],
+    softDeps: [],
+    costDefault: 0.00,
+    icon: 'TG',
+    color: '#06d6a0',
+    bg: 'rgba(6,214,160,0.08)',
+    description: 'Rules-based filter: tier, industry, geo, revenue, B2B',
+    fields: ['Tier Filter', 'Industry Filter', 'B2B Check', 'Revenue Floor'],
+    row: 0,
+    available: true,
+    isGate: true,
+  },
   // Row 1 — Company Intelligence
   {
     code: 'l2',
     displayName: 'Deep Research',
     entityType: 'company',
-    hardDeps: ['l1'],
+    hardDeps: ['triage'],
     softDeps: [],
     costDefault: 0.08,
     icon: 'DR',

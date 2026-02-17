@@ -56,6 +56,8 @@ export function StageCard({
   const isRunning = mode === 'running'
   const isCompleted = mode === 'completed'
 
+  const isGate = !!stage.isGate
+
   // Card visual state
   const statusClass = (() => {
     if (!enabled && mode === 'configure') return 'opacity-40'
@@ -69,7 +71,10 @@ export function StageCard({
       if (progress.status === 'completed') return 'border-success'
       if (progress.status === 'failed') return 'border-error'
     }
-    if (enabled && mode === 'configure') return 'border-accent/40 ring-1 ring-accent/10'
+    if (enabled && mode === 'configure') {
+      if (isGate) return 'border-[color:#06d6a0]/40 ring-1 ring-[color:#06d6a0]/10'
+      return 'border-accent/40 ring-1 ring-accent/10'
+    }
     return 'border-dashed border-border-solid'
   })()
 
@@ -95,7 +100,7 @@ export function StageCard({
 
   return (
     <div
-      className={`rounded-lg border bg-surface p-4 transition-all duration-200 w-[280px] flex-shrink-0 ${statusClass}`}
+      className={`rounded-lg border bg-surface p-4 transition-all duration-200 flex-shrink-0 ${isGate ? 'w-[200px]' : 'w-[280px]'} ${statusClass}`}
       style={{ borderColor: enabled && mode === 'configure' ? stage.color : undefined }}
     >
       {/* Header: icon + name + toggle/status */}
@@ -133,91 +138,117 @@ export function StageCard({
             {stage.description}
           </p>
 
-          {/* Stats line */}
-          {enabled && estimate && (
-            <p className="text-xs text-text-muted mb-2">
-              <span className="font-medium text-text">{estimate.eligible_count}</span> eligible
-              <span className="mx-1">&middot;</span>
-              {fmtCost(estimate.cost_per_item)}/item
-            </p>
-          )}
-
-          {/* Re-enrich toggle */}
-          {enabled && (
-            <div className="mb-2">
-              <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reEnrich.enabled}
-                  onChange={(e) => onReEnrichToggle(e.target.checked)}
-                  className="rounded border-border-solid text-accent focus:ring-accent/30 w-3.5 h-3.5"
-                />
-                Re-enrich outdated
-              </label>
-
-              {reEnrich.enabled && (
-                <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
-                  {HORIZON_PRESETS.map((p) => {
-                    const iso = horizonToDate(p.days)
-                    const isActive = reEnrich.horizon === iso
-                    return (
-                      <button
-                        key={p.label}
-                        onClick={() => onFreshnessChange(isActive ? null : iso)}
-                        className={`px-2 py-0.5 text-[0.65rem] rounded border transition-colors ${
-                          isActive
-                            ? 'border-accent bg-accent/10 text-accent'
-                            : 'border-border text-text-muted hover:border-accent/40'
-                        }`}
+          {isGate ? (
+            /* Gate cards: compact — show filter rules, no re-enrich/cost */
+            <>
+              {enabled && (
+                <>
+                  <p className="text-[0.65rem] text-text-dim mb-2">
+                    Zero-cost &middot; auto-runs after dependencies
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {stage.fields.map((f) => (
+                      <span
+                        key={f}
+                        className="px-1.5 py-0.5 text-[0.6rem] rounded bg-surface-alt text-text-muted border border-border"
                       >
-                        {p.label}
-                      </button>
-                    )
-                  })}
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            /* Normal stage: full config UI */
+            <>
+              {/* Stats line */}
+              {enabled && estimate && (
+                <p className="text-xs text-text-muted mb-2">
+                  <span className="font-medium text-text">{estimate.eligible_count}</span> eligible
+                  <span className="mx-1">&middot;</span>
+                  {fmtCost(estimate.cost_per_item)}/item
+                </p>
+              )}
+
+              {/* Re-enrich toggle */}
+              {enabled && (
+                <div className="mb-2">
+                  <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reEnrich.enabled}
+                      onChange={(e) => onReEnrichToggle(e.target.checked)}
+                      className="rounded border-border-solid text-accent focus:ring-accent/30 w-3.5 h-3.5"
+                    />
+                    Re-enrich outdated
+                  </label>
+
+                  {reEnrich.enabled && (
+                    <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
+                      {HORIZON_PRESETS.map((p) => {
+                        const iso = horizonToDate(p.days)
+                        const isActive = reEnrich.horizon === iso
+                        return (
+                          <button
+                            key={p.label}
+                            onClick={() => onFreshnessChange(isActive ? null : iso)}
+                            className={`px-2 py-0.5 text-[0.65rem] rounded border transition-colors ${
+                              isActive
+                                ? 'border-accent bg-accent/10 text-accent'
+                                : 'border-border text-text-muted hover:border-accent/40'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Field tags */}
-          {enabled && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {stage.fields.map((f) => (
-                <span
-                  key={f}
-                  className="px-1.5 py-0.5 text-[0.6rem] rounded bg-surface-alt text-text-muted border border-border"
-                >
-                  {f}
-                </span>
-              ))}
-            </div>
-          )}
+              {/* Field tags */}
+              {enabled && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {stage.fields.map((f) => (
+                    <span
+                      key={f}
+                      className="px-1.5 py-0.5 text-[0.6rem] rounded bg-surface-alt text-text-muted border border-border"
+                    >
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-          {/* Soft dep badges */}
-          {enabled && softDeps.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {softDeps.map((dep) => (
-                <button
-                  key={dep.code}
-                  onClick={() => onSoftDepToggle(dep.code, !dep.active)}
-                  className={`flex items-center gap-1 px-2 py-0.5 text-[0.6rem] rounded-full border transition-colors ${
-                    dep.active
-                      ? 'border-accent/30 bg-accent/5 text-accent'
-                      : 'border-border text-text-dim line-through'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${dep.active ? 'bg-accent' : 'bg-border-solid'}`} />
-                  {dep.name}
-                </button>
-              ))}
-            </div>
-          )}
+              {/* Soft dep badges */}
+              {enabled && softDeps.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {softDeps.map((dep) => (
+                    <button
+                      key={dep.code}
+                      onClick={() => onSoftDepToggle(dep.code, !dep.active)}
+                      className={`flex items-center gap-1 px-2 py-0.5 text-[0.6rem] rounded-full border transition-colors ${
+                        dep.active
+                          ? 'border-accent/30 bg-accent/5 text-accent'
+                          : 'border-border text-text-dim line-through'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${dep.active ? 'bg-accent' : 'bg-border-solid'}`} />
+                      {dep.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          {/* Country gate indicator */}
-          {stage.countryGate && enabled && (
-            <p className="text-[0.6rem] text-text-dim mt-1.5 italic">
-              Limited to: {stage.countryGate.tlds.join(', ')}
-            </p>
+              {/* Country gate indicator */}
+              {stage.countryGate && enabled && (
+                <p className="text-[0.6rem] text-text-dim mt-1.5 italic">
+                  Limited to: {stage.countryGate.tlds.join(', ')}
+                </p>
+              )}
+            </>
           )}
         </>
       )}
@@ -225,34 +256,63 @@ export function StageCard({
       {/* Running mode content */}
       {(isRunning || isCompleted) && progress && (
         <>
-          {/* Progress bar */}
-          <div className="mt-2 mb-1.5">
-            <div className="w-full h-1.5 bg-surface-alt rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  progress.status === 'failed' ? 'bg-error' : 'bg-accent-cyan'
-                }`}
-                style={{ width: `${pctDone}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Counts */}
-          <div className="flex items-center justify-between text-xs text-text-muted">
-            <span>
-              {progress.done}/{progress.total}
-              {progress.failed > 0 && (
-                <span className="text-error ml-1">({progress.failed} failed)</span>
+          {isGate ? (
+            /* Gate: pass/fail counts instead of progress bar */
+            <div className="mt-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-success font-medium">
+                  &#10003; {progress.done - progress.failed} passed
+                </span>
+                {progress.failed > 0 && (
+                  <span className="text-error font-medium">
+                    &#10007; {progress.failed} filtered
+                  </span>
+                )}
+              </div>
+              {progress.status === 'running' && (
+                <div className="mt-1.5">
+                  <div className="w-full h-1 bg-surface-alt rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-accent-cyan transition-all duration-500"
+                      style={{ width: `${pctDone}%` }}
+                    />
+                  </div>
+                  <p className="text-[0.6rem] text-text-dim mt-0.5">
+                    {progress.done}/{progress.total}
+                  </p>
+                </div>
               )}
-            </span>
-            <span>{fmtCost(progress.cost)}</span>
-          </div>
+            </div>
+          ) : (
+            /* Normal stage: progress bar + cost */
+            <>
+              <div className="mt-2 mb-1.5">
+                <div className="w-full h-1.5 bg-surface-alt rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      progress.status === 'failed' ? 'bg-error' : 'bg-accent-cyan'
+                    }`}
+                    style={{ width: `${pctDone}%` }}
+                  />
+                </div>
+              </div>
 
-          {/* Current item */}
-          {progress.current_item && progress.status === 'running' && (
-            <p className="text-[0.6rem] text-text-dim mt-1 truncate">
-              {progress.current_item.name}
-            </p>
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span>
+                  {progress.done}/{progress.total}
+                  {progress.failed > 0 && (
+                    <span className="text-error ml-1">({progress.failed} failed)</span>
+                  )}
+                </span>
+                <span>{fmtCost(progress.cost)}</span>
+              </div>
+
+              {progress.current_item && progress.status === 'running' && (
+                <p className="text-[0.6rem] text-text-dim mt-1 truncate">
+                  {progress.current_item.name}
+                </p>
+              )}
+            </>
           )}
         </>
       )}
