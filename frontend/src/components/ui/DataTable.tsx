@@ -23,6 +23,12 @@ interface DataTableProps<T> {
   hasMore?: boolean
   isLoading?: boolean
   emptyText?: string
+  /** Enable row selection checkboxes */
+  selectable?: boolean
+  /** Currently selected row IDs */
+  selectedIds?: Set<string>
+  /** Called when selection changes */
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
 export function DataTable<T extends { id?: string }>({
@@ -35,6 +41,9 @@ export function DataTable<T extends { id?: string }>({
   hasMore,
   isLoading,
   emptyText = 'No results match your filters.',
+  selectable,
+  selectedIds,
+  onSelectionChange,
 }: DataTableProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -89,6 +98,36 @@ export function DataTable<T extends { id?: string }>({
     onSort(col.sortKey, newDir)
   }
 
+  // Selection helpers
+  const allVisibleSelected = selectable && data.length > 0 && data.every((item) => item.id && selectedIds?.has(item.id))
+
+  const handleSelectAll = () => {
+    if (!onSelectionChange) return
+    if (allVisibleSelected) {
+      onSelectionChange(new Set())
+    } else {
+      const ids = new Set<string>()
+      for (const item of data) {
+        if (item.id) ids.add(item.id)
+      }
+      onSelectionChange(ids)
+    }
+  }
+
+  const handleSelectRow = (id: string | undefined, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!id || !onSelectionChange || !selectedIds) return
+    const next = new Set(selectedIds)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    onSelectionChange(next)
+  }
+
+  const colSpan = columns.length + (selectable ? 1 : 0)
+
   if (!isLoading && data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-text-dim">
@@ -109,6 +148,16 @@ export function DataTable<T extends { id?: string }>({
       <table className="w-full text-sm border-collapse" style={{ minWidth: 700 }}>
         <thead className="sticky top-0 z-10 bg-surface-alt">
           <tr>
+            {selectable && (
+              <th className="w-10 px-3 py-2.5 border-b border-border-solid">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected ?? false}
+                  onChange={handleSelectAll}
+                  className="rounded border-border-solid text-accent focus:ring-accent/30 w-3.5 h-3.5"
+                />
+              </th>
+            )}
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -136,33 +185,46 @@ export function DataTable<T extends { id?: string }>({
         </thead>
         <tbody>
           {offsetY > 0 && (
-            <tr><td colSpan={columns.length} style={{ height: offsetY, padding: 0, border: 0 }} /></tr>
+            <tr><td colSpan={colSpan} style={{ height: offsetY, padding: 0, border: 0 }} /></tr>
           )}
-          {visibleData.map((item, i) => (
-            <tr
-              key={item.id ?? startIndex + i}
-              onClick={() => onRowClick?.(item)}
-              className={`border-b border-border/30 ${onRowClick ? 'cursor-pointer hover:bg-surface-alt/50' : ''}`}
-              style={{ height: ROW_HEIGHT }}
-            >
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={`px-3 py-0 text-text ${col.shrink !== false ? 'truncate' : ''}`}
-                  style={{
-                    maxWidth: col.width ?? '200px',
-                    minWidth: col.minWidth,
-                  }}
-                >
-                  {col.render
-                    ? col.render(item)
-                    : (item as Record<string, unknown>)[col.key] as ReactNode ?? '-'}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {visibleData.map((item, i) => {
+            const isSelected = selectable && item.id && selectedIds?.has(item.id)
+            return (
+              <tr
+                key={item.id ?? startIndex + i}
+                onClick={() => onRowClick?.(item)}
+                className={`border-b border-border/30 ${onRowClick ? 'cursor-pointer hover:bg-surface-alt/50' : ''} ${isSelected ? 'bg-accent/5' : ''}`}
+                style={{ height: ROW_HEIGHT }}
+              >
+                {selectable && (
+                  <td className="px-3 py-0 w-10" onClick={(e) => handleSelectRow(item.id, e)}>
+                    <input
+                      type="checkbox"
+                      checked={!!isSelected}
+                      readOnly
+                      className="rounded border-border-solid text-accent focus:ring-accent/30 w-3.5 h-3.5 cursor-pointer"
+                    />
+                  </td>
+                )}
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`px-3 py-0 text-text ${col.shrink !== false ? 'truncate' : ''}`}
+                    style={{
+                      maxWidth: col.width ?? '200px',
+                      minWidth: col.minWidth,
+                    }}
+                  >
+                    {col.render
+                      ? col.render(item)
+                      : (item as Record<string, unknown>)[col.key] as ReactNode ?? '-'}
+                  </td>
+                ))}
+              </tr>
+            )
+          })}
           {endIndex < data.length && (
-            <tr><td colSpan={columns.length} style={{ height: (data.length - endIndex) * ROW_HEIGHT, padding: 0, border: 0 }} /></tr>
+            <tr><td colSpan={colSpan} style={{ height: (data.length - endIndex) * ROW_HEIGHT, padding: 0, border: 0 }} /></tr>
           )}
         </tbody>
       </table>

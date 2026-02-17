@@ -7,23 +7,18 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import text
 
 from ..auth import require_auth, resolve_tenant
-from ..display import display_status, display_tier
 from ..models import PipelineRun, StageRun, db
+from ..services.dag_executor import start_dag_pipeline
 from ..services.pipeline_engine import (
+    _LEGACY_STAGE_ALIASES,
     AVAILABLE_STAGES,
     COMING_SOON_STAGES,
-    _LEGACY_STAGE_ALIASES,
     get_eligible_ids,
     start_pipeline_threads,
     start_stage_thread,
 )
-from ..services.dag_executor import (
-    count_dag_eligible,
-    start_dag_pipeline,
-)
 from ..services.stage_registry import (
     STAGE_REGISTRY,
-    get_all_stages,
     topo_sort,
 )
 
@@ -740,3 +735,183 @@ def pipeline_dag_stop():
     db.session.commit()
 
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Run history endpoints
+# ---------------------------------------------------------------------------
+
+
+@pipeline_bp.route("/api/pipeline/runs", methods=["GET"])
+@require_auth
+def pipeline_runs_list():
+    """List pipeline runs for a batch, ordered by most recent."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    batch_name = request.args.get("batch_name", "")
+    page = max(1, int(request.args.get("page", "1")))
+    per_page = min(50, max(1, int(request.args.get("per_page", "20"))))
+    offset = (page - 1) * per_page
+
+    if not batch_name:
+        return jsonify({"error": "batch_name is required"}), 400
+
+    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    if err:
+        return err
+
+    total_row = db.session.execute(
+        text(
+            "SELECT COUNT(*) FROM pipeline_runs"
+            " WHERE tenant_id = :t AND batch_id = :b"
+        ),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchone()
+    total = total_row[0] if total_row else 0
+
+    rows = db.session.execute(
+        text("""
+            SELECT id, status, cost_usd, stages, config,
+                   started_at, completed_at
+            FROM pipeline_runs
+            WHERE tenant_id = :t AND batch_id = :b
+            ORDER BY started_at DESC
+            LIMIT :lim OFFSET :off
+        """),
+        {"t": str(tenant_id), "b": str(batch_id), "lim": per_page, "off": offset},
+    ).fetchall()
+
+    runs = []
+    for row in rows:
+        stages_json = row[3]
+        if isinstance(stages_json, str):
+            try:
+                stages_json = json.loads(stages_json)
+            except (json.JSONDecodeError, TypeError):
+                stages_json = {}
+
+        config_json = row[4]
+        if isinstance(config_json, str):
+            try:
+                config_json = json.loads(config_json)
+            except (json.JSONDecodeError, TypeError):
+                config_json = {}
+
+        started = row[5]
+        completed = row[6]
+        duration_s = None
+        if started and completed:
+            try:
+                from datetime import datetime
+
+                s = (
+                    started
+                    if isinstance(started, datetime)
+                    else datetime.fromisoformat(str(started))
+                )
+                c = (
+                    completed
+                    if isinstance(completed, datetime)
+                    else datetime.fromisoformat(str(completed))
+                )
+                duration_s = round((c - s).total_seconds())
+            except (ValueError, TypeError):
+                pass
+
+        runs.append({
+            "id": str(row[0]),
+            "status": row[1],
+            "cost": float(row[2] or 0),
+            "stages": list((stages_json or {}).keys()),
+            "config": config_json,
+            "started_at": _fmt_dt(started),
+            "completed_at": _fmt_dt(completed),
+            "duration_s": duration_s,
+        })
+
+    return jsonify({"runs": runs, "total": total})
+
+
+@pipeline_bp.route("/api/pipeline/runs/<run_id>/entities", methods=["GET"])
+@require_auth
+def pipeline_run_entities(run_id):
+    """Per-entity results for a pipeline run, with optional stage/status filter."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    try:
+        _uuid_mod.UUID(run_id)
+    except (ValueError, AttributeError):
+        return jsonify({"error": "Invalid run_id format"}), 400
+
+    run_row = db.session.execute(
+        text("SELECT id FROM pipeline_runs WHERE id = :id AND tenant_id = :t"),
+        {"id": run_id, "t": str(tenant_id)},
+    ).fetchone()
+    if not run_row:
+        return jsonify({"error": "Run not found"}), 404
+
+    stage_filter = request.args.get("stage", "")
+    status_filter = request.args.get("status", "")
+    page = max(1, int(request.args.get("page", "1")))
+    per_page = min(100, max(1, int(request.args.get("per_page", "50"))))
+    offset = (page - 1) * per_page
+
+    conditions = ["esc.pipeline_run_id = :run_id", "esc.tenant_id = :t"]
+    params: dict = {"run_id": run_id, "t": str(tenant_id)}
+
+    if stage_filter:
+        conditions.append("esc.stage = :stage")
+        params["stage"] = stage_filter
+    if status_filter:
+        conditions.append("esc.status = :status")
+        params["status"] = status_filter
+
+    where_sql = " AND ".join(conditions)
+
+    total_row = db.session.execute(
+        text(
+            "SELECT COUNT(*) FROM entity_stage_completions esc"
+            f" WHERE {where_sql}"
+        ),
+        params,
+    ).fetchone()
+    total = total_row[0] if total_row else 0
+
+    rows = db.session.execute(
+        text(f"""
+            SELECT esc.entity_id, esc.entity_type, esc.stage, esc.status,
+                   esc.error, esc.cost_usd, esc.completed_at,
+                   COALESCE(
+                       co.name,
+                       ct.first_name || ' ' || ct.last_name
+                   ) AS entity_name
+            FROM entity_stage_completions esc
+            LEFT JOIN companies co
+                ON co.id = esc.entity_id AND esc.entity_type = 'company'
+            LEFT JOIN contacts ct
+                ON ct.id = esc.entity_id AND esc.entity_type = 'contact'
+            WHERE {where_sql}
+            ORDER BY esc.completed_at DESC
+            LIMIT :lim OFFSET :off
+        """),
+        {**params, "lim": per_page, "off": offset},
+    ).fetchall()
+
+    entities = []
+    for row in rows:
+        entities.append({
+            "entity_id": str(row[0]),
+            "entity_type": row[1],
+            "stage": row[2],
+            "status": row[3],
+            "error": row[4],
+            "cost_usd": float(row[5]) if row[5] else None,
+            "completed_at": _fmt_dt(row[6]),
+            "entity_name": row[7] or "Unknown",
+        })
+
+    return jsonify({"entities": entities, "total": total})

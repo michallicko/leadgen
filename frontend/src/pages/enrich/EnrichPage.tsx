@@ -16,6 +16,9 @@ import { DagControls } from './DagControls'
 import { CompletionPanel } from './CompletionPanel'
 import { StageCard } from './StageCard'
 import { CorrectiveActionModal } from './CorrectiveActionModal'
+import { RunHistoryPanel } from './RunHistoryPanel'
+import { RunResultsModal } from './RunResultsModal'
+import type { PipelineRun } from './useRunHistory'
 
 export function EnrichPage() {
   const state = useEnrichState()
@@ -52,6 +55,9 @@ export function EnrichPage() {
     stageCode: string
     stageName: string
   } | null>(null)
+
+  // Run results modal state
+  const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null)
 
   // Card refs for edge drawing
   const containerRef = useRef<HTMLDivElement>(null)
@@ -172,6 +178,14 @@ export function EnrichPage() {
             </DagVisualization>
           </div>
 
+          {/* Run history panel (configure mode only) */}
+          {dagMode === 'configure' && (
+            <RunHistoryPanel
+              batchName={filters.batch}
+              onSelectRun={setSelectedRun}
+            />
+          )}
+
           {/* Completion panel */}
           {dagMode === 'completed' && (
             <CompletionPanel
@@ -191,6 +205,15 @@ export function EnrichPage() {
           batchName={filters.batch}
           stageCode={correctiveModal.stageCode}
           stageName={correctiveModal.stageName}
+        />
+      )}
+
+      {/* Run results modal */}
+      {selectedRun && (
+        <RunResultsModal
+          isOpen={true}
+          onClose={() => setSelectedRun(null)}
+          run={selectedRun}
         />
       )}
     </div>

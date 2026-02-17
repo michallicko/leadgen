@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router'
 import { useCompanies, useCompany, type CompanyListItem, type CompanyFilters } from '../../api/queries/useCompanies'
 import { useContact } from '../../api/queries/useContacts'
@@ -22,6 +22,9 @@ export function CompaniesPage() {
 
   // Entity stack for cross-entity modal navigation
   const stack = useEntityStack('company')
+
+  // Selection state for "Enrich Selected"
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Filters persisted in localStorage
   const [search, setSearch] = useLocalStorage('co_filter_search', '')
@@ -114,14 +117,14 @@ export function CompaniesPage() {
         onChange={handleFilterChange}
         total={total}
         action={
-          namespace && (
+          namespace && selectedIds.size > 0 ? (
             <a
-              href={`/${namespace}/enrich`}
-              className="text-xs text-accent-cyan hover:underline ml-2"
+              href={`/${namespace}/enrich?entity_ids=${[...selectedIds].join(',')}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors ml-2"
             >
-              Enrich Selection
+              Enrich Selected ({selectedIds.size})
             </a>
-          )
+          ) : undefined
         }
       />
 
@@ -135,6 +138,9 @@ export function CompaniesPage() {
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}
         emptyText="No companies match your filters."
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
       />
 
       <DetailModal
