@@ -6,7 +6,9 @@ import { AppShell } from './components/layout/AppShell'
 import { LoginPage } from './components/layout/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { CompaniesPage } from './pages/companies/CompaniesPage'
+import { CompanyDetailPage } from './pages/companies/CompanyDetailPage'
 import { ContactsPage } from './pages/contacts/ContactsPage'
+import { ContactDetailPage } from './pages/contacts/ContactDetailPage'
 import { MessagesPage } from './pages/messages/MessagesPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
 import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
@@ -35,7 +37,9 @@ export default function App() {
             <Route path="/:namespace" element={<AppShell />}>
               <Route index element={<Navigate to="contacts" replace />} />
               <Route path="contacts" element={<ContactsPage />} />
+              <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="companies" element={<CompaniesPage />} />
+              <Route path="companies/:companyId" element={<CompanyDetailPage />} />
               <Route path="import" element={<PlaceholderPage title="Import Contacts" />} />
               <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
