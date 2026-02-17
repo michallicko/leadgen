@@ -259,7 +259,7 @@ export function CampaignDetail({ campaign, onNavigate }: Props) {
         <Field label="Description" value={campaign.description} />
       )}
 
-      <SectionDivider label="Message Sequence" />
+      <SectionDivider title="Message Sequence" />
 
       {/* Template loader (draft/ready only) */}
       {isEditable && templates.length > 0 && (
@@ -325,11 +325,8 @@ export function CampaignDetail({ campaign, onNavigate }: Props) {
                 label="Tone"
                 name="tone"
                 value={(generationConfig.tone as string) || 'professional'}
-                options={TONE_OPTIONS.map((o) => o.label)}
-                onChange={(name, displayValue) => {
-                  const opt = TONE_OPTIONS.find((o) => o.label === displayValue)
-                  handleToneChange(name, opt?.value || displayValue.toLowerCase())
-                }}
+                options={TONE_OPTIONS}
+                onChange={handleToneChange}
               />
               <EditableTextarea
                 label="Custom Instructions"
@@ -337,7 +334,6 @@ export function CampaignDetail({ campaign, onNavigate }: Props) {
                 value={(generationConfig.custom_instructions as string) || ''}
                 onChange={handleInstructionsChange}
                 rows={3}
-                placeholder="Optional instructions for message generation (max 2000 chars)"
               />
             </>
           ) : (
@@ -349,7 +345,7 @@ export function CampaignDetail({ campaign, onNavigate }: Props) {
         </div>
       )}
 
-      <SectionDivider label={`Contacts (${contacts.length})`} />
+      <SectionDivider title={`Contacts (${contacts.length})`} />
 
       {/* Add contacts button */}
       {isEditable && (
