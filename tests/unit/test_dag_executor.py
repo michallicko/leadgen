@@ -488,6 +488,159 @@ class TestDagStopEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Triage gate integration
+# ---------------------------------------------------------------------------
+
+class TestTriageGateIntegration:
+    """Test triage gate stage in DAG pipeline."""
+
+    def _setup_company_for_triage(self, db, company, tier="tier_1",
+                                   industry="software_saas", b2b=True):
+        """Set company fields + insert L1 enrichment for triage evaluation."""
+        from sqlalchemy import text as sa_text
+
+        db.session.execute(sa_text("""
+            UPDATE companies
+            SET tier = :tier, industry = :industry
+            WHERE id = :id
+        """), {"tier": tier, "industry": industry, "id": str(company.id)})
+
+        # Insert L1 enrichment with b2b in raw_response
+        raw = json.dumps({"b2b": b2b, "company_name": "Test"})
+        db.session.execute(sa_text("""
+            INSERT INTO company_enrichment_l1 (company_id, raw_response, qc_flags,
+                enrichment_cost_usd)
+            VALUES (:cid, :raw, '[]', 0)
+            ON CONFLICT (company_id) DO UPDATE
+            SET raw_response = :raw, qc_flags = '[]'
+        """), {"cid": str(company.id), "raw": raw})
+        db.session.commit()
+
+    def test_process_entity_triage_passes_good_company(self, app, db, seed_tenant):
+        """Triage stage processes a company and returns gate_passed=True."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, tier="tier_1",
+                                            industry="software_saas", b2b=True)
+
+            result = _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            assert isinstance(result, dict)
+            assert result["gate_passed"] is True
+            assert result["enrichment_cost_usd"] == 0
+
+    def test_process_entity_triage_fails_non_b2b(self, app, db, seed_tenant):
+        """Triage disqualifies a non-B2B company."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, b2b=False)
+
+            result = _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            assert result["gate_passed"] is False
+            assert len(result["gate_reasons"]) > 0
+            assert result["enrichment_cost_usd"] == 0
+
+    def test_process_entity_triage_uses_custom_rules(self, app, db, seed_tenant):
+        """Triage accepts custom rules via triage_rules parameter."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, tier="tier_3",
+                                            industry="manufacturing", b2b=True)
+
+            # With tier allowlist that excludes tier_3
+            result = _process_entity(
+                "triage", str(company.id), str(seed_tenant.id),
+                triage_rules={"tier_allowlist": ["tier_1", "tier_2"]},
+            )
+            assert result["gate_passed"] is False
+
+    def test_triage_disqualified_blocks_l2(self, app, db, seed_tenant):
+        """Company with triage status='disqualified' is NOT eligible for L2."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Complete L1
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            # Record triage as disqualified
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="disqualified",
+            )
+
+            # L2 should have 0 eligible (triage not "completed")
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 0
+
+    def test_triage_passed_enables_l2(self, app, db, seed_tenant):
+        """Company with triage status='completed' IS eligible for L2."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Complete L1
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            # Record triage as completed (passed)
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="completed",
+            )
+
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 1
+            assert ids[0] == str(company.id)
+
+    def test_triage_sets_company_status_disqualified(self, app, db, seed_tenant):
+        """When triage fails, company status is set to triage_disqualified."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, b2b=False)
+
+            _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            from sqlalchemy import text as sa_text
+            row = db.session.execute(sa_text(
+                "SELECT status FROM companies WHERE id = :id"
+            ), {"id": str(company.id)}).fetchone()
+            assert row[0] == "triage_disqualified"
+
+
+# ---------------------------------------------------------------------------
 # Old endpoints still work
 # ---------------------------------------------------------------------------
 

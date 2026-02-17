@@ -27,7 +27,7 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "registry"}
+DIRECT_STAGES = {"l1", "registry", "triage"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 # Legacy aliases for backward compat with old API calls
@@ -346,7 +346,90 @@ def _process_registry_unified(company_id, tenant_id):
     return result
 
 
-def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
+def _process_triage(company_id, tenant_id, triage_rules=None):
+    """Run triage evaluation on a company using L1 enrichment data.
+
+    Reads company fields + L1 raw_response to build the evaluation context,
+    then calls evaluate_triage(). Updates company status on disqualification.
+
+    Returns:
+        dict with gate_passed, gate_reasons, enrichment_cost_usd
+    """
+    import json as _json
+    from .triage_evaluator import evaluate_triage, DEFAULT_RULES
+
+    row = db.session.execute(
+        text("""
+            SELECT c.tier, c.industry, c.geo_region,
+                   c.verified_revenue_eur_m, c.verified_employees,
+                   el.qc_flags, el.raw_response
+            FROM companies c
+            LEFT JOIN company_enrichment_l1 el ON el.company_id = c.id
+            WHERE c.id = :id
+        """),
+        {"id": str(company_id)},
+    ).fetchone()
+
+    if not row:
+        return {"gate_passed": False, "gate_reasons": ["company_not_found"],
+                "enrichment_cost_usd": 0}
+
+    tier, industry, geo_region, revenue, employees, qc_flags_raw, raw_resp = row
+
+    # Parse QC flags
+    qc_flags = []
+    if qc_flags_raw:
+        try:
+            qc_flags = _json.loads(qc_flags_raw) if isinstance(qc_flags_raw, str) else (qc_flags_raw or [])
+        except (ValueError, TypeError):
+            qc_flags = []
+
+    # Parse B2B from raw response
+    is_b2b = None
+    if raw_resp:
+        try:
+            resp_data = _json.loads(raw_resp) if isinstance(raw_resp, str) else (raw_resp or {})
+            is_b2b = resp_data.get("b2b")
+        except (ValueError, TypeError):
+            pass
+
+    company_data = {
+        "tier": tier,
+        "industry": industry,
+        "geo_region": geo_region,
+        "revenue_eur_m": float(revenue) if revenue else None,
+        "employees": int(employees) if employees else None,
+        "is_b2b": is_b2b,
+        "qc_flags": qc_flags,
+    }
+
+    rules = triage_rules or DEFAULT_RULES
+    result = evaluate_triage(company_data, rules)
+
+    # Update company status based on triage result
+    if result["passed"]:
+        db.session.execute(
+            text("UPDATE companies SET status = 'triage_passed' WHERE id = :id"),
+            {"id": str(company_id)},
+        )
+    else:
+        reasons_str = "; ".join(result["reasons"])[:500]
+        db.session.execute(
+            text("""UPDATE companies SET status = 'triage_disqualified',
+                    triage_notes = :notes WHERE id = :id"""),
+            {"id": str(company_id), "notes": reasons_str},
+        )
+    db.session.commit()
+
+    return {
+        "gate_passed": result["passed"],
+        "gate_reasons": result["reasons"],
+        "enrichment_cost_usd": 0,
+    }
+
+
+def _process_entity(stage, entity_id, tenant_id=None, previous_data=None,
+                    triage_rules=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     # Resolve legacy stage names
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
@@ -357,6 +440,8 @@ def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
             return enrich_l1(entity_id, tenant_id, previous_data=previous_data)
         if stage == "registry":
             return _process_registry_unified(entity_id, tenant_id)
+        if stage == "triage":
+            return _process_triage(entity_id, tenant_id, triage_rules)
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
     payload = {_data_key_for_stage(stage): entity_id}
