@@ -73,6 +73,7 @@ export function DagEdges({
     const newEdges: Edge[] = []
 
     for (const stage of STAGES) {
+      if (!stage.operational) continue
       if (!enabledStages[stage.code]) continue
 
       const toEl = cardRefs[stage.code]

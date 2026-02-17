@@ -7,14 +7,13 @@ from sqlalchemy import text
 
 from ..auth import require_auth, resolve_tenant
 from ..models import PipelineRun, StageRun, db
+from ..services.dag_executor import count_eligible_for_estimate
 from ..services.pipeline_engine import (
-    AVAILABLE_STAGES,
     _LEGACY_STAGE_ALIASES,
+    _process_entity,
     count_eligible,
     start_pipeline_threads,
-    _process_entity,
 )
-from ..services.dag_executor import count_eligible_for_estimate
 from ..services.stage_registry import get_stage_labels
 
 enrich_bp = Blueprint("enrich", __name__)
@@ -290,7 +289,6 @@ def enrich_review():
         return jsonify({"error": "Tenant not found"}), 404
 
     batch_name = request.args.get("batch_name", "")
-    stage = request.args.get("stage", "l1")
 
     if not batch_name:
         return jsonify({"error": "batch_name is required"}), 400
@@ -331,6 +329,64 @@ def enrich_review():
         })
 
     return jsonify({"items": items, "total": len(items)})
+
+
+@enrich_bp.route("/api/enrich/stage-health", methods=["GET"])
+@require_auth
+def stage_health():
+    """Per-stage counts of failed and needs_review entities for the current batch."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    batch_name = request.args.get("batch_name", "")
+    if not batch_name:
+        return jsonify({"error": "batch_name is required"}), 400
+
+    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    if err:
+        return err
+
+    # Failed: most recent entity_stage_completion per entity+stage where status='failed'
+    failed_rows = db.session.execute(
+        text("""
+            SELECT esc.stage, COUNT(DISTINCT esc.entity_id) AS cnt
+            FROM entity_stage_completions esc
+            JOIN companies c ON c.id = esc.entity_id AND c.tenant_id = :t
+            WHERE esc.tenant_id = :t AND c.batch_id = :b AND esc.status = 'failed'
+              AND NOT EXISTS (
+                  SELECT 1 FROM entity_stage_completions esc2
+                  WHERE esc2.entity_id = esc.entity_id AND esc2.stage = esc.stage
+                    AND esc2.completed_at > esc.completed_at AND esc2.status != 'failed'
+              )
+            GROUP BY esc.stage
+        """),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchall()
+
+    # Needs review: companies with status in ('needs_review', 'enrichment_failed')
+    review_count_row = db.session.execute(
+        text("""
+            SELECT COUNT(*) FROM companies
+            WHERE tenant_id = :t AND batch_id = :b
+              AND status IN ('needs_review', 'enrichment_failed')
+        """),
+        {"t": str(tenant_id), "b": str(batch_id)},
+    ).fetchone()
+
+    stages: dict = {}
+    for row in failed_rows:
+        stage_code = row[0]
+        stages[stage_code] = {"failed": row[1], "needs_review": 0}
+
+    # Assign review count to l1 (primary triage stage)
+    review_count = review_count_row[0] if review_count_row else 0
+    if review_count > 0:
+        if "l1" not in stages:
+            stages["l1"] = {"failed": 0, "needs_review": 0}
+        stages["l1"]["needs_review"] = review_count
+
+    return jsonify({"stages": stages})
 
 
 @enrich_bp.route("/api/enrich/resolve", methods=["POST"])

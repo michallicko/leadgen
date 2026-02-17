@@ -17,6 +17,8 @@ export interface StageDef {
   fields: string[]
   row: number
   available: boolean
+  /** Whether this stage has a working enricher/webhook implementation */
+  operational: boolean
   isTerminal?: boolean
   countryGate?: { countries: string[]; tlds: string[] }
 }
@@ -44,6 +46,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Industry', 'Business Model', 'Revenue', 'Employees', 'Summary', 'Triage Score'],
     row: 0,
     available: true,
+    operational: true,
   },
   // Row 1 — Company Intelligence
   {
@@ -60,6 +63,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Company Intel', 'News', 'AI Opportunities', 'Tech Stack', 'Pain Hypothesis'],
     row: 1,
     available: true,
+    operational: true,
   },
   {
     code: 'signals',
@@ -75,6 +79,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Funding', 'M&A Activity', 'Hiring Patterns', 'Growth Indicators'],
     row: 1,
     available: true,
+    operational: false,
   },
   {
     code: 'registry',
@@ -90,6 +95,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Official Name', 'Legal Form', 'Registration Status', 'Credibility Score', 'Insolvency'],
     row: 1,
     available: true,
+    operational: true,
     countryGate: {
       countries: ['CZ', 'Czech Republic', 'Czechia', 'NO', 'Norway', 'Norge', 'FI', 'Finland', 'Suomi', 'FR', 'France'],
       tlds: ['.cz', '.no', '.fi', '.fr'],
@@ -109,6 +115,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Media Mentions', 'Press Releases', 'Sentiment', 'Thought Leadership'],
     row: 1,
     available: true,
+    operational: false,
   },
   // Row 2 — Contact Intelligence
   {
@@ -116,7 +123,7 @@ const STAGE_DEFS: StageDef[] = [
     displayName: 'Role & Employment',
     entityType: 'contact',
     hardDeps: ['l1'],
-    softDeps: ['l2', 'signals'],
+    softDeps: ['l2'],
     costDefault: 0.04,
     icon: 'RE',
     color: '#9b5de5',
@@ -125,6 +132,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Current Title', 'Reporting Structure', 'Tenure', 'Employment Status'],
     row: 2,
     available: true,
+    operational: true,
   },
   {
     code: 'social',
@@ -140,6 +148,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['LinkedIn Profile', 'Twitter/X', 'Speaking Engagements', 'Publications'],
     row: 2,
     available: true,
+    operational: false,
   },
   {
     code: 'career',
@@ -155,6 +164,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Previous Roles', 'Career Trajectory', 'Industry Experience'],
     row: 2,
     available: true,
+    operational: false,
   },
   {
     code: 'contact_details',
@@ -170,6 +180,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Email Status', 'Phone', 'Alternative Contacts'],
     row: 2,
     available: true,
+    operational: false,
   },
   // Row 3 — Validation
   {
@@ -186,6 +197,7 @@ const STAGE_DEFS: StageDef[] = [
     fields: ['Quality Flags', 'Data Completeness'],
     row: 3,
     available: true,
+    operational: false,
     isTerminal: true,
   },
 ]
@@ -223,10 +235,10 @@ export const STAGE_ANCESTORS: Record<string, string[]> = (() => {
   return result
 })()
 
-/** Get stages grouped by row */
+/** Get stages grouped by row — only operational stages */
 export function getStagesByRow(): { label: string; stages: StageDef[] }[] {
   return ROW_LABELS.map((label, idx) => ({
     label,
-    stages: STAGE_DEFS.filter((s) => s.row === idx),
+    stages: STAGE_DEFS.filter((s) => s.row === idx && s.operational),
   }))
 }

@@ -3,17 +3,19 @@
  * Replaces the vanilla dashboard/enrich.html with a React implementation.
  */
 
-import { useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { FilterBar } from '../../components/ui/FilterBar'
 import { useEnrichState } from './useEnrichState'
 import { useEnrichEstimate } from './useEnrichEstimate'
 import { useEnrichPipeline } from './useEnrichPipeline'
+import { useStageHealth } from './useStageHealth'
 import { STAGE_MAP } from './stageConfig'
 import { DagVisualization } from './DagVisualization'
 import { DagEdges } from './DagEdges'
 import { DagControls } from './DagControls'
 import { CompletionPanel } from './CompletionPanel'
 import { StageCard } from './StageCard'
+import { CorrectiveActionModal } from './CorrectiveActionModal'
 
 export function EnrichPage() {
   const state = useEnrichState()
@@ -42,6 +44,14 @@ export function EnrichPage() {
     softDepsPayload,
     reEnrichPayload,
   )
+
+  const stageHealth = useStageHealth(filters.batch)
+
+  // Corrective action modal state
+  const [correctiveModal, setCorrectiveModal] = useState<{
+    stageCode: string
+    stageName: string
+  } | null>(null)
 
   // Card refs for edge drawing
   const containerRef = useRef<HTMLDivElement>(null)
@@ -124,12 +134,16 @@ export function EnrichPage() {
                 const stageDef = STAGE_MAP[stageCode]
                 if (!stageDef) return null
 
-                // Build soft dep info
-                const softDeps = stageDef.softDeps.map((depCode) => ({
-                  code: depCode,
-                  name: STAGE_MAP[depCode]?.displayName ?? depCode,
-                  active: softDepsConfig[`${stageCode}:${depCode}`] !== false,
-                }))
+                // Build soft dep info (only for operational soft deps)
+                const softDeps = stageDef.softDeps
+                  .filter((depCode) => STAGE_MAP[depCode]?.operational)
+                  .map((depCode) => ({
+                    code: depCode,
+                    name: STAGE_MAP[depCode]?.displayName ?? depCode,
+                    active: softDepsConfig[`${stageCode}:${depCode}`] !== false,
+                  }))
+
+                const health = stageHealth.data?.stages?.[stageCode]
 
                 return (
                   <div key={stageCode} ref={setCardRef(stageCode)}>
@@ -145,6 +159,12 @@ export function EnrichPage() {
                       reEnrich={reEnrichConfig[stageCode] ?? { enabled: false, horizon: null }}
                       onReEnrichToggle={(v) => toggleReEnrich(stageCode, v)}
                       onFreshnessChange={(h) => setFreshness(stageCode, h)}
+                      failedCount={health?.failed ?? 0}
+                      reviewCount={health?.needs_review ?? 0}
+                      onHealthClick={() => setCorrectiveModal({
+                        stageCode,
+                        stageName: stageDef.displayName,
+                      })}
                     />
                   </div>
                 )
@@ -161,6 +181,17 @@ export function EnrichPage() {
             />
           )}
         </>
+      )}
+
+      {/* Corrective action modal */}
+      {correctiveModal && (
+        <CorrectiveActionModal
+          isOpen={true}
+          onClose={() => setCorrectiveModal(null)}
+          batchName={filters.batch}
+          stageCode={correctiveModal.stageCode}
+          stageName={correctiveModal.stageName}
+        />
       )}
     </div>
   )

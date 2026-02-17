@@ -19,6 +19,9 @@ interface StageCardProps {
   reEnrich: ReEnrichConfig
   onReEnrichToggle: (enabled: boolean) => void
   onFreshnessChange: (horizon: string | null) => void
+  failedCount?: number
+  reviewCount?: number
+  onHealthClick?: () => void
 }
 
 const HORIZON_PRESETS = [
@@ -52,6 +55,9 @@ export function StageCard({
   reEnrich,
   onReEnrichToggle,
   onFreshnessChange,
+  failedCount = 0,
+  reviewCount = 0,
+  onHealthClick,
 }: StageCardProps) {
   const isRunning = mode === 'running'
   const isCompleted = mode === 'completed'
@@ -95,19 +101,19 @@ export function StageCard({
 
   return (
     <div
-      className={`rounded-lg border bg-surface p-4 transition-all duration-200 w-[280px] flex-shrink-0 ${statusClass}`}
+      className={`rounded-lg border bg-surface p-4 transition-all duration-200 w-[350px] flex-shrink-0 ${statusClass}`}
       style={{ borderColor: enabled && mode === 'configure' ? stage.color : undefined }}
     >
       {/* Header: icon + name + toggle/status */}
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2.5">
           <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded text-[0.65rem] font-bold text-white"
+            className="inline-flex items-center justify-center w-8 h-8 rounded text-[0.7rem] font-bold text-white"
             style={{ backgroundColor: stage.color }}
           >
             {stage.icon}
           </span>
-          <span className="text-sm font-semibold text-text">{stage.displayName}</span>
+          <span className="text-base font-semibold text-text">{stage.displayName}</span>
         </div>
 
         {mode === 'configure' ? (
@@ -129,34 +135,59 @@ export function StageCard({
       {mode === 'configure' && (
         <>
           {/* Description */}
-          <p className="text-xs text-text-muted italic mb-2 leading-relaxed">
+          <p className="text-sm text-text-muted italic mb-2 leading-relaxed">
             {stage.description}
           </p>
 
+          {/* Health badges (failed/review counts) */}
+          {enabled && (failedCount > 0 || reviewCount > 0) && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {failedCount > 0 && (
+                <button
+                  onClick={onHealthClick}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border border-error/30 bg-error/10 text-error hover:bg-error/20 transition-colors"
+                >
+                  {failedCount} failed
+                </button>
+              )}
+              {reviewCount > 0 && (
+                <button
+                  onClick={onHealthClick}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border border-warning/30 bg-warning/10 text-warning hover:bg-warning/20 transition-colors"
+                >
+                  {reviewCount} review
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Stats line */}
           {enabled && estimate && (
-            <p className="text-xs text-text-muted mb-2">
+            <p className="text-sm text-text-muted mb-2">
               <span className="font-medium text-text">{estimate.eligible_count}</span> eligible
               <span className="mx-1">&middot;</span>
               {fmtCost(estimate.cost_per_item)}/item
             </p>
           )}
 
-          {/* Re-enrich toggle */}
+          {/* Re-enrich toggle (slider instead of checkbox) */}
           {enabled && (
             <div className="mb-2">
-              <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reEnrich.enabled}
-                  onChange={(e) => onReEnrichToggle(e.target.checked)}
-                  className="rounded border-border-solid text-accent focus:ring-accent/30 w-3.5 h-3.5"
-                />
+              <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={reEnrich.enabled}
+                    onChange={(e) => onReEnrichToggle(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-7 h-[16px] bg-border-solid rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[12px] after:w-[12px] after:transition-all peer-checked:after:translate-x-[12px]" />
+                </div>
                 Re-enrich outdated
               </label>
 
               {reEnrich.enabled && (
-                <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5 ml-9">
                   {HORIZON_PRESETS.map((p) => {
                     const iso = horizonToDate(p.days)
                     const isActive = reEnrich.horizon === iso
@@ -164,7 +195,7 @@ export function StageCard({
                       <button
                         key={p.label}
                         onClick={() => onFreshnessChange(isActive ? null : iso)}
-                        className={`px-2 py-0.5 text-[0.65rem] rounded border transition-colors ${
+                        className={`px-2 py-0.5 text-xs rounded border transition-colors ${
                           isActive
                             ? 'border-accent bg-accent/10 text-accent'
                             : 'border-border text-text-muted hover:border-accent/40'
@@ -174,6 +205,15 @@ export function StageCard({
                       </button>
                     )
                   })}
+                  <input
+                    type="date"
+                    className="px-1.5 py-0.5 text-xs rounded border border-border bg-surface text-text-muted focus:border-accent/40 focus:outline-none"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onFreshnessChange(new Date(e.target.value).toISOString())
+                      }
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -185,7 +225,7 @@ export function StageCard({
               {stage.fields.map((f) => (
                 <span
                   key={f}
-                  className="px-1.5 py-0.5 text-[0.6rem] rounded bg-surface-alt text-text-muted border border-border"
+                  className="px-1.5 py-0.5 text-[0.65rem] rounded bg-surface-alt text-text-muted border border-border"
                 >
                   {f}
                 </span>
@@ -200,7 +240,7 @@ export function StageCard({
                 <button
                   key={dep.code}
                   onClick={() => onSoftDepToggle(dep.code, !dep.active)}
-                  className={`flex items-center gap-1 px-2 py-0.5 text-[0.6rem] rounded-full border transition-colors ${
+                  className={`flex items-center gap-1 px-2 py-0.5 text-[0.65rem] rounded-full border transition-colors ${
                     dep.active
                       ? 'border-accent/30 bg-accent/5 text-accent'
                       : 'border-border text-text-dim line-through'
@@ -215,7 +255,7 @@ export function StageCard({
 
           {/* Country gate indicator */}
           {stage.countryGate && enabled && (
-            <p className="text-[0.6rem] text-text-dim mt-1.5 italic">
+            <p className="text-[0.65rem] text-text-dim mt-1.5 italic">
               Limited to: {stage.countryGate.tlds.join(', ')}
             </p>
           )}
@@ -238,7 +278,7 @@ export function StageCard({
           </div>
 
           {/* Counts */}
-          <div className="flex items-center justify-between text-xs text-text-muted">
+          <div className="flex items-center justify-between text-sm text-text-muted">
             <span>
               {progress.done}/{progress.total}
               {progress.failed > 0 && (
@@ -250,7 +290,7 @@ export function StageCard({
 
           {/* Current item */}
           {progress.current_item && progress.status === 'running' && (
-            <p className="text-[0.6rem] text-text-dim mt-1 truncate">
+            <p className="text-[0.65rem] text-text-dim mt-1 truncate">
               {progress.current_item.name}
             </p>
           )}
