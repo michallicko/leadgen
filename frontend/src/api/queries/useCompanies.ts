@@ -40,6 +40,18 @@ export interface CompanyTag {
   value: string
 }
 
+export interface CompanyEnrichmentL1 {
+  triage_notes: string | null
+  pre_score: number | null
+  research_query: string | null
+  raw_response: Record<string, unknown> | null
+  confidence: number | null
+  quality_score: number | null
+  qc_flags: string[] | null
+  enriched_at: string | null
+  enrichment_cost_usd: number | null
+}
+
 export interface CompanyDetail {
   id: string
   name: string
@@ -78,6 +90,12 @@ export interface CompanyDetail {
   owner_name: string | null
   tag_name: string | null
   ico: string | null
+  website_url: string | null
+  linkedin_url: string | null
+  logo_url: string | null
+  last_enriched_at: string | null
+  data_quality_score: number | null
+  enrichment_l1: CompanyEnrichmentL1 | null
   enrichment_l2: Record<string, unknown> | null
   registry_data: Record<string, unknown> | null
   tags: CompanyTag[]

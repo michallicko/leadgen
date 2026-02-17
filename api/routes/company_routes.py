@@ -188,7 +188,9 @@ def get_company(company_id):
                 c.lemlist_synced, c.error_message, c.notes, c.custom_fields,
                 c.created_at, c.updated_at,
                 o.name AS owner_name, b.name AS tag_name,
-                c.ico
+                c.ico,
+                c.website_url, c.linkedin_url, c.logo_url,
+                c.last_enriched_at, c.data_quality_score
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
             LEFT JOIN tags b ON c.tag_id = b.id
@@ -238,6 +240,11 @@ def get_company(company_id):
         "owner_name": row[34],
         "tag_name": row[35],
         "ico": row[36],
+        "website_url": row[37],
+        "linkedin_url": row[38],
+        "logo_url": row[39],
+        "last_enriched_at": _iso(row[40]),
+        "data_quality_score": float(row[41]) if row[41] is not None else None,
     }
 
     # L1 enrichment

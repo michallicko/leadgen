@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': `http://localhost:${process.env.VITE_API_PORT ?? '5001'}`,
-      '/webhook': 'https://n8n.visionvolve.com',
+      '/webhook': process.env.VITE_WEBHOOK_URL || 'https://n8n.visionvolve.com',
     },
   },
 })
