@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 
-export type EntityType = 'company' | 'contact'
+export type EntityType = 'company' | 'contact' | 'campaign'
 
 export interface EntityRef {
   type: EntityType

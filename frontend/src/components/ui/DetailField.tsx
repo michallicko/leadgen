@@ -187,10 +187,12 @@ interface MiniTableProps<T> {
   columns: MiniTableColumn<T>[]
   data: T[]
   onRowClick?: (item: T) => void
+  onRowAction?: (item: T) => void
+  actionLabel?: string
   emptyText?: string
 }
 
-export function MiniTable<T extends Record<string, unknown>>({ columns, data, onRowClick, emptyText = 'None' }: MiniTableProps<T>) {
+export function MiniTable<T extends object>({ columns, data, onRowClick, onRowAction, actionLabel, emptyText = 'None' }: MiniTableProps<T>) {
   if (data.length === 0) {
     return <p className="text-sm text-text-dim italic">{emptyText}</p>
   }
@@ -203,6 +205,9 @@ export function MiniTable<T extends Record<string, unknown>>({ columns, data, on
             {columns.map((col) => (
               <th key={col.key} className="text-left text-xs text-text-muted font-medium py-2 px-2">{col.label}</th>
             ))}
+            {onRowAction && (
+              <th className="text-right text-xs text-text-muted font-medium py-2 px-2">{actionLabel || ''}</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -214,9 +219,19 @@ export function MiniTable<T extends Record<string, unknown>>({ columns, data, on
             >
               {columns.map((col) => (
                 <td key={col.key} className="py-1.5 px-2 text-text">
-                  {col.render ? col.render(row) : (row[col.key] as ReactNode) ?? '-'}
+                  {col.render ? col.render(row) : ((row as Record<string, unknown>)[col.key] as ReactNode) ?? '-'}
                 </td>
               ))}
+              {onRowAction && (
+                <td className="py-1.5 px-2 text-right">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRowAction(row) }}
+                    className="text-xs text-text-muted hover:text-error cursor-pointer bg-transparent border-none transition-colors"
+                  >
+                    {actionLabel || 'Action'}
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
