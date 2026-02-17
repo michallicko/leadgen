@@ -50,7 +50,7 @@ def list_contacts():
     page = max(1, request.args.get("page", 1, type=int))
     page_size = min(100, max(1, request.args.get("page_size", 25, type=int)))
     search = request.args.get("search", "").strip()
-    batch_name = request.args.get("batch_name", "").strip()
+    tag_name = request.args.get("tag_name", "").strip()
     owner_name = request.args.get("owner_name", "").strip()
     icp_fit = request.args.get("icp_fit", "").strip()
     message_status = request.args.get("message_status", "").strip()
@@ -73,9 +73,9 @@ def list_contacts():
             " OR LOWER(ct.job_title) LIKE LOWER(:search))"
         )
         params["search"] = f"%{search}%"
-    if batch_name:
-        where.append("b.name = :batch_name")
-        params["batch_name"] = batch_name
+    if tag_name:
+        where.append("b.name = :tag_name")
+        params["tag_name"] = tag_name
     if owner_name:
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
@@ -111,7 +111,7 @@ def list_contacts():
         db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
-            LEFT JOIN batches b ON ct.batch_id = b.id
+            LEFT JOIN tags b ON ct.tag_id = b.id
             LEFT JOIN owners o ON ct.owner_id = o.id
             WHERE {where_clause}
         """),
@@ -130,10 +130,10 @@ def list_contacts():
                 co.id AS company_id, co.name AS company_name,
                 ct.email_address, ct.contact_score, ct.icp_fit,
                 ct.message_status,
-                o.name AS owner_name, b.name AS batch_name
+                o.name AS owner_name, b.name AS tag_name
             FROM contacts ct
             LEFT JOIN companies co ON ct.company_id = co.id
-            LEFT JOIN batches b ON ct.batch_id = b.id
+            LEFT JOIN tags b ON ct.tag_id = b.id
             LEFT JOIN owners o ON ct.owner_id = o.id
             WHERE {where_clause}
             ORDER BY {order}
@@ -160,7 +160,7 @@ def list_contacts():
             "icp_fit": display_icp_fit(r[8]),
             "message_status": r[9],
             "owner_name": r[10],
-            "batch_name": r[11],
+            "tag_name": r[11],
         })
 
     return jsonify({
@@ -199,11 +199,11 @@ def get_contact(contact_id):
                 co.id AS company_id, co.name AS company_name,
                 co.domain AS company_domain, co.status AS company_status,
                 co.tier AS company_tier,
-                o.name AS owner_name, b.name AS batch_name
+                o.name AS owner_name, b.name AS tag_name
             FROM contacts ct
             LEFT JOIN companies co ON ct.company_id = co.id
             LEFT JOIN owners o ON ct.owner_id = o.id
-            LEFT JOIN batches b ON ct.batch_id = b.id
+            LEFT JOIN tags b ON ct.tag_id = b.id
             WHERE ct.id = :id AND ct.tenant_id = :tenant_id
         """),
         {"id": contact_id, "tenant_id": tenant_id},
@@ -256,14 +256,19 @@ def get_contact(contact_id):
             "tier": display_tier(row[36]),
         } if row[32] else None,
         "owner_name": row[37],
-        "batch_name": row[38],
+        "tag_name": row[38],
     }
 
     # Contact enrichment
     enrich_row = db.session.execute(
         db.text("""
             SELECT person_summary, linkedin_profile_summary,
-                   relationship_synthesis, enriched_at, enrichment_cost_usd
+                   relationship_synthesis,
+                   ai_champion, ai_champion_score, authority_score,
+                   career_trajectory, previous_companies,
+                   speaking_engagements, publications,
+                   twitter_handle, github_username,
+                   enriched_at, enrichment_cost_usd
             FROM contact_enrichment
             WHERE contact_id = :id
         """),
@@ -275,8 +280,17 @@ def get_contact(contact_id):
             "person_summary": enrich_row[0],
             "linkedin_profile_summary": enrich_row[1],
             "relationship_synthesis": enrich_row[2],
-            "enriched_at": _iso(enrich_row[3]),
-            "enrichment_cost_usd": float(enrich_row[4]) if enrich_row[4] is not None else None,
+            "ai_champion": enrich_row[3],
+            "ai_champion_score": enrich_row[4],
+            "authority_score": enrich_row[5],
+            "career_trajectory": enrich_row[6],
+            "previous_companies": _parse_jsonb(enrich_row[7]),
+            "speaking_engagements": enrich_row[8],
+            "publications": enrich_row[9],
+            "twitter_handle": enrich_row[10],
+            "github_username": enrich_row[11],
+            "enriched_at": _iso(enrich_row[12]),
+            "enrichment_cost_usd": float(enrich_row[13]) if enrich_row[13] is not None else None,
         }
     else:
         contact["enrichment"] = None

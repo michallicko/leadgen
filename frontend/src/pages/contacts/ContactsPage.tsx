@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { useContacts, useContact, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
 import { useCompany } from '../../api/queries/useCompanies'
-import { useBatches } from '../../api/queries/useBatches'
+import { useTags } from '../../api/queries/useTags'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useEntityStack } from '../../hooks/useEntityStack'
 import { DataTable, type Column } from '../../components/ui/DataTable'
@@ -23,24 +23,24 @@ export function ContactsPage() {
   const stack = useEntityStack('contact')
 
   const [search, setSearch] = useLocalStorage('ct_filter_search', '')
-  const [batchName, setBatchName] = useLocalStorage('ct_filter_batch', '')
+  const [tagName, setTagName] = useLocalStorage('ct_filter_tag', '')
   const [ownerName, setOwnerName] = useLocalStorage('ct_filter_owner', '')
   const [icpFit, setIcpFit] = useLocalStorage('ct_filter_icp', '')
   const [msgStatus, setMsgStatus] = useLocalStorage('ct_filter_msg_status', '')
   const [sortField, setSortField] = useLocalStorage('ct_sort_field', 'last_name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('ct_sort_dir', 'asc')
 
-  const { data: batchesData } = useBatches()
+  const { data: tagsData } = useTags()
 
   const filters: ContactFilters = useMemo(() => ({
     search,
-    batch_name: batchName,
+    tag_name: tagName,
     owner_name: ownerName,
     icp_fit: icpFit,
     message_status: msgStatus,
     sort: sortField,
     sort_dir: sortDir,
-  }), [search, batchName, ownerName, icpFit, msgStatus, sortField, sortDir])
+  }), [search, tagName, ownerName, icpFit, msgStatus, sortField, sortDir])
 
   const {
     data,
@@ -69,12 +69,12 @@ export function ContactsPage() {
   const handleFilterChange = useCallback((key: string, value: string) => {
     switch (key) {
       case 'search': setSearch(value); break
-      case 'batch_name': setBatchName(value); break
+      case 'tag_name': setTagName(value); break
       case 'owner_name': setOwnerName(value); break
       case 'icp_fit': setIcpFit(value); break
       case 'message_status': setMsgStatus(value); break
     }
-  }, [setSearch, setBatchName, setOwnerName, setIcpFit, setMsgStatus])
+  }, [setSearch, setTagName, setOwnerName, setIcpFit, setMsgStatus])
 
   const handleSort = useCallback((field: string, dir: 'asc' | 'desc') => {
     setSortField(field)
@@ -83,11 +83,11 @@ export function ContactsPage() {
 
   const filterConfigs: FilterConfig[] = useMemo(() => [
     { key: 'search', label: 'contacts', type: 'search' as const, placeholder: 'Search name, email, title...' },
-    { key: 'batch_name', label: 'Batch', type: 'select' as const, options: (batchesData?.batches ?? []).map((b) => ({ value: b.name, label: b.name })) },
-    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (batchesData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
+    { key: 'tag_name', label: 'Tag', type: 'select' as const, options: (tagsData?.tags ?? []).map((b) => ({ value: b.name, label: b.name })) },
+    { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
     { key: 'icp_fit', label: 'ICP Fit', type: 'select' as const, options: filterOptions(ICP_FIT_DISPLAY) },
     { key: 'message_status', label: 'Msg Status', type: 'select' as const, options: filterOptions(MESSAGE_STATUS_DISPLAY) },
-  ], [batchesData])
+  ], [tagsData])
 
   const columns: Column<ContactListItem>[] = useMemo(() => [
     { key: 'full_name', label: 'Name', sortKey: 'last_name', minWidth: '130px' },
@@ -100,14 +100,14 @@ export function ContactsPage() {
     { key: 'icp_fit', label: 'ICP Fit', sortKey: 'icp_fit', minWidth: '100px', shrink: false, render: (c) => <Badge variant="icp" value={c.icp_fit} /> },
     { key: 'message_status', label: 'Msg Status', sortKey: 'message_status', minWidth: '100px', shrink: false, render: (c) => <Badge variant="msgStatus" value={c.message_status} /> },
     { key: 'owner_name', label: 'Owner', minWidth: '70px' },
-    { key: 'batch_name', label: 'Batch', minWidth: '70px' },
+    { key: 'tag_name', label: 'Tag', minWidth: '70px' },
   ], [])
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
-        values={{ search, batch_name: batchName, owner_name: ownerName, icp_fit: icpFit, message_status: msgStatus }}
+        values={{ search, tag_name: tagName, owner_name: ownerName, icp_fit: icpFit, message_status: msgStatus }}
         onChange={handleFilterChange}
         total={total}
       />

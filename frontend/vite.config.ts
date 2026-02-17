@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'https://leadgen.visionvolve.com',
-      '/webhook': 'https://leadgen.visionvolve.com',
+      '/api': `http://localhost:${process.env.VITE_API_PORT ?? '5001'}`,
+      '/webhook': 'https://n8n.visionvolve.com',
     },
   },
 })

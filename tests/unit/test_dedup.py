@@ -1,7 +1,7 @@
 """Unit tests for dedup service."""
 import pytest
 
-from api.models import Batch, Company, Contact, Owner, db
+from api.models import Tag, Company, Contact, Owner, db
 from api.services.dedup import (
     COMPANY_UPDATABLE_FIELDS,
     CONTACT_UPDATABLE_FIELDS,
@@ -186,7 +186,7 @@ class TestDedupPreview:
 
 
 class TestExecuteImport:
-    def _make_job(self, db, tenant_id, user_id, batch_id):
+    def _make_job(self, db, tenant_id, user_id, tag_id):
         from api.models import ImportJob
         import json
         job = ImportJob(
@@ -203,34 +203,34 @@ class TestExecuteImport:
 
     def test_creates_contacts_and_companies(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         parsed = [
             {"contact": {"first_name": "New", "last_name": "Guy", "email_address": "new@newco.com"}, "company": {"name": "Brand New Co", "domain": "newco.com"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="skip",
         )
         assert result["counts"]["contacts_created"] == 1
         assert result["counts"]["companies_created"] == 1
 
     def test_skip_strategy_skips_duplicates(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         parsed = [
             {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="skip",
         )
         assert result["counts"]["contacts_skipped"] == 1
         assert result["counts"]["contacts_created"] == 0
@@ -243,18 +243,18 @@ class TestExecuteImport:
 
     def test_update_strategy_fills_fields(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         # Dave Brown (contacts[4]) has no email
         parsed = [
             {"contact": {"first_name": "Dave", "last_name": "Brown", "email_address": "dave@gamma.co"}, "company": {"name": "Gamma LLC"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="update",
         )
         assert result["counts"]["contacts_updated"] == 1
         assert data["contacts"][4].email_address == "dave@gamma.co"
@@ -267,18 +267,18 @@ class TestExecuteImport:
 
     def test_update_strategy_detects_conflicts(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         # John Doe has job_title "CEO" — import with different title
         parsed = [
             {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com", "job_title": "CRO"}, "company": {"name": "Acme Corp"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="update",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="update",
         )
         assert result["counts"]["contacts_updated"] == 1
         rows = result["dedup_rows"]
@@ -291,11 +291,11 @@ class TestExecuteImport:
 
     def test_create_new_strategy(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         initial_count = Contact.query.filter_by(tenant_id=str(data["tenant"].id)).count()
 
@@ -303,7 +303,7 @@ class TestExecuteImport:
             {"contact": {"first_name": "John", "last_name": "Doe", "email_address": "john@acme.com"}, "company": {"name": "Acme Corp"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="create_new",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="create_new",
         )
         assert result["counts"]["contacts_created"] == 1
         final_count = Contact.query.filter_by(tenant_id=str(data["tenant"].id)).count()
@@ -311,34 +311,34 @@ class TestExecuteImport:
 
     def test_links_existing_company(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         parsed = [
             {"contact": {"first_name": "Newcomer"}, "company": {"name": "Acme Corp", "domain": "acme.com"}},
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="skip",
         )
         assert result["counts"]["companies_linked"] == 1
         assert result["counts"]["companies_created"] == 0
 
     def test_skips_contacts_without_name(self, app, db, seed_companies_contacts):
         data = seed_companies_contacts
-        batch = data["batches"][0]
+        tag = data["tags"][0]
         owner = data["owners"][0]
         from api.models import User
         user = User.query.first()
-        job = self._make_job(db, data["tenant"].id, user.id, batch.id)
+        job = self._make_job(db, data["tenant"].id, user.id, tag.id)
 
         parsed = [
             {"contact": {"email_address": "noname@test.com"}, "company": {"name": "SomeCo"}}  # no first_name,
         ]
         result = execute_import(
-            str(data["tenant"].id), parsed, batch.id, owner.id, job.id, strategy="skip",
+            str(data["tenant"].id), parsed, tag.id, owner.id, job.id, strategy="skip",
         )
         assert result["counts"]["contacts_skipped"] == 1
         # Verify dedup_rows has error detail

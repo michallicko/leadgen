@@ -14,15 +14,15 @@ def _uuid():
 
 @pytest.fixture
 def seed_enrich_data(db, seed_tenant, seed_super_admin):
-    """Create batch, owner, companies, and contacts for enrich tests."""
-    from api.models import Batch, Company, Contact, Owner
+    """Create tag, owner, companies, and contacts for enrich tests."""
+    from api.models import Tag, Company, Contact, Owner
 
     owner = Owner(tenant_id=seed_tenant.id, name="Michal", is_active=True)
     db.session.add(owner)
     db.session.flush()
 
-    batch = Batch(tenant_id=seed_tenant.id, name="enrich-batch", is_active=True)
-    db.session.add(batch)
+    tag = Tag(tenant_id=seed_tenant.id, name="enrich-batch", is_active=True)
+    db.session.add(tag)
     db.session.flush()
 
     # 5 companies eligible for L1 (status=new)
@@ -32,7 +32,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
             tenant_id=seed_tenant.id,
             name=f"New Co {i}",
             domain=f"newco{i}.com",
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner.id,
             status="new",
         )
@@ -46,7 +46,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
             tenant_id=seed_tenant.id,
             name=f"Passed Co {i}",
             domain=f"passed{i}.com",
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner.id,
             status="triage_passed",
         )
@@ -58,7 +58,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="Enriched Co",
         domain="enriched.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="enriched_l2",
     )
@@ -72,7 +72,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
             tenant_id=seed_tenant.id,
             first_name=f"Person Contact {i}",
             company_id=c_enriched.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner.id,
             processed_enrich=False,
         )
@@ -85,7 +85,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
         first_name="Gen",
         last_name="Contact",
         company_id=c_enriched.id,
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         processed_enrich=True,
         message_status="not_started",
@@ -96,7 +96,7 @@ def seed_enrich_data(db, seed_tenant, seed_super_admin):
     db.session.commit()
     return {
         "tenant": seed_tenant,
-        "batch": batch,
+        "tag": tag,
         "owner": owner,
         "companies_new": companies_new,
         "companies_l2": companies_l2,
@@ -113,7 +113,7 @@ class TestEnrichEstimate:
         resp = client.post(
             "/api/enrich/estimate",
             json={
-                "batch_name": "enrich-batch",
+                "tag_name": "enrich-batch",
                 "stages": ["l1", "l2", "person"],
             },
             headers=headers,
@@ -151,7 +151,7 @@ class TestEnrichEstimate:
         resp = client.post(
             "/api/enrich/estimate",
             json={
-                "batch_name": "enrich-batch",
+                "tag_name": "enrich-batch",
                 "stages": ["l1"],
             },
             headers=headers,
@@ -169,7 +169,7 @@ class TestEnrichEstimate:
         resp = client.post(
             "/api/enrich/estimate",
             json={
-                "batch_name": "enrich-batch",
+                "tag_name": "enrich-batch",
                 "owner_name": "Michal",
                 "stages": ["l1"],
             },
@@ -189,7 +189,7 @@ class TestEnrichEstimate:
             headers=headers,
         )
         assert resp.status_code == 400
-        assert "batch_name" in resp.get_json()["error"]
+        assert "tag_name" in resp.get_json()["error"]
 
     def test_estimate_missing_stages(self, client, seed_enrich_data):
         headers = auth_header(client)
@@ -197,7 +197,7 @@ class TestEnrichEstimate:
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": "enrich-batch"},
+            json={"tag_name": "enrich-batch"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -209,7 +209,7 @@ class TestEnrichEstimate:
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": "enrich-batch", "stages": ["bogus"]},
+            json={"tag_name": "enrich-batch", "stages": ["bogus"]},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -221,7 +221,7 @@ class TestEnrichEstimate:
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": "no-such-batch", "stages": ["l1"]},
+            json={"tag_name": "no-such-batch", "stages": ["l1"]},
             headers=headers,
         )
         assert resp.status_code == 404
@@ -229,7 +229,7 @@ class TestEnrichEstimate:
     def test_estimate_unauthenticated(self, client):
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": "test", "stages": ["l1"]},
+            json={"tag_name": "test", "stages": ["l1"]},
         )
         assert resp.status_code == 401
 
@@ -242,20 +242,20 @@ class TestEnrichEstimate:
         for _ in range(5):
             db.session.execute(
                 db.text("""
-                    INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total, done, cost_usd)
+                    INSERT INTO stage_runs (id, tenant_id, tag_id, stage, status, total, done, cost_usd)
                     VALUES (:id, :t, :b, 'l1', 'completed', 10, 10, 0.50)
                 """),
                 {
                     "id": _uuid(),
                     "t": str(seed_enrich_data["tenant"].id),
-                    "b": str(seed_enrich_data["batch"].id),
+                    "b": str(seed_enrich_data["tag"].id),
                 },
             )
         db.session.commit()
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": "enrich-batch", "stages": ["l1"]},
+            json={"tag_name": "enrich-batch", "stages": ["l1"]},
             headers=headers,
         )
         assert resp.status_code == 200
@@ -272,7 +272,7 @@ class TestEnrichStart:
             resp = client.post(
                 "/api/enrich/start",
                 json={
-                    "batch_name": "enrich-batch",
+                    "tag_name": "enrich-batch",
                     "owner_name": "Michal",
                     "stages": ["l1", "l2"],
                 },
@@ -294,7 +294,7 @@ class TestEnrichStart:
             resp = client.post(
                 "/api/enrich/start",
                 json={
-                    "batch_name": "enrich-batch",
+                    "tag_name": "enrich-batch",
                     "stages": ["l1", "l2", "person", "registry"],
                 },
                 headers=headers,
@@ -313,7 +313,7 @@ class TestEnrichStart:
             resp = client.post(
                 "/api/enrich/start",
                 json={
-                    "batch_name": "enrich-batch",
+                    "tag_name": "enrich-batch",
                     "stages": ["l1"],
                     "sample_size": 10,
                 },
@@ -339,20 +339,20 @@ class TestEnrichStart:
 
         db.session.execute(
             db.text("""
-                INSERT INTO pipeline_runs (id, tenant_id, batch_id, status)
+                INSERT INTO pipeline_runs (id, tenant_id, tag_id, status)
                 VALUES (:id, :t, :b, 'running')
             """),
             {
                 "id": _uuid(),
                 "t": str(seed_enrich_data["tenant"].id),
-                "b": str(seed_enrich_data["batch"].id),
+                "b": str(seed_enrich_data["tag"].id),
             },
         )
         db.session.commit()
 
         resp = client.post(
             "/api/enrich/start",
-            json={"batch_name": "enrich-batch", "stages": ["l1"]},
+            json={"tag_name": "enrich-batch", "stages": ["l1"]},
             headers=headers,
         )
         assert resp.status_code == 409
@@ -375,7 +375,7 @@ class TestEnrichStart:
 
         resp = client.post(
             "/api/enrich/start",
-            json={"batch_name": "enrich-batch"},
+            json={"tag_name": "enrich-batch"},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -386,7 +386,7 @@ class TestEnrichStart:
 
         resp = client.post(
             "/api/enrich/start",
-            json={"batch_name": "enrich-batch", "stages": ["review"]},
+            json={"tag_name": "enrich-batch", "stages": ["review"]},
             headers=headers,
         )
         assert resp.status_code == 400
@@ -398,7 +398,7 @@ class TestEnrichStart:
 
         resp = client.post(
             "/api/enrich/start",
-            json={"batch_name": "no-such-batch", "stages": ["l1"]},
+            json={"tag_name": "no-such-batch", "stages": ["l1"]},
             headers=headers,
         )
         assert resp.status_code == 404
@@ -406,23 +406,23 @@ class TestEnrichStart:
     def test_start_unauthenticated(self, client):
         resp = client.post(
             "/api/enrich/start",
-            json={"batch_name": "test", "stages": ["l1"]},
+            json={"tag_name": "test", "stages": ["l1"]},
         )
         assert resp.status_code == 401
 
 
 @pytest.fixture
 def seed_review_data(db, seed_tenant, seed_super_admin):
-    """Create batch with companies in various review states."""
-    from api.models import Batch, Company, Owner
+    """Create tag with companies in various review states."""
+    from api.models import Tag, Company, Owner
     import json
 
     owner = Owner(tenant_id=seed_tenant.id, name="Tester", is_active=True)
     db.session.add(owner)
     db.session.flush()
 
-    batch = Batch(tenant_id=seed_tenant.id, name="review-batch", is_active=True)
-    db.session.add(batch)
+    tag = Tag(tenant_id=seed_tenant.id, name="review-batch", is_active=True)
+    db.session.add(tag)
     db.session.flush()
 
     # Company needing review (QC flags)
@@ -430,7 +430,7 @@ def seed_review_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="Flagged Co",
         domain="flagged.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="needs_review",
         error_message=json.dumps(["name_mismatch", "low_confidence"]),
@@ -443,7 +443,7 @@ def seed_review_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="Failed Co",
         domain="failed.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="enrichment_failed",
         error_message="API timeout",
@@ -456,7 +456,7 @@ def seed_review_data(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         name="OK Co",
         domain="ok.com",
-        batch_id=batch.id,
+        tag_id=tag.id,
         owner_id=owner.id,
         status="triage_passed",
     )
@@ -465,7 +465,7 @@ def seed_review_data(db, seed_tenant, seed_super_admin):
     db.session.commit()
     return {
         "tenant": seed_tenant,
-        "batch": batch,
+        "tag": tag,
         "c_review": c_review,
         "c_failed": c_failed,
         "c_ok": c_ok,
@@ -478,7 +478,7 @@ class TestEnrichReview:
         headers["X-Namespace"] = seed_review_data["tenant"].slug
 
         resp = client.get(
-            "/api/enrich/review?batch_name=review-batch&stage=l1",
+            "/api/enrich/review?tag_name=review-batch&stage=l1",
             headers=headers,
         )
         assert resp.status_code == 200
@@ -495,7 +495,7 @@ class TestEnrichReview:
         headers["X-Namespace"] = seed_review_data["tenant"].slug
 
         resp = client.get(
-            "/api/enrich/review?batch_name=review-batch",
+            "/api/enrich/review?tag_name=review-batch",
             headers=headers,
         )
         data = resp.get_json()
@@ -507,7 +507,7 @@ class TestEnrichReview:
         headers["X-Namespace"] = seed_review_data["tenant"].slug
 
         resp = client.get(
-            "/api/enrich/review?batch_name=review-batch",
+            "/api/enrich/review?tag_name=review-batch",
             headers=headers,
         )
         data = resp.get_json()
@@ -526,13 +526,13 @@ class TestEnrichReview:
         headers["X-Namespace"] = seed_review_data["tenant"].slug
 
         resp = client.get(
-            "/api/enrich/review?batch_name=no-such-batch",
+            "/api/enrich/review?tag_name=no-such-batch",
             headers=headers,
         )
         assert resp.status_code == 404
 
     def test_review_unauthenticated(self, client):
-        resp = client.get("/api/enrich/review?batch_name=test")
+        resp = client.get("/api/enrich/review?tag_name=test")
         assert resp.status_code == 401
 
 

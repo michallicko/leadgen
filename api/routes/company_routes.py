@@ -58,7 +58,7 @@ def list_companies():
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
     tier = request.args.get("tier", "").strip()
-    batch_name = request.args.get("batch_name", "").strip()
+    tag_name = request.args.get("tag_name", "").strip()
     owner_name = request.args.get("owner_name", "").strip()
     sort = request.args.get("sort", "name").strip()
     sort_dir = request.args.get("sort_dir", "asc").strip().lower()
@@ -80,9 +80,9 @@ def list_companies():
     if tier:
         where.append("c.tier = :tier")
         params["tier"] = tier
-    if batch_name:
-        where.append("b.name = :batch_name")
-        params["batch_name"] = batch_name
+    if tag_name:
+        where.append("b.name = :tag_name")
+        params["tag_name"] = tag_name
     if owner_name:
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
@@ -108,7 +108,7 @@ def list_companies():
         db.text(f"""
             SELECT COUNT(*)
             FROM companies c
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
         """),
@@ -126,12 +126,12 @@ def list_companies():
         db.text(f"""
             SELECT
                 c.id, c.name, c.domain, c.status, c.tier,
-                o.name AS owner_name, b.name AS batch_name,
+                o.name AS owner_name, b.name AS tag_name,
                 c.industry, c.hq_country, c.triage_score,
                 (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
                 c.created_at
             FROM companies c
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
             ORDER BY {order}
@@ -149,7 +149,7 @@ def list_companies():
             "status": display_status(r[3]),
             "tier": display_tier(r[4]),
             "owner_name": r[5],
-            "batch_name": r[6],
+            "tag_name": r[6],
             "industry": display_industry(r[7]),
             "hq_country": r[8],
             "triage_score": float(r[9]) if r[9] is not None else None,
@@ -187,11 +187,11 @@ def get_company(company_id):
                 c.enrichment_cost_usd, c.pre_score,
                 c.lemlist_synced, c.error_message, c.notes, c.custom_fields,
                 c.created_at, c.updated_at,
-                o.name AS owner_name, b.name AS batch_name,
+                o.name AS owner_name, b.name AS tag_name,
                 c.ico
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             WHERE c.id = :id AND c.tenant_id = :tenant_id
         """),
         {"id": company_id, "tenant_id": tenant_id},
@@ -236,58 +236,185 @@ def get_company(company_id):
         "created_at": _iso(row[32]),
         "updated_at": _iso(row[33]),
         "owner_name": row[34],
-        "batch_name": row[35],
+        "tag_name": row[35],
         "ico": row[36],
     }
 
-    # L2 enrichment
-    l2_row = db.session.execute(
+    # L1 enrichment
+    l1_row = db.session.execute(
         db.text("""
-            SELECT company_intel, recent_news, ai_opportunities,
-                   pain_hypothesis, relevant_case_study, digital_initiatives,
-                   leadership_changes, hiring_signals, key_products,
-                   customer_segments, competitors, tech_stack,
-                   funding_history, eu_grants, leadership_team,
-                   ai_hiring, tech_partnerships, certifications,
-                   quick_wins, industry_pain_points, cross_functional_pain,
-                   adoption_barriers, competitor_ai_moves,
+            SELECT triage_notes, pre_score, research_query, raw_response,
+                   confidence, quality_score, qc_flags,
                    enriched_at, enrichment_cost_usd
-            FROM company_enrichment_l2
+            FROM company_enrichment_l1
             WHERE company_id = :id
         """),
         {"id": company_id},
     ).fetchone()
 
-    if l2_row:
-        company["enrichment_l2"] = {
-            "company_intel": l2_row[0],
-            "recent_news": l2_row[1],
-            "ai_opportunities": l2_row[2],
-            "pain_hypothesis": l2_row[3],
-            "relevant_case_study": l2_row[4],
-            "digital_initiatives": l2_row[5],
-            "leadership_changes": l2_row[6],
-            "hiring_signals": l2_row[7],
-            "key_products": l2_row[8],
-            "customer_segments": l2_row[9],
-            "competitors": l2_row[10],
-            "tech_stack": l2_row[11],
-            "funding_history": l2_row[12],
-            "eu_grants": l2_row[13],
-            "leadership_team": l2_row[14],
-            "ai_hiring": l2_row[15],
-            "tech_partnerships": l2_row[16],
-            "certifications": l2_row[17],
-            "quick_wins": l2_row[18],
-            "industry_pain_points": l2_row[19],
-            "cross_functional_pain": l2_row[20],
-            "adoption_barriers": l2_row[21],
-            "competitor_ai_moves": l2_row[22],
-            "enriched_at": _iso(l2_row[23]),
-            "enrichment_cost_usd": float(l2_row[24]) if l2_row[24] is not None else None,
+    if l1_row:
+        company["enrichment_l1"] = {
+            "triage_notes": l1_row[0],
+            "pre_score": float(l1_row[1]) if l1_row[1] is not None else None,
+            "research_query": l1_row[2],
+            "raw_response": _parse_jsonb(l1_row[3]),
+            "confidence": float(l1_row[4]) if l1_row[4] is not None else None,
+            "quality_score": l1_row[5],
+            "qc_flags": _parse_jsonb(l1_row[6]),
+            "enriched_at": _iso(l1_row[7]),
+            "enrichment_cost_usd": float(l1_row[8]) if l1_row[8] is not None else None,
         }
     else:
-        company["enrichment_l2"] = None
+        company["enrichment_l1"] = None
+
+    # L2 enrichment modules
+    l2_modules = {}
+
+    # Profile
+    prof_row = db.session.execute(
+        db.text("""
+            SELECT company_intel, key_products, customer_segments, competitors,
+                   tech_stack, leadership_team, certifications,
+                   enriched_at, enrichment_cost_usd
+            FROM company_enrichment_profile
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+    if prof_row:
+        l2_modules.update({
+            "company_intel": prof_row[0],
+            "key_products": prof_row[1],
+            "customer_segments": prof_row[2],
+            "competitors": prof_row[3],
+            "tech_stack": prof_row[4],
+            "leadership_team": prof_row[5],
+            "certifications": prof_row[6],
+        })
+
+    # Signals
+    sig_row = db.session.execute(
+        db.text("""
+            SELECT digital_initiatives, leadership_changes, hiring_signals,
+                   ai_hiring, tech_partnerships, competitor_ai_moves,
+                   ai_adoption_level, news_confidence, growth_indicators,
+                   job_posting_count, hiring_departments,
+                   enriched_at, enrichment_cost_usd
+            FROM company_enrichment_signals
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+    if sig_row:
+        l2_modules.update({
+            "digital_initiatives": sig_row[0],
+            "leadership_changes": sig_row[1],
+            "hiring_signals": sig_row[2],
+            "ai_hiring": sig_row[3],
+            "tech_partnerships": sig_row[4],
+            "competitor_ai_moves": sig_row[5],
+            "ai_adoption_level": sig_row[6],
+            "news_confidence": sig_row[7],
+            "growth_indicators": sig_row[8],
+            "job_posting_count": sig_row[9],
+            "hiring_departments": _parse_jsonb(sig_row[10]),
+        })
+
+    # Market
+    mkt_row = db.session.execute(
+        db.text("""
+            SELECT recent_news, funding_history, eu_grants,
+                   media_sentiment, press_releases, thought_leadership,
+                   enriched_at, enrichment_cost_usd
+            FROM company_enrichment_market
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+    if mkt_row:
+        l2_modules.update({
+            "recent_news": mkt_row[0],
+            "funding_history": mkt_row[1],
+            "eu_grants": mkt_row[2],
+            "media_sentiment": mkt_row[3],
+            "press_releases": mkt_row[4],
+            "thought_leadership": mkt_row[5],
+        })
+
+    # Opportunity
+    opp_row = db.session.execute(
+        db.text("""
+            SELECT pain_hypothesis, relevant_case_study, ai_opportunities,
+                   quick_wins, industry_pain_points, cross_functional_pain,
+                   adoption_barriers,
+                   enriched_at, enrichment_cost_usd
+            FROM company_enrichment_opportunity
+            WHERE company_id = :id
+        """),
+        {"id": company_id},
+    ).fetchone()
+    if opp_row:
+        l2_modules.update({
+            "pain_hypothesis": opp_row[0],
+            "relevant_case_study": opp_row[1],
+            "ai_opportunities": opp_row[2],
+            "quick_wins": _parse_jsonb(opp_row[3]),
+            "industry_pain_points": opp_row[4],
+            "cross_functional_pain": opp_row[5],
+            "adoption_barriers": opp_row[6],
+        })
+
+    # Compute aggregate enriched_at / cost from available modules
+    enriched_ats = []
+    total_cost = 0.0
+    for mod_row in [prof_row, sig_row, mkt_row, opp_row]:
+        if mod_row:
+            if mod_row[-2]:  # enriched_at
+                enriched_ats.append(mod_row[-2])
+            if mod_row[-1]:  # enrichment_cost_usd
+                total_cost += float(mod_row[-1])
+
+    if l2_modules:
+        l2_modules["enriched_at"] = _iso(max(enriched_ats)) if enriched_ats else None
+        l2_modules["enrichment_cost_usd"] = total_cost if total_cost > 0 else None
+        company["enrichment_l2"] = l2_modules
+    else:
+        # Fallback: try old company_enrichment_l2 table (backward compat during migration)
+        l2_row = db.session.execute(
+            db.text("""
+                SELECT company_intel, recent_news, ai_opportunities,
+                       pain_hypothesis, relevant_case_study, digital_initiatives,
+                       leadership_changes, hiring_signals, key_products,
+                       customer_segments, competitors, tech_stack,
+                       funding_history, eu_grants, leadership_team,
+                       ai_hiring, tech_partnerships, certifications,
+                       quick_wins, industry_pain_points, cross_functional_pain,
+                       adoption_barriers, competitor_ai_moves,
+                       enriched_at, enrichment_cost_usd
+                FROM company_enrichment_l2
+                WHERE company_id = :id
+            """),
+            {"id": company_id},
+        ).fetchone()
+        if l2_row:
+            company["enrichment_l2"] = {
+                "company_intel": l2_row[0], "recent_news": l2_row[1],
+                "ai_opportunities": l2_row[2], "pain_hypothesis": l2_row[3],
+                "relevant_case_study": l2_row[4], "digital_initiatives": l2_row[5],
+                "leadership_changes": l2_row[6], "hiring_signals": l2_row[7],
+                "key_products": l2_row[8], "customer_segments": l2_row[9],
+                "competitors": l2_row[10], "tech_stack": l2_row[11],
+                "funding_history": l2_row[12], "eu_grants": l2_row[13],
+                "leadership_team": l2_row[14], "ai_hiring": l2_row[15],
+                "tech_partnerships": l2_row[16], "certifications": l2_row[17],
+                "quick_wins": l2_row[18], "industry_pain_points": l2_row[19],
+                "cross_functional_pain": l2_row[20], "adoption_barriers": l2_row[21],
+                "competitor_ai_moves": l2_row[22],
+                "enriched_at": _iso(l2_row[23]),
+                "enrichment_cost_usd": float(l2_row[24]) if l2_row[24] is not None else None,
+            }
+        else:
+            company["enrichment_l2"] = None
 
     # Legal profile (unified registry data)
     lp_row = db.session.execute(

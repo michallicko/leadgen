@@ -50,7 +50,7 @@ class TestListContacts:
     def test_filter_by_batch(self, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        resp = client.get("/api/contacts?batch_name=batch-2", headers=headers)
+        resp = client.get("/api/contacts?tag_name=batch-2", headers=headers)
         data = resp.get_json()
         assert data["total"] == 4  # Eve, Frank, Grace, Hank
 

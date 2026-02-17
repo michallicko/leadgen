@@ -241,14 +241,14 @@ def dedup_preview(tenant_id, parsed_rows):
     return results
 
 
-def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
+def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
                    import_job_id, strategy="skip"):
     """Execute the actual import of parsed rows into DB.
 
     Args:
         tenant_id: tenant UUID string
         parsed_rows: list of dicts with 'contact' and 'company' sub-dicts
-        batch_id: batch UUID string
+        tag_id: tag UUID string
         owner_id: owner UUID string or None
         import_job_id: import job UUID string
         strategy: 'skip' | 'update' | 'create_new'
@@ -316,7 +316,7 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                         tenant_id=str(tenant_id),
                         name=co_name or (co_domain or "Unknown"),
                         domain=normalize_domain(co_domain) if co_domain else None,
-                        batch_id=str(batch_id),
+                        tag_id=str(tag_id),
                         owner_id=str(owner_id) if owner_id else None,
                         status="new",
                         industry=company_data.get("industry"),
@@ -377,8 +377,8 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                     existing_ct.company_id = company_id
                 if owner_id and not existing_ct.owner_id:
                     existing_ct.owner_id = str(owner_id)
-                if not existing_ct.batch_id:
-                    existing_ct.batch_id = str(batch_id)
+                if not existing_ct.tag_id:
+                    existing_ct.tag_id = str(tag_id)
                 existing_ct.import_job_id = str(import_job_id)
                 counts["contacts_updated"] += 1
                 dedup_rows.append({
@@ -391,7 +391,7 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                 })
             elif strategy == "create_new":
                 _create_contact(
-                    tenant_id, contact_data, company_id, batch_id,
+                    tenant_id, contact_data, company_id, tag_id,
                     owner_id, import_job_id,
                 )
                 counts["contacts_created"] += 1
@@ -404,7 +404,7 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
                     })
         else:
             _create_contact(
-                tenant_id, contact_data, company_id, batch_id,
+                tenant_id, contact_data, company_id, tag_id,
                 owner_id, import_job_id,
             )
             counts["contacts_created"] += 1
@@ -423,14 +423,14 @@ def execute_import(tenant_id, parsed_rows, batch_id, owner_id,
     }
 
 
-def _create_contact(tenant_id, contact_data, company_id, batch_id,
+def _create_contact(tenant_id, contact_data, company_id, tag_id,
                     owner_id, import_job_id):
     """Create a new contact record."""
     ct = Contact(
         tenant_id=str(tenant_id),
         company_id=str(company_id) if company_id else None,
         owner_id=str(owner_id) if owner_id else None,
-        batch_id=str(batch_id),
+        tag_id=str(tag_id),
         first_name=contact_data["first_name"],
         last_name=contact_data.get("last_name", ""),
         job_title=contact_data.get("job_title"),

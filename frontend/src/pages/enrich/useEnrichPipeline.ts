@@ -29,7 +29,7 @@ interface DagStatusResponse {
 }
 
 interface DagRunConfig {
-  batch_name: string
+  tag_name: string
   owner?: string
   tier_filter?: string[]
   stages: string[]
@@ -50,11 +50,11 @@ export function useEnrichPipeline(filters: EnrichFilters) {
 
   // Poll for status
   const poll = useCallback(async () => {
-    if (!filters.batch) return
+    if (!filters.tag) return
 
     try {
       const data = await apiFetch<DagStatusResponse>('/pipeline/dag-status', {
-        params: { batch_name: filters.batch },
+        params: { tag_name: filters.tag },
       })
 
       if (!data.pipeline) return
@@ -84,12 +84,12 @@ export function useEnrichPipeline(filters: EnrichFilters) {
     } catch {
       // Silently ignore poll errors (404 = no pipeline yet)
     }
-  }, [filters.batch])
+  }, [filters.tag])
 
   // Start pipeline
   const start = useCallback(async (config: DagRunConfig) => {
     const body: Record<string, unknown> = {
-      batch_name: config.batch_name,
+      tag_name: config.tag_name,
       stages: config.stages,
     }
     if (config.owner) body.owner = config.owner
@@ -139,12 +139,12 @@ export function useEnrichPipeline(filters: EnrichFilters) {
 
   // Check for existing running pipeline on mount
   useEffect(() => {
-    if (!filters.batch) return
+    if (!filters.tag) return
 
     async function checkExisting() {
       try {
         const data = await apiFetch<DagStatusResponse>('/pipeline/dag-status', {
-          params: { batch_name: filters.batch },
+          params: { tag_name: filters.tag },
         })
         if (data.pipeline?.status === 'running') {
           setPipelineRunId(data.pipeline.run_id)
@@ -161,7 +161,7 @@ export function useEnrichPipeline(filters: EnrichFilters) {
     checkExisting()
 
     return () => clearInterval(pollTimer.current)
-  }, [filters.batch, poll])
+  }, [filters.tag, poll])
 
   return {
     dagMode,

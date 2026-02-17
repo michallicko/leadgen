@@ -39,14 +39,14 @@ STATIC_COST_DEFAULTS = {
 }
 
 
-def _resolve_batch(tenant_id, batch_name):
-    """Look up batch by name, return (batch_id, error_response)."""
+def _resolve_tag(tenant_id, tag_name):
+    """Look up tag by name, return (tag_id, error_response)."""
     row = db.session.execute(
-        text("SELECT id FROM batches WHERE tenant_id = :t AND name = :n"),
-        {"t": str(tenant_id), "n": batch_name},
+        text("SELECT id FROM tags WHERE tenant_id = :t AND name = :n"),
+        {"t": str(tenant_id), "n": tag_name},
     ).fetchone()
     if not row:
-        return None, (jsonify({"error": "Batch not found"}), 404)
+        return None, (jsonify({"error": "Tag not found"}), 404)
     return row[0], None
 
 
@@ -89,7 +89,7 @@ def enrich_estimate():
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner_name", "")
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
@@ -97,8 +97,8 @@ def enrich_estimate():
     entity_ids = body.get("entity_ids", [])
     re_enrich = body.get("re_enrich", {})
 
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
 
@@ -128,7 +128,7 @@ def enrich_estimate():
     if invalid:
         return jsonify({"error": f"Invalid stages: {', '.join(invalid)}"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
@@ -148,11 +148,11 @@ def enrich_estimate():
         # otherwise use the original count_eligible with status-based filters
         if entity_ids or re_enrich_horizon:
             eligible = count_eligible_for_estimate(
-                stage, tenant_id, batch_id, owner_id, tier_filter,
+                stage, tenant_id, tag_id, owner_id, tier_filter,
                 entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
             )
         else:
-            eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
+            eligible = count_eligible(tenant_id, tag_id, stage, owner_id, tier_filter)
         if limit is not None:
             eligible = min(eligible, limit)
         cost_per_item = _get_cost_per_item(tenant_id, stage)
@@ -179,14 +179,14 @@ def enrich_start():
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", "")
+    tag_name = body.get("tag_name", "")
     owner_name = body.get("owner_name", "")
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
     sample_size = body.get("sample_size")
 
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
 
@@ -199,24 +199,24 @@ def enrich_start():
     if invalid:
         return jsonify({"error": f"Invalid stages: {', '.join(invalid)}"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
     owner_id = _resolve_owner(tenant_id, owner_name)
 
-    # Check no pipeline already running for this batch
+    # Check no pipeline already running for this tag
     existing = db.session.execute(
         text("""
             SELECT id FROM pipeline_runs
-            WHERE tenant_id = :t AND batch_id = :b
+            WHERE tenant_id = :t AND tag_id = :b
               AND status IN ('running', 'stopping')
             LIMIT 1
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchone()
     if existing:
-        return jsonify({"error": "A pipeline is already running for this batch"}), 409
+        return jsonify({"error": "A pipeline is already running for this tag"}), 409
 
     # Build config
     config = {}
@@ -230,7 +230,7 @@ def enrich_start():
     # Create pipeline_run record
     pipeline_run = PipelineRun(
         tenant_id=str(tenant_id),
-        batch_id=str(batch_id),
+        tag_id=str(tag_id),
         owner_id=str(owner_id) if owner_id else None,
         status="running",
         config=json.dumps(config) if config else "{}",
@@ -247,7 +247,7 @@ def enrich_start():
 
         sr = StageRun(
             tenant_id=str(tenant_id),
-            batch_id=str(batch_id),
+            tag_id=str(tag_id),
             owner_id=str(owner_id) if owner_id else None,
             stage=stage,
             status="pending",
@@ -268,7 +268,7 @@ def enrich_start():
         pipeline_run_id,
         stages,
         tenant_id,
-        batch_id,
+        tag_id,
         owner_id=owner_id,
         tier_filter=tier_filter,
         stage_run_ids=stage_run_ids,
@@ -289,13 +289,13 @@ def enrich_review():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    batch_name = request.args.get("batch_name", "")
+    tag_name = request.args.get("tag_name", "")
     stage = request.args.get("stage", "l1")
 
-    if not batch_name:
-        return jsonify({"error": "batch_name is required"}), 400
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
 
-    batch_id, err = _resolve_batch(tenant_id, batch_name)
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
     if err:
         return err
 
@@ -304,11 +304,11 @@ def enrich_review():
             SELECT c.id, c.name, c.domain, c.status, c.error_message,
                    c.enrichment_cost_usd
             FROM companies c
-            WHERE c.tenant_id = :t AND c.batch_id = :b
+            WHERE c.tenant_id = :t AND c.tag_id = :b
               AND c.status IN ('needs_review', 'enrichment_failed')
             ORDER BY c.name
         """),
-        {"t": str(tenant_id), "b": str(batch_id)},
+        {"t": str(tenant_id), "b": str(tag_id)},
     ).fetchall()
 
     items = []

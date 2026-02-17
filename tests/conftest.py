@@ -141,9 +141,9 @@ def auth_header(client, email="admin@test.com", password="testpass123"):
 
 @pytest.fixture
 def seed_companies_contacts(db, seed_tenant, seed_super_admin):
-    """Seed owners, batches, companies (mixed statuses/tiers), and contacts for testing."""
+    """Seed owners, tags, companies (mixed statuses/tiers), and contacts for testing."""
     from api.models import (
-        Batch, Company, CompanyEnrichmentL2, CompanyTag,
+        Tag, Company, CompanyEnrichmentL2, CompanyTag,
         Contact, ContactEnrichment, Message, Owner, UserTenantRole,
     )
 
@@ -162,25 +162,25 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
     db.session.add_all([owner1, owner2])
     db.session.flush()
 
-    # Batches
-    batch1 = Batch(tenant_id=seed_tenant.id, name="batch-1", is_active=True)
-    batch2 = Batch(tenant_id=seed_tenant.id, name="batch-2", is_active=True)
-    db.session.add_all([batch1, batch2])
+    # Tags
+    tag1 = Tag(tenant_id=seed_tenant.id, name="batch-1", is_active=True)
+    tag2 = Tag(tenant_id=seed_tenant.id, name="batch-2", is_active=True)
+    db.session.add_all([tag1, tag2])
     db.session.flush()
 
     # Companies
     companies = []
     company_data = [
-        ("Acme Corp", "acme.com", "new", None, owner1.id, batch1.id, "software_saas", "Germany", 8.5),
-        ("Beta Inc", "beta.io", "triage_passed", "tier_1_platinum", owner1.id, batch1.id, "it", "UK", 9.0),
-        ("Gamma LLC", "gamma.co", "triage_passed", "tier_2_gold", owner2.id, batch1.id, "healthcare", "US", 7.5),
-        ("Delta GmbH", "delta.de", "enriched_l2", "tier_1_platinum", owner1.id, batch2.id, "manufacturing", "Austria", 9.5),
-        ("Epsilon SA", "epsilon.fr", "triage_disqualified", "tier_5_copper", owner2.id, batch2.id, "retail", "France", 3.0),
+        ("Acme Corp", "acme.com", "new", None, owner1.id, tag1.id, "software_saas", "Germany", 8.5),
+        ("Beta Inc", "beta.io", "triage_passed", "tier_1_platinum", owner1.id, tag1.id, "it", "UK", 9.0),
+        ("Gamma LLC", "gamma.co", "triage_passed", "tier_2_gold", owner2.id, tag1.id, "healthcare", "US", 7.5),
+        ("Delta GmbH", "delta.de", "enriched_l2", "tier_1_platinum", owner1.id, tag2.id, "manufacturing", "Austria", 9.5),
+        ("Epsilon SA", "epsilon.fr", "triage_disqualified", "tier_5_copper", owner2.id, tag2.id, "retail", "France", 3.0),
     ]
     for name, domain, status, tier, oid, bid, industry, country, score in company_data:
         c = Company(
             tenant_id=seed_tenant.id, name=name, domain=domain,
-            status=status, tier=tier, owner_id=oid, batch_id=bid,
+            status=status, tier=tier, owner_id=oid, tag_id=bid,
             industry=industry, hq_country=country, triage_score=score,
             summary=f"Summary for {name}", notes=f"Notes for {name}",
         )
@@ -207,21 +207,21 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
     # Contacts
     contacts = []
     contact_data = [
-        ("John", "Doe", "CEO", companies[0].id, owner1.id, batch1.id, 85, "strong_fit", "not_started", "john@acme.com", "https://www.linkedin.com/in/johndoe"),
-        ("Jane", "Smith", "CTO", companies[0].id, owner1.id, batch1.id, 90, "strong_fit", "approved", "jane@acme.com", "https://www.linkedin.com/in/janesmith"),
-        ("Bob", "Wilson", "VP Engineering", companies[1].id, owner1.id, batch1.id, 75, "moderate_fit", "not_started", "bob@beta.io", "https://www.linkedin.com/in/bobwilson"),
-        ("Carol", "Lee", "Director of AI", companies[1].id, owner1.id, batch1.id, 80, "strong_fit", "pending_review", "carol@beta.io", "https://www.linkedin.com/in/carollee"),
-        ("Dave", "Brown", "Manager", companies[2].id, owner2.id, batch1.id, 60, "weak_fit", "not_started", None, "https://www.linkedin.com/in/davebrown"),
-        ("Eve", "Green", "CFO", companies[3].id, owner1.id, batch2.id, 70, "moderate_fit", "approved", "eve@delta.de", "https://www.linkedin.com/in/evegreen"),
-        ("Frank", "Black", "CIO", companies[3].id, owner1.id, batch2.id, 88, "strong_fit", "sent", "frank@delta.de", None),
-        ("Grace", "White", "Sales Director", companies[4].id, owner2.id, batch2.id, 45, "weak_fit", "not_started", None, None),
-        ("Hank", "Grey", "Intern", companies[4].id, owner2.id, batch2.id, 20, "unknown", "not_started", None, None),
-        ("Ivy", "Blue", "Product Manager", companies[2].id, owner2.id, batch1.id, 65, "moderate_fit", "generating", "ivy@gamma.co", "https://www.linkedin.com/in/ivyblue"),
+        ("John", "Doe", "CEO", companies[0].id, owner1.id, tag1.id, 85, "strong_fit", "not_started", "john@acme.com", "https://www.linkedin.com/in/johndoe"),
+        ("Jane", "Smith", "CTO", companies[0].id, owner1.id, tag1.id, 90, "strong_fit", "approved", "jane@acme.com", "https://www.linkedin.com/in/janesmith"),
+        ("Bob", "Wilson", "VP Engineering", companies[1].id, owner1.id, tag1.id, 75, "moderate_fit", "not_started", "bob@beta.io", "https://www.linkedin.com/in/bobwilson"),
+        ("Carol", "Lee", "Director of AI", companies[1].id, owner1.id, tag1.id, 80, "strong_fit", "pending_review", "carol@beta.io", "https://www.linkedin.com/in/carollee"),
+        ("Dave", "Brown", "Manager", companies[2].id, owner2.id, tag1.id, 60, "weak_fit", "not_started", None, "https://www.linkedin.com/in/davebrown"),
+        ("Eve", "Green", "CFO", companies[3].id, owner1.id, tag2.id, 70, "moderate_fit", "approved", "eve@delta.de", "https://www.linkedin.com/in/evegreen"),
+        ("Frank", "Black", "CIO", companies[3].id, owner1.id, tag2.id, 88, "strong_fit", "sent", "frank@delta.de", None),
+        ("Grace", "White", "Sales Director", companies[4].id, owner2.id, tag2.id, 45, "weak_fit", "not_started", None, None),
+        ("Hank", "Grey", "Intern", companies[4].id, owner2.id, tag2.id, 20, "unknown", "not_started", None, None),
+        ("Ivy", "Blue", "Product Manager", companies[2].id, owner2.id, tag1.id, 65, "moderate_fit", "generating", "ivy@gamma.co", "https://www.linkedin.com/in/ivyblue"),
     ]
     for first, last, title, coid, oid, bid, score, icp, mstatus, email, linkedin in contact_data:
         ct = Contact(
             tenant_id=seed_tenant.id, first_name=first, last_name=last, job_title=title,
-            company_id=coid, owner_id=oid, batch_id=bid,
+            company_id=coid, owner_id=oid, tag_id=bid,
             contact_score=score, icp_fit=icp, message_status=mstatus,
             email_address=email, linkedin_url=linkedin,
             seniority_level="c_level" if "C" in title else "director",
@@ -246,7 +246,7 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
         owner_id=owner1.id, channel="linkedin_connect",
         sequence_step=1, variant="a", subject="Connect",
         body="Hi Jane, let's connect!", status="draft",
-        batch_id=batch1.id,
+        tag_id=tag1.id,
     )
     db.session.add(m)
 
@@ -255,7 +255,7 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
     return {
         "tenant": seed_tenant,
         "owners": [owner1, owner2],
-        "batches": [batch1, batch2],
+        "tags": [tag1, tag2],
         "companies": companies,
         "contacts": contacts,
     }

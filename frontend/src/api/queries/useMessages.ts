@@ -11,7 +11,7 @@ export interface MessageContact {
   contact_score: number | null
   icp_fit: string | null
   owner_name: string | null
-  batch_name: string | null
+  tag_name: string | null
 }
 
 export interface MessageCompany {

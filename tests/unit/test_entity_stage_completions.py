@@ -8,21 +8,21 @@ from tests.conftest import auth_header
 
 class TestEntityStageCompletionModel:
     def test_create_completion(self, db, seed_tenant):
-        from api.models import Batch, Company, EntityStageCompletion
+        from api.models import Tag, Company, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
 
         esc = EntityStageCompletion(
             tenant_id=seed_tenant.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             entity_type="company",
             entity_id=company.id,
             stage="l1",
@@ -42,21 +42,21 @@ class TestEntityStageCompletionModel:
         assert result.entity_type == "company"
 
     def test_create_failed_completion(self, db, seed_tenant):
-        from api.models import Batch, Company, EntityStageCompletion
+        from api.models import Tag, Company, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
 
         esc = EntityStageCompletion(
             tenant_id=seed_tenant.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             entity_type="company",
             entity_id=company.id,
             stage="l1",
@@ -73,21 +73,21 @@ class TestEntityStageCompletionModel:
         assert result.error == "API timeout"
 
     def test_create_skipped_completion(self, db, seed_tenant):
-        from api.models import Batch, Company, EntityStageCompletion
+        from api.models import Tag, Company, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
 
         esc = EntityStageCompletion(
             tenant_id=seed_tenant.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             entity_type="company",
             entity_id=company.id,
             stage="ares",
@@ -102,28 +102,28 @@ class TestEntityStageCompletionModel:
         assert result.status == "skipped"
 
     def test_contact_completion(self, db, seed_tenant):
-        from api.models import Batch, Company, Contact, EntityStageCompletion
+        from api.models import Tag, Company, Contact, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
 
         contact = Contact(
             tenant_id=seed_tenant.id, first_name="Jane", last_name="Doe",
-            company_id=company.id, batch_id=batch.id,
+            company_id=company.id, tag_id=tag.id,
         )
         db.session.add(contact)
         db.session.flush()
 
         esc = EntityStageCompletion(
             tenant_id=seed_tenant.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             entity_type="contact",
             entity_id=contact.id,
             stage="person",
@@ -141,14 +141,14 @@ class TestEntityStageCompletionModel:
 
     def test_multiple_stages_per_entity(self, db, seed_tenant):
         """An entity can have completions for multiple stages."""
-        from api.models import Batch, Company, EntityStageCompletion
+        from api.models import Tag, Company, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
@@ -156,7 +156,7 @@ class TestEntityStageCompletionModel:
         for stage in ["l1", "l2", "ares"]:
             esc = EntityStageCompletion(
                 tenant_id=seed_tenant.id,
-                batch_id=batch.id,
+                tag_id=tag.id,
                 entity_type="company",
                 entity_id=company.id,
                 stage=stage,
@@ -174,21 +174,21 @@ class TestEntityStageCompletionModel:
 
     def test_pipeline_run_id_nullable(self, db, seed_tenant):
         """pipeline_run_id is nullable (backfill records won't have one)."""
-        from api.models import Batch, Company, EntityStageCompletion
+        from api.models import Tag, Company, EntityStageCompletion
 
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
         company = Company(
-            tenant_id=seed_tenant.id, name="Test Co", batch_id=batch.id, status="new",
+            tenant_id=seed_tenant.id, name="Test Co", tag_id=tag.id, status="new",
         )
         db.session.add(company)
         db.session.flush()
 
         esc = EntityStageCompletion(
             tenant_id=seed_tenant.id,
-            batch_id=batch.id,
+            tag_id=tag.id,
             pipeline_run_id=None,
             entity_type="company",
             entity_id=company.id,
