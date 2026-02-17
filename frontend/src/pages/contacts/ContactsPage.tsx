@@ -1,16 +1,11 @@
-import { useState, useMemo, useCallback } from 'react'
-import { useParams } from 'react-router'
-import { useContacts, useContact, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
-import { useCompany } from '../../api/queries/useCompanies'
+import { useMemo, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router'
+import { useContacts, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
 import { useBatches } from '../../api/queries/useBatches'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { useEntityStack } from '../../hooks/useEntityStack'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
 import { Badge } from '../../components/ui/Badge'
-import { ContactDetail } from './ContactDetail'
-import { CompanyDetail } from '../companies/CompanyDetail'
-import { DetailModal } from '../../components/ui/DetailModal'
 import {
   ICP_FIT_DISPLAY,
   MESSAGE_STATUS_DISPLAY,
@@ -19,12 +14,7 @@ import {
 
 export function ContactsPage() {
   const { namespace } = useParams<{ namespace: string }>()
-
-  // Entity stack for cross-entity modal navigation
-  const stack = useEntityStack('contact')
-
-  // Selection state for "Enrich Selected"
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const navigate = useNavigate()
 
   const [search, setSearch] = useLocalStorage('ct_filter_search', '')
   const [batchName, setBatchName] = useLocalStorage('ct_filter_batch', '')
@@ -59,16 +49,6 @@ export function ContactsPage() {
     [data],
   )
   const total = data?.pages[0]?.total ?? 0
-
-  // Fetch detail for whichever entity type is at the top of stack
-  const isContactOpen = stack.current?.type === 'contact'
-  const isCompanyOpen = stack.current?.type === 'company'
-  const { data: contactDetail, isLoading: isContactLoading } = useContact(
-    isContactOpen ? stack.current!.id : null
-  )
-  const { data: companyDetail, isLoading: isCompanyLoading } = useCompany(
-    isCompanyOpen ? stack.current!.id : null
-  )
 
   const handleFilterChange = useCallback((key: string, value: string) => {
     switch (key) {
@@ -114,16 +94,6 @@ export function ContactsPage() {
         values={{ search, batch_name: batchName, owner_name: ownerName, icp_fit: icpFit, message_status: msgStatus }}
         onChange={handleFilterChange}
         total={total}
-        action={
-          namespace && selectedIds.size > 0 ? (
-            <a
-              href={`/${namespace}/enrich?entity_ids=${[...selectedIds].join(',')}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors ml-2"
-            >
-              Enrich Selected ({selectedIds.size})
-            </a>
-          ) : undefined
-        }
       />
 
       <DataTable
@@ -131,33 +101,12 @@ export function ContactsPage() {
         data={allContacts}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={(c) => stack.open('contact', c.id)}
+        onRowClick={(c) => navigate(`/${namespace}/contacts/${c.id}`, { state: { origin: `/${namespace}/contacts` } })}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}
         emptyText="No contacts match your filters."
-        selectable
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
       />
-
-      <DetailModal
-        isOpen={!!stack.current}
-        onClose={stack.close}
-        title={isContactOpen ? (contactDetail?.full_name ?? 'Contact') : isCompanyOpen ? (companyDetail?.name ?? 'Company') : ''}
-        subtitle={isContactOpen ? (contactDetail?.job_title ?? undefined) : isCompanyOpen ? (companyDetail?.domain ?? undefined) : undefined}
-        isLoading={isContactOpen ? isContactLoading : isCompanyLoading}
-        canGoBack={stack.depth > 1}
-        onBack={stack.pop}
-        breadcrumb={stack.depth > 1 ? 'Back' : undefined}
-      >
-        {isContactOpen && contactDetail && (
-          <ContactDetail contact={contactDetail} onNavigate={stack.push} />
-        )}
-        {isCompanyOpen && companyDetail && (
-          <CompanyDetail company={companyDetail} onNavigate={stack.push} />
-        )}
-      </DetailModal>
     </div>
   )
 }
