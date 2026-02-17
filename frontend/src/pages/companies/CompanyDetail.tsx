@@ -383,7 +383,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
       <CollapsibleSection title="Enrichment Timeline">
         <EnrichmentTimeline entries={[
           { label: 'Created', timestamp: company.created_at },
-          ...company.stage_completions.map((sc) => ({
+          ...(company.stage_completions ?? []).map((sc) => ({
             label: sc.stage.toUpperCase(),
             timestamp: sc.completed_at,
             cost: sc.cost_usd,
