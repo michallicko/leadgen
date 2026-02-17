@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useUpdateCompany, type CompanyDetail as CompanyDetailType } from '../../api/queries/useCompanies'
+import { useUpdateCompany, type CompanyDetail as CompanyDetailType, type CompanyEnrichmentL1 } from '../../api/queries/useCompanies'
 import { useToast } from '../../components/ui/Toast'
 import { Badge } from '../../components/ui/Badge'
 import {
@@ -76,19 +76,20 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     }
   }
 
-  const l2 = company.enrichment_l2 as Record<string, string | null> | null
+  const l1 = company.enrichment_l1
+  const l2 = company.enrichment_l2 as Record<string, unknown> | null
   const reg = company.registry_data as Record<string, unknown> | null
 
   // Source info helpers
   const l1Source: SourceInfo = {
     label: 'L1 Enrichment',
-    timestamp: company.updated_at,
-    cost: company.enrichment_cost_usd,
+    timestamp: l1?.enriched_at ?? company.updated_at,
+    cost: l1?.enrichment_cost_usd ?? company.enrichment_cost_usd,
   }
   const l2Source: SourceInfo | undefined = l2 ? {
     label: 'L2 Enrichment',
-    timestamp: (l2.enriched_at as string | null) ?? null,
-    cost: (l2.enrichment_cost_usd as number | null) ?? null,
+    timestamp: (l2.enriched_at as string) ?? null,
+    cost: (l2.enrichment_cost_usd as number) ?? null,
   } : undefined
   const regSource: SourceInfo | undefined = reg ? {
     label: 'Registry Lookup',
@@ -98,11 +99,46 @@ export function CompanyDetail({ company, onNavigate }: Props) {
   return (
     <div className="space-y-1">
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Badge variant="status" value={company.status} />
-        <Badge variant="tier" value={company.tier} />
-        {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
-        {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
+      <div className="flex items-start gap-3 mb-4">
+        {company.logo_url ? (
+          <img src={company.logo_url} alt="" className="w-8 h-8 rounded-md object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-8 h-8 rounded-md bg-surface-alt border border-border-solid flex items-center justify-center text-sm font-medium text-text-muted flex-shrink-0">
+            {company.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          {(company.domain || company.website_url || company.linkedin_url) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted mb-1">
+              {company.domain && <span>{company.domain}</span>}
+              {company.website_url && (
+                <a href={company.website_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-hover">
+                  Website ↗
+                </a>
+              )}
+              {company.linkedin_url && (
+                <a href={company.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-hover">
+                  LinkedIn ↗
+                </a>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="status" value={company.status} />
+            <Badge variant="tier" value={company.tier} />
+            {company.data_quality_score != null && (
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                company.data_quality_score >= 80 ? 'bg-success/10 text-success' :
+                company.data_quality_score >= 50 ? 'bg-warning/10 text-warning' :
+                'bg-error/10 text-error'
+              }`}>
+                Quality: {company.data_quality_score}
+              </span>
+            )}
+            {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
+            {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
+          </div>
+        </div>
       </div>
 
       {/* Classification */}
@@ -234,34 +270,106 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         </div>
       )}
 
-      {/* L2 Enrichment (collapsible) */}
+      {/* L1 Enrichment (collapsible) */}
+      {l1 && (
+        <CollapsibleSection title="L1 Enrichment"
+          badge={l1.confidence != null ? (
+            <span className="text-xs text-accent-cyan">{Math.round(l1.confidence * 100)}%</span>
+          ) : undefined}
+        >
+          <FieldGrid>
+            <Field label="Confidence" value={l1.confidence != null ? `${(l1.confidence * 100).toFixed(0)}%` : null} />
+            <Field label="Quality Score" value={l1.quality_score} />
+            <Field label="Cost (USD)" value={l1.enrichment_cost_usd?.toFixed(4)} />
+            <Field label="Enriched" value={l1.enriched_at ? new Date(l1.enriched_at).toLocaleString() : null} />
+          </FieldGrid>
+          {l1.qc_flags && (typeof l1.qc_flags === 'string' ? JSON.parse(l1.qc_flags) : l1.qc_flags).length > 0 && (
+            <div className="mt-2">
+              <span className="text-xs text-text-muted">QC Flags:</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(typeof l1.qc_flags === 'string' ? JSON.parse(l1.qc_flags) : l1.qc_flags).map((flag: string) => (
+                  <span key={flag} className="px-2 py-0.5 text-xs bg-warning/10 text-warning rounded border border-warning/20">
+                    {flag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {l1.research_query && (
+            <p className="mt-2 text-xs text-text-dim">Query: {l1.research_query}</p>
+          )}
+        </CollapsibleSection>
+      )}
+
+      {/* L2 Enrichment (collapsible, grouped by module) */}
       {l2 && (
         <CollapsibleSection title="L2 Enrichment">
-          <FieldGrid>
-            <Field label="Company Intel" value={l2.company_intel} className="col-span-full" source={l2Source} />
-            <Field label="Recent News" value={l2.recent_news} className="col-span-full" source={l2Source} />
-            <Field label="AI Opportunities" value={l2.ai_opportunities} className="col-span-full" source={l2Source} />
-            <Field label="Pain Hypothesis" value={l2.pain_hypothesis} className="col-span-full" source={l2Source} />
-            <Field label="Relevant Case Study" value={l2.relevant_case_study} className="col-span-full" source={l2Source} />
-            <Field label="Digital Initiatives" value={l2.digital_initiatives} className="col-span-full" source={l2Source} />
-            <Field label="Leadership Changes" value={l2.leadership_changes} source={l2Source} />
-            <Field label="Hiring Signals" value={l2.hiring_signals} source={l2Source} />
-            <Field label="Key Products" value={l2.key_products} source={l2Source} />
-            <Field label="Customer Segments" value={l2.customer_segments} source={l2Source} />
-            <Field label="Competitors" value={l2.competitors} source={l2Source} />
-            <Field label="Tech Stack" value={l2.tech_stack} source={l2Source} />
-            <Field label="Funding History" value={l2.funding_history} source={l2Source} />
-            <Field label="EU Grants" value={l2.eu_grants} source={l2Source} />
-            <Field label="Leadership Team" value={l2.leadership_team} source={l2Source} />
-            <Field label="AI Hiring" value={l2.ai_hiring} source={l2Source} />
-            <Field label="Tech Partnerships" value={l2.tech_partnerships} source={l2Source} />
-            <Field label="Certifications" value={l2.certifications} source={l2Source} />
-            <Field label="Quick Wins" value={l2.quick_wins} className="col-span-full" source={l2Source} />
-            <Field label="Industry Pain Points" value={l2.industry_pain_points} className="col-span-full" source={l2Source} />
-            <Field label="Cross-Functional Pain" value={l2.cross_functional_pain} className="col-span-full" source={l2Source} />
-            <Field label="Adoption Barriers" value={l2.adoption_barriers} className="col-span-full" source={l2Source} />
-            <Field label="Competitor AI Moves" value={l2.competitor_ai_moves} className="col-span-full" source={l2Source} />
-          </FieldGrid>
+          {/* Company Profile */}
+          {(l2.company_intel || l2.key_products || l2.customer_segments || l2.competitors || l2.tech_stack || l2.leadership_team || l2.certifications) && (
+            <>
+              <h4 className="text-xs text-text-muted font-medium mt-2 mb-2 uppercase tracking-wider">Company Profile</h4>
+              <FieldGrid>
+                <Field label="Company Intel" value={l2.company_intel as string} className="col-span-full" source={l2Source} />
+                <Field label="Key Products" value={l2.key_products as string} source={l2Source} />
+                <Field label="Customer Segments" value={l2.customer_segments as string} source={l2Source} />
+                <Field label="Competitors" value={l2.competitors as string} source={l2Source} />
+                <Field label="Tech Stack" value={l2.tech_stack as string} source={l2Source} />
+                <Field label="Leadership Team" value={l2.leadership_team as string} source={l2Source} />
+                <Field label="Certifications" value={l2.certifications as string} source={l2Source} />
+              </FieldGrid>
+            </>
+          )}
+
+          {/* Strategic Signals */}
+          {(l2.digital_initiatives || l2.leadership_changes || l2.hiring_signals || l2.ai_hiring || l2.tech_partnerships || l2.competitor_ai_moves || l2.ai_adoption_level || l2.news_confidence || l2.growth_indicators || l2.job_posting_count || l2.hiring_departments) && (
+            <>
+              <h4 className="text-xs text-text-muted font-medium mt-4 mb-2 uppercase tracking-wider">Strategic Signals</h4>
+              <FieldGrid>
+                <Field label="Digital Initiatives" value={l2.digital_initiatives as string} className="col-span-full" source={l2Source} />
+                <Field label="Leadership Changes" value={l2.leadership_changes as string} source={l2Source} />
+                <Field label="Hiring Signals" value={l2.hiring_signals as string} source={l2Source} />
+                <Field label="AI Hiring" value={l2.ai_hiring as string} source={l2Source} />
+                <Field label="Tech Partnerships" value={l2.tech_partnerships as string} source={l2Source} />
+                <Field label="Competitor AI Moves" value={l2.competitor_ai_moves as string} className="col-span-full" source={l2Source} />
+                <Field label="AI Adoption Level" value={l2.ai_adoption_level as string} source={l2Source} />
+                <Field label="News Confidence" value={l2.news_confidence as string} source={l2Source} />
+                <Field label="Growth Indicators" value={l2.growth_indicators as string} className="col-span-full" source={l2Source} />
+                <Field label="Job Posting Count" value={l2.job_posting_count as number} source={l2Source} />
+                <Field label="Hiring Departments" value={Array.isArray(l2.hiring_departments) ? (l2.hiring_departments as string[]).join(', ') : l2.hiring_departments as string} source={l2Source} />
+              </FieldGrid>
+            </>
+          )}
+
+          {/* Market Intel */}
+          {(l2.recent_news || l2.funding_history || l2.eu_grants || l2.media_sentiment || l2.press_releases || l2.thought_leadership) && (
+            <>
+              <h4 className="text-xs text-text-muted font-medium mt-4 mb-2 uppercase tracking-wider">Market Intel</h4>
+              <FieldGrid>
+                <Field label="Recent News" value={l2.recent_news as string} className="col-span-full" source={l2Source} />
+                <Field label="Funding History" value={l2.funding_history as string} source={l2Source} />
+                <Field label="EU Grants" value={l2.eu_grants as string} source={l2Source} />
+                <Field label="Media Sentiment" value={l2.media_sentiment as string} className="col-span-full" source={l2Source} />
+                <Field label="Press Releases" value={l2.press_releases as string} className="col-span-full" source={l2Source} />
+                <Field label="Thought Leadership" value={l2.thought_leadership as string} className="col-span-full" source={l2Source} />
+              </FieldGrid>
+            </>
+          )}
+
+          {/* Sales Opportunity */}
+          {(l2.pain_hypothesis || l2.relevant_case_study || l2.ai_opportunities || l2.quick_wins || l2.industry_pain_points || l2.cross_functional_pain || l2.adoption_barriers) && (
+            <>
+              <h4 className="text-xs text-text-muted font-medium mt-4 mb-2 uppercase tracking-wider">Sales Opportunity</h4>
+              <FieldGrid>
+                <Field label="Pain Hypothesis" value={l2.pain_hypothesis as string} className="col-span-full" source={l2Source} />
+                <Field label="Relevant Case Study" value={l2.relevant_case_study as string} className="col-span-full" source={l2Source} />
+                <Field label="AI Opportunities" value={l2.ai_opportunities as string} className="col-span-full" source={l2Source} />
+                <Field label="Quick Wins" value={Array.isArray(l2.quick_wins) ? (l2.quick_wins as string[]).join(', ') : l2.quick_wins as string} className="col-span-full" source={l2Source} />
+                <Field label="Industry Pain Points" value={l2.industry_pain_points as string} className="col-span-full" source={l2Source} />
+                <Field label="Cross-Functional Pain" value={l2.cross_functional_pain as string} className="col-span-full" source={l2Source} />
+                <Field label="Adoption Barriers" value={l2.adoption_barriers as string} className="col-span-full" source={l2Source} />
+              </FieldGrid>
+            </>
+          )}
         </CollapsibleSection>
       )}
 
@@ -372,8 +480,12 @@ export function CompanyDetail({ company, onNavigate }: Props) {
       <CollapsibleSection title="Enrichment Timeline">
         <EnrichmentTimeline entries={[
           { label: 'Created', timestamp: company.created_at },
-          { label: 'L1 Enrichment', timestamp: company.updated_at, cost: company.enrichment_cost_usd,
-            detail: company.triage_score != null ? `Triage score: ${company.triage_score.toFixed(2)}` : null },
+          ...(l1?.enriched_at || company.triage_score != null ? [{
+            label: 'L1 Enrichment',
+            timestamp: l1?.enriched_at ?? company.updated_at,
+            cost: l1?.enrichment_cost_usd ?? company.enrichment_cost_usd,
+            detail: company.triage_score != null ? `Triage score: ${company.triage_score.toFixed(2)}` : null,
+          }] : []),
           ...(l2 && (l2.enriched_at as string) ? [{
             label: 'L2 Enrichment', timestamp: l2.enriched_at as string,
             cost: (l2.enrichment_cost_usd as number | null) ?? null,
