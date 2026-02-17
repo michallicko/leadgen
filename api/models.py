@@ -202,6 +202,77 @@ class CompanyEnrichmentL1(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+class CompanyEnrichmentProfile(db.Model):
+    __tablename__ = "company_enrichment_profile"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_intel = db.Column(db.Text)
+    key_products = db.Column(db.Text)
+    customer_segments = db.Column(db.Text)
+    competitors = db.Column(db.Text)
+    tech_stack = db.Column(db.Text)
+    leadership_team = db.Column(db.Text)
+    certifications = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentSignals(db.Model):
+    __tablename__ = "company_enrichment_signals"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    digital_initiatives = db.Column(db.Text)
+    leadership_changes = db.Column(db.Text)
+    hiring_signals = db.Column(db.Text)
+    ai_hiring = db.Column(db.Text)
+    tech_partnerships = db.Column(db.Text)
+    competitor_ai_moves = db.Column(db.Text)
+    ai_adoption_level = db.Column(db.Text)
+    news_confidence = db.Column(db.Text)
+    growth_indicators = db.Column(db.Text)
+    job_posting_count = db.Column(db.Integer)
+    hiring_departments = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentMarket(db.Model):
+    __tablename__ = "company_enrichment_market"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    recent_news = db.Column(db.Text)
+    funding_history = db.Column(db.Text)
+    eu_grants = db.Column(db.Text)
+    media_sentiment = db.Column(db.Text)
+    press_releases = db.Column(db.Text)
+    thought_leadership = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CompanyEnrichmentOpportunity(db.Model):
+    __tablename__ = "company_enrichment_opportunity"
+
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    pain_hypothesis = db.Column(db.Text)
+    relevant_case_study = db.Column(db.Text)
+    ai_opportunities = db.Column(db.Text)
+    quick_wins = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    industry_pain_points = db.Column(db.Text)
+    cross_functional_pain = db.Column(db.Text)
+    adoption_barriers = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class CompanyRegistryData(db.Model):
     __tablename__ = "company_registry_data"
 
