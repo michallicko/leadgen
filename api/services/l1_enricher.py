@@ -132,7 +132,8 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
         raw_response, usage = _call_perplexity(company_name, domain,
                                                 existing_industry, existing_size,
                                                 existing_revenue,
-                                                contact_linkedin_urls)
+                                                contact_linkedin_urls,
+                                                previous_data=previous_data)
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
         _set_company_status(company_id, "enrichment_failed",
@@ -269,7 +270,8 @@ def _get_contact_linkedin_urls(company_id, limit=3):
 # ---------------------------------------------------------------------------
 
 def _call_perplexity(company_name, domain, existing_industry, existing_size,
-                     existing_revenue, contact_linkedin_urls=None):
+                     existing_revenue, contact_linkedin_urls=None,
+                     previous_data=None):
     """Call Perplexity sonar API for company research.
 
     Returns:
