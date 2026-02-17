@@ -238,18 +238,19 @@ class TestEnrichEstimate:
         headers = auth_header(client)
         headers["X-Namespace"] = seed_enrich_data["tenant"].slug
 
-        # Insert a completed stage_run with known cost
-        db.session.execute(
-            db.text("""
-                INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total, done, cost_usd)
-                VALUES (:id, :t, :b, 'l1', 'completed', 10, 10, 0.50)
-            """),
-            {
-                "id": _uuid(),
-                "t": str(seed_enrich_data["tenant"].id),
-                "b": str(seed_enrich_data["batch"].id),
-            },
-        )
+        # Insert 5 completed stage_runs with known cost (threshold for historical avg)
+        for _ in range(5):
+            db.session.execute(
+                db.text("""
+                    INSERT INTO stage_runs (id, tenant_id, batch_id, stage, status, total, done, cost_usd)
+                    VALUES (:id, :t, :b, 'l1', 'completed', 10, 10, 0.50)
+                """),
+                {
+                    "id": _uuid(),
+                    "t": str(seed_enrich_data["tenant"].id),
+                    "b": str(seed_enrich_data["batch"].id),
+                },
+            )
         db.session.commit()
 
         resp = client.post(

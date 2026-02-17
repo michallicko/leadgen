@@ -1,0 +1,87 @@
+/**
+ * DagControls — top bar with batch info, total cost, and run/stop buttons.
+ */
+
+import type { DagMode } from './StageCard.types'
+
+interface DagControlsProps {
+  mode: DagMode
+  batchName: string
+  estimatedCost: number
+  runningCost: number
+  enabledCount: number
+  onRun: () => void
+  onStop: () => void
+  isLoading: boolean
+}
+
+function fmtCost(v: number): string {
+  if (v === 0) return '$0.00'
+  if (v < 0.01) return `$${v.toFixed(4)}`
+  return `$${v.toFixed(2)}`
+}
+
+export function DagControls({
+  mode,
+  batchName,
+  estimatedCost,
+  runningCost,
+  enabledCount,
+  onRun,
+  onStop,
+  isLoading,
+}: DagControlsProps) {
+  return (
+    <div className="flex items-center justify-between mb-4 px-1">
+      {/* Left: batch info + cost */}
+      <div className="flex items-center gap-4">
+        {batchName && (
+          <span className="text-sm text-text">
+            <span className="text-text-muted">Batch:</span>{' '}
+            <span className="font-medium">{batchName}</span>
+          </span>
+        )}
+
+        {mode === 'configure' && estimatedCost > 0 && (
+          <span className="text-sm text-text-muted">
+            Est. cost: <span className="font-medium text-text">{fmtCost(estimatedCost)}</span>
+          </span>
+        )}
+
+        {(mode === 'running' || mode === 'completed') && (
+          <span className="text-sm text-text-muted">
+            Cost: <span className="font-medium text-text">{fmtCost(runningCost)}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Right: action buttons */}
+      <div className="flex items-center gap-2">
+        {mode === 'configure' && (
+          <button
+            onClick={onRun}
+            disabled={enabledCount === 0 || !batchName || isLoading}
+            className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {isLoading ? 'Loading...' : `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`}
+          </button>
+        )}
+
+        {mode === 'running' && (
+          <>
+            <span className="flex items-center gap-2 text-sm text-accent-cyan">
+              <span className="inline-block w-3 h-3 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
+              Pipeline running...
+            </span>
+            <button
+              onClick={onStop}
+              className="px-3 py-1.5 text-sm font-medium rounded-md border border-error text-error hover:bg-error/10 transition-colors"
+            >
+              Stop All
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

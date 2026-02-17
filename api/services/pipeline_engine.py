@@ -71,6 +71,14 @@ ELIGIBILITY_QUERIES = {
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
     """,
+    "signals": """
+        SELECT c.id FROM companies c
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND c.status IN ('triage_passed', 'enriched_l2')
+          {owner_clause}
+          {tier_clause}
+        ORDER BY c.name
+    """,
     "registry": """
         SELECT c.id FROM companies c
         LEFT JOIN company_legal_profile clp ON clp.company_id = c.id
@@ -88,6 +96,46 @@ ELIGIBILITY_QUERIES = {
             OR c.ico IS NOT NULL
           )
           {owner_clause}
+        ORDER BY c.name
+    """,
+    "news": """
+        SELECT c.id FROM companies c
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND c.status IN ('triage_passed', 'enriched_l2')
+          {owner_clause}
+          {tier_clause}
+        ORDER BY c.name
+    """,
+    "social": """
+        SELECT ct.id FROM contacts ct
+        JOIN companies c ON ct.company_id = c.id
+        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+          AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
+          {owner_clause}
+        ORDER BY ct.last_name, ct.first_name
+    """,
+    "career": """
+        SELECT ct.id FROM contacts ct
+        JOIN companies c ON ct.company_id = c.id
+        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+          AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
+          {owner_clause}
+        ORDER BY ct.last_name, ct.first_name
+    """,
+    "contact_details": """
+        SELECT ct.id FROM contacts ct
+        JOIN companies c ON ct.company_id = c.id
+        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+          AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
+          {owner_clause}
+        ORDER BY ct.last_name, ct.first_name
+    """,
+    "qc": """
+        SELECT c.id FROM companies c
+        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+          AND c.status = 'enriched_l2'
+          {owner_clause}
+          {tier_clause}
         ORDER BY c.name
     """,
 }
@@ -111,7 +159,7 @@ def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None
         params["owner_id"] = str(owner_id)
 
     tier_clause = ""
-    if tier_filter and stage in ("l2",):
+    if tier_filter and stage not in ("person", "social", "career", "contact_details"):
         from ..display import tier_db_values
         tier_vals = tier_db_values(tier_filter)
         if tier_vals:
@@ -143,7 +191,7 @@ def count_eligible(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
         params["owner_id"] = str(owner_id)
 
     tier_clause = ""
-    if tier_filter and stage in ("l2",):
+    if tier_filter and stage not in ("person", "social", "career", "contact_details"):
         from ..display import tier_db_values
         tier_vals = tier_db_values(tier_filter)
         if tier_vals:
@@ -298,7 +346,7 @@ def _process_registry_unified(company_id, tenant_id):
     return result
 
 
-def _process_entity(stage, entity_id, tenant_id=None):
+def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     # Resolve legacy stage names
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
@@ -306,11 +354,15 @@ def _process_entity(stage, entity_id, tenant_id=None):
     if stage in DIRECT_STAGES:
         if stage == "l1":
             from .l1_enricher import enrich_l1
-            return enrich_l1(entity_id, tenant_id)
+            return enrich_l1(entity_id, tenant_id, previous_data=previous_data)
         if stage == "registry":
             return _process_registry_unified(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
-    return call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
+    # For webhook stages, include previous_data in the payload if provided
+    payload = {_data_key_for_stage(stage): entity_id}
+    if previous_data:
+        payload["previous_data"] = previous_data
+    return call_n8n_webhook(stage, payload)
 
 
 # ---------------------------------------------------------------------------

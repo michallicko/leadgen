@@ -3,9 +3,11 @@ import { useRef, useEffect, useState, type ReactNode } from 'react'
 export interface FilterConfig {
   key: string
   label: string
-  type: 'search' | 'select'
+  type: 'search' | 'select' | 'number'
   placeholder?: string
   options?: { value: string; label: string }[]
+  min?: number
+  max?: number
 }
 
 interface FilterBarProps {
@@ -25,6 +27,15 @@ export function FilterBar({ filters, values, onChange, total, action }: FilterBa
             key={f.key}
             placeholder={f.placeholder || `Search ${f.label}...`}
             value={values[f.key] || ''}
+            onChange={(v) => onChange(f.key, v)}
+          />
+        ) : f.type === 'number' ? (
+          <NumberInput
+            key={f.key}
+            placeholder={f.placeholder || f.label}
+            value={values[f.key] || ''}
+            min={f.min}
+            max={f.max}
             onChange={(v) => onChange(f.key, v)}
           />
         ) : (
@@ -91,6 +102,34 @@ function SearchInput({
         className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-alt border border-border-solid rounded-md text-text placeholder:text-text-dim focus:outline-none focus:border-accent"
       />
     </div>
+  )
+}
+
+/* ---- NumberInput ---- */
+
+function NumberInput({
+  placeholder,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  placeholder: string
+  value: string
+  min?: number
+  max?: number
+  onChange: (v: string) => void
+}) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      min={min}
+      max={max}
+      className="w-20 px-2 py-1.5 text-sm bg-surface-alt border border-border-solid rounded-md text-text placeholder:text-text-dim focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
   )
 }
 

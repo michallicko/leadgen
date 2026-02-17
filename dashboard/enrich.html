@@ -63,7 +63,7 @@ body::after {
 }
 
 /* Layout */
-.container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+.container { margin: 0 auto; padding: 12px 20px; }
 h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
 
@@ -101,31 +101,19 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 .btn-error:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-sm { padding: 6px 14px; font-size: 0.78rem; }
 
-/* Form */
-.form-row { margin-bottom: 14px; }
-.form-row label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
-.form-row select, .form-row input[type="text"] {
-  width: 100%; padding: 8px 12px; background: var(--bg);
-  border: 1px solid var(--border-solid); border-radius: var(--radius);
-  color: var(--text); font-family: var(--font-body); font-size: 0.85rem;
+/* Filter bar — matches React FilterBar */
+.filter-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
 }
-.form-row select:focus, .form-row input:focus { outline: none; border-color: var(--accent); }
-
-/* Filter bar */
-.filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-.filter-bar .form-row { margin-bottom: 0; flex: 1; min-width: 140px; }
-
-/* Tier chips */
-.tier-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.tier-chip {
-  display: inline-flex; align-items: center; padding: 4px 10px;
-  border-radius: 10px; font-size: 0.72rem; font-weight: 600;
-  cursor: pointer; border: 1px solid var(--border-solid);
-  background: transparent; color: var(--text-dim);
-  transition: var(--transition); user-select: none;
+.filter-bar select, .filter-bar input[type="number"] {
+  padding: 6px 8px; font-size: 0.875rem;
+  background: var(--surface-alt); border: 1px solid var(--border-solid);
+  border-radius: 6px; color: var(--text); font-family: var(--font-body);
+  outline: none;
 }
-.tier-chip input { display: none; }
-.tier-chip.active { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
+.filter-bar input[type="number"] { width: 80px; }
+.filter-bar__count { font-size: 0.875rem; color: var(--text-muted); margin-left: auto; }
 
 /* Toggle switch */
 .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -208,6 +196,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   flex-wrap: wrap;
 }
 
+.dag-row-group { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.dag-row-label {
+  font-family: var(--font-title); font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px; padding: 2px 10px; margin-bottom: 10px;
+}
+
 /* SVG edge layer */
 .dag-edges {
   position: absolute;
@@ -219,8 +215,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
 /* ===== DAG NODE ===== */
 .dag-node {
-  width: 180px;
-  max-width: 200px;
+  width: 220px;
+  max-width: 240px;
   background: var(--surface-alt);
   border: 1px solid var(--border-solid);
   border-radius: var(--radius);
@@ -250,9 +246,6 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   font-weight: 600;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dag-node__badge {
@@ -263,6 +256,14 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.dag-node__desc {
+  font-size: 0.62rem;
+  font-style: italic;
+  color: var(--text-dim);
+  line-height: 1.35;
+  margin-bottom: 4px;
 }
 
 .dag-node__stats {
@@ -434,7 +435,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   .dag-node { max-width: 280px; width: 100%; }
   .dag-controls { flex-direction: column; text-align: center; }
   .dag-controls__actions { justify-content: center; }
-  .filter-bar { flex-direction: column; }
+  .filter-bar { gap: 6px; }
 }
 
 @media (max-width: 640px) { .container { padding: 16px 8px; } }
@@ -450,30 +451,19 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   <h1>Enrichment Pipeline</h1>
   <div class="subtitle" id="page_subtitle">Configure and run the DAG enrichment pipeline.</div>
 
-  <!-- Filters (always visible) -->
-  <div class="card">
-    <div class="card-title">Filters</div>
-    <div id="import_callout" class="callout hidden"></div>
-    <div class="filter-bar">
-      <div class="form-row" style="min-width:160px;">
-        <label for="batch_select">Batch</label>
-        <select id="batch_select"><option value="">Loading...</option></select>
-      </div>
-      <div class="form-row" style="min-width:130px;">
-        <label for="owner_select">Owner</label>
-        <select id="owner_select"><option value="">All owners</option></select>
-      </div>
-      <div class="form-row" style="min-width:180px;">
-        <label>Tier Filter</label>
-        <div class="tier-chips" id="tier_chips">
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 1" checked> T1</label>
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 2" checked> T2</label>
-          <label class="tier-chip active"><input type="checkbox" name="tier" value="Tier 3" checked> T3</label>
-          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 4"> T4</label>
-          <label class="tier-chip"><input type="checkbox" name="tier" value="Tier 5"> T5</label>
-        </div>
-      </div>
-    </div>
+  <div id="import_callout" class="callout hidden"></div>
+  <div class="filter-bar">
+    <select id="batch_select"><option value="">Loading...</option></select>
+    <select id="owner_select"><option value="">All Owner</option></select>
+    <select id="tier_select">
+      <option value="">All Tier</option>
+      <option value="Tier 1">Tier 1 - Platinum</option>
+      <option value="Tier 2">Tier 2 - Gold</option>
+      <option value="Tier 3">Tier 3 - Silver</option>
+      <option value="Tier 4">Tier 4 - Bronze</option>
+      <option value="Tier 5">Tier 5 - Copper</option>
+    </select>
+    <input type="number" id="limit_input" min="1" max="500" placeholder="Limit">
   </div>
 
   <!-- DAG Controls -->
@@ -535,6 +525,21 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
   var STAGE_ORDER = ['l1', 'l2', 'signals', 'registry', 'news', 'person', 'social', 'career', 'contact_details', 'qc'];
 
+  var ROW_LABELS = { 0: 'Profiling', 1: 'Company Intelligence', 2: 'Contact Intelligence', 3: 'Validation' };
+
+  var STAGE_DESCRIPTIONS = {
+    l1: 'Basic company profiling: industry, size, business model, triage scoring',
+    l2: 'Deep AI-powered research: tech stack, pain points, opportunities',
+    signals: 'Funding rounds, M&A activity, hiring patterns, growth indicators',
+    registry: 'Official business registry data and legal entity verification',
+    news: 'Recent media mentions, press releases, and sentiment analysis',
+    person: 'Current role verification, reporting structure, employment status',
+    social: 'LinkedIn profile, Twitter/X presence, speaking engagements',
+    career: 'Previous roles, career trajectory, industry experience',
+    contact_details: 'Email verification, phone numbers, alternative contacts',
+    qc: 'Data completeness validation and quality flag detection'
+  };
+
   var HARD_DEPS = {
     l1: [], l2: ['l1'], signals: ['l1'], registry: ['l1'], news: ['l1'],
     person: ['l1'], social: ['l1'], career: ['l1'], contact_details: ['l1'], qc: []
@@ -542,6 +547,20 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   var SOFT_DEPS = {
     l1: [], l2: [], signals: [], registry: [], news: [],
     person: ['l2', 'signals'], social: ['l2', 'signals'], career: ['l2'], contact_details: [], qc: []
+  };
+
+  // Entity type per stage — used for projecting downstream eligible counts
+  var STAGE_ENTITY = {
+    l1: 'company', l2: 'company', signals: 'company', registry: 'company', news: 'company', qc: 'company',
+    person: 'contact', social: 'contact', career: 'contact', contact_details: 'contact'
+  };
+
+  // Ancestor chains — items flowing through these stages become eligible for downstream
+  var STAGE_ANCESTORS = {
+    l1: [],
+    l2: ['l1'], signals: ['l1'], registry: ['l1'], news: ['l1'],
+    person: ['l1', 'l2'], social: ['l1', 'l2'], career: ['l1', 'l2'], contact_details: ['l1', 'l2'],
+    qc: ['l1', 'l2', 'person']
   };
 
   // State
@@ -592,7 +611,11 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
   }
 
-  function fmt$(val) { return '$' + (val || 0).toFixed(2); }
+  function fmt$(val) {
+    val = val || 0;
+    if (val > 0 && val < 0.01) return '<$0.01';
+    return '$' + val.toFixed(2);
+  }
 
   function getParam(name) {
     var params = new URLSearchParams(window.location.search);
@@ -600,7 +623,13 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
   }
 
   function getTiers() {
-    return $$('input[name="tier"]:checked').map(function(cb) { return cb.value; });
+    var val = $('#tier_select').value;
+    return val ? [val] : [];
+  }
+
+  function getLimit() {
+    var val = parseInt($('#limit_input').value, 10);
+    return (val > 0) ? val : null;
   }
 
   // --- Load batches and owners ---
@@ -609,7 +638,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       batchList = data.batches || data || [];
       var sel = $('#batch_select');
       clearChildren(sel);
-      sel.appendChild(mkEl('option', { value: '' }, 'Select batch...'));
+      sel.appendChild(mkEl('option', { value: '' }, 'All Batch'));
       batchList.forEach(function(b) {
         sel.appendChild(mkEl('option', { value: b.name }, b.name));
       });
@@ -662,14 +691,18 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     var tiers = getTiers();
     var availableStages = STAGE_ORDER.filter(function(s) { return DAG_STAGES[s].available; });
 
+    var estimateBody = {
+      batch_name: batch,
+      owner_name: owner || undefined,
+      tier_filter: tiers,
+      stages: availableStages
+    };
+    var limit = getLimit();
+    if (limit) estimateBody.limit = limit;
+
     apiFetch(API_BASE + '/enrich/estimate', {
       method: 'POST',
-      body: JSON.stringify({
-        batch_name: batch,
-        owner_name: owner || undefined,
-        tier_filter: tiers,
-        stages: availableStages
-      })
+      body: JSON.stringify(estimateBody)
     }).then(function(data) {
       estimateData = data;
       if (callback) callback(data);
@@ -702,13 +735,18 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     // Build rows
     var rowKeys = Object.keys(rows).sort(function(a, b) { return Number(a) - Number(b); });
     rowKeys.forEach(function(rowIdx) {
+      var groupEl = mkEl('div', { className: 'dag-row-group' });
+      if (ROW_LABELS[rowIdx]) {
+        groupEl.appendChild(mkEl('span', { className: 'dag-row-label' }, ROW_LABELS[rowIdx]));
+      }
+
       var rowEl = mkEl('div', { className: 'dag-row' });
       rowEl.setAttribute('data-row', rowIdx);
 
       rows[rowIdx].forEach(function(code) {
         var stage = DAG_STAGES[code];
-        var info = (data && data.stages && data.stages[code]) || {};
-        var eligible = info.eligible_count || 0;
+        var info = (data && data.stages && data.stages[code]) || null;
+        var eligible = (info && info.eligible_count) || 0;
         var isAvailable = stage.available;
         var hasEligible = eligible > 0 && isAvailable;
 
@@ -718,7 +756,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
         rowEl.appendChild(nodeEl);
       });
 
-      container.appendChild(rowEl);
+      groupEl.appendChild(rowEl);
+      container.appendChild(groupEl);
     });
 
     updateTotalCost();
@@ -771,15 +810,18 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     nodeEl.appendChild(header);
 
+    // Description
+    if (STAGE_DESCRIPTIONS[code]) {
+      nodeEl.appendChild(mkEl('div', { className: 'dag-node__desc' }, STAGE_DESCRIPTIONS[code]));
+    }
+
     // Stats line
     var statsEl = mkEl('div', { className: 'dag-node__stats' });
     statsEl.setAttribute('data-stats', code);
     if (isAvailable) {
       var statText = eligible + ' eligible';
-      if (info && info.estimated_cost > 0) {
-        statText += ' \u00B7 ' + fmt$(info.estimated_cost);
-      } else if (info && info.cost_per_item === 0) {
-        statText += ' \u00B7 free';
+      if (info) {
+        statText += ' \u00B7 ' + (info.cost_per_item === 0 ? 'free' : fmt$(info.cost_per_item) + '/item');
       }
       statsEl.textContent = statText;
     } else {
@@ -870,12 +912,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       // Update stats
       var statsEl = document.querySelector('[data-stats="' + code + '"]');
       if (statsEl && dagMode === 'configure') {
-        var statText = eligible + ' eligible';
-        if (info.estimated_cost > 0) {
-          statText += ' \u00B7 ' + fmt$(info.estimated_cost);
-        } else if (info.cost_per_item === 0) {
-          statText += ' \u00B7 free';
-        }
+        var statText = eligible + ' eligible \u00B7 ' + (info.cost_per_item === 0 ? 'free' : fmt$(info.cost_per_item) + '/item');
         statsEl.textContent = statText;
       }
 
@@ -926,7 +963,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     if (dagMode === 'configure') {
       if (!enabledStages[code]) {
-        nodeEl.setAttribute('data-state', 'disabled');
+        nodeEl.setAttribute('data-state', 'pending');
       } else {
         var info = estimateData && estimateData.stages && estimateData.stages[code];
         var eligible = info ? (info.eligible_count || 0) : 0;
@@ -941,11 +978,32 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
       $('#btn_run').disabled = true;
       return;
     }
+
+    // Build projected eligible per stage:
+    // For each enabled stage, projected = max(own eligible, max ancestor eligible)
+    // This accounts for items flowing through the pipeline
+    var projected = {};
+    STAGE_ORDER.forEach(function(code) {
+      var info = estimateData.stages && estimateData.stages[code];
+      var own = info ? (info.eligible_count || 0) : 0;
+      var ancestors = STAGE_ANCESTORS[code] || [];
+      var maxAncestor = 0;
+      ancestors.forEach(function(anc) {
+        if (enabledStages[anc]) {
+          var ancInfo = estimateData.stages && estimateData.stages[anc];
+          var ancEligible = ancInfo ? (ancInfo.eligible_count || 0) : 0;
+          if (ancEligible > maxAncestor) maxAncestor = ancEligible;
+        }
+      });
+      projected[code] = Math.max(own, maxAncestor);
+    });
+
     var total = 0;
     STAGE_ORDER.forEach(function(code) {
       if (!enabledStages[code]) return;
       var info = estimateData.stages && estimateData.stages[code];
-      if (info) total += (info.estimated_cost || 0);
+      var cpi = info ? (info.cost_per_item || 0) : 0;
+      total += projected[code] * cpi;
     });
     $('#dag_total_cost').textContent = fmt$(total);
 
@@ -986,7 +1044,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
     var fromEnabled = enabledStages[fromCode];
     var toEnabled = enabledStages[toCode];
-    if (!fromEnabled && !toEnabled) return;
+    if (!fromEnabled || !toEnabled) return;
 
     var fromRect = fromNode.getBoundingClientRect();
     var toRect = toNode.getBoundingClientRect();
@@ -1056,6 +1114,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     };
     if (owner) body.owner = owner;
     if (tiers.length > 0) body.tier_filter = tiers;
+    var limit = getLimit();
+    if (limit) body.sample_size = limit;
 
     $('#btn_run').disabled = true;
     $('#btn_run').textContent = 'Starting...';
@@ -1072,16 +1132,25 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
 
       $$('[data-toggle]').forEach(function(input) { input.disabled = true; });
 
+      // Show spinner in status area
+      var statusEl = $('#dag_pipeline_status');
+      statusEl.textContent = '';
+      var spinner = mkEl('span', { className: 'loading-sm' });
+      statusEl.appendChild(spinner);
+      statusEl.appendChild(document.createTextNode('Pipeline running\u2026'));
+
       STAGE_ORDER.forEach(function(code) {
+        var nodeEl = document.querySelector('[data-stage="' + code + '"]');
         var progressEl = document.querySelector('[data-progress="' + code + '"]');
         var statsEl = document.querySelector('[data-stats="' + code + '"]');
         var fieldsEl = document.querySelector('[data-fields="' + code + '"]');
-        if (progressEl && enabledStages[code]) progressEl.classList.remove('hidden');
-        if (statsEl && enabledStages[code]) statsEl.classList.add('hidden');
-        if (fieldsEl && enabledStages[code]) fieldsEl.classList.add('hidden');
 
-        if (!enabledStages[code]) {
-          var nodeEl = document.querySelector('[data-stage="' + code + '"]');
+        if (enabledStages[code]) {
+          if (nodeEl) nodeEl.setAttribute('data-state', 'running');
+          if (progressEl) progressEl.classList.remove('hidden');
+          if (statsEl) statsEl.classList.add('hidden');
+          if (fieldsEl) fieldsEl.classList.add('hidden');
+        } else {
           if (nodeEl) nodeEl.setAttribute('data-state', 'disabled');
         }
       });
@@ -1236,6 +1305,7 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     if (pipeline.status === 'completed' || pipeline.status === 'failed' || pipeline.status === 'stopped') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       dagMode = 'completed';
+      $('#dag_pipeline_status').textContent = pipeline.status === 'completed' ? 'Done' : (pipeline.status === 'stopped' ? 'Stopped' : 'Failed');
       showDagCompletion(pipeline, data.stages);
     }
   }
@@ -1319,20 +1389,8 @@ h1 { font-family: var(--font-title); font-size: 1.3rem; font-weight: 600; margin
     });
 
     $('#owner_select').addEventListener('change', onFilterChange);
-
-    $$('.tier-chip').forEach(function(chip) {
-      var cb = chip.querySelector('input');
-      chip.addEventListener('click', function(e) {
-        if (e.target.tagName === 'INPUT') return;
-        cb.checked = !cb.checked;
-        chip.classList.toggle('active', cb.checked);
-        onFilterChange();
-      });
-      cb.addEventListener('change', function() {
-        chip.classList.toggle('active', cb.checked);
-        onFilterChange();
-      });
-    });
+    $('#tier_select').addEventListener('change', onFilterChange);
+    $('#limit_input').addEventListener('change', onFilterChange);
 
     $('#btn_run').addEventListener('click', startDagPipeline);
     $('#btn_stop_dag').addEventListener('click', stopDagPipeline);

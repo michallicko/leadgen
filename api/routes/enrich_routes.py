@@ -14,19 +14,28 @@ from ..services.pipeline_engine import (
     start_pipeline_threads,
     _process_entity,
 )
+from ..services.dag_executor import count_eligible_for_estimate
 from ..services.stage_registry import get_stage_labels
 
 enrich_bp = Blueprint("enrich", __name__)
 
-ENRICHMENT_STAGES = ["l1", "l2", "person", "generate", "registry"]
+ENRICHMENT_STAGES = [
+    "l1", "l2", "signals", "registry", "news",
+    "person", "social", "career", "contact_details", "qc",
+]
 
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
     "l1": 0.02,
     "l2": 0.08,
-    "person": 0.04,
-    "generate": 0.03,
+    "signals": 0.05,
     "registry": 0.00,
+    "news": 0.04,
+    "person": 0.04,
+    "social": 0.03,
+    "career": 0.03,
+    "contact_details": 0.01,
+    "qc": 0.00,
 }
 
 
@@ -53,17 +62,21 @@ def _resolve_owner(tenant_id, owner_name):
 
 
 def _get_cost_per_item(tenant_id, stage):
-    """Get average cost per item from historical stage_runs, falling back to static default."""
+    """Get average cost per item from historical stage_runs, falling back to static default.
+
+    Requires at least 5 completed runs before trusting the historical average,
+    to avoid unreliable estimates from early test runs.
+    """
     row = db.session.execute(
         text("""
-            SELECT AVG(cost_usd / NULLIF(done, 0))
+            SELECT AVG(cost_usd / NULLIF(done, 0)), COUNT(*)
             FROM stage_runs
             WHERE tenant_id = :t AND stage = :s
               AND status = 'completed' AND done > 0 AND cost_usd > 0
         """),
         {"t": str(tenant_id), "s": stage},
     ).fetchone()
-    if row and row[0] is not None:
+    if row and row[0] is not None and row[1] >= 5:
         return round(float(row[0]), 4)
     return STATIC_COST_DEFAULTS.get(stage, 0.05)
 
@@ -80,11 +93,31 @@ def enrich_estimate():
     owner_name = body.get("owner_name", "")
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
+    limit = body.get("limit")
+    entity_ids = body.get("entity_ids", [])
+    re_enrich = body.get("re_enrich", {})
 
     if not batch_name:
         return jsonify({"error": "batch_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
+
+    # Sanitise limit
+    if limit is not None:
+        try:
+            limit = int(limit)
+            if limit < 1:
+                limit = None
+        except (TypeError, ValueError):
+            limit = None
+
+    # Sanitise entity_ids
+    if entity_ids:
+        entity_ids = [str(eid).strip() for eid in entity_ids if eid]
+        if not entity_ids:
+            entity_ids = None
+    else:
+        entity_ids = None
 
     # Resolve legacy stage names
     stages = [_LEGACY_STAGE_ALIASES.get(s, s) for s in stages]
@@ -105,7 +138,23 @@ def enrich_estimate():
     total_cost = 0.0
 
     for stage in stages:
-        eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
+        # Determine re-enrich horizon for this stage
+        stage_re_enrich = re_enrich.get(stage, {})
+        re_enrich_horizon = None
+        if stage_re_enrich.get("enabled") and stage_re_enrich.get("horizon"):
+            re_enrich_horizon = stage_re_enrich["horizon"]
+
+        # Use DAG-based count when entity_ids or re_enrich are active,
+        # otherwise use the original count_eligible with status-based filters
+        if entity_ids or re_enrich_horizon:
+            eligible = count_eligible_for_estimate(
+                stage, tenant_id, batch_id, owner_id, tier_filter,
+                entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
+            )
+        else:
+            eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
+        if limit is not None:
+            eligible = min(eligible, limit)
         cost_per_item = _get_cost_per_item(tenant_id, stage)
         estimated_cost = round(eligible * cost_per_item, 2)
         total_cost += estimated_cost

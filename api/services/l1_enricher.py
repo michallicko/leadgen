@@ -87,12 +87,13 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def enrich_l1(company_id, tenant_id=None):
+def enrich_l1(company_id, tenant_id=None, previous_data=None):
     """Run L1 enrichment for a single company.
 
     Args:
         company_id: UUID string of the company
         tenant_id: UUID string of the tenant (optional, read from company if not given)
+        previous_data: dict of prior enrichment fields for re-enrichment context
 
     Returns:
         dict with enrichment_cost_usd and qc_flags
@@ -131,7 +132,8 @@ def enrich_l1(company_id, tenant_id=None):
         raw_response, usage = _call_perplexity(company_name, domain,
                                                 existing_industry, existing_size,
                                                 existing_revenue,
-                                                contact_linkedin_urls)
+                                                contact_linkedin_urls,
+                                                previous_data=previous_data)
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
         _set_company_status(company_id, "enrichment_failed",
@@ -268,7 +270,8 @@ def _get_contact_linkedin_urls(company_id, limit=3):
 # ---------------------------------------------------------------------------
 
 def _call_perplexity(company_name, domain, existing_industry, existing_size,
-                     existing_revenue, contact_linkedin_urls=None):
+                     existing_revenue, contact_linkedin_urls=None,
+                     previous_data=None):
     """Call Perplexity sonar API for company research.
 
     Returns:
@@ -302,12 +305,26 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
 
     claims_section = "Existing claims to verify:\n" + "\n".join(f"- {c}" for c in claims) if claims else ""
 
+    # Build previous data section for re-enrichment
+    previous_section = ""
+    if previous_data:
+        prev_lines = []
+        for k, v in previous_data.items():
+            if v is not None and v != "":
+                prev_lines.append(f"- {k}: {v}")
+        if prev_lines:
+            previous_section = (
+                "\n\nPrevious enrichment data (validate, correct errors, and extend "
+                "with new findings — do not discard valid data):\n"
+                + "\n".join(prev_lines)
+            )
+
     user_prompt = USER_PROMPT_TEMPLATE.format(
         company_name=company_name,
         domain_line=domain_line,
         contacts_section=contacts_section,
         claims_section=claims_section,
-    )
+    ) + previous_section
 
     payload = {
         "model": PERPLEXITY_MODEL,
@@ -580,11 +597,13 @@ def _map_ownership(raw):
     if "public" in s or "listed" in s:
         return "public"
     if "government" in s or "state" in s:
-        return "government"
+        return "state_owned"
     if "cooperative" in s or "coop" in s:
-        return "cooperative"
+        return "other"
+    if "bootstrap" in s:
+        return "bootstrapped"
     if "private" in s:
-        return "private"
+        return "bootstrapped"
 
     return None
 
