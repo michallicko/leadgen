@@ -83,7 +83,8 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
 
 def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
                             owner_id=None, tier_filter=None,
-                            soft_deps_enabled=None):
+                            soft_deps_enabled=None, entity_ids=None,
+                            re_enrich_horizon=None):
     """Build SQL + params to find entities eligible for a given stage.
 
     An entity is eligible when:
@@ -183,6 +184,40 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
             for i, tv in enumerate(tier_vals):
                 params[f"tier_{i}"] = tv
 
+    # Entity ID filter
+    if entity_ids:
+        eid_placeholders = ", ".join(f":eid_{i}" for i in range(len(entity_ids)))
+        where_clauses.append(f"{id_col} IN ({eid_placeholders})")
+        for i, eid in enumerate(entity_ids):
+            params[f"eid_{i}"] = str(eid)
+
+    # Re-enrich horizon: allow entities whose last completion is older than horizon
+    if re_enrich_horizon:
+        params["re_enrich_horizon"] = re_enrich_horizon
+        # Override the default "not already completed" check.
+        # Remove the standard NOT EXISTS (added above) and replace with horizon-aware version.
+        # Find and remove the NOT EXISTS clause we already added
+        for idx, clause in enumerate(where_clauses):
+            if "esc_self" in clause and "NOT EXISTS" in clause:
+                where_clauses[idx] = f"""
+                    NOT EXISTS (
+                        SELECT 1 FROM entity_stage_completions esc_self
+                        WHERE esc_self.entity_id = {id_col}
+                          AND esc_self.stage = :stage
+                          AND esc_self.pipeline_run_id = :pipeline_run_id
+                    )
+                    AND (
+                        NOT EXISTS (
+                            SELECT 1 FROM entity_stage_completions esc_prev
+                            WHERE esc_prev.entity_id = {id_col}
+                              AND esc_prev.stage = :stage
+                              AND esc_prev.status = 'completed'
+                              AND esc_prev.completed_at >= :re_enrich_horizon
+                        )
+                    )
+                """
+                break
+
     # Country gate
     country_gate = stage_def.get("country_gate")
     if country_gate:
@@ -214,11 +249,13 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
 
 def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, batch_id,
                          owner_id=None, tier_filter=None,
-                         soft_deps_enabled=None):
+                         soft_deps_enabled=None, entity_ids=None,
+                         re_enrich_horizon=None):
     """Query PG for eligible entity IDs using DAG-based eligibility."""
     sql, params = build_eligibility_query(
         stage_code, pipeline_run_id, tenant_id, batch_id,
         owner_id, tier_filter, soft_deps_enabled,
+        entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
     )
     if sql is None:
         return []
@@ -229,17 +266,105 @@ def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, batch_id,
 
 def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, batch_id,
                        owner_id=None, tier_filter=None,
-                       soft_deps_enabled=None):
+                       soft_deps_enabled=None, entity_ids=None,
+                       re_enrich_horizon=None):
     """Count eligible entities without loading IDs."""
     sql, params = build_eligibility_query(
         stage_code, pipeline_run_id, tenant_id, batch_id,
         owner_id, tier_filter, soft_deps_enabled,
+        entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
     )
     if sql is None:
         return 0
 
     count_sql = f"SELECT COUNT(*) FROM ({sql}) sub"
     row = db.session.execute(text(count_sql), params).fetchone()
+    return row[0] if row else 0
+
+
+def count_eligible_for_estimate(stage_code, tenant_id, batch_id,
+                                owner_id=None, tier_filter=None,
+                                entity_ids=None, re_enrich_horizon=None):
+    """Count eligible entities for cost estimation (no pipeline_run_id needed).
+
+    Simplified eligibility: entity exists in tenant+batch, matches filters,
+    and (if re_enrich) last completion for this stage is older than horizon.
+    """
+    stage_def = get_stage(stage_code)
+    if not stage_def:
+        return 0
+
+    entity_type = stage_def["entity_type"]
+    params = {"tenant_id": str(tenant_id), "batch_id": str(batch_id)}
+
+    if entity_type == "company":
+        base_table = "companies"
+        id_col = "e.id"
+    else:
+        base_table = "contacts"
+        id_col = "e.id"
+
+    where_clauses = [
+        "e.tenant_id = :tenant_id",
+        "e.batch_id = :batch_id",
+    ]
+
+    # Owner filter
+    if owner_id:
+        where_clauses.append("e.owner_id = :owner_id")
+        params["owner_id"] = str(owner_id)
+
+    # Tier filter (company stages only)
+    if tier_filter and entity_type == "company":
+        from ..display import tier_db_values
+        tier_vals = tier_db_values(tier_filter)
+        if tier_vals:
+            placeholders = ", ".join(f":tier_{i}" for i in range(len(tier_vals)))
+            where_clauses.append(f"e.tier IN ({placeholders})")
+            for i, tv in enumerate(tier_vals):
+                params[f"tier_{i}"] = tv
+
+    # Entity ID filter
+    if entity_ids:
+        eid_placeholders = ", ".join(f":eid_{i}" for i in range(len(entity_ids)))
+        where_clauses.append(f"{id_col} IN ({eid_placeholders})")
+        for i, eid in enumerate(entity_ids):
+            params[f"eid_{i}"] = str(eid)
+
+    # Re-enrich horizon: exclude entities with recent completions
+    if re_enrich_horizon:
+        params["stage"] = stage_code
+        params["re_enrich_horizon"] = re_enrich_horizon
+        where_clauses.append(f"""
+            NOT EXISTS (
+                SELECT 1 FROM entity_stage_completions esc_prev
+                WHERE esc_prev.entity_id = {id_col}
+                  AND esc_prev.stage = :stage
+                  AND esc_prev.status = 'completed'
+                  AND esc_prev.completed_at >= :re_enrich_horizon
+            )
+        """)
+
+    # Country gate
+    country_gate = stage_def.get("country_gate")
+    if country_gate and entity_type == "company":
+        country_conditions = []
+        countries = country_gate.get("countries", [])
+        tlds = country_gate.get("tlds", [])
+        if countries:
+            c_placeholders = ", ".join(f":cg_country_{i}" for i in range(len(countries)))
+            country_conditions.append(f"e.hq_country IN ({c_placeholders})")
+            for i, c in enumerate(countries):
+                params[f"cg_country_{i}"] = c
+        if tlds:
+            for i, tld in enumerate(tlds):
+                country_conditions.append(f"e.domain LIKE :cg_tld_{i}")
+                params[f"cg_tld_{i}"] = f"%{tld}"
+        if country_conditions:
+            where_clauses.append(f"({' OR '.join(country_conditions)})")
+
+    sql = f"SELECT COUNT(*) FROM {base_table} e WHERE " + " AND ".join(where_clauses)
+    row = db.session.execute(text(sql), params).fetchone()
     return row[0] if row else 0
 
 
@@ -399,9 +524,55 @@ def _update_current_item(run_id, entity_name, status="processing"):
         pass
 
 
+def _fetch_previous_data(entity_type, entity_id, stage_code):
+    """Fetch existing enrichment data for re-enrichment context.
+
+    Returns a dict of current field values, or None if entity not found.
+    """
+    try:
+        if entity_type == "company":
+            row = db.session.execute(
+                text("""
+                    SELECT name, domain, industry, business_type, summary,
+                           verified_revenue_eur_m, verified_employees,
+                           hq_city, hq_country, ownership_type, tier
+                    FROM companies WHERE id = :id
+                """),
+                {"id": str(entity_id)},
+            ).fetchone()
+            if row:
+                return {
+                    "name": row[0], "domain": row[1], "industry": row[2],
+                    "business_type": row[3], "summary": row[4],
+                    "revenue_eur_m": float(row[5]) if row[5] else None,
+                    "employees": row[6], "hq_city": row[7],
+                    "hq_country": row[8], "ownership_type": row[9],
+                    "tier": row[10],
+                }
+        else:
+            row = db.session.execute(
+                text("""
+                    SELECT first_name, last_name, job_title, linkedin_url,
+                           seniority, department
+                    FROM contacts WHERE id = :id
+                """),
+                {"id": str(entity_id)},
+            ).fetchone()
+            if row:
+                return {
+                    "first_name": row[0], "last_name": row[1],
+                    "job_title": row[2], "linkedin_url": row[3],
+                    "seniority": row[4], "department": row[5],
+                }
+    except Exception as e:
+        logger.warning("Failed to fetch previous data for %s: %s", entity_id, e)
+    return None
+
+
 def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
                   owner_id=None, tier_filter=None, soft_deps_enabled=None,
-                  predecessor_run_ids=None, sample_size=None):
+                  predecessor_run_ids=None, sample_size=None,
+                  entity_ids=None, re_enrich_horizons=None):
     """Background thread: DAG-aware reactive stage execution.
 
     Like run_stage_reactive but uses completion-record-based eligibility
@@ -442,9 +613,15 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
 
             # Query eligible entities using DAG-based eligibility
             try:
+                # Get re-enrich horizon for this specific stage
+                stage_horizon = None
+                if re_enrich_horizons and stage_code in re_enrich_horizons:
+                    stage_horizon = re_enrich_horizons[stage_code]
+
                 all_eligible = get_dag_eligible_ids(
                     stage_code, pipeline_run_id, tenant_id, batch_id,
                     owner_id, tier_filter, soft_deps_enabled,
+                    entity_ids=entity_ids, re_enrich_horizon=stage_horizon,
                 )
             except Exception as e:
                 logger.error("DAG stage %s eligibility query failed: %s", stage_code, e)
@@ -472,7 +649,15 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
                     _update_current_item(run_id, entity_name, "processing")
 
                     try:
-                        result = _process_entity(stage_code, entity_id, tenant_id)
+                        # Fetch previous data for re-enrichment
+                        prev_data = None
+                        if re_enrich_horizons and stage_code in re_enrich_horizons:
+                            prev_data = _fetch_previous_data(
+                                entity_type, entity_id, stage_code)
+
+                        result = _process_entity(
+                            stage_code, entity_id, tenant_id,
+                            previous_data=prev_data)
                         cost = _extract_cost(result)
                         total_cost += cost
                         done_count += 1
@@ -624,7 +809,8 @@ def coordinate_dag_pipeline(app, pipeline_run_id, stage_run_ids):
 
 def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, batch_id,
                        owner_id=None, tier_filter=None, stage_run_ids=None,
-                       soft_deps_enabled=None, sample_size=None):
+                       soft_deps_enabled=None, sample_size=None,
+                       entity_ids=None, re_enrich_horizons=None):
     """Spawn DAG-aware reactive stage threads for all stages + coordinator.
 
     Unlike start_pipeline_threads, this uses completion-record-based eligibility
@@ -649,6 +835,8 @@ def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, batch_id,
                 "soft_deps_enabled": soft_deps_enabled,
                 "predecessor_run_ids": predecessor_run_ids,
                 "sample_size": sample_size,
+                "entity_ids": entity_ids,
+                "re_enrich_horizons": re_enrich_horizons,
             },
             daemon=True,
             name=f"dag-{stage_code}-{run_id}",

@@ -346,7 +346,7 @@ def _process_registry_unified(company_id, tenant_id):
     return result
 
 
-def _process_entity(stage, entity_id, tenant_id=None):
+def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     # Resolve legacy stage names
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
@@ -354,11 +354,15 @@ def _process_entity(stage, entity_id, tenant_id=None):
     if stage in DIRECT_STAGES:
         if stage == "l1":
             from .l1_enricher import enrich_l1
-            return enrich_l1(entity_id, tenant_id)
+            return enrich_l1(entity_id, tenant_id, previous_data=previous_data)
         if stage == "registry":
             return _process_registry_unified(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
-    return call_n8n_webhook(stage, {_data_key_for_stage(stage): entity_id})
+    # For webhook stages, include previous_data in the payload if provided
+    payload = {_data_key_for_stage(stage): entity_id}
+    if previous_data:
+        payload["previous_data"] = previous_data
+    return call_n8n_webhook(stage, payload)
 
 
 # ---------------------------------------------------------------------------

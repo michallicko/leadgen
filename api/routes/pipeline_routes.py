@@ -437,11 +437,28 @@ def pipeline_dag_run():
     stages = body.get("stages", [])
     soft_deps = body.get("soft_deps", {})
     sample_size = body.get("sample_size")
+    entity_ids = body.get("entity_ids", [])
+    re_enrich = body.get("re_enrich", {})
 
     if not batch_name:
         return jsonify({"error": "batch_name is required"}), 400
     if not stages:
         return jsonify({"error": "stages is required"}), 400
+
+    # Sanitise entity_ids
+    if entity_ids:
+        entity_ids = [str(eid).strip() for eid in entity_ids if eid]
+        if not entity_ids:
+            entity_ids = None
+    else:
+        entity_ids = None
+
+    # Build re_enrich_horizons: stage_code -> ISO date string
+    re_enrich_horizons = {}
+    if re_enrich:
+        for stage_code, cfg in re_enrich.items():
+            if isinstance(cfg, dict) and cfg.get("enabled") and cfg.get("horizon"):
+                re_enrich_horizons[stage_code] = cfg["horizon"]
 
     # Validate stage codes
     invalid = [s for s in stages if s not in STAGE_REGISTRY]
@@ -483,6 +500,10 @@ def pipeline_dag_run():
         config["soft_deps"] = soft_deps
     if sample_size:
         config["sample_size"] = int(sample_size)
+    if entity_ids:
+        config["entity_ids"] = entity_ids
+    if re_enrich_horizons:
+        config["re_enrich"] = re_enrich_horizons
 
     # Create pipeline_run record
     pipeline_run = PipelineRun(
@@ -530,6 +551,8 @@ def pipeline_dag_run():
         stage_run_ids=stage_run_ids,
         soft_deps_enabled=soft_deps,
         sample_size=int(sample_size) if sample_size else None,
+        entity_ids=entity_ids,
+        re_enrich_horizons=re_enrich_horizons or None,
     )
 
     return jsonify({

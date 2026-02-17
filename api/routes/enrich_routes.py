@@ -14,6 +14,7 @@ from ..services.pipeline_engine import (
     start_pipeline_threads,
     _process_entity,
 )
+from ..services.dag_executor import count_eligible_for_estimate
 from ..services.stage_registry import get_stage_labels
 
 enrich_bp = Blueprint("enrich", __name__)
@@ -93,6 +94,8 @@ def enrich_estimate():
     tier_filter = body.get("tier_filter", [])
     stages = body.get("stages", [])
     limit = body.get("limit")
+    entity_ids = body.get("entity_ids", [])
+    re_enrich = body.get("re_enrich", {})
 
     if not batch_name:
         return jsonify({"error": "batch_name is required"}), 400
@@ -107,6 +110,14 @@ def enrich_estimate():
                 limit = None
         except (TypeError, ValueError):
             limit = None
+
+    # Sanitise entity_ids
+    if entity_ids:
+        entity_ids = [str(eid).strip() for eid in entity_ids if eid]
+        if not entity_ids:
+            entity_ids = None
+    else:
+        entity_ids = None
 
     # Resolve legacy stage names
     stages = [_LEGACY_STAGE_ALIASES.get(s, s) for s in stages]
@@ -127,7 +138,21 @@ def enrich_estimate():
     total_cost = 0.0
 
     for stage in stages:
-        eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
+        # Determine re-enrich horizon for this stage
+        stage_re_enrich = re_enrich.get(stage, {})
+        re_enrich_horizon = None
+        if stage_re_enrich.get("enabled") and stage_re_enrich.get("horizon"):
+            re_enrich_horizon = stage_re_enrich["horizon"]
+
+        # Use DAG-based count when entity_ids or re_enrich are active,
+        # otherwise use the original count_eligible with status-based filters
+        if entity_ids or re_enrich_horizon:
+            eligible = count_eligible_for_estimate(
+                stage, tenant_id, batch_id, owner_id, tier_filter,
+                entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
+            )
+        else:
+            eligible = count_eligible(tenant_id, batch_id, stage, owner_id, tier_filter)
         if limit is not None:
             eligible = min(eligible, limit)
         cost_per_item = _get_cost_per_item(tenant_id, stage)
