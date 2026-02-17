@@ -1,7 +1,6 @@
 """Unit tests for L1 company profile enrichment via Perplexity."""
 
 import json
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -642,48 +641,51 @@ MOCK_PERPLEXITY_RESPONSE = {
 }
 
 
-def _mock_perplexity_success(*args, **kwargs):
-    """Mock requests.post for Perplexity API returning success."""
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "choices": [{
-            "message": {
-                "content": json.dumps(MOCK_PERPLEXITY_RESPONSE),
-            }
-        }],
-        "usage": {
-            "prompt_tokens": 350,
-            "completion_tokens": 200,
-        },
-    }
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
-
-
-def _mock_perplexity_error(*args, **kwargs):
-    """Mock requests.post for Perplexity API returning error."""
-    import requests as req
+def _make_mock_pplx_response(content_dict, input_tokens=350, output_tokens=200, cost=0.00055):
+    """Create a mock PerplexityResponse object."""
     resp = MagicMock()
-    resp.status_code = 500
-    resp.raise_for_status.side_effect = req.HTTPError("Server error")
+    resp.content = json.dumps(content_dict)
+    resp.model = "sonar"
+    resp.input_tokens = input_tokens
+    resp.output_tokens = output_tokens
+    resp.cost_usd = cost
     return resp
 
 
-def _mock_perplexity_bad_json(*args, **kwargs):
-    """Mock requests.post returning unparseable response."""
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "choices": [{
-            "message": {
-                "content": "I couldn't find any information about this company.",
-            }
-        }],
-        "usage": {"prompt_tokens": 100, "completion_tokens": 20},
-    }
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
+def _patch_perplexity_client(response):
+    """Return a patch context manager that mocks PerplexityClient.
+
+    The mock's .query() returns the given response object.
+    """
+    mock_client_cls = MagicMock()
+    instance = mock_client_cls.return_value
+    instance.query.return_value = response
+    return patch("api.services.l1_enricher.PerplexityClient", mock_client_cls)
+
+
+def _mock_perplexity_success_response():
+    """Create a successful mock PerplexityResponse."""
+    return _make_mock_pplx_response(MOCK_PERPLEXITY_RESPONSE)
+
+
+def _mock_perplexity_error_client():
+    """Return a patch that makes PerplexityClient.query() raise an error."""
+    import requests as req
+    mock_client_cls = MagicMock()
+    instance = mock_client_cls.return_value
+    instance.query.side_effect = req.HTTPError("Server error")
+    return patch("api.services.l1_enricher.PerplexityClient", mock_client_cls)
+
+
+def _mock_perplexity_bad_json_response():
+    """Create a mock PerplexityResponse with unparseable content."""
+    resp = MagicMock()
+    resp.content = "I couldn't find any information about this company."
+    resp.model = "sonar"
+    resp.input_tokens = 100
+    resp.output_tokens = 20
+    resp.cost_usd = 0.00012
+    return resp
 
 
 class TestEnrichL1Integration:
@@ -698,7 +700,7 @@ class TestEnrichL1Integration:
             # Set Perplexity API key in config
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_success):
+            with _patch_perplexity_client(_mock_perplexity_success_response()):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -725,7 +727,7 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_error):
+            with _mock_perplexity_error_client():
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -746,7 +748,7 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_bad_json):
+            with _patch_perplexity_client(_mock_perplexity_bad_json_response()):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -769,20 +771,10 @@ class TestEnrichL1Integration:
         bad_research["confidence"] = 0.2
         bad_research["b2b"] = None
 
-        def _mock_bad_qc(*args, **kwargs):
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {
-                "choices": [{"message": {"content": json.dumps(bad_research)}}],
-                "usage": {"prompt_tokens": 350, "completion_tokens": 200},
-            }
-            mock_resp.raise_for_status = MagicMock()
-            return mock_resp
-
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_bad_qc):
+            with _patch_perplexity_client(_make_mock_pplx_response(bad_research)):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -835,7 +827,7 @@ class TestEnrichL1Integration:
 
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_success):
+            with _patch_perplexity_client(_mock_perplexity_success_response()):
                 from api.services.l1_enricher import enrich_l1
                 enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -854,17 +846,111 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            captured_payload = {}
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = _mock_perplexity_success_response()
 
-            def _capture_post(*args, **kwargs):
-                captured_payload.update(kwargs.get("json", {}))
-                return _mock_perplexity_success()
-
-            with patch("api.services.l1_enricher.requests.post", side_effect=_capture_post):
                 from api.services.l1_enricher import enrich_l1
                 enrich_l1(str(company.id), str(data["tenant"].id))
 
-            # The user message should contain LinkedIn URLs
-            user_msg = captured_payload["messages"][1]["content"]
-            assert "linkedin.com/in/" in user_msg
-            assert "Known employees" in user_msg
+                # Check that the user_prompt passed to client.query contains LinkedIn URLs
+                query_call = instance.query.call_args
+                user_prompt = query_call[1]["user_prompt"]
+                assert "linkedin.com/in/" in user_prompt
+                assert "Known employees" in user_prompt
+
+
+class TestPerplexityClientIntegration:
+    """Test that L1 enricher uses the shared PerplexityClient."""
+
+    def test_standard_model_used_by_default(self, app, db, seed_companies_contacts):
+        """Without boost, L1 uses the standard Perplexity model from BOOST_MODELS."""
+        from api.services.stage_registry import BOOST_MODELS
+
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = BOOST_MODELS["l1"]["standard"]
+            mock_response.input_tokens = 350
+            mock_response.output_tokens = 200
+            mock_response.cost_usd = 0.00055
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id))
+
+                # Verify the client was instantiated with the API key
+                MockClient.assert_called_once()
+                call_kwargs = MockClient.call_args
+                assert call_kwargs[1]["api_key"] == "test-key" or call_kwargs[0][0] == "test-key"
+
+                # Verify query was called with the standard model
+                query_call = instance.query.call_args
+                assert query_call[1]["model"] == BOOST_MODELS["l1"]["standard"]
+
+            assert result["qc_flags"] == []
+            assert result["enrichment_cost_usd"] > 0
+
+    def test_boost_model_used_when_boost_true(self, app, db, seed_companies_contacts):
+        """With boost=True, L1 uses the boost Perplexity model."""
+        from api.services.stage_registry import BOOST_MODELS
+
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = BOOST_MODELS["l1"]["boost"]
+            mock_response.input_tokens = 350
+            mock_response.output_tokens = 200
+            mock_response.cost_usd = 0.0063
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id),
+                                   boost=True)
+
+                # Verify boost model was requested
+                query_call = instance.query.call_args
+                assert query_call[1]["model"] == BOOST_MODELS["l1"]["boost"]
+
+            assert result["enrichment_cost_usd"] > 0
+
+    def test_cost_from_client_used(self, app, db, seed_companies_contacts):
+        """Cost should come from the PerplexityClient response."""
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = "sonar"
+            mock_response.input_tokens = 500
+            mock_response.output_tokens = 300
+            mock_response.cost_usd = 0.123  # Distinctive value
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id))
+
+            # Cost should match the client's cost_usd
+            assert result["enrichment_cost_usd"] == 0.123

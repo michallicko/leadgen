@@ -155,24 +155,36 @@ class TestBuildEligibilityQuery:
             )
         assert len(ids) == 5  # All 5 companies
 
-    def test_l2_requires_l1_completed(self, app, db, seed_tenant):
-        """L2 requires L1 completed — only companies with L1 completion are eligible."""
+    def test_l2_requires_triage_completed(self, app, db, seed_tenant):
+        """L2 requires triage completed — only companies with L1+triage are eligible."""
         from api.services.dag_executor import get_dag_eligible_ids, record_completion
 
         data = _seed_dag_data(db, seed_tenant)
 
         with app.app_context():
-            # No L1 completions — L2 should have 0 eligible
+            # No completions — L2 should have 0 eligible
             ids = get_dag_eligible_ids(
                 "l2", data["pipeline_run"].id,
                 seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 0
 
-            # Complete L1 for first company
+            # Complete L1 for first company — still not eligible (triage missing)
             record_completion(
                 seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
+            )
+
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 0
+
+            # Complete triage for first company — now eligible for L2
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", data["companies"][0].id, "triage",
             )
 
             ids = get_dag_eligible_ids(
@@ -399,7 +411,7 @@ class TestDagRunEndpoint:
         resp = client.post("/api/pipeline/dag-run",
                            json={
                                "tag_name": "test-batch",
-                               "stages": ["l1", "l2"],
+                               "stages": ["l1", "triage", "l2"],
                                "soft_deps": {},
                            },
                            headers=headers)
@@ -408,8 +420,9 @@ class TestDagRunEndpoint:
         assert "pipeline_run_id" in data
         assert "stage_run_ids" in data
         assert "l1" in data["stage_run_ids"]
+        assert "triage" in data["stage_run_ids"]
         assert "l2" in data["stage_run_ids"]
-        assert data["stage_order"] == ["l1", "l2"]
+        assert data["stage_order"] == ["l1", "triage", "l2"]
 
 
 class TestDagStatusEndpoint:

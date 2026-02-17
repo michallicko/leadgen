@@ -10,14 +10,14 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from decimal import Decimal
 
-import requests
 from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
 from .enum_mapper import map_enum_value
+from .perplexity_client import PerplexityClient
+from .stage_registry import get_model_for_stage
 
 # Import llm_logger functions — uses existing pricing if perplexity entries
 # are present, otherwise falls back to wildcard pricing
@@ -88,13 +88,14 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def enrich_l1(company_id, tenant_id=None, previous_data=None):
+def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     """Run L1 enrichment for a single company.
 
     Args:
         company_id: UUID string of the company
         tenant_id: UUID string of the tenant (optional, read from company if not given)
         previous_data: dict of prior enrichment fields for re-enrichment context
+        boost: if True, use higher-quality (more expensive) Perplexity model
 
     Returns:
         dict with enrichment_cost_usd and qc_flags
@@ -133,12 +134,19 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
         previous_data = _load_previous_enrichment(company_id)
 
     # 3. Call Perplexity
+    model = get_model_for_stage("l1", boost=boost)
     try:
-        raw_response, usage = _call_perplexity(company_name, domain,
-                                                existing_industry, existing_size,
-                                                existing_revenue,
-                                                contact_linkedin_urls,
-                                                previous_data=previous_data)
+        pplx_response = _call_perplexity(company_name, domain,
+                                          existing_industry, existing_size,
+                                          existing_revenue,
+                                          contact_linkedin_urls,
+                                          previous_data=previous_data,
+                                          model=model)
+        raw_response = pplx_response.content
+        usage = {
+            "input_tokens": pplx_response.input_tokens,
+            "output_tokens": pplx_response.output_tokens,
+        }
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
         _set_company_status(company_id, "enrichment_failed",
@@ -159,18 +167,11 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
     # 6. QC validation
     qc_flags = _validate_research(research, company_name)
 
-    # 7. Compute cost
+    # 7. Compute cost (use client's cost tracking)
     duration_ms = int((time.time() - start_time) * 1000)
     input_tokens = usage.get("input_tokens", 0)
     output_tokens = usage.get("output_tokens", 0)
-    cost = Decimal("0")
-    if compute_cost:
-        cost = compute_cost("perplexity", PERPLEXITY_MODEL, input_tokens, output_tokens)
-    # Fallback if compute_cost unavailable or returned 0 (no pricing entry)
-    if cost == 0 and (input_tokens + output_tokens) > 0:
-        # $1/1M tokens for both input and output (sonar pricing)
-        cost = (Decimal(str(input_tokens)) + Decimal(str(output_tokens))) / Decimal("1000000")
-    cost_float = float(cost)
+    cost_float = pplx_response.cost_usd
 
     # 8. Determine status
     if qc_flags:
@@ -195,7 +196,7 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
 
     # 10. INSERT research_asset (raw SQL — table may not exist in tests)
     _insert_research_asset(
-        tenant_id, company_id, PERPLEXITY_MODEL, cost_float,
+        tenant_id, company_id, model, cost_float,
         research, confidence_score, quality_score,
     )
 
@@ -204,12 +205,13 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
         log_llm_usage(
             tenant_id=tenant_id,
             operation="l1_enrichment",
-            model=PERPLEXITY_MODEL,
+            model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             provider="perplexity",
             duration_ms=duration_ms,
-            metadata={"company_id": company_id, "company_name": company_name},
+            metadata={"company_id": company_id, "company_name": company_name,
+                       "boost": boost},
         )
 
     db.session.commit()
@@ -338,17 +340,22 @@ def _load_previous_enrichment(company_id):
 
 def _call_perplexity(company_name, domain, existing_industry, existing_size,
                      existing_revenue, contact_linkedin_urls=None,
-                     previous_data=None):
+                     previous_data=None, model=None):
     """Call Perplexity sonar API for company research.
 
+    Args:
+        model: Perplexity model name (default: PERPLEXITY_MODEL constant)
+
     Returns:
-        tuple of (content_string, usage_dict)
+        PerplexityResponse with .content, .input_tokens, .output_tokens, .cost_usd
     """
     api_key = current_app.config.get("PERPLEXITY_API_KEY", "")
     base_url = current_app.config.get("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
 
     if not api_key:
         raise ValueError("PERPLEXITY_API_KEY not configured")
+
+    model = model or PERPLEXITY_MODEL
 
     # Build user prompt
     domain_line = f"Domain: {domain}" if domain else "Domain: unknown"
@@ -393,38 +400,19 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
         claims_section=claims_section,
     ) + previous_section
 
-    payload = {
-        "model": PERPLEXITY_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": PERPLEXITY_MAX_TOKENS,
-        "temperature": PERPLEXITY_TEMPERATURE,
-        "search_recency_filter": "month",
-    }
-
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=60,
+    client = PerplexityClient(
+        api_key=api_key,
+        base_url=base_url,
+        default_model=model,
     )
-    resp.raise_for_status()
-    data = resp.json()
 
-    content = data["choices"][0]["message"]["content"]
-    usage = data.get("usage", {})
-    # Perplexity uses prompt_tokens / completion_tokens
-    token_usage = {
-        "input_tokens": usage.get("prompt_tokens", 0),
-        "output_tokens": usage.get("completion_tokens", 0),
-    }
-
-    return content, token_usage
+    return client.query(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=PERPLEXITY_MAX_TOKENS,
+        temperature=PERPLEXITY_TEMPERATURE,
+    )
 
 
 # ---------------------------------------------------------------------------
