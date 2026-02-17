@@ -11,6 +11,7 @@ import { CompanyDetail } from '../companies/CompanyDetail'
 import { EditableTextarea, FieldGrid, Field } from '../../components/ui/DetailField'
 import { ContactsTab } from './tabs/ContactsTab'
 import { MessageGenTab } from './tabs/MessageGenTab'
+import { MessagesTab } from './tabs/MessagesTab'
 import { OutreachTab } from './tabs/OutreachTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { useEntityStack } from '../../hooks/useEntityStack'
@@ -25,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
   Archived: 'bg-[#8B92A0]/10 text-text-dim border-[#8B92A0]/20',
 }
 
-const TAB_IDS = ['contacts', 'messages', 'outreach', 'settings'] as const
+const TAB_IDS = ['contacts', 'generation', 'review', 'outreach', 'settings'] as const
 type TabId = (typeof TAB_IDS)[number]
 
 export function CampaignDetailPage() {
@@ -101,10 +102,11 @@ export function CampaignDetailPage() {
   // Tab definitions
   const tabs: Tab[] = useMemo(() => [
     { id: 'contacts', label: 'Contacts', badge: contactCount || undefined },
-    { id: 'messages', label: 'Message Generation' },
+    { id: 'generation', label: 'Generation' },
+    { id: 'review', label: 'Messages', badge: campaign?.generated_count || undefined },
     { id: 'outreach', label: 'Outreach', disabled: true },
     { id: 'settings', label: 'Settings', disabled: true },
-  ], [contactCount])
+  ], [contactCount, campaign?.generated_count])
 
   // Loading state
   if (isLoading) {
@@ -203,8 +205,11 @@ export function CampaignDetailPage() {
             onNavigate={handleNavigate}
           />
         )}
-        {activeTab === 'messages' && (
+        {activeTab === 'generation' && (
           <MessageGenTab campaign={campaign} isEditable={isEditable} />
+        )}
+        {activeTab === 'review' && (
+          <MessagesTab campaignId={campaign.id} onNavigate={handleNavigate} />
         )}
         {activeTab === 'outreach' && <OutreachTab />}
         {activeTab === 'settings' && <SettingsTab />}
