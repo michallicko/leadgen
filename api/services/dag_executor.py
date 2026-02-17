@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
 
 
-def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
+def record_completion(tenant_id, tag_id, pipeline_run_id, entity_type,
                       entity_id, stage, status="completed", cost_usd=0,
                       error=None):
     """Insert an entity_stage_completions record.
@@ -34,7 +34,7 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
     params = {
         "id": row_id,
         "tenant_id": str(tenant_id),
-        "batch_id": str(batch_id),
+        "tag_id": str(tag_id),
         "pipeline_run_id": str(pipeline_run_id) if pipeline_run_id else None,
         "entity_type": entity_type,
         "entity_id": str(entity_id),
@@ -49,9 +49,9 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
         db.session.execute(
             text("""
                 INSERT INTO entity_stage_completions
-                    (id, tenant_id, batch_id, pipeline_run_id, entity_type,
+                    (id, tenant_id, tag_id, pipeline_run_id, entity_type,
                      entity_id, stage, status, cost_usd, error)
-                VALUES (:id, :tenant_id, :batch_id, :pipeline_run_id, :entity_type,
+                VALUES (:id, :tenant_id, :tag_id, :pipeline_run_id, :entity_type,
                         :entity_id, :stage, :status, :cost_usd, :error)
                 ON CONFLICT (pipeline_run_id, entity_id, stage) DO UPDATE
                 SET status = EXCLUDED.status, cost_usd = EXCLUDED.cost_usd,
@@ -67,9 +67,9 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
             db.session.execute(
                 text("""
                     INSERT INTO entity_stage_completions
-                        (id, tenant_id, batch_id, pipeline_run_id, entity_type,
+                        (id, tenant_id, tag_id, pipeline_run_id, entity_type,
                          entity_id, stage, status, cost_usd, error)
-                    VALUES (:id, :tenant_id, :batch_id, :pipeline_run_id, :entity_type,
+                    VALUES (:id, :tenant_id, :tag_id, :pipeline_run_id, :entity_type,
                             :entity_id, :stage, :status, :cost_usd, :error)
                 """),
                 params,
@@ -81,14 +81,14 @@ def record_completion(tenant_id, batch_id, pipeline_run_id, entity_type,
             db.session.rollback()
 
 
-def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
+def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
                             owner_id=None, tier_filter=None,
                             soft_deps_enabled=None, entity_ids=None,
                             re_enrich_horizon=None):
     """Build SQL + params to find entities eligible for a given stage.
 
     An entity is eligible when:
-    1. Belongs to correct tenant/batch
+    1. Belongs to correct tenant/tag
     2. Not already completed/failed/skipped for this stage in this pipeline run
     3. All hard_deps have 'completed' rows for this entity (or its parent company)
     4. All activated soft_deps have 'completed' rows
@@ -103,7 +103,7 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
 
     params = {
         "tenant_id": str(tenant_id),
-        "batch_id": str(batch_id),
+        "tag_id": str(tag_id),
         "pipeline_run_id": str(pipeline_run_id) if pipeline_run_id else None,
         "stage": stage_code,
     }
@@ -118,11 +118,11 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
         id_col = "e.id"
         entity_type_lit = "'contact'"
 
-    # Base: select entities in this tenant+batch
+    # Base: select entities in this tenant+tag
     sql_parts = [f"SELECT {id_col} FROM {base_table} e"]
     where_clauses = [
         "e.tenant_id = :tenant_id",
-        "e.batch_id = :batch_id",
+        "e.tag_id = :tag_id",
     ]
 
     # Not already completed for this stage+run
@@ -247,13 +247,13 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, batch_id,
     return sql, params
 
 
-def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, batch_id,
+def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, tag_id,
                          owner_id=None, tier_filter=None,
                          soft_deps_enabled=None, entity_ids=None,
                          re_enrich_horizon=None):
     """Query PG for eligible entity IDs using DAG-based eligibility."""
     sql, params = build_eligibility_query(
-        stage_code, pipeline_run_id, tenant_id, batch_id,
+        stage_code, pipeline_run_id, tenant_id, tag_id,
         owner_id, tier_filter, soft_deps_enabled,
         entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
     )
@@ -264,13 +264,13 @@ def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, batch_id,
     return [str(row[0]) for row in rows]
 
 
-def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, batch_id,
+def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, tag_id,
                        owner_id=None, tier_filter=None,
                        soft_deps_enabled=None, entity_ids=None,
                        re_enrich_horizon=None):
     """Count eligible entities without loading IDs."""
     sql, params = build_eligibility_query(
-        stage_code, pipeline_run_id, tenant_id, batch_id,
+        stage_code, pipeline_run_id, tenant_id, tag_id,
         owner_id, tier_filter, soft_deps_enabled,
         entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
     )
@@ -282,12 +282,12 @@ def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, batch_id,
     return row[0] if row else 0
 
 
-def count_eligible_for_estimate(stage_code, tenant_id, batch_id,
+def count_eligible_for_estimate(stage_code, tenant_id, tag_id,
                                 owner_id=None, tier_filter=None,
                                 entity_ids=None, re_enrich_horizon=None):
     """Count eligible entities for cost estimation (no pipeline_run_id needed).
 
-    Simplified eligibility: entity exists in tenant+batch, matches filters,
+    Simplified eligibility: entity exists in tenant+tag, matches filters,
     and (if re_enrich) last completion for this stage is older than horizon.
     """
     stage_def = get_stage(stage_code)
@@ -295,7 +295,7 @@ def count_eligible_for_estimate(stage_code, tenant_id, batch_id,
         return 0
 
     entity_type = stage_def["entity_type"]
-    params = {"tenant_id": str(tenant_id), "batch_id": str(batch_id)}
+    params = {"tenant_id": str(tenant_id), "tag_id": str(tag_id)}
 
     if entity_type == "company":
         base_table = "companies"
@@ -306,7 +306,7 @@ def count_eligible_for_estimate(stage_code, tenant_id, batch_id,
 
     where_clauses = [
         "e.tenant_id = :tenant_id",
-        "e.batch_id = :batch_id",
+        "e.tag_id = :tag_id",
     ]
 
     # Owner filter
@@ -368,8 +368,8 @@ def count_eligible_for_estimate(stage_code, tenant_id, batch_id,
     return row[0] if row else 0
 
 
-def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, batch_id):
-    """Batch-insert 'skipped' rows for entities that don't match a country gate.
+def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, tag_id):
+    """Bulk-insert 'skipped' rows for entities that don't match a country gate.
 
     Called at stage thread startup. This unblocks downstream stages immediately
     for entities that this stage doesn't apply to.
@@ -390,7 +390,7 @@ def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, batch_id):
     gate_conditions = []
     params = {
         "tenant_id": str(tenant_id),
-        "batch_id": str(batch_id),
+        "tag_id": str(tag_id),
         "pipeline_run_id": str(pipeline_run_id) if pipeline_run_id else None,
         "stage": stage_code,
     }
@@ -413,10 +413,10 @@ def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, batch_id):
     # Insert 'skipped' for companies that do NOT match and don't already have a row
     sql = f"""
         INSERT INTO entity_stage_completions
-            (tenant_id, batch_id, pipeline_run_id, entity_type, entity_id, stage, status)
-        SELECT c.tenant_id, c.batch_id, :pipeline_run_id, 'company', c.id, :stage, 'skipped'
+            (tenant_id, tag_id, pipeline_run_id, entity_type, entity_id, stage, status)
+        SELECT c.tenant_id, c.tag_id, :pipeline_run_id, 'company', c.id, :stage, 'skipped'
         FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND NOT ({gate_expr})
           AND NOT EXISTS (
               SELECT 1 FROM entity_stage_completions esc
@@ -569,7 +569,7 @@ def _fetch_previous_data(entity_type, entity_id, stage_code):
     return None
 
 
-def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
+def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
                   owner_id=None, tier_filter=None, soft_deps_enabled=None,
                   predecessor_run_ids=None, sample_size=None,
                   entity_ids=None, re_enrich_horizons=None):
@@ -589,7 +589,7 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
 
     with app.app_context():
         # Auto-skip entities that don't match country gate
-        auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, batch_id)
+        auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, tag_id)
 
         processed_ids = set()
         total_cost = 0.0
@@ -619,7 +619,7 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
                     stage_horizon = re_enrich_horizons[stage_code]
 
                 all_eligible = get_dag_eligible_ids(
-                    stage_code, pipeline_run_id, tenant_id, batch_id,
+                    stage_code, pipeline_run_id, tenant_id, tag_id,
                     owner_id, tier_filter, soft_deps_enabled,
                     entity_ids=entity_ids, re_enrich_horizon=stage_horizon,
                 )
@@ -664,7 +664,7 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
 
                         # Record completion
                         record_completion(
-                            tenant_id, batch_id, pipeline_run_id,
+                            tenant_id, tag_id, pipeline_run_id,
                             entity_type, entity_id, stage_code,
                             status="completed", cost_usd=cost,
                         )
@@ -678,7 +678,7 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id,
 
                         # Record failure
                         record_completion(
-                            tenant_id, batch_id, pipeline_run_id,
+                            tenant_id, tag_id, pipeline_run_id,
                             entity_type, entity_id, stage_code,
                             status="failed", error=str(e),
                         )
@@ -807,7 +807,7 @@ def coordinate_dag_pipeline(app, pipeline_run_id, stage_run_ids):
                 logger.error("DAG pipeline coordinator error: %s", e)
 
 
-def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, batch_id,
+def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, tag_id,
                        owner_id=None, tier_filter=None, stage_run_ids=None,
                        soft_deps_enabled=None, sample_size=None,
                        entity_ids=None, re_enrich_horizons=None):
@@ -828,7 +828,7 @@ def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, batch_id,
 
         t = threading.Thread(
             target=run_dag_stage,
-            args=(app, run_id, stage_code, pipeline_run_id, tenant_id, batch_id),
+            args=(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id),
             kwargs={
                 "owner_id": owner_id,
                 "tier_filter": tier_filter,

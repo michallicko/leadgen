@@ -53,7 +53,7 @@ export function EnrichPage() {
   // Run handler
   const handleRun = useCallback(() => {
     start({
-      batch_name: filters.batch,
+      tag_name: filters.tag,
       owner: filters.owner || undefined,
       tier_filter: filters.tier ? [filters.tier] : undefined,
       stages: enabledStageCodes,
@@ -74,7 +74,7 @@ export function EnrichPage() {
     [filters],
   )
 
-  const noBatch = !filters.batch
+  const noTag = !filters.tag
 
   return (
     <div className="p-6">
@@ -87,20 +87,20 @@ export function EnrichPage() {
         />
       </div>
 
-      {/* No batch selected prompt */}
-      {noBatch && dagMode === 'configure' && (
+      {/* No tag selected prompt */}
+      {noTag && dagMode === 'configure' && (
         <div className="mt-12 text-center">
-          <p className="text-sm text-text-muted">Select a batch to configure the enrichment pipeline.</p>
+          <p className="text-sm text-text-muted">Select a tag to configure the enrichment pipeline.</p>
         </div>
       )}
 
-      {/* Main content — only when batch selected */}
-      {!noBatch && (
+      {/* Main content — only when tag selected */}
+      {!noTag && (
         <>
           {/* Controls bar */}
           <DagControls
             mode={dagMode}
-            batchName={filters.batch}
+            tagName={filters.tag}
             estimatedCost={estimatedCost}
             runningCost={totalCost}
             enabledCount={enabledStageCodes.length}

@@ -50,14 +50,14 @@ COORDINATOR_POLL_INTERVAL = 10  # seconds between checking all stage statuses
 ELIGIBILITY_QUERIES = {
     "l1": """
         SELECT c.id FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND c.status IN ('new', 'enrichment_failed')
           {owner_clause}
         ORDER BY c.name
     """,
     "l2": """
         SELECT c.id FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND c.status = 'triage_passed'
           {owner_clause}
           {tier_clause}
@@ -66,14 +66,14 @@ ELIGIBILITY_QUERIES = {
     "person": """
         SELECT ct.id FROM contacts ct
         JOIN companies c ON ct.company_id = c.id
-        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+        WHERE ct.tenant_id = :tenant_id AND ct.tag_id = :tag_id
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
     """,
     "signals": """
         SELECT c.id FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND c.status IN ('triage_passed', 'enriched_l2')
           {owner_clause}
           {tier_clause}
@@ -82,7 +82,7 @@ ELIGIBILITY_QUERIES = {
     "registry": """
         SELECT c.id FROM companies c
         LEFT JOIN company_legal_profile clp ON clp.company_id = c.id
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND clp.company_id IS NULL
           AND (
             c.hq_country IN ('CZ', 'Czech Republic', 'Czechia',
@@ -100,7 +100,7 @@ ELIGIBILITY_QUERIES = {
     """,
     "news": """
         SELECT c.id FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND c.status IN ('triage_passed', 'enriched_l2')
           {owner_clause}
           {tier_clause}
@@ -109,7 +109,7 @@ ELIGIBILITY_QUERIES = {
     "social": """
         SELECT ct.id FROM contacts ct
         JOIN companies c ON ct.company_id = c.id
-        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+        WHERE ct.tenant_id = :tenant_id AND ct.tag_id = :tag_id
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
@@ -117,7 +117,7 @@ ELIGIBILITY_QUERIES = {
     "career": """
         SELECT ct.id FROM contacts ct
         JOIN companies c ON ct.company_id = c.id
-        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+        WHERE ct.tenant_id = :tenant_id AND ct.tag_id = :tag_id
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
@@ -125,14 +125,14 @@ ELIGIBILITY_QUERIES = {
     "contact_details": """
         SELECT ct.id FROM contacts ct
         JOIN companies c ON ct.company_id = c.id
-        WHERE ct.tenant_id = :tenant_id AND ct.batch_id = :batch_id
+        WHERE ct.tenant_id = :tenant_id AND ct.tag_id = :tag_id
           AND c.status = 'enriched_l2' AND NOT ct.processed_enrich
           {owner_clause}
         ORDER BY ct.last_name, ct.first_name
     """,
     "qc": """
         SELECT c.id FROM companies c
-        WHERE c.tenant_id = :tenant_id AND c.batch_id = :batch_id
+        WHERE c.tenant_id = :tenant_id AND c.tag_id = :tag_id
           AND c.status = 'enriched_l2'
           {owner_clause}
           {tier_clause}
@@ -141,14 +141,14 @@ ELIGIBILITY_QUERIES = {
 }
 
 
-def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
+def get_eligible_ids(tenant_id, tag_id, stage, owner_id=None, tier_filter=None):
     """Query PG for eligible company/contact IDs for a given stage."""
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
     template = ELIGIBILITY_QUERIES.get(stage)
     if not template:
         return []
 
-    params = {"tenant_id": str(tenant_id), "batch_id": str(batch_id)}
+    params = {"tenant_id": str(tenant_id), "tag_id": str(tag_id)}
 
     owner_clause = ""
     if owner_id:
@@ -173,14 +173,14 @@ def get_eligible_ids(tenant_id, batch_id, stage, owner_id=None, tier_filter=None
     return [str(row[0]) for row in rows]
 
 
-def count_eligible(tenant_id, batch_id, stage, owner_id=None, tier_filter=None):
+def count_eligible(tenant_id, tag_id, stage, owner_id=None, tier_filter=None):
     """Count eligible entities for a stage without loading IDs into memory."""
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
     template = ELIGIBILITY_QUERIES.get(stage)
     if not template:
         return 0
 
-    params = {"tenant_id": str(tenant_id), "batch_id": str(batch_id)}
+    params = {"tenant_id": str(tenant_id), "tag_id": str(tag_id)}
 
     owner_clause = ""
     if owner_id:
@@ -438,7 +438,7 @@ def _predecessors_terminal(predecessor_run_ids):
     return row[0] == 0
 
 
-def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
+def run_stage_reactive(app, run_id, stage, tenant_id, tag_id,
                        owner_id=None, tier_filter=None,
                        predecessor_run_ids=None, sample_size=None):
     """Background thread: reactive stage that polls for new eligible IDs.
@@ -479,7 +479,7 @@ def run_stage_reactive(app, run_id, stage, tenant_id, batch_id,
 
             # Query for eligible IDs
             try:
-                all_eligible = get_eligible_ids(tenant_id, batch_id, stage,
+                all_eligible = get_eligible_ids(tenant_id, tag_id, stage,
                                                 owner_id, tier_filter)
             except Exception as e:
                 logger.error("Reactive stage %s eligibility query failed: %s", stage, e)
@@ -650,7 +650,7 @@ def coordinate_pipeline(app, pipeline_run_id, stage_run_ids):
 
 
 def start_pipeline_threads(app, pipeline_run_id, stages_to_run,
-                           tenant_id, batch_id, owner_id=None,
+                           tenant_id, tag_id, owner_id=None,
                            tier_filter=None, stage_run_ids=None,
                            sample_size=None):
     """Spawn reactive stage threads for all stages + coordinator thread.
@@ -670,7 +670,7 @@ def start_pipeline_threads(app, pipeline_run_id, stages_to_run,
 
         t = threading.Thread(
             target=run_stage_reactive,
-            args=(app, run_id, stage, tenant_id, batch_id),
+            args=(app, run_id, stage, tenant_id, tag_id),
             kwargs={
                 "owner_id": owner_id,
                 "tier_filter": tier_filter,

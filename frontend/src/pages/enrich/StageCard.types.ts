@@ -25,7 +25,7 @@ export type DagMode = 'configure' | 'running' | 'completed'
 
 export interface EnrichFilters {
   search: string
-  batch: string
+  tag: string
   owner: string
   tier: string
   status: string

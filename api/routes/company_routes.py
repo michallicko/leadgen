@@ -58,7 +58,7 @@ def list_companies():
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
     tier = request.args.get("tier", "").strip()
-    batch_name = request.args.get("batch_name", "").strip()
+    tag_name = request.args.get("tag_name", "").strip()
     owner_name = request.args.get("owner_name", "").strip()
     sort = request.args.get("sort", "name").strip()
     sort_dir = request.args.get("sort_dir", "asc").strip().lower()
@@ -80,9 +80,9 @@ def list_companies():
     if tier:
         where.append("c.tier = :tier")
         params["tier"] = tier
-    if batch_name:
-        where.append("b.name = :batch_name")
-        params["batch_name"] = batch_name
+    if tag_name:
+        where.append("b.name = :tag_name")
+        params["tag_name"] = tag_name
     if owner_name:
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
@@ -108,7 +108,7 @@ def list_companies():
         db.text(f"""
             SELECT COUNT(*)
             FROM companies c
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
         """),
@@ -126,12 +126,12 @@ def list_companies():
         db.text(f"""
             SELECT
                 c.id, c.name, c.domain, c.status, c.tier,
-                o.name AS owner_name, b.name AS batch_name,
+                o.name AS owner_name, b.name AS tag_name,
                 c.industry, c.hq_country, c.triage_score,
                 (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
                 c.created_at
             FROM companies c
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
             ORDER BY {order}
@@ -149,7 +149,7 @@ def list_companies():
             "status": display_status(r[3]),
             "tier": display_tier(r[4]),
             "owner_name": r[5],
-            "batch_name": r[6],
+            "tag_name": r[6],
             "industry": display_industry(r[7]),
             "hq_country": r[8],
             "triage_score": float(r[9]) if r[9] is not None else None,
@@ -187,11 +187,11 @@ def get_company(company_id):
                 c.enrichment_cost_usd, c.pre_score,
                 c.lemlist_synced, c.error_message, c.notes, c.custom_fields,
                 c.created_at, c.updated_at,
-                o.name AS owner_name, b.name AS batch_name,
+                o.name AS owner_name, b.name AS tag_name,
                 c.ico
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
-            LEFT JOIN batches b ON c.batch_id = b.id
+            LEFT JOIN tags b ON c.tag_id = b.id
             WHERE c.id = :id AND c.tenant_id = :tenant_id
         """),
         {"id": company_id, "tenant_id": tenant_id},
@@ -236,7 +236,7 @@ def get_company(company_id):
         "created_at": _iso(row[32]),
         "updated_at": _iso(row[33]),
         "owner_name": row[34],
-        "batch_name": row[35],
+        "tag_name": row[35],
         "ico": row[36],
     }
 

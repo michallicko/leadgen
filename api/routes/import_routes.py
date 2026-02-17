@@ -8,7 +8,7 @@ from flask import Blueprint, jsonify, request
 from openpyxl import load_workbook
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Batch, CustomFieldDefinition, ImportJob, Owner, db
+from ..models import Tag, CustomFieldDefinition, ImportJob, Owner, db
 from ..services.csv_mapper import apply_mapping, call_claude_for_mapping
 from ..services.dedup import dedup_preview, execute_import
 from ..services.llm_logger import log_llm_usage
@@ -347,9 +347,9 @@ def preview_import(job_id):
 @imports_bp.route("/api/imports/<job_id>/execute", methods=["POST"])
 @require_auth
 def execute_import_job(job_id):
-    """Create batch, insert companies/contacts, run dedup.
+    """Create tag, insert companies/contacts, run dedup.
 
-    Body: { "batch_name": "...", "owner_id": "...", "dedup_strategy": "skip"|"update"|"create_new" }
+    Body: { "tag_name": "...", "owner_id": "...", "dedup_strategy": "skip"|"update"|"create_new" }
     """
     tenant_id = resolve_tenant()
     if not tenant_id:
@@ -363,7 +363,7 @@ def execute_import_job(job_id):
         return jsonify({"error": "Import already executed"}), 400
 
     body = request.get_json(silent=True) or {}
-    batch_name = body.get("batch_name", f"import-{job.filename}")
+    tag_name = body.get("tag_name", f"import-{job.filename}")
     owner_id = body.get("owner_id")
     strategy = body.get("dedup_strategy", "skip")
 
@@ -376,14 +376,14 @@ def execute_import_job(job_id):
         if not owner:
             return jsonify({"error": "Owner not found"}), 404
 
-    # Create or find batch
-    batch = Batch.query.filter_by(tenant_id=str(tenant_id), name=batch_name).first()
-    if not batch:
-        batch = Batch(tenant_id=str(tenant_id), name=batch_name, is_active=True)
-        db.session.add(batch)
+    # Create or find tag
+    tag = Tag.query.filter_by(tenant_id=str(tenant_id), name=tag_name).first()
+    if not tag:
+        tag = Tag(tenant_id=str(tenant_id), name=tag_name, is_active=True)
+        db.session.add(tag)
         db.session.flush()
 
-    job.batch_id = str(batch.id)
+    job.tag_id = str(tag.id)
     job.owner_id = str(owner_id) if owner_id else None
     job.dedup_strategy = strategy
     job.status = "importing"
@@ -403,7 +403,7 @@ def execute_import_job(job_id):
         result = execute_import(
             tenant_id=str(tenant_id),
             parsed_rows=parsed,
-            batch_id=batch.id,
+            tag_id=tag.id,
             owner_id=owner_id,
             import_job_id=job.id,
             strategy=strategy,
@@ -435,7 +435,7 @@ def execute_import_job(job_id):
         return jsonify({
             "job_id": str(job.id),
             "status": "completed",
-            "batch_name": batch_name,
+            "tag_name": tag_name,
             "counts": counts,
         })
 

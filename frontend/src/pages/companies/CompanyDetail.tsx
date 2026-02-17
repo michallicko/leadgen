@@ -102,7 +102,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         <Badge variant="status" value={company.status} />
         <Badge variant="tier" value={company.tier} />
         {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
-        {company.batch_name && <span className="text-xs text-text-dim">{company.batch_name}</span>}
+        {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
       </div>
 
       {/* Classification */}

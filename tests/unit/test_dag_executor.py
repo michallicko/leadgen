@@ -12,15 +12,15 @@ from tests.conftest import auth_header
 # ---------------------------------------------------------------------------
 
 def _seed_dag_data(db, seed_tenant):
-    """Seed companies, contacts, and batches for DAG testing."""
-    from api.models import Batch, Company, Contact, EntityStageCompletion, Owner, PipelineRun
+    """Seed companies, contacts, and tags for DAG testing."""
+    from api.models import Tag, Company, Contact, EntityStageCompletion, Owner, PipelineRun
 
     owner = Owner(tenant_id=seed_tenant.id, name="Alice", is_active=True)
     db.session.add(owner)
     db.session.flush()
 
-    batch = Batch(tenant_id=seed_tenant.id, name="dag-batch", is_active=True)
-    db.session.add(batch)
+    tag = Tag(tenant_id=seed_tenant.id, name="dag-batch", is_active=True)
+    db.session.add(tag)
     db.session.flush()
 
     # Companies with different countries
@@ -35,7 +35,7 @@ def _seed_dag_data(db, seed_tenant):
     for name, domain, country, ico in company_data:
         c = Company(
             tenant_id=seed_tenant.id, name=name, domain=domain,
-            batch_id=batch.id, owner_id=owner.id, hq_country=country,
+            tag_id=tag.id, owner_id=owner.id, hq_country=country,
             status="new", ico=ico,
         )
         db.session.add(c)
@@ -48,7 +48,7 @@ def _seed_dag_data(db, seed_tenant):
         ct = Contact(
             tenant_id=seed_tenant.id, first_name="Person",
             last_name=f"At {company.name}",
-            company_id=company.id, batch_id=batch.id, owner_id=owner.id,
+            company_id=company.id, tag_id=tag.id, owner_id=owner.id,
         )
         db.session.add(ct)
         contacts.append(ct)
@@ -56,7 +56,7 @@ def _seed_dag_data(db, seed_tenant):
 
     # Pipeline run
     pipeline_run = PipelineRun(
-        tenant_id=seed_tenant.id, batch_id=batch.id,
+        tenant_id=seed_tenant.id, tag_id=tag.id,
         owner_id=owner.id, status="running",
         config=json.dumps({"mode": "dag"}),
     )
@@ -67,7 +67,7 @@ def _seed_dag_data(db, seed_tenant):
 
     return {
         "owner": owner,
-        "batch": batch,
+        "tag": tag,
         "companies": companies,
         "contacts": contacts,
         "pipeline_run": pipeline_run,
@@ -87,7 +87,7 @@ class TestRecordCompletion:
 
         with app.app_context():
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
                 status="completed", cost_usd=0.02,
             )
@@ -107,7 +107,7 @@ class TestRecordCompletion:
 
         with app.app_context():
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
                 status="failed", error="Timeout",
             )
@@ -126,7 +126,7 @@ class TestRecordCompletion:
 
         with app.app_context():
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][3].id, "registry",
                 status="skipped",
             )
@@ -151,7 +151,7 @@ class TestBuildEligibilityQuery:
         with app.app_context():
             ids = get_dag_eligible_ids(
                 "l1", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
         assert len(ids) == 5  # All 5 companies
 
@@ -165,19 +165,19 @@ class TestBuildEligibilityQuery:
             # No L1 completions — L2 should have 0 eligible
             ids = get_dag_eligible_ids(
                 "l2", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 0
 
             # Complete L1 for first company
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
             )
 
             ids = get_dag_eligible_ids(
                 "l2", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 1
             assert ids[0] == str(data["companies"][0].id)
@@ -192,20 +192,20 @@ class TestBuildEligibilityQuery:
             # No L1 completions — person should have 0 eligible
             ids = get_dag_eligible_ids(
                 "person", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
                 soft_deps_enabled={"person": False},  # disable soft deps for this test
             )
             assert len(ids) == 0
 
             # Complete L1 for first company
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
             )
 
             ids = get_dag_eligible_ids(
                 "person", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
                 soft_deps_enabled={"person": False},
             )
             # Should find contact(s) for first company
@@ -221,13 +221,13 @@ class TestBuildEligibilityQuery:
             # Complete L1 for all companies
             for c in data["companies"]:
                 record_completion(
-                    seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                    seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                     "company", c.id, "l1",
                 )
 
             ids = get_dag_eligible_ids(
                 "registry", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             # CZ, NO, FI, FR match — US does not
             company_ids = {str(c.id) for c in data["companies"]}
@@ -244,19 +244,19 @@ class TestBuildEligibilityQuery:
         with app.app_context():
             ids_before = get_dag_eligible_ids(
                 "l1", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids_before) == 5
 
             # Record L1 completion for first company
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
             )
 
             ids_after = get_dag_eligible_ids(
                 "l1", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids_after) == 4  # One less
 
@@ -269,30 +269,30 @@ class TestBuildEligibilityQuery:
         with app.app_context():
             # Complete L1 for first company
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
             )
 
             # With soft deps ON (default) — also needs l2 and signals
             ids = get_dag_eligible_ids(
                 "person", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 0  # Missing l2 and signals
 
             # Complete l2 and signals
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l2",
             )
             record_completion(
-                seed_tenant.id, data["batch"].id, data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "signals",
             )
 
             ids = get_dag_eligible_ids(
                 "person", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 1
 
@@ -304,7 +304,7 @@ class TestBuildEligibilityQuery:
         with app.app_context():
             ids = get_dag_eligible_ids(
                 "bogus", data["pipeline_run"].id,
-                seed_tenant.id, data["batch"].id,
+                seed_tenant.id, data["tag"].id,
             )
             assert ids == []
 
@@ -315,7 +315,7 @@ class TestBuildEligibilityQuery:
 
 class TestDagRunEndpoint:
     def test_dag_run_requires_auth(self, client):
-        resp = client.post("/api/pipeline/dag-run", json={"batch_name": "x", "stages": ["l1"]})
+        resp = client.post("/api/pipeline/dag-run", json={"tag_name": "x", "stages": ["l1"]})
         assert resp.status_code == 401
 
     def test_dag_run_requires_batch(self, client, seed_tenant, seed_super_admin):
@@ -336,7 +336,7 @@ class TestDagRunEndpoint:
                            json={"stages": ["l1"]},
                            headers=headers)
         assert resp.status_code == 400
-        assert "batch_name" in resp.get_json()["error"]
+        assert "tag_name" in resp.get_json()["error"]
 
     def test_dag_run_requires_stages(self, client, seed_tenant, seed_super_admin):
         from api.models import UserTenantRole
@@ -353,13 +353,13 @@ class TestDagRunEndpoint:
         headers["X-Namespace"] = seed_tenant.slug
 
         resp = client.post("/api/pipeline/dag-run",
-                           json={"batch_name": "b", "stages": []},
+                           json={"tag_name": "b", "stages": []},
                            headers=headers)
         assert resp.status_code == 400
         assert "stages" in resp.get_json()["error"]
 
     def test_dag_run_validates_stages(self, client, seed_tenant, seed_super_admin):
-        from api.models import Batch, UserTenantRole
+        from api.models import Tag, UserTenantRole
         from api.models import db as _db
 
         role = UserTenantRole(
@@ -367,21 +367,21 @@ class TestDagRunEndpoint:
             role="admin", granted_by=seed_super_admin.id,
         )
         _db.session.add(role)
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        _db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        _db.session.add(tag)
         _db.session.commit()
 
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
 
         resp = client.post("/api/pipeline/dag-run",
-                           json={"batch_name": "test-batch", "stages": ["l1", "bogus"]},
+                           json={"tag_name": "test-batch", "stages": ["l1", "bogus"]},
                            headers=headers)
         assert resp.status_code == 400
         assert "Unknown stages" in resp.get_json()["error"]
 
     def test_dag_run_creates_pipeline(self, client, seed_tenant, seed_super_admin):
-        from api.models import Batch, UserTenantRole
+        from api.models import Tag, UserTenantRole
         from api.models import db as _db
 
         role = UserTenantRole(
@@ -389,8 +389,8 @@ class TestDagRunEndpoint:
             role="admin", granted_by=seed_super_admin.id,
         )
         _db.session.add(role)
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        _db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        _db.session.add(tag)
         _db.session.commit()
 
         headers = auth_header(client)
@@ -398,7 +398,7 @@ class TestDagRunEndpoint:
 
         resp = client.post("/api/pipeline/dag-run",
                            json={
-                               "batch_name": "test-batch",
+                               "tag_name": "test-batch",
                                "stages": ["l1", "l2"],
                                "soft_deps": {},
                            },
@@ -414,7 +414,7 @@ class TestDagRunEndpoint:
 
 class TestDagStatusEndpoint:
     def test_dag_status_not_found(self, client, seed_tenant, seed_super_admin):
-        from api.models import Batch, UserTenantRole
+        from api.models import Tag, UserTenantRole
         from api.models import db as _db
 
         role = UserTenantRole(
@@ -422,14 +422,14 @@ class TestDagStatusEndpoint:
             role="admin", granted_by=seed_super_admin.id,
         )
         _db.session.add(role)
-        batch = Batch(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
-        _db.session.add(batch)
+        tag = Tag(tenant_id=seed_tenant.id, name="test-batch", is_active=True)
+        _db.session.add(tag)
         _db.session.commit()
 
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
 
-        resp = client.get("/api/pipeline/dag-status?batch_name=test-batch",
+        resp = client.get("/api/pipeline/dag-status?tag_name=test-batch",
                           headers=headers)
         assert resp.status_code == 404
 
@@ -487,7 +487,7 @@ class TestOldEndpointsUnchanged:
 
         resp = client.post("/api/pipeline/start",
                            json={
-                               "batch_name": "batch-1",
+                               "tag_name": "batch-1",
                                "stage": "l1",
                            },
                            headers=headers)
@@ -500,7 +500,7 @@ class TestOldEndpointsUnchanged:
         seed_data = seed_companies_contacts
         headers["X-Namespace"] = seed_data["tenant"].slug
 
-        resp = client.get("/api/pipeline/status?batch_name=batch-1",
+        resp = client.get("/api/pipeline/status?tag_name=batch-1",
                           headers=headers)
         assert resp.status_code == 200
         data = resp.get_json()

@@ -100,7 +100,7 @@ export function ContactDetail({ contact, onNavigate }: Props) {
             <Badge variant="icp" value={contact.icp_fit} />
             <Badge variant="msgStatus" value={contact.message_status} />
             {contact.owner_name && <span className="text-xs text-text-muted">{contact.owner_name}</span>}
-            {contact.batch_name && <span className="text-xs text-text-dim">{contact.batch_name}</span>}
+            {contact.tag_name && <span className="text-xs text-text-dim">{contact.tag_name}</span>}
           </div>
           {contact.linkedin_url && (
             <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-cyan hover:underline mt-1 inline-block">

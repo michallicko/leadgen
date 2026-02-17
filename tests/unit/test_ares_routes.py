@@ -245,11 +245,11 @@ class TestRegistryInEnrichEstimate:
     def test_registry_estimate_via_legacy_alias(self, client, db, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        batch_name = seed_companies_contacts["batches"][0].name
+        tag_name = seed_companies_contacts["tags"][0].name
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": batch_name, "stages": ["ares"]},
+            json={"tag_name": tag_name, "stages": ["ares"]},
             headers=headers,
         )
         assert resp.status_code == 200
@@ -262,11 +262,11 @@ class TestRegistryInEnrichEstimate:
     def test_registry_in_multi_stage_estimate(self, client, db, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        batch_name = seed_companies_contacts["batches"][0].name
+        tag_name = seed_companies_contacts["tags"][0].name
 
         resp = client.post(
             "/api/enrich/estimate",
-            json={"batch_name": batch_name, "stages": ["l1", "ares"]},
+            json={"tag_name": tag_name, "stages": ["l1", "ares"]},
             headers=headers,
         )
         assert resp.status_code == 200
