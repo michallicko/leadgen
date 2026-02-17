@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-031
+**Next ID**: BL-045
 
 ## Must Have
 
@@ -95,6 +95,90 @@ Unified email sending via Resend with two delivery modes:
 Two use cases: (1) **Transactional** — enrichment notifications, import status, staleness alerts, weekly digests, account emails. (2) **Outreach delivery** — personalized emails to contacts, tracks opens/clicks/bounces, complements Lemlist.
 
 Data model: `tenant_email_configs` table (mode, domain, subdomain, encrypted API key, verification status). Send logic checks mode and uses the appropriate Resend API key. Domain conflict auto-detected on registration attempt.
+
+### BL-031: Campaign CRUD + Data Model
+**Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
+**Depends on**: — | **ADR**: `docs/adr/006-campaign-data-model.md` | **Theme**: Outreach Engine
+
+Extend campaigns table with status, template config, generation config. New campaign_contacts junction table and campaign_templates table. CRUD API endpoints + CampaignsPage under Reach pillar. Foundation for message generation pipeline.
+
+### BL-032: Assign Contacts to Campaign
+**Status**: Done | **Effort**: M | **Spec**: —
+**Depends on**: BL-031 | **Theme**: Outreach Engine
+
+Contact picker with filters (batch, company, owner, tags). Add/remove contacts from campaign. Duplicate detection. Campaign detail shows contact count.
+
+### BL-033: Configure Message Types (Template Presets)
+**Status**: Done | **Effort**: M | **Spec**: —
+**Depends on**: BL-031 | **Theme**: Outreach Engine
+
+Template preset selector (LinkedIn + Email, Email 3-Step, LinkedIn Only). Toggle steps on/off. Configure tone, language, custom instructions. System templates seeded in migration.
+
+### BL-034: Enrichment Readiness Check
+**Status**: Done | **Effort**: S | **Spec**: —
+**Depends on**: BL-032 | **Theme**: Outreach Engine
+
+API endpoint checking entity_stage_completions per campaign contact. Returns readiness summary (X/Y ready, Z need enrichment). Cost estimate for missing enrichment.
+
+### BL-035: Message Generation Engine
+**Status**: Done | **Effort**: XL | **Spec**: —
+**Depends on**: BL-032, BL-033 | **Theme**: Outreach Engine
+
+Core generation service. Background thread processes contacts, calls Claude API per message step, writes to messages table. Channel-specific constraints, prompt templates, cost logging, progress tracking.
+
+### BL-036: Review Campaign Messages
+**Status**: Done | **Effort**: S | **Spec**: —
+**Depends on**: BL-035 | **Theme**: Outreach Engine
+
+Campaign filter on Messages page. Campaign-level bulk approve. Campaign detail shows generated/approved/rejected counts.
+
+### BL-037: Template Library
+**Status**: Idea | **Effort**: S | **Spec**: —
+**Depends on**: BL-031 | **Theme**: Outreach Engine
+
+Save current campaign config as reusable template. Load template into new campaign.
+
+### BL-038: Clone Campaign
+**Status**: Idea | **Effort**: S | **Spec**: —
+**Depends on**: BL-031 | **Theme**: Outreach Engine
+
+Clone campaign config (not contacts or messages). New campaign starts as draft.
+
+### BL-039: Lemlist CSV Export
+**Status**: Idea | **Effort**: M | **Spec**: —
+**Depends on**: BL-036 | **Theme**: Outreach Engine
+
+Export approved messages as Lemlist-compatible CSV. Columns: email, firstName, lastName, companyName, + custom columns per step.
+
+### BL-040: LinkedIn Export
+**Status**: Idea | **Effort**: S | **Spec**: —
+**Depends on**: BL-036 | **Theme**: Outreach Engine
+
+Export approved LinkedIn messages as CSV: full_name, linkedin_url, connection_message, followup_message.
+
+### BL-041: PDF Template Upload
+**Status**: Idea | **Effort**: M | **Spec**: —
+**Depends on**: BL-031 | **Theme**: Outreach Engine
+
+HTML template upload with {{variable}} placeholders. Variable picker shows available enrichment fields. Templates stored per tenant.
+
+### BL-042: PDF Generation
+**Status**: Idea | **Effort**: L | **Spec**: —
+**Depends on**: BL-041, BL-035 | **Theme**: Outreach Engine
+
+Render personalized PDF per contact from template + enrichment data. Stored as file, URL attached to message.
+
+### BL-043: A/B Variant Generation
+**Status**: Idea | **Effort**: M | **Spec**: —
+**Depends on**: BL-035 | **Theme**: Outreach Engine
+
+Generate 2 variants per step (different angles/temperature). Both shown in review. Cost doubles for 2-variant steps.
+
+### BL-044: Custom Prompt Instructions
+**Status**: Idea | **Effort**: S | **Spec**: —
+**Depends on**: BL-035 | **Theme**: Outreach Engine
+
+Per-campaign instruction text appended to generation prompts. Max 2000 chars.
 
 ## Should Have
 

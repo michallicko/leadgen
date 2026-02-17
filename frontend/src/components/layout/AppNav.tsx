@@ -61,7 +61,10 @@ const PILLARS: PillarDef[] = [
         <path d="M22 2L11 13" /><path d="M22 2L15 22l-4-9-9-4z" />
       </svg>
     ),
-    pages: [{ id: 'messages', label: 'Messages', path: 'messages', minRole: 'viewer' }],
+    pages: [
+      { id: 'campaigns', label: 'Campaigns', path: 'campaigns', minRole: 'viewer' },
+      { id: 'messages', label: 'Messages', path: 'messages', minRole: 'viewer' },
+    ],
   },
   {
     id: 'echo',

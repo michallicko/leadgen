@@ -205,6 +205,26 @@ LANGUAGE_DISPLAY = {
     "cs": "Czech",
 }
 
+CAMPAIGN_STATUS_DISPLAY = {
+    "draft": "Draft",
+    "ready": "Ready",
+    "generating": "Generating",
+    "review": "Review",
+    "approved": "Approved",
+    "exported": "Exported",
+    "archived": "Archived",
+}
+
+CAMPAIGN_CONTACT_STATUS_DISPLAY = {
+    "pending": "Pending",
+    "enrichment_ok": "Enrichment OK",
+    "enrichment_needed": "Enrichment Needed",
+    "generating": "Generating",
+    "generated": "Generated",
+    "failed": "Failed",
+    "excluded": "Excluded",
+}
+
 
 # --- Reverse maps (display value → DB value) ---
 
@@ -307,6 +327,14 @@ def display_contact_source(v):
 
 def display_language(v):
     return LANGUAGE_DISPLAY.get(v, v) if v else v
+
+
+def display_campaign_status(v):
+    return CAMPAIGN_STATUS_DISPLAY.get(v, v) if v else v
+
+
+def display_campaign_contact_status(v):
+    return CAMPAIGN_CONTACT_STATUS_DISPLAY.get(v, v) if v else v
 
 
 def reverse_lookup(display_map, display_value):

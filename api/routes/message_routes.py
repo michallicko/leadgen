@@ -18,6 +18,7 @@ def list_messages():
     status = request.args.get("status")
     owner_name = request.args.get("owner_name")
     channel = request.args.get("channel")
+    campaign_id = request.args.get("campaign_id")
 
     where = ["m.tenant_id = :t"]
     params = {"t": tenant_id}
@@ -31,6 +32,9 @@ def list_messages():
     if owner_name:
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
+    if campaign_id:
+        where.append("cc.campaign_id = :campaign_id")
+        params["campaign_id"] = campaign_id
 
     where_clause = " AND ".join(where)
 
@@ -51,6 +55,7 @@ def list_messages():
             LEFT JOIN companies co ON ct.company_id = co.id
             LEFT JOIN owners o ON m.owner_id = o.id
             LEFT JOIN batches b ON m.batch_id = b.id
+            LEFT JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
             WHERE {where_clause}
             ORDER BY ct.contact_score DESC NULLS LAST, m.sequence_step, m.variant
         """),

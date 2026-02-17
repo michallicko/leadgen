@@ -2,6 +2,7 @@ import { useMemo, useCallback, useEffect } from 'react'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../api/queries/useMessages'
 import { useBatches } from '../../api/queries/useBatches'
+import { useCampaigns } from '../../api/queries/useCampaigns'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useToast } from '../../components/ui/Toast'
 import { useEntityStack } from '../../hooks/useEntityStack'
@@ -41,15 +42,18 @@ export function MessagesPage() {
   const [ownerName, setOwnerName] = useLocalStorage('msg_filter_owner', '')
   const [status, setStatus] = useLocalStorage('msg_filter_status', 'draft')
   const [channel, setChannel] = useLocalStorage('msg_filter_channel', '')
+  const [campaignId, setCampaignId] = useLocalStorage('msg_filter_campaign', '')
 
   const filters: MessageFilters = useMemo(() => ({
     status: status || undefined,
     owner_name: ownerName || undefined,
     channel: channel || undefined,
-  }), [status, ownerName, channel])
+    campaign_id: campaignId || undefined,
+  }), [status, ownerName, channel, campaignId])
 
   const { data, isLoading, refetch, isRefetching } = useMessages(filters)
   const { data: batchesData } = useBatches()
+  const { data: campaignsData } = useCampaigns()
   const batchMutation = useBatchUpdateMessages()
 
   // Group messages by contact
@@ -132,14 +136,21 @@ export function MessagesPage() {
       case 'owner_name': setOwnerName(value); break
       case 'status': setStatus(value); break
       case 'channel': setChannel(value); break
+      case 'campaign_id': setCampaignId(value); break
     }
-  }, [setOwnerName, setStatus, setChannel])
+  }, [setOwnerName, setStatus, setChannel, setCampaignId])
+
+  const campaignOptions = useMemo(
+    () => (campaignsData?.campaigns ?? []).map((c) => ({ value: c.id, label: c.name })),
+    [campaignsData],
+  )
 
   const filterConfigs: FilterConfig[] = useMemo(() => [
     { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (batchesData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
     { key: 'status', label: 'Status', type: 'select' as const, options: filterOptions(REVIEW_STATUS_DISPLAY) },
     { key: 'channel', label: 'Channel', type: 'select' as const, options: CHANNEL_OPTIONS },
-  ], [batchesData])
+    { key: 'campaign_id', label: 'Campaign', type: 'select' as const, options: campaignOptions },
+  ], [batchesData, campaignOptions])
 
   // Entity detail modal
   const isCompanyOpen = stack.current?.type === 'company'
@@ -156,7 +167,7 @@ export function MessagesPage() {
       {/* Filter bar */}
       <FilterBar
         filters={filterConfigs}
-        values={{ owner_name: ownerName, status, channel }}
+        values={{ owner_name: ownerName, status, channel, campaign_id: campaignId }}
         onChange={handleFilterChange}
         action={
           <div className="flex items-center gap-2 ml-auto">
