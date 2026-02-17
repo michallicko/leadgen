@@ -5,6 +5,14 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Campaign CRUD + Data Model** (BL-031, ADR-006): Foundation for outreach engine — campaign management with template presets
+  - Migration 018: extended `campaigns` table (status, template_config, generation_config), new `campaign_contacts` junction, new `campaign_templates` with 3 system presets
+  - SQLAlchemy models: `Campaign`, `CampaignContact`, `CampaignTemplate`
+  - API: `GET/POST /api/campaigns`, `GET/PATCH/DELETE /api/campaigns/<id>`, `GET /api/campaign-templates`
+  - Status machine: draft → ready → generating → review → approved → exported → archived (validated transitions)
+  - CampaignsPage under Reach pillar with create dialog, template selector, DataTable
+  - 14 backlog items (BL-031 through BL-044) added to Theme 2: Outreach Engine
+  - 19 new unit tests covering all CRUD operations, status transitions, template loading
 - **Enrichment DAG Model** (BL-015, BL-016, ADR-005): Replace linear `company.status` routing with DAG-based stage completion tracking
   - `entity_stage_completions` table: per-entity, per-stage completion records with cost and error tracking (migration 016)
   - Stage registry (`stage_registry.py`): 11 configurable stages with hard/soft dependencies, country gates, execution modes

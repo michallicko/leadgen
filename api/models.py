@@ -590,6 +590,64 @@ class Message(db.Model):
     approved_at = db.Column(db.DateTime(timezone=True))
     sent_at = db.Column(db.DateTime(timezone=True))
     review_notes = db.Column(db.Text)
+    campaign_contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("campaign_contacts.id"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class Campaign(db.Model):
+    __tablename__ = "campaigns"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
+    name = db.Column(db.Text, nullable=False)
+    lemlist_campaign_id = db.Column(db.Text)
+    channel = db.Column(db.Text)
+    batch_id = db.Column(UUID(as_uuid=False), db.ForeignKey("batches.id"))
+    is_active = db.Column(db.Boolean, default=True)
+    # New campaign columns (migration 018)
+    status = db.Column(db.Text, default="draft")
+    description = db.Column(db.Text)
+    template_config = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    generation_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    total_contacts = db.Column(db.Integer, default=0)
+    generated_count = db.Column(db.Integer, default=0)
+    generation_cost = db.Column(db.Numeric(10, 4), default=0)
+    generation_started_at = db.Column(db.DateTime(timezone=True))
+    generation_completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    airtable_record_id = db.Column(db.Text)
+
+
+class CampaignContact(db.Model):
+    __tablename__ = "campaign_contacts"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    campaign_id = db.Column(UUID(as_uuid=False), db.ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    status = db.Column(db.Text, default="pending")
+    enrichment_gaps = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    generation_cost = db.Column(db.Numeric(10, 4), default=0)
+    error = db.Column(db.Text)
+    added_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    generated_at = db.Column(db.DateTime(timezone=True))
+
+    __table_args__ = (db.UniqueConstraint("campaign_id", "contact_id"),)
+
+
+class CampaignTemplate(db.Model):
+    __tablename__ = "campaign_templates"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"))
+    name = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    steps = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    default_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    is_system = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 

@@ -1,5 +1,6 @@
 from .auth_routes import auth_bp
 from .batch_routes import batch_bp
+from .campaign_routes import campaigns_bp
 from .company_routes import companies_bp
 from .contact_routes import contacts_bp
 from .custom_field_routes import custom_fields_bp
@@ -22,6 +23,7 @@ def register_blueprints(app):
     app.register_blueprint(tenants_bp)
     app.register_blueprint(batch_bp)
     app.register_blueprint(messages_bp)
+    app.register_blueprint(campaigns_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(enrich_bp)
     app.register_blueprint(companies_bp)

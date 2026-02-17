@@ -31,7 +31,7 @@ This is a standalone value prop — many small teams would pay just for "keep my
 ### Theme 2: Outreach Engine
 **Status**: Planned | **Quarter**: Q2-Q3 2026
 **Metric**: Campaigns launched per user/month, personalization quality score, reply rates
-**Backlog items**: None yet
+**Backlog items**: BL-031, BL-032, BL-033, BL-034, BL-035, BL-036, BL-037, BL-038, BL-039, BL-040, BL-041, BL-042, BL-043, BL-044
 
 Select contacts via filtering criteria, run them through a hyper-personalization pipeline, and deliver across channels:
 - **Audience selection**: Filter by enrichment data, tags, engagement signals, custom fields

@@ -61,7 +61,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/batches/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/campaigns/*`, `/api/campaign-templates`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/health`
 - **Services**: `pipeline_engine.py` (stage orchestration), `dag_executor.py` (DAG-based executor with completion-record eligibility, see ADR-005), `stage_registry.py` (configurable DAG of enrichment stages), `qc_checker.py` (end-of-pipeline quality checks), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters + unified orchestrator — see ADR-004, ADR-005), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
@@ -78,7 +78,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
 - **Schema**: 19 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `016_entity_stage_completions.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `018_campaign_tables.sql`
 
 ### 5. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
@@ -183,8 +183,9 @@ tenants ─┬── owners
          │              ├── company_insolvency_data (1:1, legacy ISIR)
          │              └── company_tags (1:∞)
          ├── contacts ──── contact_enrichment (1:1)
-         ├── messages
-         ├── campaigns
+         ├── messages ─── campaign_contacts (optional FK)
+         ├── campaigns ── campaign_contacts (junction: campaign×contact)
+         ├── campaign_templates (system + tenant-custom presets)
          ├── activities
          ├── crm_events ── crm_event_participants
          ├── tasks ─┬── task_contacts
