@@ -74,77 +74,93 @@ export function EnrichPage() {
     [filters],
   )
 
+  const noBatch = !filters.batch
+
   return (
     <div className="p-6">
-      {/* Filters */}
-      <FilterBar
-        filters={filterConfigs}
-        values={filterValues}
-        onChange={handleFilterChange}
-      />
-
-      {/* Controls bar */}
-      <DagControls
-        mode={dagMode}
-        batchName={filters.batch}
-        estimatedCost={estimatedCost}
-        runningCost={totalCost}
-        enabledCount={enabledStageCodes.length}
-        onRun={handleRun}
-        onStop={stop}
-        isLoading={estimate.isLoading}
-      />
-
-      {/* DAG with edges */}
-      <div className="relative" ref={containerRef}>
-        <DagEdges
-          containerRef={containerRef}
-          cardRefs={cardRefsObj.current}
-          enabledStages={enabledStages}
-          mode={dagMode}
-          progress={stageProgress}
-          softDepsConfig={softDepsConfig}
+      {/* Filters — always visible, disabled during pipeline run */}
+      <div className={dagMode === 'running' ? 'opacity-60 pointer-events-none' : ''}>
+        <FilterBar
+          filters={filterConfigs}
+          values={filterValues}
+          onChange={handleFilterChange}
         />
-        <DagVisualization>
-          {(stageCode) => {
-            const stageDef = STAGE_MAP[stageCode]
-            if (!stageDef) return null
-
-            // Build soft dep info
-            const softDeps = stageDef.softDeps.map((depCode) => ({
-              code: depCode,
-              name: STAGE_MAP[depCode]?.displayName ?? depCode,
-              active: softDepsConfig[`${stageCode}:${depCode}`] !== false,
-            }))
-
-            return (
-              <div key={stageCode} ref={setCardRef(stageCode)}>
-                <StageCard
-                  stage={stageDef}
-                  mode={dagMode}
-                  estimate={estimate.data?.stages?.[stageCode] ?? null}
-                  enabled={enabledStages[stageCode] ?? false}
-                  onToggle={(v) => toggleStage(stageCode, v)}
-                  progress={stageProgress[stageCode] ?? null}
-                  softDeps={softDeps}
-                  onSoftDepToggle={(dep, active) => toggleSoftDep(stageCode, dep, active)}
-                  reEnrich={reEnrichConfig[stageCode] ?? { enabled: false, horizon: null }}
-                  onReEnrichToggle={(v) => toggleReEnrich(stageCode, v)}
-                  onFreshnessChange={(h) => setFreshness(stageCode, h)}
-                />
-              </div>
-            )
-          }}
-        </DagVisualization>
       </div>
 
-      {/* Completion panel */}
-      {dagMode === 'completed' && (
-        <CompletionPanel
-          stageProgress={stageProgress}
-          totalCost={totalCost}
-          onReset={reset}
-        />
+      {/* No batch selected prompt */}
+      {noBatch && dagMode === 'configure' && (
+        <div className="mt-12 text-center">
+          <p className="text-sm text-text-muted">Select a batch to configure the enrichment pipeline.</p>
+        </div>
+      )}
+
+      {/* Main content — only when batch selected */}
+      {!noBatch && (
+        <>
+          {/* Controls bar */}
+          <DagControls
+            mode={dagMode}
+            batchName={filters.batch}
+            estimatedCost={estimatedCost}
+            runningCost={totalCost}
+            enabledCount={enabledStageCodes.length}
+            onRun={handleRun}
+            onStop={stop}
+            isLoading={estimate.isLoading}
+          />
+
+          {/* DAG with edges */}
+          <div className="relative" ref={containerRef}>
+            <DagEdges
+              containerRef={containerRef}
+              cardRefs={cardRefsObj.current}
+              enabledStages={enabledStages}
+              mode={dagMode}
+              progress={stageProgress}
+              softDepsConfig={softDepsConfig}
+            />
+            <DagVisualization>
+              {(stageCode) => {
+                const stageDef = STAGE_MAP[stageCode]
+                if (!stageDef) return null
+
+                // Build soft dep info
+                const softDeps = stageDef.softDeps.map((depCode) => ({
+                  code: depCode,
+                  name: STAGE_MAP[depCode]?.displayName ?? depCode,
+                  active: softDepsConfig[`${stageCode}:${depCode}`] !== false,
+                }))
+
+                return (
+                  <div key={stageCode} ref={setCardRef(stageCode)}>
+                    <StageCard
+                      stage={stageDef}
+                      mode={dagMode}
+                      estimate={estimate.data?.stages?.[stageCode] ?? null}
+                      enabled={enabledStages[stageCode] ?? false}
+                      onToggle={(v) => toggleStage(stageCode, v)}
+                      progress={stageProgress[stageCode] ?? null}
+                      softDeps={softDeps}
+                      onSoftDepToggle={(dep, active) => toggleSoftDep(stageCode, dep, active)}
+                      reEnrich={reEnrichConfig[stageCode] ?? { enabled: false, horizon: null }}
+                      onReEnrichToggle={(v) => toggleReEnrich(stageCode, v)}
+                      onFreshnessChange={(h) => setFreshness(stageCode, h)}
+                    />
+                  </div>
+                )
+              }}
+            </DagVisualization>
+          </div>
+
+          {/* Completion panel */}
+          {dagMode === 'completed' && (
+            <CompletionPanel
+              stageProgress={stageProgress}
+              totalCost={totalCost}
+              onReset={reset}
+            />
+          )}
+        </>
       )}
     </div>
   )
