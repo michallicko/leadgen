@@ -63,7 +63,6 @@ const PILLARS: PillarDef[] = [
     ),
     pages: [
       { id: 'campaigns', label: 'Campaigns', path: 'campaigns', minRole: 'viewer' },
-      { id: 'messages', label: 'Messages', path: 'messages', minRole: 'viewer' },
     ],
   },
   {

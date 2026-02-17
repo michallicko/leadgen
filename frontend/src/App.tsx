@@ -9,6 +9,7 @@ import { CompaniesPage } from './pages/companies/CompaniesPage'
 import { ContactsPage } from './pages/contacts/ContactsPage'
 import { MessagesPage } from './pages/messages/MessagesPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
+import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
 import { EnrichPage } from './pages/enrich/EnrichPage'
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
+              <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
               <Route path="playbook" element={<PlaceholderPage title="ICP Summary" />} />
               <Route path="echo" element={<PlaceholderPage title="Dashboard Demo" />} />
             </Route>
