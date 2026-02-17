@@ -489,6 +489,52 @@ class TestValidateResearch:
         assert "source_warning" not in flags
 
 
+class TestLoadPreviousEnrichment:
+    """Test auto-loading previous enrichment data for re-enrichment."""
+
+    def test_load_from_enrichment_table(self, app, db, seed_companies_contacts):
+        """When company has prior L1 enrichment, load it as previous_data."""
+        from api.services.l1_enricher import _load_previous_enrichment
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Insert a prior enrichment record
+            from sqlalchemy import text as sa_text
+            db.session.execute(sa_text("""
+                INSERT INTO company_enrichment_l1 (
+                    company_id, raw_response, qc_flags, confidence, quality_score,
+                    enrichment_cost_usd
+                ) VALUES (
+                    :cid, :raw, :flags, :conf, :qs, :cost
+                )
+            """), {
+                "cid": str(company.id),
+                "raw": '{"summary": "Old summary", "industry": "Software"}',
+                "flags": '["name_mismatch"]',
+                "conf": 0.7,
+                "qs": 85,
+                "cost": 0.001,
+            })
+            db.session.commit()
+
+            prev = _load_previous_enrichment(str(company.id))
+            assert prev is not None
+            assert prev["summary"] == "Old summary"
+            assert prev["industry"] == "Software"
+            assert "name_mismatch" in prev.get("previous_qc_flags", "")
+
+    def test_no_prior_enrichment_returns_none(self, app, db, seed_companies_contacts):
+        """When company has no prior enrichment, return None."""
+        from api.services.l1_enricher import _load_previous_enrichment
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            prev = _load_previous_enrichment(str(company.id))
+            assert prev is None
+
+
 class TestQCThresholdsConfigurable:
     """Test that QC thresholds can be overridden via config dict."""
 

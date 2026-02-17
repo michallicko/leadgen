@@ -128,6 +128,10 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
     if not domain:
         domain = _resolve_domain(company_id)
 
+    # 2b. Auto-load previous enrichment if not provided
+    if previous_data is None:
+        previous_data = _load_previous_enrichment(company_id)
+
     # 3. Call Perplexity
     try:
         raw_response, usage = _call_perplexity(company_name, domain,
@@ -270,6 +274,62 @@ def _get_contact_linkedin_urls(company_id, limit=3):
         url = row[3]
         results.append((name, title, url))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Previous enrichment loader
+# ---------------------------------------------------------------------------
+
+def _load_previous_enrichment(company_id):
+    """Load prior L1 enrichment data for re-enrichment context.
+
+    Reads from company_enrichment_l1 table. Returns dict of prior research
+    fields + QC flags, or None if no prior enrichment exists.
+    """
+    try:
+        row = db.session.execute(
+            text("""
+                SELECT raw_response, qc_flags, confidence, quality_score
+                FROM company_enrichment_l1
+                WHERE company_id = :id
+            """),
+            {"id": str(company_id)},
+        ).fetchone()
+    except Exception as e:
+        logger.debug("Could not load previous enrichment for %s: %s", company_id, e)
+        return None
+
+    if not row:
+        return None
+
+    raw_response = row[0]
+    qc_flags = row[1]
+    confidence = row[2]
+    quality_score = row[3]
+
+    # Parse raw_response JSON
+    prev = {}
+    if raw_response:
+        try:
+            prev = json.loads(raw_response) if isinstance(raw_response, str) else {}
+        except (json.JSONDecodeError, ValueError):
+            prev = {}
+
+    # Add QC context so the LLM can address previous issues
+    if qc_flags:
+        try:
+            flags_list = json.loads(qc_flags) if isinstance(qc_flags, str) else qc_flags
+            if flags_list:
+                prev["previous_qc_flags"] = ", ".join(str(f) for f in flags_list)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    if confidence is not None:
+        prev["previous_confidence"] = float(confidence)
+    if quality_score is not None:
+        prev["previous_quality_score"] = int(quality_score)
+
+    return prev if prev else None
 
 
 # ---------------------------------------------------------------------------
