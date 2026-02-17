@@ -263,7 +263,12 @@ def get_contact(contact_id):
     enrich_row = db.session.execute(
         db.text("""
             SELECT person_summary, linkedin_profile_summary,
-                   relationship_synthesis, enriched_at, enrichment_cost_usd
+                   relationship_synthesis,
+                   ai_champion, ai_champion_score, authority_score,
+                   career_trajectory, previous_companies,
+                   speaking_engagements, publications,
+                   twitter_handle, github_username,
+                   enriched_at, enrichment_cost_usd
             FROM contact_enrichment
             WHERE contact_id = :id
         """),
@@ -275,8 +280,17 @@ def get_contact(contact_id):
             "person_summary": enrich_row[0],
             "linkedin_profile_summary": enrich_row[1],
             "relationship_synthesis": enrich_row[2],
-            "enriched_at": _iso(enrich_row[3]),
-            "enrichment_cost_usd": float(enrich_row[4]) if enrich_row[4] is not None else None,
+            "ai_champion": enrich_row[3],
+            "ai_champion_score": enrich_row[4],
+            "authority_score": enrich_row[5],
+            "career_trajectory": enrich_row[6],
+            "previous_companies": _parse_jsonb(enrich_row[7]),
+            "speaking_engagements": enrich_row[8],
+            "publications": enrich_row[9],
+            "twitter_handle": enrich_row[10],
+            "github_username": enrich_row[11],
+            "enriched_at": _iso(enrich_row[12]),
+            "enrichment_cost_usd": float(enrich_row[13]) if enrich_row[13] is not None else None,
         }
     else:
         contact["enrichment"] = None

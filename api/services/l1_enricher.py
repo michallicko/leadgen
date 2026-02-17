@@ -182,6 +182,12 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
     # 9. UPDATE company
     _update_company(company_id, status, mapped, cost_float, error_message)
 
+    # 9b. UPSERT company_enrichment_l1
+    _upsert_enrichment_l1(
+        company_id, mapped, research, cost_float,
+        confidence_score, quality_score, qc_flags,
+    )
+
     # 10. INSERT research_asset (raw SQL — table may not exist in tests)
     _insert_research_asset(
         tenant_id, company_id, PERPLEXITY_MODEL, cost_float,
@@ -919,3 +925,83 @@ def _update_company(company_id, status, mapped, cost, error_message):
 
     sql = f"UPDATE companies SET {', '.join(set_clauses)} WHERE id = :id"
     db.session.execute(text(sql), params)
+
+
+def _upsert_enrichment_l1(company_id, mapped, research, cost_float,
+                           confidence_score, quality_score, qc_flags):
+    """Upsert enrichment detail into company_enrichment_l1 table."""
+    try:
+        # Build the raw_response JSON
+        raw_json = json.dumps(research) if isinstance(research, dict) else "{}"
+        qc_json = json.dumps(qc_flags) if isinstance(qc_flags, list) else "[]"
+
+        # triage_notes: use summary as proxy (L1 doesn't produce a separate field)
+        triage_notes = mapped.get("triage_notes") or mapped.get("summary", "")[:500]
+        # pre_score: use triage_score if available in mapped
+        pre_score = mapped.get("pre_score") or mapped.get("triage_score")
+
+        # Use dialect-appropriate upsert
+        dialect = db.engine.dialect.name
+        if dialect == "sqlite":
+            db.session.execute(
+                text("""
+                    INSERT OR REPLACE INTO company_enrichment_l1 (
+                        company_id, triage_notes, pre_score, research_query,
+                        raw_response, confidence, quality_score, qc_flags,
+                        enriched_at, enrichment_cost_usd, created_at, updated_at
+                    ) VALUES (
+                        :company_id, :triage_notes, :pre_score, :research_query,
+                        :raw_response, :confidence, :quality_score, :qc_flags,
+                        CURRENT_TIMESTAMP, :cost, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                """),
+                {
+                    "company_id": str(company_id),
+                    "triage_notes": triage_notes,
+                    "pre_score": pre_score,
+                    "research_query": None,  # Could store the prompt if needed
+                    "raw_response": raw_json,
+                    "confidence": confidence_score,
+                    "quality_score": quality_score,
+                    "qc_flags": qc_json,
+                    "cost": cost_float,
+                },
+            )
+        else:
+            db.session.execute(
+                text("""
+                    INSERT INTO company_enrichment_l1 (
+                        company_id, triage_notes, pre_score, research_query,
+                        raw_response, confidence, quality_score, qc_flags,
+                        enriched_at, enrichment_cost_usd
+                    ) VALUES (
+                        :company_id, :triage_notes, :pre_score, :research_query,
+                        :raw_response::jsonb, :confidence, :quality_score, :qc_flags::jsonb,
+                        CURRENT_TIMESTAMP, :cost
+                    )
+                    ON CONFLICT (company_id) DO UPDATE SET
+                        triage_notes = EXCLUDED.triage_notes,
+                        pre_score = EXCLUDED.pre_score,
+                        research_query = EXCLUDED.research_query,
+                        raw_response = EXCLUDED.raw_response,
+                        confidence = EXCLUDED.confidence,
+                        quality_score = EXCLUDED.quality_score,
+                        qc_flags = EXCLUDED.qc_flags,
+                        enriched_at = CURRENT_TIMESTAMP,
+                        enrichment_cost_usd = company_enrichment_l1.enrichment_cost_usd + EXCLUDED.enrichment_cost_usd,
+                        updated_at = CURRENT_TIMESTAMP
+                """),
+                {
+                    "company_id": str(company_id),
+                    "triage_notes": triage_notes,
+                    "pre_score": pre_score,
+                    "research_query": None,
+                    "raw_response": raw_json,
+                    "confidence": confidence_score,
+                    "quality_score": quality_score,
+                    "qc_flags": qc_json,
+                    "cost": cost_float,
+                },
+            )
+    except Exception as e:
+        logger.warning("Failed to upsert company_enrichment_l1 for %s: %s", company_id, e)
