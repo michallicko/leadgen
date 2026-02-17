@@ -344,7 +344,7 @@ def get_company(company_id):
                        registration_court, registration_number, registered_capital,
                        directors, registration_status, insolvency_flag,
                        match_confidence, match_method, ares_updated_at,
-                       enriched_at, registry_country
+                       enriched_at
                 FROM company_registry_data
                 WHERE company_id = :id
             """),
@@ -373,7 +373,6 @@ def get_company(company_id):
                 "match_confidence": float(reg_row[17]) if reg_row[17] is not None else None,
                 "match_method": reg_row[18],
                 "enriched_at": _iso(reg_row[20]),
-                "registration_country": reg_row[21],
             }
         else:
             company["registry_data"] = None
