@@ -1,5 +1,6 @@
 """Unit tests for campaign CRUD routes."""
 import json
+from unittest.mock import MagicMock, patch
 
 from tests.conftest import auth_header
 
@@ -518,6 +519,198 @@ class TestEnrichmentCheck:
             headers=headers,
         )
         assert resp.status_code == 404
+
+
+class TestCostEstimate:
+    """BL-035: Cost estimate for message generation."""
+
+    def test_cost_estimate(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+
+        # Create campaign with template
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Cost Test"})
+        cid = resp.get_json()["id"]
+
+        # Set template config
+        template_config = [
+            {"step": 1, "channel": "linkedin_connect", "label": "LI Invite", "enabled": True},
+            {"step": 2, "channel": "email", "label": "Email 1", "enabled": True},
+            {"step": 3, "channel": "email", "label": "Email 2", "enabled": False},
+        ]
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={
+            "template_config": template_config,
+        })
+
+        # Add contacts
+        contact_ids = [str(data["contacts"][0].id), str(data["contacts"][1].id)]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        resp = client.post(f"/api/campaigns/{cid}/cost-estimate", headers=headers)
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert result["total_contacts"] == 2
+        assert result["enabled_steps"] == 2  # step 3 is disabled
+        assert result["total_messages"] == 4  # 2 contacts × 2 steps
+        assert result["total_cost"] > 0
+        assert len(result["breakdown"]) == 2
+
+    def test_cost_estimate_no_contacts(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Empty"})
+        cid = resp.get_json()["id"]
+
+        resp = client.post(f"/api/campaigns/{cid}/cost-estimate", headers=headers)
+        assert resp.status_code == 400
+
+    def test_cost_estimate_no_enabled_steps(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "No Steps"})
+        cid = resp.get_json()["id"]
+
+        # Add contacts but no template
+        contact_ids = [str(data["contacts"][0].id)]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        resp = client.post(f"/api/campaigns/{cid}/cost-estimate", headers=headers)
+        assert resp.status_code == 400
+
+
+class TestGeneration:
+    """BL-035: Message generation — start, status, and background execution."""
+
+    def _setup_ready_campaign(self, client, headers, data):
+        """Create a campaign with contacts and template, moved to ready."""
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Gen Test"})
+        cid = resp.get_json()["id"]
+
+        template_config = [
+            {"step": 1, "channel": "linkedin_connect", "label": "LI Invite", "enabled": True},
+            {"step": 2, "channel": "email", "label": "Email 1", "enabled": True},
+        ]
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={
+            "template_config": template_config,
+        })
+
+        contact_ids = [str(data["contacts"][0].id)]
+        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+
+        # Move to ready
+        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
+        return cid
+
+    def test_generate_requires_ready_status(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Draft"})
+        cid = resp.get_json()["id"]
+
+        resp = client.post(f"/api/campaigns/{cid}/generate", headers=headers)
+        assert resp.status_code == 400
+        assert "ready" in resp.get_json()["error"].lower()
+
+    @patch("api.routes.campaign_routes.start_generation")
+    def test_generate_starts_background_thread(self, mock_start, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+
+        cid = self._setup_ready_campaign(client, headers, data)
+
+        resp = client.post(f"/api/campaigns/{cid}/generate", headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "generating"
+        mock_start.assert_called_once()
+
+    @patch("api.routes.campaign_routes.start_generation")
+    def test_generate_transitions_to_generating(self, mock_start, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        data = seed_companies_contacts
+
+        cid = self._setup_ready_campaign(client, headers, data)
+        client.post(f"/api/campaigns/{cid}/generate", headers=headers)
+
+        # Check status
+        resp = client.get(f"/api/campaigns/{cid}", headers=headers)
+        assert resp.get_json()["status"] == "Generating"
+
+    def test_generation_status_endpoint(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Status Test"})
+        cid = resp.get_json()["id"]
+
+        resp = client.get(f"/api/campaigns/{cid}/generation-status", headers=headers)
+        assert resp.status_code == 200
+        result = resp.get_json()
+        assert "status" in result
+        assert "total_contacts" in result
+        assert "generated_count" in result
+        assert "progress_pct" in result
+        assert "contact_statuses" in result
+
+
+class TestGenerationEngine:
+    """BL-035: Unit tests for the message_generator service (mocked LLM)."""
+
+    def test_estimate_generation_cost(self):
+        from api.services.message_generator import estimate_generation_cost
+
+        template = [
+            {"step": 1, "channel": "email", "label": "Email 1", "enabled": True},
+            {"step": 2, "channel": "linkedin_connect", "label": "LI", "enabled": True},
+            {"step": 3, "channel": "email", "label": "Email 2", "enabled": False},
+        ]
+        result = estimate_generation_cost(template, 10)
+        assert result["total_contacts"] == 10
+        assert result["enabled_steps"] == 2
+        assert result["total_messages"] == 20
+        assert result["total_cost"] > 0
+        assert len(result["breakdown"]) == 2
+
+    def test_build_generation_prompt(self):
+        from api.services.generation_prompts import build_generation_prompt
+
+        prompt = build_generation_prompt(
+            channel="linkedin_connect",
+            step_label="LinkedIn Invite",
+            contact_data={"first_name": "John", "last_name": "Doe", "job_title": "CEO"},
+            company_data={"name": "Acme Corp", "industry": "Software"},
+            enrichment_data={"l2": {"company_intel": "Growing fast"}, "person": {}},
+            generation_config={"tone": "casual"},
+            step_number=1,
+            total_steps=3,
+        )
+        assert "John Doe" in prompt
+        assert "Acme Corp" in prompt
+        assert "Growing fast" in prompt
+        assert "casual" in prompt
+        assert "300 characters" in prompt  # linkedin_connect constraint
+
+    def test_build_email_prompt_has_subject(self):
+        from api.services.generation_prompts import build_generation_prompt
+
+        prompt = build_generation_prompt(
+            channel="email",
+            step_label="Email 1",
+            contact_data={"first_name": "Jane"},
+            company_data={"name": "Beta Inc"},
+            enrichment_data={"l2": {}, "person": {}},
+            generation_config={"tone": "professional"},
+            step_number=1,
+            total_steps=1,
+        )
+        assert "subject" in prompt.lower()
+        assert "body" in prompt.lower()
 
 
 class TestCampaignTemplates:

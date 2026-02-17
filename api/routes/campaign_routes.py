@@ -2,9 +2,12 @@ import json
 
 from flask import Blueprint, jsonify, request
 
+from flask import current_app
+
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status
 from ..models import Campaign, CampaignContact, CampaignTemplate, db
+from ..services.message_generator import estimate_generation_cost, start_generation
 
 campaigns_bp = Blueprint("campaigns", __name__)
 
@@ -645,4 +648,139 @@ def enrichment_check(campaign_id):
             "ready": ready_count,
             "needs_enrichment": needs_enrichment_count,
         },
+    })
+
+
+# ── Generation Pipeline ──────────────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/cost-estimate", methods=["POST"])
+@require_role("editor")
+def generation_cost_estimate(campaign_id):
+    """Estimate the cost of generating messages for this campaign."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT template_config, total_contacts
+            FROM campaigns WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    template_config = _parse_jsonb(row[0]) or []
+    total_contacts = row[1] or 0
+
+    if total_contacts == 0:
+        return jsonify({"error": "No contacts in campaign"}), 400
+
+    enabled = [s for s in template_config if s.get("enabled")]
+    if not enabled:
+        return jsonify({"error": "No enabled message steps"}), 400
+
+    estimate = estimate_generation_cost(template_config, total_contacts)
+    return jsonify(estimate)
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/generate", methods=["POST"])
+@require_role("editor")
+def start_campaign_generation(campaign_id):
+    """Start message generation for a campaign (background)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("SELECT status, total_contacts, template_config FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    current_status = row[0] or "draft"
+    total_contacts = row[1] or 0
+    template_config = _parse_jsonb(row[2]) or []
+
+    # Must be in ready status to start generation
+    if current_status != "ready":
+        return jsonify({"error": f"Campaign must be in 'ready' status to generate (current: {current_status})"}), 400
+
+    if total_contacts == 0:
+        return jsonify({"error": "No contacts in campaign"}), 400
+
+    enabled = [s for s in template_config if s.get("enabled")]
+    if not enabled:
+        return jsonify({"error": "No enabled message steps"}), 400
+
+    # Transition to generating
+    db.session.execute(
+        db.text("""
+            UPDATE campaigns
+            SET status = 'generating', generation_started_at = CURRENT_TIMESTAMP,
+                generated_count = 0, generation_cost = 0
+            WHERE id = :id
+        """),
+        {"id": campaign_id},
+    )
+    db.session.commit()
+
+    # Get user_id from auth context
+    from flask import g
+    user_id = getattr(g, "user_id", None)
+
+    # Start background generation
+    start_generation(current_app._get_current_object(), campaign_id, tenant_id, user_id)
+
+    return jsonify({"ok": True, "status": "generating"})
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/generation-status", methods=["GET"])
+@require_auth
+def generation_status(campaign_id):
+    """Poll generation progress for a campaign."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT status, total_contacts, generated_count, generation_cost,
+                   generation_started_at, generation_completed_at
+            FROM campaigns WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    total = row[1] or 0
+    generated = row[2] or 0
+
+    # Count per-contact statuses
+    contact_stats = db.session.execute(
+        db.text("""
+            SELECT status, COUNT(*) FROM campaign_contacts
+            WHERE campaign_id = :id AND tenant_id = :t
+            GROUP BY status
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchall()
+    status_counts = {r[0]: r[1] for r in contact_stats}
+
+    return jsonify({
+        "status": display_campaign_status(row[0] or "draft"),
+        "total_contacts": total,
+        "generated_count": generated,
+        "generation_cost": float(row[3]) if row[3] else 0,
+        "progress_pct": round(generated / total * 100) if total > 0 else 0,
+        "generation_started_at": _format_ts(row[4]),
+        "generation_completed_at": _format_ts(row[5]),
+        "contact_statuses": status_counts,
     })
