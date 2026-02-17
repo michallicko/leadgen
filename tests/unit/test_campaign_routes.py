@@ -735,3 +735,130 @@ class TestCampaignTemplates:
         assert len(data["templates"]) >= 1
         names = [t["name"] for t in data["templates"]]
         assert "System T1" in names
+
+
+class TestMessagesFilterByCampaign:
+    """BL-036: Messages filtered by campaign_id."""
+
+    def test_filter_messages_by_campaign(self, client, seed_companies_contacts):
+        from api.models import Campaign, CampaignContact, Message, db
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        seed = seed_companies_contacts
+        tenant_id = seed["tenant"].id
+        contact = seed["contacts"][0]
+        owner = seed["owners"][0]
+
+        # Create campaign and add a contact
+        campaign = Campaign(
+            tenant_id=tenant_id,
+            name="Test Campaign",
+            status="review",
+        )
+        db.session.add(campaign)
+        db.session.flush()
+
+        cc = CampaignContact(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            tenant_id=tenant_id,
+            status="generated",
+        )
+        db.session.add(cc)
+        db.session.flush()
+
+        # Create messages - one linked to campaign, one not
+        m1 = Message(
+            tenant_id=tenant_id,
+            contact_id=contact.id,
+            owner_id=owner.id,
+            channel="email",
+            sequence_step=1,
+            variant="a",
+            subject="Campaign email",
+            body="Hello from campaign",
+            status="draft",
+            campaign_contact_id=cc.id,
+        )
+        m2 = Message(
+            tenant_id=tenant_id,
+            contact_id=contact.id,
+            owner_id=owner.id,
+            channel="email",
+            sequence_step=1,
+            variant="a",
+            subject="Non-campaign email",
+            body="Hello without campaign",
+            status="draft",
+        )
+        db.session.add_all([m1, m2])
+        db.session.commit()
+
+        # Filter by campaign_id — should return only the campaign message
+        resp = client.get(
+            f"/api/messages?campaign_id={campaign.id}",
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["messages"]) == 1
+        assert data["messages"][0]["subject"] == "Campaign email"
+
+    def test_no_campaign_filter_returns_all(self, client, seed_companies_contacts):
+        from api.models import Campaign, CampaignContact, Message, db
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        seed = seed_companies_contacts
+        tenant_id = seed["tenant"].id
+        contact = seed["contacts"][0]
+        owner = seed["owners"][0]
+
+        campaign = Campaign(
+            tenant_id=tenant_id,
+            name="Another Campaign",
+            status="review",
+        )
+        db.session.add(campaign)
+        db.session.flush()
+
+        cc = CampaignContact(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            tenant_id=tenant_id,
+            status="generated",
+        )
+        db.session.add(cc)
+        db.session.flush()
+
+        m1 = Message(
+            tenant_id=tenant_id,
+            contact_id=contact.id,
+            owner_id=owner.id,
+            channel="email",
+            sequence_step=1,
+            variant="a",
+            body="With campaign",
+            status="draft",
+            campaign_contact_id=cc.id,
+        )
+        m2 = Message(
+            tenant_id=tenant_id,
+            contact_id=contact.id,
+            owner_id=owner.id,
+            channel="email",
+            sequence_step=1,
+            variant="a",
+            body="Without campaign",
+            status="draft",
+        )
+        db.session.add_all([m1, m2])
+        db.session.commit()
+
+        # No campaign filter — should return both + seed message
+        resp = client.get("/api/messages", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        # At least our 2 plus the seed message
+        assert len(data["messages"]) >= 2

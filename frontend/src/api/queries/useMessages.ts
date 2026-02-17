@@ -47,6 +47,7 @@ export interface MessageFilters {
   status?: string
   owner_name?: string
   channel?: string
+  campaign_id?: string
 }
 
 export function useMessages(filters: MessageFilters) {
@@ -57,6 +58,7 @@ export function useMessages(filters: MessageFilters) {
       if (filters.status) params.status = filters.status
       if (filters.owner_name) params.owner_name = filters.owner_name
       if (filters.channel) params.channel = filters.channel
+      if (filters.campaign_id) params.campaign_id = filters.campaign_id
       return apiFetch<MessagesResponse>('/messages', { params })
     },
     enabled: false, // Manual trigger via refetch
