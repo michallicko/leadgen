@@ -6,8 +6,8 @@ import {
   FieldGrid, Field, FieldLink,
   EditableSelect, EditableTextarea,
   SectionDivider, MiniTable,
-  CollapsibleSection,
 } from '../../components/ui/DetailField'
+import { Tabs, type TabDef } from '../../components/ui/Tabs'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
@@ -77,15 +77,208 @@ export function ContactDetail({ contact, onNavigate }: Props) {
     }
   }
 
-  // Source info helpers
   const personSource: SourceInfo | undefined = contact.enrichment ? {
     label: 'Person Enrichment',
     timestamp: contact.enrichment.enriched_at,
     cost: contact.enrichment.enrichment_cost_usd,
   } : undefined
 
+  /* ---- Tab definitions ---- */
+
+  const tabs: TabDef[] = []
+
+  // Overview tab
+  tabs.push({
+    id: 'overview',
+    label: 'Overview',
+    content: (
+      <div className="space-y-1">
+        {/* Company link */}
+        {contact.company && (
+          <>
+            <SectionDivider title="Company" />
+            <button
+              onClick={() => contact.company && onNavigate('company', contact.company.id)}
+              className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md bg-surface-alt border border-border-solid hover:border-accent/40 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-text">{contact.company.name}</span>
+                {contact.company.domain && (
+                  <span className="text-xs text-text-dim ml-2">{contact.company.domain}</span>
+                )}
+              </div>
+              <Badge variant="status" value={contact.company.status} />
+              <Badge variant="tier" value={contact.company.tier} />
+            </button>
+          </>
+        )}
+
+        {/* Contact Info */}
+        <SectionDivider title="Contact Info" />
+        <FieldGrid cols={3}>
+          <FieldLink label="Email" value={contact.email_address} href={contact.email_address ? `mailto:${contact.email_address}` : null} />
+          <Field label="Phone" value={contact.phone_number} />
+          <Field label="City" value={contact.location_city} />
+          <Field label="Country" value={contact.location_country} />
+        </FieldGrid>
+
+        {/* Classification (editable) */}
+        <SectionDivider title="Classification" />
+        <FieldGrid cols={3}>
+          <EditableSelect label="Seniority" name="seniority_level" value={getEditableValue('seniority_level', contact.seniority_level)} options={filterOptions(SENIORITY_DISPLAY)} onChange={handleFieldChange} />
+          <EditableSelect label="Department" name="department" value={getEditableValue('department', contact.department)} options={filterOptions(DEPARTMENT_DISPLAY)} onChange={handleFieldChange} />
+          <EditableSelect label="ICP Fit" name="icp_fit" value={getEditableValue('icp_fit', contact.icp_fit)} options={filterOptions(ICP_FIT_DISPLAY)} onChange={handleFieldChange} />
+          <EditableSelect label="Relationship" name="relationship_status" value={getEditableValue('relationship_status', contact.relationship_status)} options={filterOptions(RELATIONSHIP_STATUS_DISPLAY)} onChange={handleFieldChange} />
+          <EditableSelect label="Source" name="contact_source" value={getEditableValue('contact_source', contact.contact_source)} options={filterOptions(CONTACT_SOURCE_DISPLAY)} onChange={handleFieldChange} />
+          <EditableSelect label="Language" name="language" value={getEditableValue('language', contact.language)} options={filterOptions(LANGUAGE_DISPLAY)} onChange={handleFieldChange} />
+        </FieldGrid>
+
+        {/* Scores */}
+        <SectionDivider title="Scores" />
+        <FieldGrid cols={3}>
+          <Field label="Contact Score" value={contact.contact_score} />
+          <Field label="AI Champion" value={contact.ai_champion} />
+          <Field label="AI Champion Score" value={contact.ai_champion_score} />
+          <Field label="Authority Score" value={contact.authority_score} />
+          <Field label="Enrichment Cost (USD)" value={contact.enrichment_cost_usd?.toFixed(4)} />
+        </FieldGrid>
+
+        {/* Notes (editable) */}
+        <SectionDivider title="Notes" />
+        <EditableTextarea
+          label="Notes"
+          name="notes"
+          value={getEditableValue('notes', contact.notes)}
+          onChange={handleFieldChange}
+        />
+
+        {/* Custom Fields */}
+        {contact.custom_fields && Object.keys(contact.custom_fields).length > 0 && (
+          <>
+            <SectionDivider title="Custom Fields" />
+            <div className="space-y-3">
+              {Object.entries(contact.custom_fields).map(([key, val]) => (
+                <EditableTextarea
+                  key={key}
+                  label={key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  name={key}
+                  value={key in cfEdits ? cfEdits[key] : (val ?? '')}
+                  onChange={handleCfChange}
+                  rows={2}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Save button */}
+        {hasChanges && (
+          <div className="sticky bottom-0 bg-surface border-t border-border-solid py-3 mt-4 flex justify-end">
+            <button
+              onClick={handleSave}
+              disabled={mutation.isPending}
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
+            >
+              {mutation.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        )}
+      </div>
+    ),
+  })
+
+  // Enrichment tab (only if person enrichment exists)
+  if (contact.enrichment) {
+    tabs.push({
+      id: 'enrichment',
+      label: 'Enrichment',
+      content: (
+        <div className="space-y-1">
+          <SectionDivider title="Person Enrichment" />
+          <div className="space-y-4">
+            <Field label="Person Summary" value={contact.enrichment.person_summary} className="col-span-full" source={personSource} />
+            <Field label="LinkedIn Summary" value={contact.enrichment.linkedin_profile_summary} className="col-span-full" source={personSource} />
+            <Field label="Relationship Synthesis" value={contact.enrichment.relationship_synthesis} className="col-span-full" source={personSource} />
+          </div>
+          <FieldGrid>
+            <Field label="Enriched At" value={contact.enrichment.enriched_at ? new Date(contact.enrichment.enriched_at).toLocaleString() : null} />
+            <Field label="Cost (USD)" value={contact.enrichment.enrichment_cost_usd?.toFixed(4)} />
+          </FieldGrid>
+        </div>
+      ),
+    })
+  }
+
+  // Messages tab (only if messages exist)
+  if (contact.messages.length > 0) {
+    tabs.push({
+      id: 'messages',
+      label: 'Messages',
+      count: contact.messages.length,
+      content: (
+        <MiniTable
+          columns={[
+            { key: 'channel', label: 'Channel' },
+            { key: 'sequence_step', label: 'Step' },
+            { key: 'variant', label: 'Variant' },
+            { key: 'subject', label: 'Subject' },
+            { key: 'status', label: 'Status', render: (m) => <Badge variant="msgStatus" value={m.status as string} /> },
+            { key: 'tone', label: 'Tone' },
+          ]}
+          data={contact.messages as unknown as Array<Record<string, unknown>>}
+          emptyText="No messages"
+        />
+      ),
+    })
+  }
+
+  // History tab — timeline + status flags + timestamps + errors merged
+  tabs.push({
+    id: 'history',
+    label: 'History',
+    content: (
+      <div className="space-y-1">
+        <SectionDivider title="Enrichment Timeline" />
+        <EnrichmentTimeline entries={[
+          { label: 'Created', timestamp: contact.created_at },
+          ...(contact.stage_completions ?? []).map((sc) => ({
+            label: sc.stage.toUpperCase(),
+            timestamp: sc.completed_at,
+            cost: sc.cost_usd,
+            status: sc.status as 'completed' | 'failed' | 'skipped',
+            error: sc.error,
+          })),
+        ]} />
+
+        <SectionDivider title="Status Flags" />
+        <FieldGrid cols={3}>
+          <Field label="Processed (Enrich)" value={contact.processed_enrich} />
+          <Field label="Email Lookup" value={contact.email_lookup} />
+          <Field label="Duplicity Check" value={contact.duplicity_check} />
+          <Field label="Duplicity Conflict" value={contact.duplicity_conflict} />
+          <Field label="Duplicity Detail" value={contact.duplicity_detail} />
+        </FieldGrid>
+
+        <SectionDivider title="Timestamps" />
+        <FieldGrid>
+          <Field label="Created" value={contact.created_at ? new Date(contact.created_at).toLocaleString() : null} />
+          <Field label="Updated" value={contact.updated_at ? new Date(contact.updated_at).toLocaleString() : null} />
+        </FieldGrid>
+
+        {contact.error && (
+          <>
+            <SectionDivider title="Errors" />
+            <div className="bg-error/10 border border-error/30 rounded-md p-3 text-sm text-error">
+              {contact.error}
+            </div>
+          </>
+        )}
+      </div>
+    ),
+  })
+
   return (
-    <div className="space-y-1">
+    <div>
       {/* Header */}
       <div className="flex items-start gap-4 mb-4">
         {contact.profile_photo_url && (
@@ -110,202 +303,8 @@ export function ContactDetail({ contact, onNavigate }: Props) {
         </div>
       </div>
 
-      {/* Company link */}
-      {contact.company && (
-        <>
-          <SectionDivider title="Company" />
-          <button
-            onClick={() => contact.company && onNavigate('company', contact.company.id)}
-            className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md bg-surface-alt border border-border-solid hover:border-accent/40 transition-colors"
-          >
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-text">{contact.company.name}</span>
-              {contact.company.domain && (
-                <span className="text-xs text-text-dim ml-2">{contact.company.domain}</span>
-              )}
-            </div>
-            <Badge variant="status" value={contact.company.status} />
-            <Badge variant="tier" value={contact.company.tier} />
-          </button>
-        </>
-      )}
-
-      {/* Contact Info */}
-      <SectionDivider title="Contact Info" />
-      <FieldGrid>
-        <FieldLink label="Email" value={contact.email_address} href={contact.email_address ? `mailto:${contact.email_address}` : null} />
-        <Field label="Phone" value={contact.phone_number} />
-        <Field label="City" value={contact.location_city} />
-        <Field label="Country" value={contact.location_country} />
-      </FieldGrid>
-
-      {/* Classification (editable) */}
-      <SectionDivider title="Classification" />
-      <FieldGrid>
-        <EditableSelect
-          label="Seniority"
-          name="seniority_level"
-          value={getEditableValue('seniority_level', contact.seniority_level)}
-          options={filterOptions(SENIORITY_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-        <EditableSelect
-          label="Department"
-          name="department"
-          value={getEditableValue('department', contact.department)}
-          options={filterOptions(DEPARTMENT_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-        <EditableSelect
-          label="ICP Fit"
-          name="icp_fit"
-          value={getEditableValue('icp_fit', contact.icp_fit)}
-          options={filterOptions(ICP_FIT_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-        <EditableSelect
-          label="Relationship"
-          name="relationship_status"
-          value={getEditableValue('relationship_status', contact.relationship_status)}
-          options={filterOptions(RELATIONSHIP_STATUS_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-        <EditableSelect
-          label="Source"
-          name="contact_source"
-          value={getEditableValue('contact_source', contact.contact_source)}
-          options={filterOptions(CONTACT_SOURCE_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-        <EditableSelect
-          label="Language"
-          name="language"
-          value={getEditableValue('language', contact.language)}
-          options={filterOptions(LANGUAGE_DISPLAY)}
-          onChange={handleFieldChange}
-        />
-      </FieldGrid>
-
-      {/* Scores */}
-      <SectionDivider title="Scores" />
-      <FieldGrid>
-        <Field label="Contact Score" value={contact.contact_score} />
-        <Field label="AI Champion" value={contact.ai_champion} />
-        <Field label="AI Champion Score" value={contact.ai_champion_score} />
-        <Field label="Authority Score" value={contact.authority_score} />
-        <Field label="Enrichment Cost (USD)" value={contact.enrichment_cost_usd?.toFixed(4)} />
-      </FieldGrid>
-
-      {/* Person Enrichment */}
-      {contact.enrichment && (
-        <CollapsibleSection title="Person Enrichment" defaultOpen>
-          <div className="space-y-3">
-            <Field label="Person Summary" value={contact.enrichment.person_summary} className="col-span-full" source={personSource} />
-            <Field label="LinkedIn Summary" value={contact.enrichment.linkedin_profile_summary} className="col-span-full" source={personSource} />
-            <Field label="Relationship Synthesis" value={contact.enrichment.relationship_synthesis} className="col-span-full" source={personSource} />
-            <FieldGrid>
-              <Field label="Enriched At" value={contact.enrichment.enriched_at ? new Date(contact.enrichment.enriched_at).toLocaleString() : null} />
-              <Field label="Cost (USD)" value={contact.enrichment.enrichment_cost_usd?.toFixed(4)} />
-            </FieldGrid>
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {/* Notes (editable) */}
-      <SectionDivider title="Notes" />
-      <EditableTextarea
-        label="Notes"
-        name="notes"
-        value={getEditableValue('notes', contact.notes)}
-        onChange={handleFieldChange}
-      />
-
-      {/* Custom Fields */}
-      {contact.custom_fields && Object.keys(contact.custom_fields).length > 0 && (
-        <>
-          <SectionDivider title="Custom Fields" />
-          <div className="space-y-3">
-            {Object.entries(contact.custom_fields).map(([key, val]) => (
-              <EditableTextarea
-                key={key}
-                label={key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                name={key}
-                value={key in cfEdits ? cfEdits[key] : (val ?? '')}
-                onChange={handleCfChange}
-                rows={2}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Save button */}
-      {hasChanges && (
-        <div className="sticky bottom-0 bg-surface border-t border-border-solid py-3 mt-4 flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={mutation.isPending}
-            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
-          >
-            {mutation.isPending ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      )}
-
-      {/* Messages mini-table */}
-      {contact.messages.length > 0 && (
-        <>
-          <SectionDivider title={`Messages (${contact.messages.length})`} />
-          <MiniTable
-            columns={[
-              { key: 'channel', label: 'Channel' },
-              { key: 'sequence_step', label: 'Step' },
-              { key: 'variant', label: 'Variant' },
-              { key: 'subject', label: 'Subject' },
-              { key: 'status', label: 'Status', render: (m) => <Badge variant="msgStatus" value={m.status as string} /> },
-              { key: 'tone', label: 'Tone' },
-            ]}
-            data={contact.messages as unknown as Array<Record<string, unknown>>}
-            emptyText="No messages"
-          />
-        </>
-      )}
-
-      {/* Status Flags */}
-      <SectionDivider title="Status Flags" />
-      <FieldGrid>
-        <Field label="Processed (Enrich)" value={contact.processed_enrich} />
-        <Field label="Email Lookup" value={contact.email_lookup} />
-        <Field label="Duplicity Check" value={contact.duplicity_check} />
-        <Field label="Duplicity Conflict" value={contact.duplicity_conflict} />
-        <Field label="Duplicity Detail" value={contact.duplicity_detail} />
-      </FieldGrid>
-      {contact.error && (
-        <div className="bg-error/10 border border-error/30 rounded-md p-3 text-sm text-error mt-2">
-          {contact.error}
-        </div>
-      )}
-
-      {/* Enrichment Timeline */}
-      <CollapsibleSection title="Enrichment Timeline">
-        <EnrichmentTimeline entries={[
-          { label: 'Created', timestamp: contact.created_at },
-          ...(contact.stage_completions ?? []).map((sc) => ({
-            label: sc.stage.toUpperCase(),
-            timestamp: sc.completed_at,
-            cost: sc.cost_usd,
-            status: sc.status as 'completed' | 'failed' | 'skipped',
-            error: sc.error,
-          })),
-        ]} />
-      </CollapsibleSection>
-
-      {/* Timestamps */}
-      <SectionDivider title="Timestamps" />
-      <FieldGrid>
-        <Field label="Created" value={contact.created_at ? new Date(contact.created_at).toLocaleString() : null} />
-        <Field label="Updated" value={contact.updated_at ? new Date(contact.updated_at).toLocaleString() : null} />
-      </FieldGrid>
+      {/* Tabbed content */}
+      <Tabs tabs={tabs} />
     </div>
   )
 }

@@ -67,7 +67,7 @@ export function EntityDetailPage({ closeTo, title, subtitle, isLoading, children
             <div className="w-8 h-8 border-2 border-border border-t-accent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="max-w-3xl">
+          <div className="w-full">
             {children}
           </div>
         )}
