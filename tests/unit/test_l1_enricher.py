@@ -122,13 +122,13 @@ class TestDeriveGeoRegion:
         assert self.derive("Czech Republic") == "cee"
 
     def test_uk(self):
-        assert self.derive("United Kingdom") == "uk_ie"
+        assert self.derive("United Kingdom") == "uk_ireland"
 
     def test_france(self):
-        assert self.derive("France") == "france"
+        assert self.derive("France") == "southern_europe"
 
     def test_us(self):
-        assert self.derive("United States") == "north_america"
+        assert self.derive("United States") == "us"
 
     def test_unknown(self):
         assert self.derive("Mars") is None
@@ -155,7 +155,7 @@ class TestMapOwnership:
         assert self.map("Public") == "public"
 
     def test_private(self):
-        assert self.map("Private") == "private"
+        assert self.map("Private") == "bootstrapped"
 
     def test_vc(self):
         assert self.map("VC-backed") == "vc_backed"
@@ -334,7 +334,7 @@ class TestMapFields:
         assert mapped["hq_city"] == "Berlin"
         assert mapped["hq_country"] == "Germany"
         assert mapped["geo_region"] == "dach"
-        assert mapped["ownership_type"] == "private"
+        assert mapped["ownership_type"] == "bootstrapped"
         assert mapped["industry"] == "software_saas"
         assert mapped["business_type"] == "saas"
         assert mapped["verified_revenue_eur_m"] == 42.0
@@ -354,6 +354,42 @@ class TestMapFields:
         research = {"revenue_eur_m": "unverified"}
         mapped = self.map(research)
         assert "verified_revenue_eur_m" not in mapped
+
+    def test_enum_mapping_applied_geo_region(self):
+        """Verify _map_fields routes geo_region through the enum mapper."""
+        research = {"hq": "London, United Kingdom"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "uk_ireland"
+
+    def test_enum_mapping_applied_ownership(self):
+        """Verify _map_fields routes ownership through the enum mapper."""
+        research = {"ownership": "Privately held"}
+        mapped = self.map(research)
+        assert mapped["ownership_type"] == "bootstrapped"
+
+    def test_enum_mapping_us_from_map_fields(self):
+        """USA country → us geo_region (not north_america)."""
+        research = {"hq": "New York, United States"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "us"
+
+    def test_enum_mapping_france_from_map_fields(self):
+        """France country → southern_europe geo_region (not 'france')."""
+        research = {"hq": "Paris, France"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "southern_europe"
+
+    def test_enum_mapping_arts_industry(self):
+        """Arts & entertainment → creative_services via enum mapper."""
+        research = {"industry": "arts & entertainment"}
+        mapped = self.map(research)
+        assert mapped["industry"] == "creative_services"
+
+    def test_enum_mapping_events_industry(self):
+        """Events → creative_services via enum mapper."""
+        research = {"industry": "events"}
+        mapped = self.map(research)
+        assert mapped["industry"] == "creative_services"
 
 
 # ---------------------------------------------------------------------------

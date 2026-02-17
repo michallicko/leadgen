@@ -17,6 +17,7 @@ from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
+from .enum_mapper import map_enum_value
 
 # Import llm_logger functions — uses existing pricing if perplexity entries
 # are present, otherwise falls back to wildcard pricing
@@ -549,51 +550,32 @@ def _parse_employees(raw):
 
 
 def _derive_geo_region(country_str):
-    """Map country name to geo_region enum value."""
-    if not country_str:
-        return None
+    """Map country name to geo_region enum value.
 
-    c = country_str.strip().lower()
-
-    region_map = {
-        # DACH
-        "germany": "dach", "deutschland": "dach", "austria": "dach",
-        "österreich": "dach", "switzerland": "dach", "schweiz": "dach",
-        "liechtenstein": "dach",
-        # Nordics
-        "sweden": "nordics", "norway": "nordics", "denmark": "nordics",
-        "finland": "nordics", "iceland": "nordics",
-        # CEE
-        "czech republic": "cee", "czechia": "cee", "poland": "cee",
-        "hungary": "cee", "slovakia": "cee", "romania": "cee",
-        "bulgaria": "cee", "croatia": "cee", "slovenia": "cee",
-        "serbia": "cee", "estonia": "cee", "latvia": "cee",
-        "lithuania": "cee",
-        # Benelux
-        "netherlands": "benelux", "belgium": "benelux", "luxembourg": "benelux",
-        # UK/IE
-        "uk": "uk_ie", "united kingdom": "uk_ie", "ireland": "uk_ie",
-        "england": "uk_ie", "scotland": "uk_ie", "wales": "uk_ie",
-        # Southern Europe
-        "spain": "southern_europe", "italy": "southern_europe",
-        "portugal": "southern_europe", "greece": "southern_europe",
-        # France
-        "france": "france",
-        # North America
-        "us": "north_america", "usa": "north_america",
-        "united states": "north_america", "canada": "north_america",
-    }
-
-    return region_map.get(c)
+    Delegates to the fuzzy enum mapper which handles synonyms,
+    case normalization, and produces valid DB enum values.
+    """
+    return map_enum_value("geo_region", country_str)
 
 
 def _map_ownership(raw):
-    """Map ownership description to enum value."""
+    """Map ownership description to enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases like "PE-backed (EQT)"
+    3. None if no match
+    """
     if not raw:
         return None
 
-    s = str(raw).strip().lower()
+    # Try enum mapper first (handles clean values)
+    mapped = map_enum_value("ownership_type", raw)
+    if mapped:
+        return mapped
 
+    # Keyword substring matching fallback for complex descriptions
+    s = str(raw).strip().lower()
     if "family" in s:
         return "family_owned"
     if "pe" in s or "private equity" in s:
@@ -606,33 +588,33 @@ def _map_ownership(raw):
         return "state_owned"
     if "cooperative" in s or "coop" in s:
         return "other"
-    if "bootstrap" in s:
-        return "bootstrapped"
-    if "private" in s:
+    if "bootstrap" in s or "private" in s:
         return "bootstrapped"
 
     return None
 
 
 def _map_industry(raw):
-    """Map industry description to an industry_enum value."""
+    """Map industry description to an industry_enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases
+    3. Fallback to "other"
+    """
     if not raw:
         return None
+
+    # Try enum mapper first (handles exact values + common synonyms)
+    mapped = map_enum_value("industry", raw)
+    if mapped:
+        return mapped
+
+    # Keyword substring matching for complex descriptions
     s = str(raw).strip().lower()
-
-    VALID_INDUSTRIES = {
-        "software_saas", "it", "professional_services", "financial_services",
-        "healthcare", "pharma_biotech", "manufacturing", "automotive",
-        "aerospace_defense", "retail", "hospitality", "media", "energy",
-        "telecom", "transport", "construction", "real_estate", "agriculture",
-        "education", "public_sector", "other",
-    }
-    # Direct match
-    if s in VALID_INDUSTRIES:
-        return s
-
-    # Keyword mapping — more specific patterns first to avoid false matches
     keywords = {
+        "creative_services": ["arts", "event", "culture", "performing", "music",
+                              "film", "design", "creative", "pr ", "public relation"],
         "pharma_biotech": ["pharma", "biotech", "life science", "drug", "clinical trial"],
         "aerospace_defense": ["aerospace", "defense", "defence", "military", "space", "satellite", "avionics"],
         "automotive": ["automotive", "car ", "vehicle", "motor", "auto parts", "ev charging"],
@@ -663,16 +645,23 @@ def _map_industry(raw):
 
 
 def _map_business_type(raw):
-    """Map business model/type description to business_type enum value."""
+    """Map business model/type description to business_type enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases
+    3. Fallback to "other"
+    """
     if not raw:
         return None
 
+    # Try enum mapper first
+    mapped = map_enum_value("business_type", raw)
+    if mapped:
+        return mapped
+
+    # Keyword substring matching fallback
     s = str(raw).strip().lower()
-
-    VALID_TYPES = {"manufacturer", "distributor", "service_provider", "saas", "platform", "other"}
-    if s in VALID_TYPES:
-        return s
-
     type_map = {
         "saas": "saas",
         "software": "saas",
