@@ -363,7 +363,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                 <Field label="Pain Hypothesis" value={l2.pain_hypothesis as string} className="col-span-full" source={l2Source} />
                 <Field label="Relevant Case Study" value={l2.relevant_case_study as string} className="col-span-full" source={l2Source} />
                 <Field label="AI Opportunities" value={l2.ai_opportunities as string} className="col-span-full" source={l2Source} />
-                <Field label="Quick Wins" value={Array.isArray(l2.quick_wins) ? (l2.quick_wins as string[]).join(', ') : l2.quick_wins as string} className="col-span-full" source={l2Source} />
+                <Field label="Quick Wins" value={Array.isArray(l2.quick_wins) ? (l2.quick_wins as Array<Record<string, unknown>>).map(w => typeof w === 'string' ? w : `${w.use_case ?? ''} (${w.complexity ?? ''}): ${w.impact ?? ''}`).join(' | ') : l2.quick_wins as string} className="col-span-full" source={l2Source} />
                 <Field label="Industry Pain Points" value={l2.industry_pain_points as string} className="col-span-full" source={l2Source} />
                 <Field label="Cross-Functional Pain" value={l2.cross_functional_pain as string} className="col-span-full" source={l2Source} />
                 <Field label="Adoption Barriers" value={l2.adoption_barriers as string} className="col-span-full" source={l2Source} />
