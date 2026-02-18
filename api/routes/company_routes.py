@@ -548,12 +548,16 @@ def get_company(company_id):
     ).fetchall()
     company["tags"] = [{"category": r[0], "value": r[1]} for r in tag_rows]
 
-    # Contacts summary
+    # Contacts summary (with enrichment fields via LEFT JOIN)
     contact_rows = db.session.execute(
         db.text("""
             SELECT ct.id, ct.first_name, ct.last_name, ct.job_title, ct.email_address,
-                   ct.contact_score, ct.icp_fit, ct.message_status
+                   ct.contact_score, ct.icp_fit, ct.message_status,
+                   ct.linkedin_url, ct.seniority_level, ct.department,
+                   ct.ai_champion, ct.ai_champion_score, ct.authority_score,
+                   ce.person_summary, ce.career_trajectory
             FROM contacts ct
+            LEFT JOIN contact_enrichment ce ON ce.contact_id = ct.id
             WHERE ct.company_id = :id
             ORDER BY ct.contact_score DESC NULLS LAST
         """),
@@ -569,6 +573,14 @@ def get_company(company_id):
         "contact_score": r[5],
         "icp_fit": display_icp_fit(r[6]),
         "message_status": r[7],
+        "linkedin_url": r[8],
+        "seniority_level": r[9],
+        "department": r[10],
+        "ai_champion": r[11],
+        "ai_champion_score": r[12],
+        "authority_score": r[13],
+        "person_summary": r[14],
+        "career_trajectory": r[15],
     } for r in contact_rows]
 
     # Stage completions + derived stage

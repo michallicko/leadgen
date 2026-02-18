@@ -148,6 +148,16 @@ class TestGetCompany:
         assert data["notes"] == "Notes for Acme Corp"
         assert isinstance(data["contacts"], list)
         assert len(data["contacts"]) == 2
+        # John Doe (CEO) has contact enrichment — verify expanded fields
+        john = next(c for c in data["contacts"] if c["first_name"] == "John")
+        assert john["linkedin_url"] == "https://www.linkedin.com/in/johndoe"
+        assert john["seniority_level"] == "c_level"
+        assert john["department"] == "executive"
+        assert john["person_summary"] == "Experienced CEO with AI background"
+        assert john["career_trajectory"] is None  # not set in seed
+        # Jane Smith has no contact enrichment — fields should be None
+        jane = next(c for c in data["contacts"] if c["first_name"] == "Jane")
+        assert jane["person_summary"] is None
 
     def test_get_with_l2_enrichment(self, client, seed_companies_contacts):
         headers = auth_header(client)

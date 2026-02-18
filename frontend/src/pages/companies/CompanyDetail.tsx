@@ -10,8 +10,9 @@ import {
 import { Tabs, type TabDef } from '../../components/ui/Tabs'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
 import { CorrectiveActionButtons } from '../../components/ui/CorrectiveActionButtons'
-import { RichText } from '../../components/ui/RichText'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
+import { ModuleSummaryCard, type ModuleField } from './ModuleSummaryCard'
+import { deriveStage } from '../../lib/deriveStage'
 import {
   STATUS_DISPLAY, STATUS_REVERSE,
   TIER_DISPLAY, TIER_REVERSE,
@@ -77,7 +78,8 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     }
   }
 
-  const l2 = company.enrichment_l2 as Record<string, string | null> | null
+  const l2 = company.enrichment_l2
+  const l2m = l2?.modules
   const reg = company.registry_data as Record<string, unknown> | null
 
   const l1Source: SourceInfo = {
@@ -87,8 +89,8 @@ export function CompanyDetail({ company, onNavigate }: Props) {
   }
   const l2Source: SourceInfo | undefined = l2 ? {
     label: 'L2 Enrichment',
-    timestamp: (l2.enriched_at as string | null) ?? null,
-    cost: (l2.enrichment_cost_usd as number | null) ?? null,
+    timestamp: l2.enriched_at ?? null,
+    cost: l2.enrichment_cost_usd ?? null,
   } : undefined
   const regSource: SourceInfo | undefined = reg ? {
     label: 'Registry Lookup',
@@ -96,6 +98,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
   } : undefined
 
   const needsAttention = company.status && ['Needs Review', 'Enrichment Failed', 'Enrichment L2 Failed'].includes(company.status)
+  const derived = company.derived_stage ?? deriveStage(company.stage_completions)
 
   /* ---- Tab definitions ---- */
 
@@ -107,6 +110,52 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     label: 'Overview',
     content: (
       <div className="space-y-1">
+        {/* Derived stage + company links */}
+        <div className="flex items-center gap-3 mb-3">
+          {derived && (
+            <span className="px-3 py-1 text-xs font-medium rounded-full text-white" style={{ backgroundColor: derived.color }}>
+              {derived.label}
+            </span>
+          )}
+          {company.website_url && (
+            <a href={company.website_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent-hover">
+              Website ↗
+            </a>
+          )}
+          {company.linkedin_url && (
+            <a href={company.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent-hover">
+              LinkedIn ↗
+            </a>
+          )}
+          {company.data_quality_score != null && (
+            <span className="text-xs text-text-muted">Quality: {company.data_quality_score}%</span>
+          )}
+          {company.last_enriched_at && (
+            <span className="text-xs text-text-dim">Last enriched: {new Date(company.last_enriched_at).toLocaleDateString()}</span>
+          )}
+        </div>
+
+        {/* L1 metadata: confidence, quality, QC flags */}
+        {company.enrichment_l1 && (
+          <div className="flex items-center gap-3 mb-2">
+            {company.enrichment_l1.confidence != null && (
+              <span className="text-xs text-text-muted">L1 Confidence: <span className="font-medium text-text">{(company.enrichment_l1.confidence * 100).toFixed(0)}%</span></span>
+            )}
+            {company.enrichment_l1.quality_score != null && (
+              <span className="text-xs text-text-muted">Quality: <span className="font-medium text-text">{company.enrichment_l1.quality_score}</span></span>
+            )}
+            {company.enrichment_l1.qc_flags && company.enrichment_l1.qc_flags.length > 0 && (
+              <div className="flex gap-1">
+                {company.enrichment_l1.qc_flags.map((flag) => (
+                  <span key={flag} className="px-1.5 py-0.5 text-[10px] bg-warning/10 text-warning rounded border border-warning/20">
+                    {flag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <SectionDivider title="Classification" />
         <FieldGrid cols={3}>
           <Field label="Business Model" value={company.business_model} source={l1Source} />
@@ -209,127 +258,81 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     ),
   })
 
-  // Intelligence tab (only if L2 or registry data exists)
-  // Helper: safely extract string from L2 data (handles arrays like quick_wins)
-  const l2Text = (key: string): string | null => {
-    if (!l2) return null
-    const raw = l2[key]
-    if (raw == null || raw === '') return null
-    if (typeof raw === 'string') return raw === '-' ? null : raw
-    if (Array.isArray(raw)) {
-      // quick_wins is [{use_case, impact, evidence, complexity}, …]
-      return raw
-        .map((item, i) => {
-          if (typeof item === 'string') return `${i + 1}. ${item}`
-          if (typeof item === 'object' && item !== null) {
-            const obj = item as Record<string, unknown>
-            const title = obj.use_case || obj.title || obj.name || ''
-            const desc = obj.impact || obj.description || obj.detail || ''
-            const extra = obj.complexity ? ` (${obj.complexity})` : ''
-            if (!title && !desc) return `${i + 1}. ${JSON.stringify(obj)}`
-            return `${i + 1}. **${title}**${extra} — ${desc}`
-          }
-          return `${i + 1}. ${String(item)}`
-        })
-        .join('\n')
-    }
-    return String(raw)
-  }
+  // Intelligence tab — module-based progressive disclosure
+  if (l2m || reg) {
+    const profileFields: ModuleField[] = l2m?.profile ? [
+      { label: 'Company Intel', value: l2m.profile.company_intel },
+      { label: 'Key Products', value: l2m.profile.key_products },
+      { label: 'Customer Segments', value: l2m.profile.customer_segments },
+      { label: 'Competitors', value: l2m.profile.competitors },
+      { label: 'Tech Stack', value: l2m.profile.tech_stack },
+      { label: 'Leadership', value: l2m.profile.leadership_team },
+      { label: 'Certifications', value: l2m.profile.certifications },
+    ] : []
 
-  /** Render a prose section — heading + rich text. Skips if content is empty. */
-  const ProseSection = ({ title, content }: { title: string; content: string | null }) => {
-    if (!content) return null
-    return (
-      <div>
-        <h3 className="text-sm font-semibold text-text mb-2">{title}</h3>
-        <RichText text={content} />
-      </div>
-    )
-  }
+    const signalsFields: ModuleField[] = l2m?.signals ? [
+      { label: 'AI Adoption', value: l2m.signals.ai_adoption_level, type: 'badge' as const },
+      { label: 'Growth Indicators', value: l2m.signals.growth_indicators },
+      { label: 'Digital Initiatives', value: l2m.signals.digital_initiatives },
+      { label: 'Job Postings', value: l2m.signals.job_posting_count, type: 'count' as const },
+      { label: 'Hiring Departments', value: l2m.signals.hiring_departments },
+    ] : []
 
-  /** Check if any of the given L2 keys have content */
-  const hasAnyL2 = (...keys: string[]) => keys.some((k) => l2Text(k) != null)
+    const marketFields: ModuleField[] = l2m?.market ? [
+      { label: 'Recent News', value: l2m.market.recent_news },
+      { label: 'Media Sentiment', value: l2m.market.media_sentiment, type: 'badge' as const },
+      { label: 'Funding History', value: l2m.market.funding_history },
+      { label: 'EU Grants', value: l2m.market.eu_grants },
+      { label: 'Press Releases', value: l2m.market.press_releases },
+      { label: 'Thought Leadership', value: l2m.market.thought_leadership },
+    ] : []
 
-  if (l2 || reg) {
+    const opportunityFields: ModuleField[] = l2m?.opportunity ? [
+      { label: 'Pain Hypothesis', value: l2m.opportunity.pain_hypothesis },
+      { label: 'AI Opportunities', value: l2m.opportunity.ai_opportunities },
+      { label: 'Quick Wins', value: l2m.opportunity.quick_wins, type: 'list' as const },
+      { label: 'Industry Pain Points', value: l2m.opportunity.industry_pain_points },
+      { label: 'Cross-Functional Pain', value: l2m.opportunity.cross_functional_pain },
+      { label: 'Adoption Barriers', value: l2m.opportunity.adoption_barriers },
+      { label: 'Relevant Case Study', value: l2m.opportunity.relevant_case_study },
+    ] : []
+
     tabs.push({
       id: 'intelligence',
       label: 'Intelligence',
       content: (
-        <div className="max-w-3xl space-y-8">
-          {l2 && (
+        <div className="max-w-3xl space-y-3">
+          {l2m && (
             <>
-              {/* ---- Company Profile ---- */}
-              {hasAnyL2('key_products', 'customer_segments', 'competitors') && (
-                <section className="space-y-5">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Company Profile</h2>
-                  <ProseSection title="Key Products & Services" content={l2Text('key_products')} />
-                  <ProseSection title="Customer Segments" content={l2Text('customer_segments')} />
-                  <ProseSection title="Competitors" content={l2Text('competitors')} />
-                </section>
-              )}
-
-              {/* ---- Leadership & People ---- */}
-              {hasAnyL2('leadership_team', 'leadership_changes', 'hiring_signals', 'ai_hiring') && (
-                <section className="space-y-5 border-t border-border/40 pt-8">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Leadership & People</h2>
-                  <ProseSection title="Leadership Team" content={l2Text('leadership_team')} />
-                  <ProseSection title="Leadership Changes" content={l2Text('leadership_changes')} />
-                  <ProseSection title="Hiring Signals" content={l2Text('hiring_signals')} />
-                  <ProseSection title="AI Hiring Activity" content={l2Text('ai_hiring')} />
-                </section>
-              )}
-
-              {/* ---- Technology & Digital ---- */}
-              {hasAnyL2('digital_initiatives', 'tech_stack', 'tech_partnerships', 'certifications') && (
-                <section className="space-y-5 border-t border-border/40 pt-8">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Technology & Digital</h2>
-                  <ProseSection title="Digital Initiatives" content={l2Text('digital_initiatives')} />
-                  <ProseSection title="Tech Stack" content={l2Text('tech_stack')} />
-                  <ProseSection title="Technology Partnerships" content={l2Text('tech_partnerships')} />
-                  <ProseSection title="Certifications" content={l2Text('certifications')} />
-                </section>
-              )}
-
-              {/* ---- Market Intelligence ---- */}
-              {hasAnyL2('recent_news', 'funding_history', 'eu_grants', 'competitor_ai_moves') && (
-                <section className="space-y-5 border-t border-border/40 pt-8">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Market Intelligence</h2>
-                  <ProseSection title="Recent News" content={l2Text('recent_news')} />
-                  <ProseSection title="Funding History" content={l2Text('funding_history')} />
-                  <ProseSection title="EU Grants" content={l2Text('eu_grants')} />
-                  <ProseSection title="Competitor AI Moves" content={l2Text('competitor_ai_moves')} />
-                </section>
-              )}
-
-              {/* ---- AI Opportunity Assessment ---- */}
-              {hasAnyL2('ai_opportunities', 'pain_hypothesis', 'industry_pain_points', 'cross_functional_pain', 'quick_wins', 'adoption_barriers', 'relevant_case_study') && (
-                <section className="space-y-5 border-t border-border/40 pt-8">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">AI Opportunity Assessment</h2>
-                  <ProseSection title="AI Opportunities" content={l2Text('ai_opportunities')} />
-                  <ProseSection title="Pain Hypothesis" content={l2Text('pain_hypothesis')} />
-                  <ProseSection title="Industry Pain Points" content={l2Text('industry_pain_points')} />
-                  <ProseSection title="Cross-Functional Pain" content={l2Text('cross_functional_pain')} />
-                  <ProseSection title="Quick Wins" content={l2Text('quick_wins')} />
-                  <ProseSection title="Adoption Barriers" content={l2Text('adoption_barriers')} />
-                  <ProseSection title="Relevant Case Study" content={l2Text('relevant_case_study')} />
-                </section>
-              )}
-
-              {/* ---- Enrichment Quality (metadata) ---- */}
-              {l2Text('company_intel') && (
-                <section className="space-y-3 border-t border-border/40 pt-8">
-                  <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Enrichment Quality</h2>
-                  <div className="bg-surface-alt/50 rounded-lg border border-border/30 p-4">
-                    <RichText text={l2Text('company_intel')!} className="text-text-muted" />
-                  </div>
-                  {l2Source && (
-                    <p className="text-xs text-text-dim">
-                      Enriched {l2Source.timestamp ? new Date(l2Source.timestamp).toLocaleDateString() : '—'}
-                      {l2Source.cost != null && ` · $${Number(l2Source.cost).toFixed(4)}`}
-                    </p>
-                  )}
-                </section>
-              )}
+              <ModuleSummaryCard
+                title="Company Profile"
+                icon="🏢"
+                fields={profileFields}
+                enrichedAt={l2m.profile?.enriched_at}
+                cost={l2m.profile?.enrichment_cost_usd}
+                defaultOpen
+              />
+              <ModuleSummaryCard
+                title="Signals & Digital"
+                icon="📡"
+                fields={signalsFields}
+                enrichedAt={l2m.signals?.enriched_at}
+                cost={l2m.signals?.enrichment_cost_usd}
+              />
+              <ModuleSummaryCard
+                title="Market Intelligence"
+                icon="📰"
+                fields={marketFields}
+                enrichedAt={l2m.market?.enriched_at}
+                cost={l2m.market?.enrichment_cost_usd}
+              />
+              <ModuleSummaryCard
+                title="AI Opportunity Assessment"
+                icon="🎯"
+                fields={opportunityFields}
+                enrichedAt={l2m.opportunity?.enriched_at}
+                cost={l2m.opportunity?.enrichment_cost_usd}
+              />
             </>
           )}
 
@@ -403,9 +406,11 @@ export function CompanyDetail({ company, onNavigate }: Props) {
           columns={[
             { key: 'full_name', label: 'Name' },
             { key: 'job_title', label: 'Title' },
-            { key: 'email_address', label: 'Email' },
+            { key: 'seniority_level', label: 'Seniority' },
             { key: 'icp_fit', label: 'ICP', render: (c) => <Badge variant="icp" value={c.icp_fit as string} /> },
             { key: 'contact_score', label: 'Score' },
+            { key: 'authority_score', label: 'Authority' },
+            { key: 'ai_champion', label: 'AI Champion', render: (c) => c.ai_champion ? <span className="text-xs text-accent-cyan font-medium">Yes</span> : null },
           ]}
           data={company.contacts as unknown as Array<Record<string, unknown>>}
           onRowClick={(c) => onNavigate('contact', c.id as string)}
@@ -454,10 +459,14 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     <div>
       {/* Header — badges + metadata */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Badge variant="status" value={company.status} />
+        {derived && (
+          <span className="px-2.5 py-0.5 text-xs font-medium rounded-full text-white" style={{ backgroundColor: derived.color }}>
+            {derived.label}
+          </span>
+        )}
         <Badge variant="tier" value={company.tier} />
         {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
-        {company.batch_name && <span className="text-xs text-text-dim">{company.batch_name}</span>}
+        {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
       </div>
 
       {/* Corrective actions for failed/review entities */}
