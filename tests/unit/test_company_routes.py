@@ -156,7 +156,7 @@ class TestGetCompany:
         resp = client.get(f"/api/companies/{company_id}", headers=headers)
         data = resp.get_json()
         assert data["enrichment_l2"] is not None
-        assert data["enrichment_l2"]["company_intel"] == "Leading manufacturer in DACH region"
+        assert data["enrichment_l2"]["modules"]["profile"]["company_intel"] == "Leading manufacturer in DACH region"
 
     def test_get_with_tags(self, client, seed_companies_contacts):
         headers = auth_header(client)

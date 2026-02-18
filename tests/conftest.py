@@ -188,14 +188,21 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
         companies.append(c)
     db.session.flush()
 
-    # L2 enrichment for Delta GmbH
-    l2 = CompanyEnrichmentL2(
+    # L2 enrichment for Delta GmbH (module tables)
+    from api.models import CompanyEnrichmentProfile, CompanyEnrichmentMarket, CompanyEnrichmentOpportunity
+    l2_profile = CompanyEnrichmentProfile(
         company_id=companies[3].id,
         company_intel="Leading manufacturer in DACH region",
+    )
+    l2_market = CompanyEnrichmentMarket(
+        company_id=companies[3].id,
         recent_news="Expanded to new markets",
+    )
+    l2_opportunity = CompanyEnrichmentOpportunity(
+        company_id=companies[3].id,
         ai_opportunities="Process automation in supply chain",
     )
-    db.session.add(l2)
+    db.session.add_all([l2_profile, l2_market, l2_opportunity])
 
     # Tags for Beta Inc
     tags = [

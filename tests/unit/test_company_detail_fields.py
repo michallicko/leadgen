@@ -139,20 +139,21 @@ class TestCompanyDetailNewFields:
 
         l2 = data["enrichment_l2"]
         assert l2 is not None
+        modules = l2["modules"]
 
         # Profile fields
-        assert l2["company_intel"] == "Leading tech firm"
-        assert l2["key_products"] == "SaaS platform"
+        assert modules["profile"]["company_intel"] == "Leading tech firm"
+        assert modules["profile"]["key_products"] == "SaaS platform"
 
         # New signal fields (AC-3)
-        assert l2["growth_indicators"] == "30% YoY revenue growth"
-        assert l2["job_posting_count"] == 45
+        assert modules["signals"]["growth_indicators"] == "30% YoY revenue growth"
+        assert modules["signals"]["job_posting_count"] == 45
 
         # New market fields (AC-3)
-        assert l2["media_sentiment"] == "Positive coverage in TechCrunch"
-        assert l2["press_releases"] == "Q4 results published"
-        assert l2["thought_leadership"] == "CEO keynote at SaaS conference"
+        assert modules["market"]["media_sentiment"] == "Positive coverage in TechCrunch"
+        assert modules["market"]["press_releases"] == "Q4 results published"
+        assert modules["market"]["thought_leadership"] == "CEO keynote at SaaS conference"
 
         # Opportunity fields
-        assert l2["pain_hypothesis"] == "Manual processes in supply chain"
-        assert l2["ai_opportunities"] == "Automate QC with computer vision"
+        assert modules["opportunity"]["pain_hypothesis"] == "Manual processes in supply chain"
+        assert modules["opportunity"]["ai_opportunities"] == "Automate QC with computer vision"

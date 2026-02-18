@@ -42,6 +42,37 @@ def _parse_jsonb(v):
         return json.loads(v) if v else {}
     return v
 
+
+# Stage progression order for derived_stage computation
+_STAGE_ORDER = ["l1", "triage", "l2", "person", "generate", "review"]
+_STAGE_LABELS = {
+    "l1": "Classified",
+    "triage": "Qualified",
+    "l2": "Researched",
+    "person": "Contacts Ready",
+    "generate": "Messages Generated",
+    "review": "Ready for Outreach",
+}
+
+
+def _derive_stage(completions, status=None):
+    """Compute derived stage label from entity_stage_completions.
+
+    Returns dict with label and stage key, or None if no completions.
+    """
+    if not completions:
+        return {"label": "New", "stage": None}
+
+    completed = {c["stage"] for c in completions if c["status"] == "completed"}
+
+    # Walk stage order in reverse to find the latest completed
+    for stage in reversed(_STAGE_ORDER):
+        if stage in completed:
+            return {"label": _STAGE_LABELS[stage], "stage": stage}
+
+    # Has completions but none in our stage order (e.g., all failed)
+    return {"label": "New", "stage": None}
+
 ALLOWED_SORT = {
     "name", "domain", "status", "tier", "triage_score", "hq_country",
     "industry", "contact_count", "created_at",
@@ -142,10 +173,31 @@ def list_companies():
         {**params, "limit": page_size, "offset": offset},
     ).fetchall()
 
+    company_ids = [str(r[0]) for r in rows]
+
+    # Batch-fetch stage completions for list
+    stage_map = {}
+    if company_ids:
+        placeholders = ", ".join(f":id_{i}" for i in range(len(company_ids)))
+        id_params = {f"id_{i}": cid for i, cid in enumerate(company_ids)}
+        sc_rows = db.session.execute(
+            db.text(f"""
+                SELECT entity_id, stage, status
+                FROM entity_stage_completions
+                WHERE entity_id IN ({placeholders}) AND entity_type = 'company'
+            """),
+            id_params,
+        ).fetchall()
+        for sc in sc_rows:
+            eid = str(sc[0])
+            stage_map.setdefault(eid, []).append({"stage": sc[1], "status": sc[2]})
+
     companies = []
     for r in rows:
+        cid = str(r[0])
+        completions = stage_map.get(cid, [])
         companies.append({
-            "id": str(r[0]),
+            "id": cid,
             "name": r[1],
             "domain": r[2],
             "status": display_status(r[3]),
@@ -156,6 +208,7 @@ def list_companies():
             "hq_country": r[8],
             "triage_score": float(r[9]) if r[9] is not None else None,
             "contact_count": r[10] or 0,
+            "derived_stage": _derive_stage(completions),
         })
 
     return jsonify({
@@ -276,10 +329,10 @@ def get_company(company_id):
     else:
         company["enrichment_l1"] = None
 
-    # L2 enrichment modules
+    # L2 enrichment — module-based structure
     l2_modules = {}
 
-    # Profile
+    # Profile module
     prof_row = db.session.execute(
         db.text("""
             SELECT company_intel, key_products, customer_segments, competitors,
@@ -291,7 +344,7 @@ def get_company(company_id):
         {"id": company_id},
     ).fetchone()
     if prof_row:
-        l2_modules.update({
+        l2_modules["profile"] = {
             "company_intel": prof_row[0],
             "key_products": prof_row[1],
             "customer_segments": prof_row[2],
@@ -299,9 +352,11 @@ def get_company(company_id):
             "tech_stack": prof_row[4],
             "leadership_team": prof_row[5],
             "certifications": prof_row[6],
-        })
+            "enriched_at": _iso(prof_row[7]),
+            "enrichment_cost_usd": float(prof_row[8]) if prof_row[8] is not None else None,
+        }
 
-    # Signals
+    # Signals module
     sig_row = db.session.execute(
         db.text("""
             SELECT digital_initiatives, leadership_changes, hiring_signals,
@@ -315,7 +370,7 @@ def get_company(company_id):
         {"id": company_id},
     ).fetchone()
     if sig_row:
-        l2_modules.update({
+        l2_modules["signals"] = {
             "digital_initiatives": sig_row[0],
             "leadership_changes": sig_row[1],
             "hiring_signals": sig_row[2],
@@ -327,9 +382,11 @@ def get_company(company_id):
             "growth_indicators": sig_row[8],
             "job_posting_count": sig_row[9],
             "hiring_departments": _parse_jsonb(sig_row[10]),
-        })
+            "enriched_at": _iso(sig_row[11]),
+            "enrichment_cost_usd": float(sig_row[12]) if sig_row[12] is not None else None,
+        }
 
-    # Market
+    # Market module
     mkt_row = db.session.execute(
         db.text("""
             SELECT recent_news, funding_history, eu_grants,
@@ -341,16 +398,18 @@ def get_company(company_id):
         {"id": company_id},
     ).fetchone()
     if mkt_row:
-        l2_modules.update({
+        l2_modules["market"] = {
             "recent_news": mkt_row[0],
             "funding_history": mkt_row[1],
             "eu_grants": mkt_row[2],
             "media_sentiment": mkt_row[3],
             "press_releases": mkt_row[4],
             "thought_leadership": mkt_row[5],
-        })
+            "enriched_at": _iso(mkt_row[6]),
+            "enrichment_cost_usd": float(mkt_row[7]) if mkt_row[7] is not None else None,
+        }
 
-    # Opportunity
+    # Opportunity module
     opp_row = db.session.execute(
         db.text("""
             SELECT pain_hypothesis, relevant_case_study, ai_opportunities,
@@ -363,7 +422,7 @@ def get_company(company_id):
         {"id": company_id},
     ).fetchone()
     if opp_row:
-        l2_modules.update({
+        l2_modules["opportunity"] = {
             "pain_hypothesis": opp_row[0],
             "relevant_case_study": opp_row[1],
             "ai_opportunities": opp_row[2],
@@ -371,59 +430,27 @@ def get_company(company_id):
             "industry_pain_points": opp_row[4],
             "cross_functional_pain": opp_row[5],
             "adoption_barriers": opp_row[6],
-        })
+            "enriched_at": _iso(opp_row[7]),
+            "enrichment_cost_usd": float(opp_row[8]) if opp_row[8] is not None else None,
+        }
 
-    # Compute aggregate enriched_at / cost from available modules
+    # Aggregate enriched_at / cost across modules
     enriched_ats = []
     total_cost = 0.0
-    for mod_row in [prof_row, sig_row, mkt_row, opp_row]:
-        if mod_row:
-            if mod_row[-2]:  # enriched_at
-                enriched_ats.append(mod_row[-2])
-            if mod_row[-1]:  # enrichment_cost_usd
-                total_cost += float(mod_row[-1])
+    for mod in l2_modules.values():
+        if mod.get("enriched_at"):
+            enriched_ats.append(mod["enriched_at"])
+        if mod.get("enrichment_cost_usd"):
+            total_cost += mod["enrichment_cost_usd"]
 
     if l2_modules:
-        l2_modules["enriched_at"] = _iso(max(enriched_ats)) if enriched_ats else None
-        l2_modules["enrichment_cost_usd"] = total_cost if total_cost > 0 else None
-        company["enrichment_l2"] = l2_modules
+        company["enrichment_l2"] = {
+            "modules": l2_modules,
+            "enriched_at": max(enriched_ats) if enriched_ats else None,
+            "enrichment_cost_usd": total_cost if total_cost > 0 else None,
+        }
     else:
-        # Fallback: try old company_enrichment_l2 table (backward compat during migration)
-        l2_row = db.session.execute(
-            db.text("""
-                SELECT company_intel, recent_news, ai_opportunities,
-                       pain_hypothesis, relevant_case_study, digital_initiatives,
-                       leadership_changes, hiring_signals, key_products,
-                       customer_segments, competitors, tech_stack,
-                       funding_history, eu_grants, leadership_team,
-                       ai_hiring, tech_partnerships, certifications,
-                       quick_wins, industry_pain_points, cross_functional_pain,
-                       adoption_barriers, competitor_ai_moves,
-                       enriched_at, enrichment_cost_usd
-                FROM company_enrichment_l2
-                WHERE company_id = :id
-            """),
-            {"id": company_id},
-        ).fetchone()
-        if l2_row:
-            company["enrichment_l2"] = {
-                "company_intel": l2_row[0], "recent_news": l2_row[1],
-                "ai_opportunities": l2_row[2], "pain_hypothesis": l2_row[3],
-                "relevant_case_study": l2_row[4], "digital_initiatives": l2_row[5],
-                "leadership_changes": l2_row[6], "hiring_signals": l2_row[7],
-                "key_products": l2_row[8], "customer_segments": l2_row[9],
-                "competitors": l2_row[10], "tech_stack": l2_row[11],
-                "funding_history": l2_row[12], "eu_grants": l2_row[13],
-                "leadership_team": l2_row[14], "ai_hiring": l2_row[15],
-                "tech_partnerships": l2_row[16], "certifications": l2_row[17],
-                "quick_wins": l2_row[18], "industry_pain_points": l2_row[19],
-                "cross_functional_pain": l2_row[20], "adoption_barriers": l2_row[21],
-                "competitor_ai_moves": l2_row[22],
-                "enriched_at": _iso(l2_row[23]),
-                "enrichment_cost_usd": float(l2_row[24]) if l2_row[24] is not None else None,
-            }
-        else:
-            company["enrichment_l2"] = None
+        company["enrichment_l2"] = None
 
     # Legal profile (unified registry data)
     lp_row = db.session.execute(
@@ -543,6 +570,29 @@ def get_company(company_id):
         "icp_fit": display_icp_fit(r[6]),
         "message_status": r[7],
     } for r in contact_rows]
+
+    # Stage completions + derived stage
+    sc_rows = db.session.execute(
+        db.text("""
+            SELECT stage, status, cost_usd, completed_at
+            FROM entity_stage_completions
+            WHERE entity_id = :id AND entity_type = 'company'
+            ORDER BY completed_at ASC
+        """),
+        {"id": company_id},
+    ).fetchall()
+
+    completions = []
+    for sc in sc_rows:
+        completions.append({
+            "stage": sc[0],
+            "status": sc[1],
+            "cost_usd": float(sc[2]) if sc[2] is not None else None,
+            "completed_at": _iso(sc[3]),
+        })
+
+    company["stage_completions"] = completions
+    company["derived_stage"] = _derive_stage(completions, company.get("status"))
 
     return jsonify(company)
 
