@@ -13,6 +13,7 @@ import { DagVisualization } from './DagVisualization'
 import { DagEdges } from './DagEdges'
 import { DagControls } from './DagControls'
 import { CompletionPanel } from './CompletionPanel'
+import { SchedulePanel } from './SchedulePanel'
 import { StageCard } from './StageCard'
 
 export function EnrichPage() {
@@ -161,6 +162,9 @@ export function EnrichPage() {
               }}
             </DagVisualization>
           </div>
+
+          {/* Schedule panel — only in configure mode */}
+          {dagMode === 'configure' && <SchedulePanel />}
 
           {/* Completion panel */}
           {dagMode === 'completed' && (
