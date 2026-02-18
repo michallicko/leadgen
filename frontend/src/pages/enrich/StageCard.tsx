@@ -8,6 +8,9 @@ import { useState } from 'react'
 import type { StageDef } from './stageConfig'
 import type { StageEstimate, StageProgress, ReEnrichConfig, DagMode } from './StageCard.types'
 
+/** Stages that support boost mode (maps to BOOST_MODELS in stage_registry.py) */
+const BOOST_STAGES = new Set(['l1', 'l2', 'person'])
+
 interface StageCardProps {
   stage: StageDef
   mode: DagMode
@@ -20,6 +23,8 @@ interface StageCardProps {
   reEnrich: ReEnrichConfig
   onReEnrichToggle: (enabled: boolean) => void
   onFreshnessChange: (horizon: string | null) => void
+  boost?: boolean
+  onBoostToggle?: (enabled: boolean) => void
 }
 
 const HORIZON_PRESETS = [
@@ -53,6 +58,8 @@ export function StageCard({
   reEnrich,
   onReEnrichToggle,
   onFreshnessChange,
+  boost = false,
+  onBoostToggle,
 }: StageCardProps) {
   const [showFailed, setShowFailed] = useState(false)
   const isRunning = mode === 'running'
@@ -206,6 +213,26 @@ export function StageCard({
                         )
                       })}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Boost toggle — only for stages with boost models */}
+              {enabled && BOOST_STAGES.has(stage.code) && onBoostToggle && (
+                <div className="mb-2">
+                  <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={boost}
+                      onChange={(e) => onBoostToggle(e.target.checked)}
+                      className="rounded border-border-solid text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5"
+                    />
+                    <span className="text-amber-500">&#9889;</span> Boost mode
+                  </label>
+                  {boost && (
+                    <p className="text-[0.6rem] text-amber-500/70 ml-5 mt-0.5">
+                      Higher quality model &middot; ~2&times; cost
+                    </p>
                   )}
                 </div>
               )}

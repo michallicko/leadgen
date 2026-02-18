@@ -31,6 +31,11 @@ export function EnrichPage() {
     toggleReEnrich,
     setFreshness,
     reEnrichPayload,
+    boostStages,
+    toggleBoost,
+    boostPayload,
+    getConfigSnapshot,
+    loadConfigSnapshot,
   } = state
 
   const pipeline = useEnrichPipeline(filters)
@@ -63,8 +68,9 @@ export function EnrichPage() {
         ? filters.entityIds.split(',').map((s) => s.trim()).filter(Boolean)
         : undefined,
       re_enrich: reEnrichPayload,
+      boost: boostPayload,
     })
-  }, [start, filters, enabledStageCodes, softDepsPayload, reEnrichPayload])
+  }, [start, filters, enabledStageCodes, softDepsPayload, reEnrichPayload, boostPayload])
 
   const estimatedCost = estimate.data?.total_estimated_cost ?? 0
 
@@ -107,6 +113,8 @@ export function EnrichPage() {
             onRun={handleRun}
             onStop={stop}
             isLoading={estimate.isLoading}
+            onLoadConfig={loadConfigSnapshot}
+            getConfigSnapshot={getConfigSnapshot}
           />
 
           {/* DAG with edges */}
@@ -145,6 +153,8 @@ export function EnrichPage() {
                       reEnrich={reEnrichConfig[stageCode] ?? { enabled: false, horizon: null }}
                       onReEnrichToggle={(v) => toggleReEnrich(stageCode, v)}
                       onFreshnessChange={(h) => setFreshness(stageCode, h)}
+                      boost={boostStages[stageCode] ?? false}
+                      onBoostToggle={(v) => toggleBoost(stageCode, v)}
                     />
                   </div>
                 )
