@@ -88,10 +88,13 @@ BUSINESS_MODEL_DISPLAY = {
 
 COMPANY_SIZE_DISPLAY = {
     "micro": "Micro",
-    "startup": "Startup",
-    "smb": "SMB",
+    "small": "Small",
+    "medium": "Medium",
     "mid_market": "Mid-Market",
     "enterprise": "Enterprise",
+    # Legacy values for old data
+    "startup": "Small",
+    "smb": "Medium",
 }
 
 GEO_REGION_DISPLAY = {
@@ -173,6 +176,31 @@ CRM_STATUS_DISPLAY = {
     "prospect": "Prospect",
     "customer": "Customer",
     "churn": "Churn",
+}
+
+BUSINESS_TYPE_DISPLAY = {
+    "product_company": "Product Company",
+    "saas": "SaaS",
+    "service_company": "Service Company",
+    "manufacturer": "Manufacturer",
+    "distributor": "Distributor",
+    "platform": "Platform",
+    "hybrid": "Hybrid",
+    # Legacy values for old data
+    "service_provider": "Service Company",
+    "other": "Other",
+}
+
+INDUSTRY_CATEGORY_DISPLAY = {
+    "technology": "Technology",
+    "services": "Services",
+    "finance": "Finance",
+    "healthcare_life_sci": "Healthcare & Life Sciences",
+    "industrial": "Industrial",
+    "consumer": "Consumer",
+    "infrastructure": "Infrastructure",
+    "primary_sector": "Primary Sector",
+    "public_education": "Public & Education",
 }
 
 OWNERSHIP_TYPE_DISPLAY = {
@@ -314,6 +342,14 @@ def display_engagement_status(v):
 
 def display_crm_status(v):
     return CRM_STATUS_DISPLAY.get(v, v) if v else v
+
+
+def display_business_type(v):
+    return BUSINESS_TYPE_DISPLAY.get(v, v) if v else v
+
+
+def display_industry_category(v):
+    return INDUSTRY_CATEGORY_DISPLAY.get(v, v) if v else v
 
 
 def display_ownership_type(v):

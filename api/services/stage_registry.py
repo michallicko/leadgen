@@ -152,6 +152,7 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "hq_city", "label": "HQ City", "type": "text", "table": "companies"},
         {"key": "hq_country", "label": "HQ Country", "type": "text", "table": "companies"},
         {"key": "geo_region", "label": "Region", "type": "enum", "table": "companies"},
+        {"key": "industry_category", "label": "Industry Category", "type": "enum", "table": "companies"},
         {"key": "triage_score", "label": "Triage Score", "type": "number", "table": "companies"},
         {"key": "pre_score", "label": "Pre-Score", "type": "number", "table": "company_enrichment_l1"},
         {"key": "triage_notes", "label": "Triage Notes", "type": "text", "table": "company_enrichment_l1"},
