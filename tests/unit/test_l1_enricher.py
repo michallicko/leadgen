@@ -195,11 +195,11 @@ class TestEmployeesToBucket:
     def test_micro(self):
         assert self.bucket(5) == "micro"
 
-    def test_startup(self):
-        assert self.bucket(30) == "startup"
+    def test_small(self):
+        assert self.bucket(30) == "small"
 
-    def test_smb(self):
-        assert self.bucket(100) == "smb"
+    def test_medium(self):
+        assert self.bucket(100) == "medium"
 
     def test_mid_market(self):
         assert self.bucket(500) == "mid_market"

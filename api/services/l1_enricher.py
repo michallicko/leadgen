@@ -72,8 +72,8 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
   "markets": ["list", "of", "markets"],
   "founded": "YYYY or null",
   "ownership": "Public|Private|Family-owned|PE-backed (name)|VC-backed|Government|Cooperative|Unknown",
-  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|pharma_biotech|manufacturing|automotive|aerospace_defense|retail|hospitality|media|energy|telecom|transport|construction|real_estate|agriculture|education|public_sector|other",
-  "business_model": "EXACTLY ONE OF: manufacturer|distributor|service_provider|saas|platform|other",
+  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|pharma_biotech|manufacturing|automotive|aerospace_defense|retail|hospitality|media|energy|telecom|transport|construction|real_estate|agriculture|education|public_sector|creative_services|other",
+  "business_type": "EXACTLY ONE OF: distributor|hybrid|manufacturer|platform|product_company|saas|service_company (product_company = builds/sells own product; saas = cloud software; service_company = consulting/agency/outsourcing; manufacturer = physical production; distributor = resale/wholesale; platform = marketplace/exchange; hybrid = multiple models)",
   "revenue_eur_m": "Annual revenue in EUR millions (number) or 'unverified'",
   "revenue_year": "YYYY of the revenue figure",
   "revenue_source": "Where the revenue figure comes from",
@@ -483,13 +483,19 @@ def _map_fields(research):
     if ownership:
         mapped["ownership_type"] = _map_ownership(ownership)
 
-    # industry
+    # industry + industry_category
     industry = research.get("industry")
     if industry:
-        mapped["industry"] = _map_industry(industry)
+        mapped_industry = _map_industry(industry)
+        mapped["industry"] = mapped_industry
+        if mapped_industry:
+            from api.services.field_schema import industry_to_category
+            cat = industry_to_category(mapped_industry)
+            if cat:
+                mapped["industry_category"] = cat
 
-    # business_type
-    bm = research.get("business_model")
+    # business_type (Perplexity field is still "business_model" in prompt → maps to DB business_type)
+    bm = research.get("business_model") or research.get("business_type")
     if bm:
         mapped["business_type"] = _map_business_type(bm)
 
@@ -730,32 +736,14 @@ def _map_business_type(raw):
 
 def _revenue_to_bucket(rev_m):
     """Map revenue in EUR millions to a bucket."""
-    if rev_m is None:
-        return None
-    if rev_m < 1:
-        return "micro"
-    if rev_m < 10:
-        return "small"
-    if rev_m < 50:
-        return "medium"
-    if rev_m < 200:
-        return "mid_market"
-    return "enterprise"
+    from api.services.field_schema import revenue_to_range
+    return revenue_to_range(rev_m)
 
 
 def _employees_to_bucket(emp):
     """Map employee count to a size bucket."""
-    if emp is None:
-        return None
-    if emp < 10:
-        return "micro"
-    if emp < 50:
-        return "startup"
-    if emp < 200:
-        return "smb"
-    if emp < 1000:
-        return "mid_market"
-    return "enterprise"
+    from api.services.field_schema import employees_to_size
+    return employees_to_size(emp)
 
 
 def _parse_confidence(raw):

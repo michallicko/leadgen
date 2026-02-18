@@ -146,14 +146,79 @@ class TestBusinessTypeMapping:
     def test_valid_passthrough(self):
         assert map_enum_value("business_type", "saas") == "saas"
 
+    def test_new_values_passthrough(self):
+        assert map_enum_value("business_type", "product_company") == "product_company"
+        assert map_enum_value("business_type", "service_company") == "service_company"
+        assert map_enum_value("business_type", "hybrid") == "hybrid"
+
     def test_software_maps_to_saas(self):
         assert map_enum_value("business_type", "software") == "saas"
 
-    def test_consulting_maps_to_service_provider(self):
-        assert map_enum_value("business_type", "consulting") == "service_provider"
+    def test_software_company_maps_to_product_company(self):
+        assert map_enum_value("business_type", "software company") == "product_company"
+
+    def test_consulting_maps_to_service_company(self):
+        assert map_enum_value("business_type", "consulting") == "service_company"
+
+    def test_service_provider_synonym_maps_to_service_company(self):
+        assert map_enum_value("business_type", "service provider") == "service_company"
+
+    def test_legacy_service_provider_passthrough(self):
+        # Old data with exact "service_provider" still passes through as valid
+        assert map_enum_value("business_type", "service_provider") == "service_company"
 
     def test_wholesale_maps_to_distributor(self):
         assert map_enum_value("business_type", "wholesale") == "distributor"
+
+    def test_mixed_maps_to_hybrid(self):
+        assert map_enum_value("business_type", "mixed") == "hybrid"
+
+
+class TestCompanySizeMapping:
+    """Test company_size enum fuzzy mapping."""
+
+    def test_new_values_passthrough(self):
+        assert map_enum_value("company_size", "small") == "small"
+        assert map_enum_value("company_size", "medium") == "medium"
+        assert map_enum_value("company_size", "micro") == "micro"
+        assert map_enum_value("company_size", "mid_market") == "mid_market"
+        assert map_enum_value("company_size", "enterprise") == "enterprise"
+
+    def test_startup_maps_to_small(self):
+        assert map_enum_value("company_size", "startup") == "small"
+
+    def test_smb_maps_to_medium(self):
+        assert map_enum_value("company_size", "smb") == "medium"
+
+    def test_large_maps_to_enterprise(self):
+        assert map_enum_value("company_size", "large") == "enterprise"
+
+    def test_midsize_maps_to_medium(self):
+        assert map_enum_value("company_size", "midsize") == "medium"
+
+    def test_unknown_returns_none(self):
+        assert map_enum_value("company_size", "xyzzy") is None
+
+
+class TestIndustryCategoryMapping:
+    """Test industry_category enum fuzzy mapping."""
+
+    def test_valid_values_passthrough(self):
+        assert map_enum_value("industry_category", "technology") == "technology"
+        assert map_enum_value("industry_category", "services") == "services"
+        assert map_enum_value("industry_category", "finance") == "finance"
+
+    def test_tech_synonym(self):
+        assert map_enum_value("industry_category", "tech") == "technology"
+
+    def test_consulting_maps_to_services(self):
+        assert map_enum_value("industry_category", "consulting") == "services"
+
+    def test_healthcare_maps(self):
+        assert map_enum_value("industry_category", "healthcare") == "healthcare_life_sci"
+
+    def test_unknown_returns_none(self):
+        assert map_enum_value("industry_category", "xyzzy") is None
 
 
 class TestUnknownFieldName:
