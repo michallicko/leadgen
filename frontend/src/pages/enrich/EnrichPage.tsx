@@ -6,7 +6,7 @@
 import { useRef, useCallback, useMemo } from 'react'
 import { FilterBar } from '../../components/ui/FilterBar'
 import { useEnrichState } from './useEnrichState'
-import { useEnrichEstimate } from './useEnrichEstimate'
+import { useEnrichEstimate, computeAdjustedCost, computeUpstreamEligible } from './useEnrichEstimate'
 import { useEnrichPipeline } from './useEnrichPipeline'
 import { STAGE_MAP } from './stageConfig'
 import { DagVisualization } from './DagVisualization'
@@ -73,7 +73,21 @@ export function EnrichPage() {
     })
   }, [start, filters, enabledStageCodes, softDepsPayload, reEnrichPayload, boostPayload])
 
-  const estimatedCost = estimate.data?.total_estimated_cost ?? 0
+  // Boost-adjusted estimated cost
+  const estimatedCost = useMemo(() => {
+    if (!estimate.data?.stages) return 0
+    return computeAdjustedCost(estimate.data.stages, boostStages)
+  }, [estimate.data?.stages, boostStages])
+
+  // Compute upstream eligible counts for stages behind gates
+  const upstreamEligibleMap = useMemo(() => {
+    if (!estimate.data?.stages) return {} as Record<string, number | null>
+    const result: Record<string, number | null> = {}
+    for (const code of enabledStageCodes) {
+      result[code] = computeUpstreamEligible(code, estimate.data.stages)
+    }
+    return result
+  }, [estimate.data?.stages, enabledStageCodes])
 
   // Convert typed filters to Record<string, string> for FilterBar
   const filterValues: Record<string, string> = useMemo(
@@ -140,12 +154,21 @@ export function EnrichPage() {
                   active: softDepsConfig[`${stageCode}:${depCode}`] !== false,
                 }))
 
+                // Get stage estimate with boost adjustment
+                const stageEst = estimate.data?.stages?.[stageCode] ?? null
+                const boostMultiplier = boostStages[stageCode] ? 2 : 1
+                const adjustedEstimate = stageEst ? {
+                  ...stageEst,
+                  cost_per_item: Math.round(stageEst.cost_per_item * boostMultiplier * 10000) / 10000,
+                  estimated_cost: Math.round(stageEst.estimated_cost * boostMultiplier * 100) / 100,
+                } : null
+
                 return (
                   <div key={stageCode} ref={setCardRef(stageCode)}>
                     <StageCard
                       stage={stageDef}
                       mode={dagMode}
-                      estimate={estimate.data?.stages?.[stageCode] ?? null}
+                      estimate={adjustedEstimate}
                       enabled={enabledStages[stageCode] ?? false}
                       onToggle={(v) => toggleStage(stageCode, v)}
                       progress={stageProgress[stageCode] ?? null}
@@ -156,6 +179,7 @@ export function EnrichPage() {
                       onFreshnessChange={(h) => setFreshness(stageCode, h)}
                       boost={boostStages[stageCode] ?? false}
                       onBoostToggle={(v) => toggleBoost(stageCode, v)}
+                      upstreamEligible={upstreamEligibleMap[stageCode] ?? undefined}
                     />
                   </div>
                 )
