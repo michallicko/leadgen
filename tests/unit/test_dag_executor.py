@@ -866,3 +866,123 @@ class TestOldEndpointsUnchanged:
         assert resp.status_code == 200
         data = resp.get_json()
         assert "stages" in data
+
+
+class TestFailedItemsTracking:
+    """Test that _update_current_item tracks failed entities with error messages."""
+
+    def test_failed_items_stored_in_config(self, app, db, seed_tenant):
+        """When status=failed, entity is added to failed_items array in config."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+        from sqlalchemy import text
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Acme Corp", status="failed", error_msg="API timeout")
+
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert "failed_items" in config
+        assert len(config["failed_items"]) == 1
+        assert config["failed_items"][0]["name"] == "Acme Corp"
+        assert config["failed_items"][0]["error"] == "API timeout"
+
+    def test_failed_items_accumulate(self, app, db, seed_tenant):
+        """Multiple failures accumulate in the failed_items array."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Alpha", status="failed", error_msg="Error 1")
+        _update_current_item(sr.id, "Beta", status="failed", error_msg="Error 2")
+        _update_current_item(sr.id, "Gamma", status="failed")
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"]) == 3
+        assert config["failed_items"][0]["name"] == "Alpha"
+        assert config["failed_items"][1]["name"] == "Beta"
+        assert config["failed_items"][2]["name"] == "Gamma"
+        assert "error" not in config["failed_items"][2]  # no error_msg for Gamma
+
+    def test_error_message_truncated(self, app, db, seed_tenant):
+        """Long error messages are truncated to 200 characters."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        long_error = "x" * 500
+        _update_current_item(sr.id, "LongErr Corp", status="failed", error_msg=long_error)
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"][0]["error"]) == 200
+
+    def test_successful_items_not_in_failed(self, app, db, seed_tenant):
+        """Items with status=completed do not appear in failed_items."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Good Corp", status="completed")
+        _update_current_item(sr.id, "Bad Corp", status="failed", error_msg="boom")
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"]) == 1
+        assert config["failed_items"][0]["name"] == "Bad Corp"

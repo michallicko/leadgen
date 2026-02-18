@@ -4,6 +4,7 @@
  * vs running (progress bar, cost) vs completed (final stats).
  */
 
+import { useState } from 'react'
 import type { StageDef } from './stageConfig'
 import type { StageEstimate, StageProgress, ReEnrichConfig, DagMode } from './StageCard.types'
 
@@ -53,6 +54,7 @@ export function StageCard({
   onReEnrichToggle,
   onFreshnessChange,
 }: StageCardProps) {
+  const [showFailed, setShowFailed] = useState(false)
   const isRunning = mode === 'running'
   const isCompleted = mode === 'completed'
 
@@ -282,6 +284,29 @@ export function StageCard({
                   </p>
                 </div>
               )}
+
+              {/* Failed items for gate */}
+              {progress.failed > 0 && progress.failed_items && progress.failed_items.length > 0 && (
+                <div className="mt-1.5">
+                  <button
+                    onClick={() => setShowFailed(!showFailed)}
+                    className="flex items-center gap-1 text-[0.6rem] text-error hover:text-error/80 transition-colors"
+                  >
+                    <span className={`transition-transform ${showFailed ? 'rotate-90' : ''}`}>&#9654;</span>
+                    view filtered
+                  </button>
+                  {showFailed && (
+                    <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto">
+                      {progress.failed_items.map((item, i) => (
+                        <li key={i} className="text-[0.6rem] text-text-muted pl-2">
+                          <span className="text-error mr-1">&#8226;</span>
+                          {item.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             /* Normal stage: progress bar + cost */
@@ -311,6 +336,34 @@ export function StageCard({
                 <p className="text-[0.6rem] text-text-dim mt-1 truncate">
                   {progress.current_item.name}
                 </p>
+              )}
+
+              {/* Failed items expandable list */}
+              {progress.failed > 0 && progress.failed_items && progress.failed_items.length > 0 && (
+                <div className="mt-2 border-t border-border pt-1.5">
+                  <button
+                    onClick={() => setShowFailed(!showFailed)}
+                    className="flex items-center gap-1 text-[0.65rem] text-error hover:text-error/80 transition-colors w-full"
+                  >
+                    <span className={`transition-transform ${showFailed ? 'rotate-90' : ''}`}>&#9654;</span>
+                    {progress.failed_items.length} failed entit{progress.failed_items.length === 1 ? 'y' : 'ies'}
+                  </button>
+                  {showFailed && (
+                    <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                      {progress.failed_items.map((item, i) => (
+                        <li key={i} className="text-[0.6rem] text-text-muted pl-3">
+                          <span className="text-error mr-1">&#8226;</span>
+                          <span className="font-medium">{item.name}</span>
+                          {item.error && (
+                            <span className="text-text-dim ml-1" title={item.error}>
+                              &mdash; {item.error.length > 40 ? item.error.slice(0, 40) + '...' : item.error}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </>
           )}

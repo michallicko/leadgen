@@ -7,6 +7,11 @@ export interface StageEstimate {
   fields: string[]
 }
 
+export interface FailedItem {
+  name: string
+  error?: string
+}
+
 export interface StageProgress {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
   total: number
@@ -14,6 +19,7 @@ export interface StageProgress {
   failed: number
   cost: number
   current_item?: { name: string; status: string }
+  failed_items?: FailedItem[]
 }
 
 export interface ReEnrichConfig {

@@ -285,7 +285,7 @@ def _get_entity_name(stage, entity_id, tenant_id):
     return entity_id
 
 
-def _update_current_item(run_id, entity_name, status="processing"):
+def _update_current_item(run_id, entity_name, status="processing", error_msg=None):
     """Store the current item being processed in the stage_run config."""
     try:
         row = db.session.execute(
@@ -304,6 +304,17 @@ def _update_current_item(run_id, entity_name, status="processing"):
                 if len(recent) > 20:
                     recent = recent[-20:]
                 config["recent_items"] = recent
+
+            # Track failed items separately (keep all, capped at 100)
+            if status == "failed":
+                failed_items = config.get("failed_items", [])
+                entry = {"name": entity_name}
+                if error_msg:
+                    entry["error"] = str(error_msg)[:200]
+                failed_items.append(entry)
+                if len(failed_items) > 100:
+                    failed_items = failed_items[-100:]
+                config["failed_items"] = failed_items
 
             db.session.execute(
                 text("UPDATE stage_runs SET config = :config WHERE id = :id"),
@@ -485,7 +496,7 @@ def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
             except Exception as e:
                 db.session.rollback()  # Reset aborted transaction
                 failed += 1
-                _update_current_item(run_id, entity_name, "failed")
+                _update_current_item(run_id, entity_name, "failed", error_msg=str(e))
                 logger.warning("Stage %s item %s failed: %s", stage, entity_id, e)
                 update_run(run_id, done=i + 1, failed=failed, cost_usd=total_cost,
                            error=str(e)[:500])
@@ -610,7 +621,8 @@ def run_stage_reactive(app, run_id, stage, tenant_id, tag_id,
                     except Exception as e:
                         db.session.rollback()  # Reset aborted transaction
                         failed_count += 1
-                        _update_current_item(run_id, entity_name, "failed")
+                        _update_current_item(run_id, entity_name, "failed",
+                                             error_msg=str(e))
                         logger.warning("Reactive stage %s item %s failed: %s",
                                        stage, entity_id, e)
                         update_run(run_id, done=done_count, failed=failed_count,
