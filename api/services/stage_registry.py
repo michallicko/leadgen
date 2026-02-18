@@ -163,6 +163,7 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "qc_flags", "label": "QC Flags", "type": "json", "table": "company_enrichment_l1"},
     ],
     "l2": [
+        # Profile module
         {"key": "company_intel", "label": "Company Intel", "type": "text", "table": "company_enrichment_profile"},
         {"key": "key_products", "label": "Key Products", "type": "text", "table": "company_enrichment_profile"},
         {"key": "customer_segments", "label": "Customers", "type": "text", "table": "company_enrichment_profile"},
@@ -170,15 +171,14 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "tech_stack", "label": "Tech Stack", "type": "text", "table": "company_enrichment_profile"},
         {"key": "leadership_team", "label": "Leadership", "type": "text", "table": "company_enrichment_profile"},
         {"key": "certifications", "label": "Certifications", "type": "text", "table": "company_enrichment_profile"},
-        {"key": "digital_initiatives", "label": "Digital Initiatives", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "leadership_changes", "label": "Leadership Changes", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "hiring_signals", "label": "Hiring Signals", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "ai_hiring", "label": "AI Hiring", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "tech_partnerships", "label": "Tech Partners", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "competitor_ai_moves", "label": "Competitor AI Moves", "type": "text", "table": "company_enrichment_signals"},
+        # Market module
         {"key": "recent_news", "label": "Recent News", "type": "text", "table": "company_enrichment_market"},
         {"key": "funding_history", "label": "Funding", "type": "text", "table": "company_enrichment_market"},
         {"key": "eu_grants", "label": "EU Grants", "type": "text", "table": "company_enrichment_market"},
+        {"key": "media_sentiment", "label": "Media Sentiment", "type": "text", "table": "company_enrichment_market"},
+        {"key": "press_releases", "label": "Press Releases", "type": "text", "table": "company_enrichment_market"},
+        {"key": "thought_leadership", "label": "Thought Leadership", "type": "text", "table": "company_enrichment_market"},
+        # Opportunity module
         {"key": "pain_hypothesis", "label": "Pain Hypothesis", "type": "text", "table": "company_enrichment_opportunity"},
         {"key": "relevant_case_study", "label": "Case Studies", "type": "text", "table": "company_enrichment_opportunity"},
         {"key": "ai_opportunities", "label": "AI Opportunities", "type": "text", "table": "company_enrichment_opportunity"},
@@ -213,10 +213,11 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "credibility_factors", "label": "Credibility Factors", "type": "json", "table": "company_legal_profile"},
     ],
     "signals": [
-        {"key": "funding_history", "label": "Funding Rounds", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "digital_initiatives", "label": "Digital Initiatives", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "leadership_changes", "label": "Leadership Changes", "type": "text", "table": "company_enrichment_signals"},
         {"key": "hiring_signals", "label": "Hiring Patterns", "type": "text", "table": "company_enrichment_signals"},
         {"key": "ai_hiring", "label": "AI Hiring Signals", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "digital_initiatives", "label": "Growth Indicators", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "tech_partnerships", "label": "Tech Partnerships", "type": "text", "table": "company_enrichment_signals"},
         {"key": "competitor_ai_moves", "label": "Competitor AI Moves", "type": "text", "table": "company_enrichment_signals"},
         {"key": "ai_adoption_level", "label": "AI Adoption Level", "type": "text", "table": "company_enrichment_signals"},
         {"key": "news_confidence", "label": "News Confidence", "type": "text", "table": "company_enrichment_signals"},
