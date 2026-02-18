@@ -772,6 +772,70 @@ class TestL2Integration:
 
 
 # ---------------------------------------------------------------------------
+# Person enrichment integration
+# ---------------------------------------------------------------------------
+
+class TestPersonIntegration:
+    """Test person stage dispatch through _process_entity."""
+
+    def test_person_dispatches_to_direct_enricher(self, app, db, seed_tenant):
+        """Person stage dispatches to enrich_person (not n8n webhook)."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            with patch("api.services.person_enricher.enrich_person") as mock_person:
+                mock_person.return_value = {"enrichment_cost_usd": 0.007}
+                result = _process_entity("person", str(contact.id),
+                                         str(seed_tenant.id))
+
+            mock_person.assert_called_once_with(
+                str(contact.id), str(seed_tenant.id), previous_data=None,
+            )
+            assert result["enrichment_cost_usd"] == 0.007
+
+    def test_person_does_not_call_n8n(self, app, db, seed_tenant):
+        """Person stage should NOT call n8n webhook anymore."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            with patch("api.services.person_enricher.enrich_person") as mock_person, \
+                 patch("api.services.pipeline_engine.call_n8n_webhook") as mock_n8n:
+                mock_person.return_value = {"enrichment_cost_usd": 0.005}
+                _process_entity("person", str(contact.id),
+                                str(seed_tenant.id))
+
+            mock_n8n.assert_not_called()
+
+    def test_person_passes_previous_data(self, app, db, seed_tenant):
+        """Person stage forwards previous_data to enricher."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            prev = {"l1": {"summary": "test"}, "l2": {"pain": "growth"}}
+            with patch("api.services.person_enricher.enrich_person") as mock_person:
+                mock_person.return_value = {"enrichment_cost_usd": 0.01}
+                _process_entity("person", str(contact.id),
+                                str(seed_tenant.id),
+                                previous_data=prev)
+
+            mock_person.assert_called_once_with(
+                str(contact.id), str(seed_tenant.id), previous_data=prev,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Old endpoints still work
 # ---------------------------------------------------------------------------
 
