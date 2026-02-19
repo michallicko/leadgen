@@ -159,7 +159,7 @@ export function ContactsPage() {
     { key: 'message_status', label: 'Msg Status', sortKey: 'message_status', minWidth: '100px', shrink: false, render: (c) => <Badge variant="msgStatus" value={c.message_status} /> },
     { key: 'owner_name', label: 'Owner', minWidth: '70px' },
     { key: 'tag_names', label: 'Tags', minWidth: '90px', render: (c) => {
-      const names = (c as Record<string, unknown>).tag_names as string[] | undefined
+      const names = (c as unknown as Record<string, unknown>).tag_names as string[] | undefined
       if (!names || names.length === 0) return <span className="text-text-dim">-</span>
       return <span className="text-xs" title={names.join(', ')}>{names.join(', ')}</span>
     }},
