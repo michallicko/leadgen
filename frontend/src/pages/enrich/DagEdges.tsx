@@ -32,24 +32,24 @@ function getEdgeColor(
   progress: Record<string, StageProgress>,
 ): { stroke: string; dash: string; opacity: number } {
   if (mode === 'configure') {
-    return { stroke: 'var(--color-border-solid)', dash: '', opacity: 0.4 }
+    return { stroke: 'var(--color-text-muted)', dash: '', opacity: 0.5 }
   }
 
   const fromProgress = progress[fromCode]
   if (!fromProgress) {
-    return { stroke: 'var(--color-border-solid)', dash: '4 4', opacity: 0.3 }
+    return { stroke: 'var(--color-text-muted)', dash: '4 4', opacity: 0.4 }
   }
 
   if (fromProgress.status === 'completed') {
-    return { stroke: 'var(--color-success)', dash: '', opacity: 0.6 }
+    return { stroke: 'var(--color-success)', dash: '', opacity: 0.8 }
   }
   if (fromProgress.status === 'running') {
-    return { stroke: 'var(--color-accent-cyan)', dash: '6 3', opacity: 0.8 }
+    return { stroke: 'var(--color-accent-cyan)', dash: '6 3', opacity: 0.9 }
   }
   if (fromProgress.status === 'failed') {
-    return { stroke: 'var(--color-error)', dash: '', opacity: 0.5 }
+    return { stroke: 'var(--color-error)', dash: '', opacity: 0.7 }
   }
-  return { stroke: 'var(--color-border-solid)', dash: '4 4', opacity: 0.3 }
+  return { stroke: 'var(--color-text-muted)', dash: '4 4', opacity: 0.4 }
 }
 
 export function DagEdges({
@@ -160,7 +160,7 @@ export function DagEdges({
             d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${midY}, ${edge.x2} ${midY}, ${edge.x2} ${edge.y2}`}
             fill="none"
             stroke={stroke}
-            strokeWidth={isSoft ? 1 : 1.5}
+            strokeWidth={isSoft ? 1.5 : 2}
             strokeDasharray={isSoft ? '3 3' : dash}
             opacity={opacity}
           />
