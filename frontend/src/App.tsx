@@ -10,6 +10,7 @@ import { CompanyDetailPage } from './pages/companies/CompanyDetailPage'
 import { ContactsPage } from './pages/contacts/ContactsPage'
 import { ContactDetailPage } from './pages/contacts/ContactDetailPage'
 import { MessagesPage } from './pages/messages/MessagesPage'
+import { MessageReviewPage } from './pages/messages/MessageReviewPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
 import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
 import { EnrichPage } from './pages/enrich/EnrichPage'
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="messages" element={<MessagesPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
+              <Route path="campaigns/:campaignId/review" element={<MessageReviewPage />} />
               <Route path="playbook" element={<PlaceholderPage title="ICP Playbook" description="Your Ideal Customer Profile definition — target segments, company signals, decision-maker titles, and disqualification criteria." />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
