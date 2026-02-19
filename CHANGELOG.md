@@ -4,6 +4,19 @@ All notable changes to the Leadgen Pipeline project.
 
 ## [Unreleased]
 
+### Changed
+- **Entity Detail Cleanup** (BL-046): Restructure CompanyDetail and ContactDetail views per enrichment field audit
+  - Company: Rename "Pipeline" section to "CRM", remove deprecated status/crm_status/cohort fields
+  - Company: Replace "Scores" with "Key Metrics" (triage_score, verified_revenue, verified_employees)
+  - Company: Surface growth_indicators, job_posting_count, media_sentiment, press_releases, thought_leadership, insolvency_details from L2 enrichment modules
+  - Company: Move L1 triage metadata (confidence, quality_score, qc_flags) to History tab
+  - Contact: Move scores to Enrichment tab with source attribution, add Career & Social section
+  - Contact: Add employment_status/employment_verified_at to Contact Info
+  - Contact: Remove deprecated status flags (processed_enrich, email_lookup, duplicity_*) from History tab
+  - Both: Add stage_completions to API responses for DAG-based enrichment timeline
+  - Both: Add Costs & Quality section and last_enriched_at to History tab
+  - EnrichmentTimeline: Color-coded dots (green=completed, red=failed, gray=skipped) with error display
+
 ### Added
 - **Entity Selection & Bulk Actions**: Multi-select contacts/companies with bulk operations
   - DataTable: checkbox column, shift-click range selection, select-all-loaded, select-all-matching-filters

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import { withRev } from '../../lib/revision'
 import { useCompanies, type CompanyListItem, type CompanyFilters } from '../../api/queries/useCompanies'
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useCompaniesMatchingCount } from '../../api/queries/useBulkActions'
@@ -173,7 +174,7 @@ export function CompaniesPage() {
         data={allCompanies}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={selectedIds.size === 0 ? (c) => navigate(`/${namespace}/companies/${c.id}`, { state: { origin: `/${namespace}/companies` } }) : undefined}
+        onRowClick={selectedIds.size === 0 ? (c) => navigate(withRev(`/${namespace}/companies/${c.id}`), { state: { origin: withRev(`/${namespace}/companies`) } }) : undefined}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}

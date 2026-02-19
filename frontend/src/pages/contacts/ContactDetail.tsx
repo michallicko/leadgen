@@ -120,6 +120,10 @@ export function ContactDetail({ contact, onNavigate }: Props) {
           <Field label="Phone" value={contact.phone_number} />
           <Field label="City" value={contact.location_city} />
           <Field label="Country" value={contact.location_country} />
+          <Field label="Employment Status" value={contact.employment_status} />
+          {contact.employment_verified_at && (
+            <Field label="Employment Verified" value={new Date(contact.employment_verified_at).toLocaleDateString()} />
+          )}
         </FieldGrid>
 
         {/* Classification (editable) */}
@@ -131,16 +135,6 @@ export function ContactDetail({ contact, onNavigate }: Props) {
           <EditableSelect label="Relationship" name="relationship_status" value={getEditableValue('relationship_status', contact.relationship_status)} options={filterOptions(RELATIONSHIP_STATUS_DISPLAY)} onChange={handleFieldChange} />
           <EditableSelect label="Source" name="contact_source" value={getEditableValue('contact_source', contact.contact_source)} options={filterOptions(CONTACT_SOURCE_DISPLAY)} onChange={handleFieldChange} />
           <EditableSelect label="Language" name="language" value={getEditableValue('language', contact.language)} options={filterOptions(LANGUAGE_DISPLAY)} onChange={handleFieldChange} />
-        </FieldGrid>
-
-        {/* Scores */}
-        <SectionDivider title="Scores" />
-        <FieldGrid cols={3}>
-          <Field label="Contact Score" value={contact.contact_score} />
-          <Field label="AI Champion" value={contact.ai_champion} />
-          <Field label="AI Champion Score" value={contact.ai_champion_score} />
-          <Field label="Authority Score" value={contact.authority_score} />
-          <Field label="Enrichment Cost (USD)" value={contact.enrichment_cost_usd?.toFixed(4)} />
         </FieldGrid>
 
         {/* Notes (editable) */}
@@ -189,20 +183,59 @@ export function ContactDetail({ contact, onNavigate }: Props) {
 
   // Enrichment tab (only if person enrichment exists)
   if (contact.enrichment) {
+    const e = contact.enrichment
     tabs.push({
       id: 'enrichment',
       label: 'Enrichment',
       content: (
         <div className="space-y-1">
-          <SectionDivider title="Person Enrichment" />
+          <SectionDivider title="Person Summary" />
           <div className="space-y-4">
-            <Field label="Person Summary" value={contact.enrichment.person_summary} className="col-span-full" source={personSource} />
-            <Field label="LinkedIn Summary" value={contact.enrichment.linkedin_profile_summary} className="col-span-full" source={personSource} />
-            <Field label="Relationship Synthesis" value={contact.enrichment.relationship_synthesis} className="col-span-full" source={personSource} />
+            <Field label="Person Summary" value={e.person_summary} className="col-span-full" source={personSource} />
+            <Field label="LinkedIn Summary" value={e.linkedin_profile_summary} className="col-span-full" source={personSource} />
+            <Field label="Relationship Synthesis" value={e.relationship_synthesis} className="col-span-full" source={personSource} />
           </div>
-          <FieldGrid>
-            <Field label="Enriched At" value={contact.enrichment.enriched_at ? new Date(contact.enrichment.enriched_at).toLocaleString() : null} />
-            <Field label="Cost (USD)" value={contact.enrichment.enrichment_cost_usd?.toFixed(4)} />
+
+          {(e.career_trajectory || (e.previous_companies && e.previous_companies.length > 0) || e.speaking_engagements || e.publications || e.twitter_handle || e.github_username) && (
+            <>
+              <SectionDivider title="Career & Social" />
+              <div className="space-y-4">
+                <Field label="Career Trajectory" value={e.career_trajectory} className="col-span-full" source={personSource} />
+                {e.previous_companies && e.previous_companies.length > 0 && (
+                  <div>
+                    <span className="text-xs text-text-muted font-medium">Previous Companies</span>
+                    <div className="space-y-1 mt-1">
+                      {e.previous_companies.map((pc, i) => (
+                        <div key={i} className="text-sm text-text">
+                          <span className="font-medium">{String(pc.name || pc.company || `Company ${i + 1}`)}</span>
+                          {pc.role ? <span className="text-text-muted"> — {String(pc.role)}</span> : null}
+                          {pc.years ? <span className="text-text-dim ml-1">({String(pc.years)})</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Field label="Speaking Engagements" value={e.speaking_engagements} className="col-span-full" source={personSource} />
+                <Field label="Publications" value={e.publications} className="col-span-full" source={personSource} />
+                <FieldGrid cols={3}>
+                  {e.twitter_handle && (
+                    <FieldLink label="Twitter / X" value={`@${e.twitter_handle.replace(/^@/, '')}`} href={`https://x.com/${e.twitter_handle.replace(/^@/, '')}`} />
+                  )}
+                  {e.github_username && (
+                    <FieldLink label="GitHub" value={e.github_username} href={`https://github.com/${e.github_username}`} />
+                  )}
+                </FieldGrid>
+              </div>
+            </>
+          )}
+
+          <SectionDivider title="Scores" />
+          <FieldGrid cols={3}>
+            <Field label="Contact Score" value={contact.contact_score} />
+            <Field label="AI Champion" value={e.ai_champion != null ? (e.ai_champion ? 'Yes' : 'No') : contact.ai_champion} />
+            <Field label="AI Champion Score" value={e.ai_champion_score ?? contact.ai_champion_score} />
+            <Field label="Authority Score" value={e.authority_score ?? contact.authority_score} />
+            <Field label="Enrichment Cost" value={(e.enrichment_cost_usd ?? contact.enrichment_cost_usd)?.toFixed(4)} />
           </FieldGrid>
         </div>
       ),
@@ -250,19 +283,17 @@ export function ContactDetail({ contact, onNavigate }: Props) {
           })),
         ]} />
 
-        <SectionDivider title="Status Flags" />
-        <FieldGrid cols={3}>
-          <Field label="Processed (Enrich)" value={contact.processed_enrich} />
-          <Field label="Email Lookup" value={contact.email_lookup} />
-          <Field label="Duplicity Check" value={contact.duplicity_check} />
-          <Field label="Duplicity Conflict" value={contact.duplicity_conflict} />
-          <Field label="Duplicity Detail" value={contact.duplicity_detail} />
-        </FieldGrid>
-
         <SectionDivider title="Timestamps" />
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <Field label="Created" value={contact.created_at ? new Date(contact.created_at).toLocaleString() : null} />
           <Field label="Updated" value={contact.updated_at ? new Date(contact.updated_at).toLocaleString() : null} />
+          <Field label="Last Enriched" value={contact.last_enriched_at ? new Date(contact.last_enriched_at).toLocaleString() : null} />
+        </FieldGrid>
+
+        <SectionDivider title="Costs & Quality" />
+        <FieldGrid cols={3}>
+          <Field label="Enrichment Cost" value={contact.enrichment_cost_usd?.toFixed(4)} />
+          <Field label="Contact Score" value={contact.contact_score} />
         </FieldGrid>
 
         {contact.error && (
@@ -293,7 +324,7 @@ export function ContactDetail({ contact, onNavigate }: Props) {
             <Badge variant="icp" value={contact.icp_fit} />
             <Badge variant="msgStatus" value={contact.message_status} />
             {contact.owner_name && <span className="text-xs text-text-muted">{contact.owner_name}</span>}
-            {contact.batch_name && <span className="text-xs text-text-dim">{contact.batch_name}</span>}
+            {contact.tag_name && <span className="text-xs text-text-dim bg-surface-alt px-1.5 py-0.5 rounded">{contact.tag_name}</span>}
           </div>
           {contact.linkedin_url && (
             <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-cyan hover:underline mt-1 inline-block">

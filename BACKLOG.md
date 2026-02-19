@@ -298,6 +298,10 @@ _No items yet._
 
 ## Completed
 
+### BL-045: Entity Detail Cleanup (Done 2026-02-19)
+**Status**: Done | **Effort**: M | **Spec**: `docs/specs/entity-detail-cleanup/`
+Restructure CompanyDetail and ContactDetail views per enrichment field audit. Remove deprecated pipeline fields, surface all L2 enrichment modules, add stage_completions timeline, move scores and triage metadata to appropriate tabs.
+
 ### BL-001: Contacts & Companies Screens (Done 2026-02-13)
 Dashboard screens with infinite scroll, virtual DOM windowing, filters, detail modals, inline editing. ADR-001.
 

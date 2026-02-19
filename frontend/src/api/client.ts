@@ -11,11 +11,12 @@ import {
   clearTokens,
   getNamespaceFromPath,
 } from '../lib/auth'
+import { getRevision } from '../lib/revision'
 
 function resolveApiBase(): string {
   const env = import.meta.env.VITE_API_BASE
   if (env) return env
-  const rev = new URLSearchParams(window.location.search).get('rev')
+  const rev = getRevision()
   return rev ? `/api-rev-${rev}/api` : '/api'
 }
 
