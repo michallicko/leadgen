@@ -41,6 +41,15 @@ function SummaryValue({ field }: { field: ModuleField }) {
           {String(value)}
         </span>
       )
+    case 'list':
+      if (Array.isArray(value)) {
+        return (
+          <span className="text-xs text-text-muted">
+            {value.length} item{value.length !== 1 ? 's' : ''}
+          </span>
+        )
+      }
+      return null
     default:
       return (
         <span className="text-xs text-text-muted line-clamp-1 max-w-[200px]">
