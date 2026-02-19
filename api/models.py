@@ -463,6 +463,10 @@ class Contact(db.Model):
     employment_status = db.Column(db.Text)
     linkedin_activity_level = db.Column(db.Text, default='unknown')
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
+    # Disqualification (migration 027)
+    is_disqualified = db.Column(db.Boolean, default=False)
+    disqualified_at = db.Column(db.DateTime(timezone=True))
+    disqualified_reason = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
@@ -721,8 +725,21 @@ class Message(db.Model):
     sent_at = db.Column(db.DateTime(timezone=True))
     review_notes = db.Column(db.Text)
     campaign_contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("campaign_contacts.id"))
+    # Version tracking + regeneration (migration 027)
+    original_body = db.Column(db.Text)
+    original_subject = db.Column(db.Text)
+    edit_reason = db.Column(db.Text)
+    edit_reason_text = db.Column(db.Text)
+    regen_count = db.Column(db.Integer, default=0)
+    regen_config = db.Column(JSONB)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+EDIT_REASONS = [
+    "too_formal", "too_casual", "wrong_tone", "wrong_language",
+    "too_long", "too_short", "factually_wrong", "off_topic", "generic", "other",
+]
 
 
 class Campaign(db.Model):
