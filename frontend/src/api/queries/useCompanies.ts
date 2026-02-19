@@ -33,6 +33,14 @@ export interface CompanyContactSummary {
   contact_score: number | null
   icp_fit: string | null
   message_status: string | null
+  linkedin_url: string | null
+  seniority_level: string | null
+  department: string | null
+  ai_champion: boolean | null
+  ai_champion_score: number | null
+  authority_score: number | null
+  person_summary: string | null
+  career_trajectory: string | null
 }
 
 export interface CompanyTag {
@@ -50,6 +58,74 @@ export interface CompanyEnrichmentL1 {
   qc_flags: string[] | null
   enriched_at: string | null
   enrichment_cost_usd: number | null
+}
+
+export interface L2ModuleBase {
+  enriched_at: string | null
+  enrichment_cost_usd: number | null
+}
+
+export interface L2Profile extends L2ModuleBase {
+  company_intel: string | null
+  key_products: string | null
+  customer_segments: string | null
+  competitors: string | null
+  tech_stack: string | null
+  leadership_team: string | null
+  certifications: string | null
+}
+
+export interface L2Signals extends L2ModuleBase {
+  digital_initiatives: string | null
+  ai_adoption_level: string | null
+  growth_indicators: string | null
+  job_posting_count: number | null
+  hiring_departments: string | null
+  news_confidence: string | null
+}
+
+export interface L2Market extends L2ModuleBase {
+  recent_news: string | null
+  funding_history: string | null
+  eu_grants: string | null
+  media_sentiment: string | null
+  press_releases: string | null
+  thought_leadership: string | null
+}
+
+export interface L2Opportunity extends L2ModuleBase {
+  pain_hypothesis: string | null
+  relevant_case_study: string | null
+  ai_opportunities: string | null
+  quick_wins: unknown[] | null
+  industry_pain_points: string | null
+  cross_functional_pain: string | null
+  adoption_barriers: string | null
+}
+
+export interface CompanyEnrichmentL2 {
+  modules: {
+    profile?: L2Profile
+    signals?: L2Signals
+    market?: L2Market
+    opportunity?: L2Opportunity
+  }
+  enriched_at: string | null
+  enrichment_cost_usd: number | null
+}
+
+export interface StageCompletion {
+  stage: string
+  status: string
+  cost_usd: number | null
+  completed_at: string | null
+  error?: string | null
+}
+
+export interface DerivedStage {
+  label: string
+  stage: string | null
+  color: string
 }
 
 export interface CompanyDetail {
@@ -96,10 +172,13 @@ export interface CompanyDetail {
   last_enriched_at: string | null
   data_quality_score: number | null
   enrichment_l1: CompanyEnrichmentL1 | null
-  enrichment_l2: Record<string, unknown> | null
+  enrichment_l2: CompanyEnrichmentL2 | null
   registry_data: Record<string, unknown> | null
   tags: CompanyTag[]
   contacts: CompanyContactSummary[]
+  stage_completions: StageCompletion[]
+  derived_stage: DerivedStage | null
+  batch_name?: string | null
 }
 
 export interface CompanyFilters {

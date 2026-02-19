@@ -5,6 +5,7 @@ from .company_routes import companies_bp
 from .contact_routes import contacts_bp
 from .custom_field_routes import custom_fields_bp
 from .enrich_routes import enrich_bp
+from .enrichment_config_routes import enrichment_config_bp
 from .gmail_routes import gmail_bp
 from .health import health_bp
 from .import_routes import imports_bp
@@ -26,6 +27,7 @@ def register_blueprints(app):
     app.register_blueprint(campaigns_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(enrich_bp)
+    app.register_blueprint(enrichment_config_bp)
     app.register_blueprint(companies_bp)
     app.register_blueprint(contacts_bp)
     app.register_blueprint(imports_bp)

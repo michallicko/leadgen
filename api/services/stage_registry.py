@@ -20,7 +20,7 @@ STAGE_REGISTRY = {
     },
     "l2": {
         "entity_type": "company",
-        "hard_deps": ["l1"],
+        "hard_deps": ["triage"],
         "soft_deps": [],
         "execution_mode": "webhook",
         "display_name": "L2 Deep Research",
@@ -96,6 +96,16 @@ STAGE_REGISTRY = {
         "cost_default_usd": 0.01,
         "country_gate": None,
     },
+    "triage": {
+        "entity_type": "company",
+        "hard_deps": ["l1"],
+        "soft_deps": [],
+        "execution_mode": "native",
+        "display_name": "Triage",
+        "cost_default_usd": 0.00,
+        "country_gate": None,
+        "is_gate": True,
+    },
     "qc": {
         "entity_type": "company",
         "hard_deps": [],
@@ -106,6 +116,26 @@ STAGE_REGISTRY = {
         "country_gate": None,
         "is_terminal": True,
     },
+}
+
+# ---------------------------------------------------------------------------
+# Boost model mapping: standard vs upgraded models per stage
+# ---------------------------------------------------------------------------
+
+BOOST_MODELS = {
+    "l1":              {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "l2":              {"standard": "sonar-pro", "boost": "sonar-reasoning-pro",  "cost_boost": 0.30},
+    "person":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.20},
+    "signals":         {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.10},
+    "news":            {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.08},
+    "social":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "career":          {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.06},
+    "contact_details": {"standard": "sonar",     "boost": "sonar-pro",            "cost_boost": 0.02},
+}
+
+ANTHROPIC_BOOST = {
+    "standard": "claude-haiku-4-5-20251001",
+    "boost": "claude-sonnet-4-5-20241022",
 }
 
 STAGE_FIELDS: Dict[str, List[dict]] = {
@@ -122,6 +152,7 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "hq_city", "label": "HQ City", "type": "text", "table": "companies"},
         {"key": "hq_country", "label": "HQ Country", "type": "text", "table": "companies"},
         {"key": "geo_region", "label": "Region", "type": "enum", "table": "companies"},
+        {"key": "industry_category", "label": "Industry Category", "type": "enum", "table": "companies"},
         {"key": "triage_score", "label": "Triage Score", "type": "number", "table": "companies"},
         {"key": "pre_score", "label": "Pre-Score", "type": "number", "table": "company_enrichment_l1"},
         {"key": "triage_notes", "label": "Triage Notes", "type": "text", "table": "company_enrichment_l1"},
@@ -132,6 +163,7 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "qc_flags", "label": "QC Flags", "type": "json", "table": "company_enrichment_l1"},
     ],
     "l2": [
+        # Profile module
         {"key": "company_intel", "label": "Company Intel", "type": "text", "table": "company_enrichment_profile"},
         {"key": "key_products", "label": "Key Products", "type": "text", "table": "company_enrichment_profile"},
         {"key": "customer_segments", "label": "Customers", "type": "text", "table": "company_enrichment_profile"},
@@ -139,15 +171,14 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "tech_stack", "label": "Tech Stack", "type": "text", "table": "company_enrichment_profile"},
         {"key": "leadership_team", "label": "Leadership", "type": "text", "table": "company_enrichment_profile"},
         {"key": "certifications", "label": "Certifications", "type": "text", "table": "company_enrichment_profile"},
-        {"key": "digital_initiatives", "label": "Digital Initiatives", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "leadership_changes", "label": "Leadership Changes", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "hiring_signals", "label": "Hiring Signals", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "ai_hiring", "label": "AI Hiring", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "tech_partnerships", "label": "Tech Partners", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "competitor_ai_moves", "label": "Competitor AI Moves", "type": "text", "table": "company_enrichment_signals"},
+        # Market module
         {"key": "recent_news", "label": "Recent News", "type": "text", "table": "company_enrichment_market"},
         {"key": "funding_history", "label": "Funding", "type": "text", "table": "company_enrichment_market"},
         {"key": "eu_grants", "label": "EU Grants", "type": "text", "table": "company_enrichment_market"},
+        {"key": "media_sentiment", "label": "Media Sentiment", "type": "text", "table": "company_enrichment_market"},
+        {"key": "press_releases", "label": "Press Releases", "type": "text", "table": "company_enrichment_market"},
+        {"key": "thought_leadership", "label": "Thought Leadership", "type": "text", "table": "company_enrichment_market"},
+        # Opportunity module
         {"key": "pain_hypothesis", "label": "Pain Hypothesis", "type": "text", "table": "company_enrichment_opportunity"},
         {"key": "relevant_case_study", "label": "Case Studies", "type": "text", "table": "company_enrichment_opportunity"},
         {"key": "ai_opportunities", "label": "AI Opportunities", "type": "text", "table": "company_enrichment_opportunity"},
@@ -182,10 +213,11 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {"key": "credibility_factors", "label": "Credibility Factors", "type": "json", "table": "company_legal_profile"},
     ],
     "signals": [
-        {"key": "funding_history", "label": "Funding Rounds", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "digital_initiatives", "label": "Digital Initiatives", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "leadership_changes", "label": "Leadership Changes", "type": "text", "table": "company_enrichment_signals"},
         {"key": "hiring_signals", "label": "Hiring Patterns", "type": "text", "table": "company_enrichment_signals"},
         {"key": "ai_hiring", "label": "AI Hiring Signals", "type": "text", "table": "company_enrichment_signals"},
-        {"key": "digital_initiatives", "label": "Growth Indicators", "type": "text", "table": "company_enrichment_signals"},
+        {"key": "tech_partnerships", "label": "Tech Partnerships", "type": "text", "table": "company_enrichment_signals"},
         {"key": "competitor_ai_moves", "label": "Competitor AI Moves", "type": "text", "table": "company_enrichment_signals"},
         {"key": "ai_adoption_level", "label": "AI Adoption Level", "type": "text", "table": "company_enrichment_signals"},
         {"key": "news_confidence", "label": "News Confidence", "type": "text", "table": "company_enrichment_signals"},
@@ -369,6 +401,30 @@ def resolve_deps(stage_code: str, soft_deps_enabled: Optional[Dict[str, bool]] =
         deps.extend(entry.get("soft_deps", []))
 
     return deps
+
+
+def get_model_for_stage(stage_code, boost=False, provider="perplexity"):
+    """Get the model name for a stage based on boost flag and provider.
+
+    Args:
+        stage_code: Stage code (e.g., "l1", "l2")
+        boost: Whether boost mode is enabled
+        provider: "perplexity" or "anthropic"
+
+    Returns:
+        Model name string
+    """
+    if provider == "anthropic":
+        key = "boost" if boost else "standard"
+        return ANTHROPIC_BOOST[key]
+
+    # Perplexity models
+    cfg = BOOST_MODELS.get(stage_code)
+    if cfg is None:
+        return "sonar-pro" if boost else "sonar"
+
+    key = "boost" if boost else "standard"
+    return cfg[key]
 
 
 def estimate_cost(stage_codes: List[str], entity_count: int) -> float:

@@ -12,7 +12,14 @@ import {
   getNamespaceFromPath,
 } from '../lib/auth'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
+function resolveApiBase(): string {
+  const env = import.meta.env.VITE_API_BASE
+  if (env) return env
+  const rev = new URLSearchParams(window.location.search).get('rev')
+  return rev ? `/api-rev-${rev}/api` : '/api'
+}
+
+const API_BASE = resolveApiBase()
 
 export class ApiError extends Error {
   status: number

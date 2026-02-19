@@ -660,13 +660,20 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
                             previous_data=prev_data)
                         cost = _extract_cost(result)
                         total_cost += cost
+
+                        # Handle gate results (triage, review, etc.)
+                        if isinstance(result, dict) and "gate_passed" in result:
+                            completion_status = "completed" if result["gate_passed"] else "disqualified"
+                        else:
+                            completion_status = "completed"
+
                         done_count += 1
 
                         # Record completion
                         record_completion(
                             tenant_id, tag_id, pipeline_run_id,
                             entity_type, entity_id, stage_code,
-                            status="completed", cost_usd=cost,
+                            status=completion_status, cost_usd=cost,
                         )
 
                         _update_current_item(run_id, entity_name, "ok")

@@ -1,6 +1,7 @@
 /**
  * DagEdges — SVG overlay drawing Bezier curves between dependent stage cards.
  * Uses refs to card DOM elements to compute connection points.
+ * On hover: connected edges jump to foreground (above cards) in cyan.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -14,6 +15,7 @@ interface DagEdgesProps {
   mode: DagMode
   progress: Record<string, StageProgress>
   softDepsConfig: Record<string, boolean>
+  hoveredStage?: string | null
 }
 
 interface Edge {
@@ -26,30 +28,46 @@ interface Edge {
   y2: number
 }
 
-function getEdgeColor(
-  fromCode: string,
+function getBaseStyle(
+  edge: Edge,
   mode: DagMode,
   progress: Record<string, StageProgress>,
-): { stroke: string; dash: string; opacity: number } {
+): { stroke: string; dash: string; opacity: number; width: number } {
+  const isSoft = edge.key.includes('~>')
+  let stroke: string
+  let dash = ''
+  let opacity: number
+  const width = isSoft ? 1.5 : 2
+
   if (mode === 'configure') {
-    return { stroke: 'var(--color-border-solid)', dash: '', opacity: 0.4 }
+    stroke = 'var(--color-text-muted)'
+    opacity = 0.5
+  } else {
+    const fromProgress = progress[edge.from]
+    if (!fromProgress) {
+      stroke = 'var(--color-text-muted)'
+      dash = '4 4'
+      opacity = 0.4
+    } else if (fromProgress.status === 'completed') {
+      stroke = 'var(--color-success)'
+      opacity = 0.8
+    } else if (fromProgress.status === 'running') {
+      stroke = 'var(--color-accent-cyan)'
+      dash = '6 3'
+      opacity = 0.9
+    } else if (fromProgress.status === 'failed') {
+      stroke = 'var(--color-error)'
+      opacity = 0.7
+    } else {
+      stroke = 'var(--color-text-muted)'
+      dash = '4 4'
+      opacity = 0.4
+    }
   }
 
-  const fromProgress = progress[fromCode]
-  if (!fromProgress) {
-    return { stroke: 'var(--color-border-solid)', dash: '4 4', opacity: 0.3 }
-  }
+  if (isSoft) dash = '3 3'
 
-  if (fromProgress.status === 'completed') {
-    return { stroke: 'var(--color-success)', dash: '', opacity: 0.6 }
-  }
-  if (fromProgress.status === 'running') {
-    return { stroke: 'var(--color-accent-cyan)', dash: '6 3', opacity: 0.8 }
-  }
-  if (fromProgress.status === 'failed') {
-    return { stroke: 'var(--color-error)', dash: '', opacity: 0.5 }
-  }
-  return { stroke: 'var(--color-border-solid)', dash: '4 4', opacity: 0.3 }
+  return { stroke, dash, opacity, width }
 }
 
 export function DagEdges({
@@ -59,6 +77,7 @@ export function DagEdges({
   mode,
   progress,
   softDepsConfig,
+  hoveredStage = null,
 }: DagEdgesProps) {
   const [edges, setEdges] = useState<Edge[]>([])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -142,30 +161,76 @@ export function DagEdges({
 
   if (edges.length === 0) return null
 
-  return (
-    <svg
-      className="absolute inset-0 pointer-events-none"
-      width={size.w}
-      height={size.h}
-      style={{ overflow: 'visible' }}
-    >
-      {edges.map((edge) => {
-        const { stroke, dash, opacity } = getEdgeColor(edge.from, mode, progress)
-        const isSoft = edge.key.includes('~>')
-        const midY = (edge.y1 + edge.y2) / 2
+  const hasHover = hoveredStage != null
 
-        return (
-          <path
-            key={edge.key}
-            d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${midY}, ${edge.x2} ${midY}, ${edge.x2} ${edge.y2}`}
-            fill="none"
-            stroke={stroke}
-            strokeWidth={isSoft ? 1 : 1.5}
-            strokeDasharray={isSoft ? '3 3' : dash}
-            opacity={opacity}
-          />
-        )
-      })}
-    </svg>
+  // Split edges into background (dimmed/normal) and foreground (highlighted)
+  const bgEdges: Edge[] = []
+  const fgEdges: Edge[] = []
+
+  if (hasHover) {
+    for (const edge of edges) {
+      if (edge.from === hoveredStage || edge.to === hoveredStage) {
+        fgEdges.push(edge)
+      } else {
+        bgEdges.push(edge)
+      }
+    }
+  } else {
+    bgEdges.push(...edges)
+  }
+
+  return (
+    <>
+      {/* Background layer — behind cards (z-0) */}
+      <svg
+        className="absolute inset-0 pointer-events-none z-0"
+        width={size.w}
+        height={size.h}
+        style={{ overflow: 'visible' }}
+      >
+        {bgEdges.map((edge) => {
+          const { stroke, dash, opacity, width } = getBaseStyle(edge, mode, progress)
+          const midY = (edge.y1 + edge.y2) / 2
+          return (
+            <path
+              key={edge.key}
+              d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${midY}, ${edge.x2} ${midY}, ${edge.x2} ${edge.y2}`}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={width}
+              strokeDasharray={dash}
+              opacity={hasHover ? 0.1 : opacity}
+              className="transition-opacity duration-150"
+            />
+          )
+        })}
+      </svg>
+
+      {/* Foreground layer — above cards (z-20), only when hovering */}
+      {fgEdges.length > 0 && (
+        <svg
+          className="absolute inset-0 pointer-events-none z-20"
+          width={size.w}
+          height={size.h}
+          style={{ overflow: 'visible' }}
+        >
+          {fgEdges.map((edge) => {
+            const isSoft = edge.key.includes('~>')
+            const midY = (edge.y1 + edge.y2) / 2
+            return (
+              <path
+                key={edge.key}
+                d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${midY}, ${edge.x2} ${midY}, ${edge.x2} ${edge.y2}`}
+                fill="none"
+                stroke="var(--color-accent-cyan)"
+                strokeWidth={isSoft ? 2 : 2.5}
+                strokeDasharray={isSoft ? '4 4' : ''}
+                opacity={1}
+              />
+            )
+          })}
+        </svg>
+      )}
+    </>
   )
 }
