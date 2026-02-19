@@ -1,11 +1,16 @@
 ---
 name: spec
-description: Orchestrates Product Manager, Engineering Manager, and Product Designer perspectives into a complete feature spec. Use when the user describes a business need, a feature they want built, or asks for something new. Produces a full spec in docs/specs/ with product, technical, and design analysis, plus backlog items. Invoke with `/spec <description>` or auto-triggers on feature requests.
+description: Orchestrates Product Manager, Engineering Manager, and Product Designer perspectives into a complete feature spec. Use when the user describes a business need, a feature they want built, or asks for something new. Produces 3 spec documents in docs/specs/{name}/ with product, technical, and design analysis, plus backlog items. Invoke with `/spec <description>` or auto-triggers on feature requests.
 ---
 
-# Feature Specification
+# Feature Specification (Spec-Driven Development)
 
 You are orchestrating three perspectives — Product Manager, Engineering Manager, and Product Designer — to produce a complete, implementable feature specification. The user is a business sponsor who describes what they need; you translate it into a spec that a developer can build from.
+
+The spec produces **three documents** in `docs/specs/{feature-name}/`:
+1. `requirements.md` — What and why (PM-driven)
+2. `design.md` — How it works (EM + PD-driven)
+3. `tasks.md` — What to build (implementation plan)
 
 ## Step 1: Read All Context
 
@@ -68,12 +73,14 @@ Use AskUserQuestion — one round of 3-5 questions that combine all three perspe
 4. **UX approach**: Present key design decisions from Step 3.5 that need user input (e.g., "Should this be a modal or a full page? Inline editing or form-based? Real-time or save-on-submit?")
 5. **Success criteria**: How will we know this works? (suggest metrics based on the need)
 
-## Step 5: Write the Feature Spec
+## Step 5: Write the Three Spec Documents
 
-After getting answers, create the spec at `docs/specs/{feature-name}.md`:
+After getting answers, create the directory `docs/specs/{feature-name}/` with three files:
+
+### Document 1: `requirements.md` — What and Why
 
 ```markdown
-# {Feature Title}
+# {Feature Title} — Requirements
 
 **Status**: Draft
 **Date**: YYYY-MM-DD
@@ -84,35 +91,69 @@ After getting answers, create the spec at `docs/specs/{feature-name}.md`:
 
 {Why this feature exists — the business problem it solves, who it serves}
 
-## Requirements
+## Functional Requirements
 
-### Functional Requirements
-
-1. {FR-1}: {description}
-2. {FR-2}: {description}
+1. **FR-1**: {description}
+2. **FR-2**: {description}
 ...
 
-### Non-Functional Requirements
+## Non-Functional Requirements
 
-1. {NFR-1}: {description — performance, security, scalability}
+1. **NFR-1**: {description — performance, security, scalability}
 ...
 
 ## Acceptance Criteria
 
-- [ ] {Testable criterion 1}
-- [ ] {Testable criterion 2}
-- [ ] {Testable criterion 3}
+All criteria use Given/When/Then format:
+
+- **AC-1**: Given {precondition}, when {action}, then {expected result}
+- **AC-2**: Given {precondition}, when {action}, then {expected result}
 ...
+
+## Out of Scope
+
+{Explicitly list what this feature does NOT include — prevents scope creep}
+
+## Dependencies
+
+- **Backlog**: {BL-NNN items this depends on or blocks}
+- **Tech Debt**: {Any tech debt items that should be resolved first}
+- **External**: {Any external dependencies — APIs, credentials, infrastructure}
+
+## Open Questions
+
+{Anything unresolved that needs follow-up}
+```
+
+### Document 2: `design.md` — How It Works
+
+```markdown
+# {Feature Title} — Design
+
+## Affected Components
+
+| Component | File(s) | Change Type |
+|-----------|---------|-------------|
+| {component} | `{path}` | New / Modified |
+
+## Data Model Changes
+
+{New tables, columns, or migrations. Include SQL or model definitions if applicable.}
+{Write "None" if no data model changes.}
+
+## API Contract
+
+{New or modified endpoints. Include method, path, request/response shapes.}
+{Write "None" if no API changes.}
 
 ## UX/Design
 
 ### User Flow
 
-{Step-by-step description of the user's journey through this feature, from entry point to completion}
+{Step-by-step description of the user's journey through this feature}
 
 1. User {action} ...
 2. System {response} ...
-3. ...
 
 ### Interactions
 
@@ -122,7 +163,7 @@ After getting answers, create the spec at `docs/specs/{feature-name}.md`:
 
 ### Layout
 
-{Description of the visual layout — where this feature lives in the page, information hierarchy, primary/secondary/tertiary elements}
+{Description of the visual layout — where this feature lives in the page, information hierarchy}
 
 ### UI States
 
@@ -135,40 +176,15 @@ After getting answers, create the spec at `docs/specs/{feature-name}.md`:
 
 ### Responsive Behavior
 
-{How the layout adapts across viewport sizes — what reflows, what hides, what changes}
+{How the layout adapts across viewport sizes}
 
 ### Accessibility
 
 - {Keyboard navigation requirements}
 - {Screen reader considerations}
 - {Focus management needs}
-- {ARIA labels and roles}
 
-## Technical Design
-
-### Affected Components
-
-| Component | File(s) | Change Type |
-|-----------|---------|-------------|
-| {component} | `{path}` | New / Modified |
-
-### Data Model Changes
-
-{New tables, columns, or migrations. Include SQL or model definitions if applicable.}
-{Write "None" if no data model changes.}
-
-### API Contract
-
-{New or modified endpoints. Include method, path, request/response shapes.}
-{Write "None" if no API changes.}
-
-```
-endpoint: POST /api/{resource}
-request: { field1: string, field2: number }
-response: { id: string, ...created fields }
-```
-
-### Architecture Decisions
+## Architecture Decisions
 
 {Any non-trivial decisions made. Reference existing ADRs or note if a new ADR is needed.}
 
@@ -176,48 +192,62 @@ response: { id: string, ...created fields }
 
 1. {Edge case}: {How it's handled}
 2. {Edge case}: {How it's handled}
-...
 
 ## Security Considerations
 
 - {Auth requirements}
 - {Input validation}
 - {Multi-tenancy implications}
+```
+
+### Document 3: `tasks.md` — What to Build
+
+```markdown
+# {Feature Title} — Tasks
+
+## Implementation Tasks
+
+Atomic tasks in implementation order. Each task is roughly one commit.
+
+### Phase 1: {name}
+
+- [ ] **T-1**: {task description} — `{file(s) affected}`
+- [ ] **T-2**: {task description} — `{file(s) affected}`
+
+### Phase 2: {name}
+
+- [ ] **T-3**: {task description} — `{file(s) affected}`
+...
+
+## Traceability Matrix
+
+Every acceptance criterion maps to a task and a test.
+
+| AC | Task(s) | Test(s) |
+|----|---------|---------|
+| AC-1 | T-1, T-2 | `test_unit_xxx`, `test_e2e_xxx` |
+| AC-2 | T-3 | `test_unit_yyy` |
+...
 
 ## Testing Strategy
 
 ### Unit Tests (`tests/unit/`)
-- {What to test at the unit level — business logic, utilities, model methods}
+- {What to test at the unit level}
 - {Specific functions/methods that need test coverage}
 
 ### E2E Tests (`tests/e2e/`)
-- {What to test end-to-end — API flows, multi-step operations}
+- {What to test end-to-end}
 - {Specific user scenarios that must pass}
 
 ### Test Data
 - {What fixtures or seed data are needed}
 - {Multi-tenancy: tests must verify tenant isolation}
 
-### Verification Checklist
-- [ ] All new API routes have corresponding unit tests
-- [ ] Edge cases from "Edge Cases" section are covered
+## Verification Checklist
+- [ ] All ACs from requirements.md have corresponding tests
+- [ ] Edge cases from design.md are covered
 - [ ] Security considerations are tested (auth, validation, tenant isolation)
 - [ ] Existing tests still pass (`pytest tests/ -v`)
-
-## Dependencies
-
-- **Backlog**: {BL-NNN items this depends on or blocks}
-- **Tech Debt**: {Any tech debt items that should be resolved first}
-- **Design Debt**: {Any design debt items that should be resolved first}
-- **External**: {Any external dependencies — APIs, credentials, infrastructure}
-
-## Out of Scope
-
-{Explicitly list what this feature does NOT include — prevents scope creep}
-
-## Open Questions
-
-{Anything unresolved that needs follow-up}
 ```
 
 ## Step 6: Create Backlog Items
@@ -235,7 +265,7 @@ response: { id: string, ...created fields }
 
 ```markdown
 ### BL-NNN: Title
-**Status**: Refined | **Effort**: S/M/L/XL | **Spec**: `docs/specs/{name}.md`
+**Status**: Refined | **Effort**: S/M/L/XL | **Spec**: `docs/specs/{name}/`
 **Depends on**: BL-NNN | **Theme**: Theme Name
 
 Brief description (3-5 lines).
@@ -250,14 +280,17 @@ Present a concise summary to the sponsor:
 3. **How big**: Effort estimate and component count
 4. **Risks**: Top 1-2 technical or product risks
 5. **Next steps**: What needs to happen to start (dependencies, blockers)
-6. **Spec**: Link to the spec file
+6. **Spec**: Link to the spec directory (`docs/specs/{name}/`)
 7. **Backlog**: IDs of created items
 
 ## Key Behaviors
 
 - **All three perspectives, always** — never skip the product, technical, or design analysis. The spec must reflect all three
+- **Three documents, not one** — requirements.md, design.md, tasks.md. Each serves a distinct purpose. Do not merge them.
 - **Read actual code** — the technical and design analysis must be grounded in real file paths and real code, not assumptions
 - **Design grounded in existing patterns** — the design analysis must reference actual UI patterns, CSS variables, and component structures found in the dashboard code
+- **Given/When/Then** — all acceptance criteria use this format. No exceptions.
+- **Traceability** — every AC maps to a task in tasks.md and a test. The matrix must be complete.
 - **Concrete over abstract** — list specific files, specific endpoints, specific test cases. Vague specs produce vague implementations
 - **Scope discipline** — always present a smaller option. The sponsor can choose the bigger scope, but they should see the trade-off
 - **Status: Refined** — backlog items created by this skill get "Refined" status since they have a spec
