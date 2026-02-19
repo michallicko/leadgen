@@ -82,7 +82,17 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Multi-tenant**: `tenant_id` column on all entity tables
 - **DDL**: `migrations/001_initial_schema.sql` through `018_campaign_tables.sql`
 
-### 6. Campaign & Message Generation System
+### 5. Contact ICP Filter System
+- **Purpose**: Faceted multi-value filtering on the Contacts page to narrow contacts by ICP (Ideal Customer Profile) criteria
+- **Filters (8 total)**: `industry`, `company_size`, `geo_region`, `revenue_range`, `seniority_level`, `department`, `job_titles`, `linkedin_activity` — each supports multi-value selection with an include/exclude toggle
+- **Faceted counts**: `POST /api/contacts/filter-counts` returns available option counts under current filter state, enabling dynamic facet UI (options with zero results are de-emphasized)
+- **Job title typeahead**: `GET /api/contacts/job-titles?q=<term>` returns ranked suggestions from existing contact records for free-text job title search
+- **Frontend components** (`frontend/src/components/ui/`):
+  - `MultiSelectFilter`: Reusable dropdown with checkbox list, include/exclude toggle, and active-count badge
+  - `JobTitleFilter`: Extends `MultiSelectFilter` with debounced typeahead search input
+  - `useAdvancedFilters` hook: Manages filter state, serialization to URL query params, and reset logic — consumed by the ContactsPage
+
+### 6. Campaign & Message Generation
 - **Campaign lifecycle**: draft → ready → generating → review → approved → exported → archived
 - **Contact assignment**: Add contacts by individual IDs or by company (all contacts of a company), with duplicate detection
 - **Template presets**: 3 system templates (LinkedIn + Email, Email 3-Step, LinkedIn Only), configurable per-campaign
@@ -93,7 +103,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Cost tracking**: Per-message cost logged via `llm_logger.py`, aggregated per campaign_contact and campaign
 - **Review**: Messages saved as drafts, reviewable on Messages page with campaign filter
 
-### 5. Caddy (Reverse Proxy)
+### 7. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
 - **Leadgen routing**: `/api/*` → Flask API, everything else → static dashboard files
 - **Namespace routing**: `/{slug}/page` → strips prefix → serves `/page.html`

@@ -461,6 +461,7 @@ class Contact(db.Model):
     last_enriched_at = db.Column(db.DateTime(timezone=True))
     employment_verified_at = db.Column(db.DateTime(timezone=True))
     employment_status = db.Column(db.Text)
+    linkedin_activity_level = db.Column(db.Text, default='unknown')
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))

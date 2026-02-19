@@ -5,8 +5,12 @@ import { useContacts, type ContactListItem, type ContactFilters } from '../../ap
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useBulkAssignCampaign, useContactsMatchingCount } from '../../api/queries/useBulkActions'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
+import { useAdvancedFilters } from '../../hooks/useAdvancedFilters'
+import { useFilterCounts } from '../../hooks/useFilterCounts'
 import { DataTable, type Column, type SelectionMode } from '../../components/ui/DataTable'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
+import { MultiSelectFilter } from '../../components/ui/MultiSelectFilter'
+import { JobTitleFilter } from '../../components/ui/JobTitleFilter'
 import { SelectionActionBar } from '../../components/ui/SelectionActionBar'
 import { TagPicker } from '../../components/ui/TagPicker'
 import { CampaignPicker } from '../../components/ui/CampaignPicker'
@@ -15,21 +19,52 @@ import { useToast } from '../../components/ui/Toast'
 import {
   ICP_FIT_DISPLAY,
   MESSAGE_STATUS_DISPLAY,
+  INDUSTRY_DISPLAY,
+  COMPANY_SIZE_DISPLAY,
+  GEO_REGION_DISPLAY,
+  REVENUE_RANGE_DISPLAY,
+  SENIORITY_DISPLAY,
+  DEPARTMENT_DISPLAY,
+  LINKEDIN_ACTIVITY_DISPLAY,
   filterOptions,
 } from '../../lib/display'
+
+/** Build MultiSelectFilter options from a display map + optional facet counts */
+function buildMultiOptions(
+  displayMap: Record<string, string>,
+  facets?: { value: string; count: number }[],
+) {
+  const countMap = new Map<string, number>()
+  if (facets) {
+    for (const f of facets) countMap.set(f.value, f.count)
+  }
+  return Object.entries(displayMap).map(([dbVal, label]) => ({
+    value: dbVal,
+    label,
+    count: countMap.get(dbVal),
+  }))
+}
 
 export function ContactsPage() {
   const { namespace } = useParams<{ namespace: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  const [search, setSearch] = useLocalStorage('ct_filter_search', '')
-  const [tagName, setTagName] = useLocalStorage('ct_filter_tag', '')
-  const [ownerName, setOwnerName] = useLocalStorage('ct_filter_owner', '')
-  const [icpFit, setIcpFit] = useLocalStorage('ct_filter_icp', '')
-  const [msgStatus, setMsgStatus] = useLocalStorage('ct_filter_msg_status', '')
+  // Advanced filters (persisted to localStorage)
+  const {
+    filters: advFilters,
+    setSimpleFilter,
+    setMultiFilter,
+    toggleExclude,
+    clearAll,
+    activeFilterCount,
+    toQueryParams,
+    toCountsPayload,
+  } = useAdvancedFilters('ct_adv_filters')
+
   const [sortField, setSortField] = useLocalStorage('ct_sort_field', 'last_name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('ct_sort_dir', 'asc')
+  const [showAdvanced, setShowAdvanced] = useLocalStorage('ct_show_advanced', false)
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -42,25 +77,25 @@ export function ContactsPage() {
   const bulkAssignCampaign = useBulkAssignCampaign()
   const matchingCount = useContactsMatchingCount()
 
+  // Build ContactFilters from advanced state + sort
   const filters: ContactFilters = useMemo(() => ({
-    search,
-    tag_name: tagName,
-    owner_name: ownerName,
-    icp_fit: icpFit,
-    message_status: msgStatus,
+    ...toQueryParams(),
     sort: sortField,
     sort_dir: sortDir,
-  }), [search, tagName, ownerName, icpFit, msgStatus, sortField, sortDir])
+  }), [toQueryParams, sortField, sortDir])
 
+  // Active filters for bulk actions (simple key-value pairs for existing API)
   const activeFilters = useMemo(() => {
-    const f: Record<string, string> = {}
-    if (search) f.search = search
-    if (tagName) f.tag_name = tagName
-    if (ownerName) f.owner_name = ownerName
-    if (icpFit) f.icp_fit = icpFit
-    if (msgStatus) f.message_status = msgStatus
-    return f
-  }, [search, tagName, ownerName, icpFit, msgStatus])
+    const params = toQueryParams()
+    // Remove sort params — bulk actions don't need them
+    delete params.sort
+    delete params.sort_dir
+    return params
+  }, [toQueryParams])
+
+  // Filter counts for faceted options
+  const countsPayload = useMemo(() => toCountsPayload(), [toCountsPayload])
+  const { data: countsData } = useFilterCounts(countsPayload)
 
   const {
     data,
@@ -77,17 +112,11 @@ export function ContactsPage() {
   const total = data?.pages[0]?.total ?? 0
 
   const handleFilterChange = useCallback((key: string, value: string) => {
-    switch (key) {
-      case 'search': setSearch(value); break
-      case 'tag_name': setTagName(value); break
-      case 'owner_name': setOwnerName(value); break
-      case 'icp_fit': setIcpFit(value); break
-      case 'message_status': setMsgStatus(value); break
-    }
+    setSimpleFilter(key, value)
     // Clear selection when filters change
     setSelectedIds(new Set())
     setSelectionMode('explicit')
-  }, [setSearch, setTagName, setOwnerName, setIcpFit, setMsgStatus])
+  }, [setSimpleFilter])
 
   const handleSort = useCallback((field: string, dir: 'asc' | 'desc') => {
     setSortField(field)
@@ -166,14 +195,117 @@ export function ContactsPage() {
     }},
   ], [])
 
+  const facets = countsData?.facets
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
-        values={{ search, tag_name: tagName, owner_name: ownerName, icp_fit: icpFit, message_status: msgStatus }}
+        values={{
+          search: advFilters.search,
+          tag_name: advFilters.tag_name,
+          owner_name: advFilters.owner_name,
+          icp_fit: advFilters.icp_fit,
+          message_status: advFilters.message_status,
+        }}
         onChange={handleFilterChange}
         total={total}
+        action={
+          <button
+            type="button"
+            className="px-2.5 py-1.5 text-xs rounded-md border border-border-solid bg-surface-alt text-text-muted hover:text-text hover:border-accent transition-colors flex items-center gap-1.5"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M1.5 3.5h11M3.5 7h7M5.5 10.5h3" />
+            </svg>
+            ICP Filters
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-accent-cyan text-bg">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        }
       />
+
+      {/* Advanced ICP filter row */}
+      {showAdvanced && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 px-0.5">
+          <MultiSelectFilter
+            label="Industry"
+            options={buildMultiOptions(INDUSTRY_DISPLAY, facets?.industry)}
+            selected={advFilters.industry.values}
+            exclude={advFilters.industry.exclude}
+            onSelectionChange={(v) => setMultiFilter('industry', v)}
+            onExcludeToggle={() => toggleExclude('industry')}
+          />
+          <MultiSelectFilter
+            label="Company Size"
+            options={buildMultiOptions(COMPANY_SIZE_DISPLAY, facets?.company_size)}
+            selected={advFilters.company_size.values}
+            exclude={advFilters.company_size.exclude}
+            onSelectionChange={(v) => setMultiFilter('company_size', v)}
+            onExcludeToggle={() => toggleExclude('company_size')}
+          />
+          <MultiSelectFilter
+            label="Region"
+            options={buildMultiOptions(GEO_REGION_DISPLAY, facets?.geo_region)}
+            selected={advFilters.geo_region.values}
+            exclude={advFilters.geo_region.exclude}
+            onSelectionChange={(v) => setMultiFilter('geo_region', v)}
+            onExcludeToggle={() => toggleExclude('geo_region')}
+          />
+          <MultiSelectFilter
+            label="Revenue"
+            options={buildMultiOptions(REVENUE_RANGE_DISPLAY, facets?.revenue_range)}
+            selected={advFilters.revenue_range.values}
+            exclude={advFilters.revenue_range.exclude}
+            onSelectionChange={(v) => setMultiFilter('revenue_range', v)}
+            onExcludeToggle={() => toggleExclude('revenue_range')}
+          />
+          <MultiSelectFilter
+            label="Seniority"
+            options={buildMultiOptions(SENIORITY_DISPLAY, facets?.seniority_level)}
+            selected={advFilters.seniority_level.values}
+            exclude={advFilters.seniority_level.exclude}
+            onSelectionChange={(v) => setMultiFilter('seniority_level', v)}
+            onExcludeToggle={() => toggleExclude('seniority_level')}
+          />
+          <MultiSelectFilter
+            label="Department"
+            options={buildMultiOptions(DEPARTMENT_DISPLAY, facets?.department)}
+            selected={advFilters.department.values}
+            exclude={advFilters.department.exclude}
+            onSelectionChange={(v) => setMultiFilter('department', v)}
+            onExcludeToggle={() => toggleExclude('department')}
+          />
+          <JobTitleFilter
+            selected={advFilters.job_titles.values}
+            exclude={advFilters.job_titles.exclude}
+            onSelectionChange={(v) => setMultiFilter('job_titles', v)}
+            onExcludeToggle={() => toggleExclude('job_titles')}
+          />
+          <MultiSelectFilter
+            label="LinkedIn"
+            options={buildMultiOptions(LINKEDIN_ACTIVITY_DISPLAY, facets?.linkedin_activity)}
+            selected={advFilters.linkedin_activity.values}
+            exclude={advFilters.linkedin_activity.exclude}
+            onSelectionChange={(v) => setMultiFilter('linkedin_activity', v)}
+            onExcludeToggle={() => toggleExclude('linkedin_activity')}
+            searchable={false}
+          />
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              className="px-2 py-1 text-xs text-text-muted hover:text-error transition-colors"
+              onClick={() => { clearAll(); setSelectedIds(new Set()); setSelectionMode('explicit') }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
 
       <DataTable
         columns={columns}

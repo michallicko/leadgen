@@ -1,0 +1,284 @@
+/* MultiSelectFilter — dropdown with chips, include/exclude, counts */
+
+.msf {
+  position: relative;
+  display: inline-block;
+}
+
+/* ---- Trigger button ---- */
+.msf-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-solid);
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 280px;
+  transition: border-color 0.15s;
+}
+
+.msf-trigger:hover {
+  border-color: var(--color-accent);
+}
+
+.msf-has-selection {
+  border-color: var(--color-accent-cyan);
+  background: color-mix(in srgb, var(--color-accent-cyan) 8%, var(--color-surface-alt));
+}
+
+.msf-has-exclude {
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 6%, var(--color-surface-alt));
+}
+
+.msf-label {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.msf-has-selection .msf-label,
+.msf-has-exclude .msf-label {
+  color: var(--color-text);
+}
+
+.msf-placeholder {
+  color: var(--color-text-dim);
+}
+
+.msf-arrow {
+  color: var(--color-text-dim);
+  font-size: 0.625rem;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* ---- Chips inside trigger ---- */
+.msf-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.msf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent-cyan) 18%, transparent);
+  color: var(--color-accent-cyan);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msf-chip-exclude {
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  color: var(--color-warning);
+}
+
+.msf-chip-remove {
+  cursor: pointer;
+  opacity: 0.7;
+  font-size: 0.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.msf-chip-remove:hover {
+  opacity: 1;
+}
+
+.msf-more {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.msf-not-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-error) 22%, transparent);
+  color: var(--color-error);
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
+/* ---- Include/exclude toggle ---- */
+.msf-exclude-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.msf-exclude-toggle:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+
+/* ---- Dropdown panel ---- */
+.msf-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-solid);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* ---- Search input ---- */
+.msf-search {
+  padding: 8px 8px 4px;
+}
+
+.msf-search input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-solid);
+  border-radius: 5px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.msf-search input::placeholder {
+  color: var(--color-text-dim);
+}
+
+.msf-search input:focus {
+  border-color: var(--color-accent);
+}
+
+/* ---- Options list ---- */
+.msf-options {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.msf-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  color: var(--color-text);
+}
+
+.msf-option:hover {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.msf-option-selected {
+  background: color-mix(in srgb, var(--color-accent-cyan) 8%, transparent);
+}
+
+.msf-option-zero {
+  opacity: 0.4;
+}
+
+.msf-option input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-accent-cyan);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.msf-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msf-option-count {
+  color: var(--color-text-dim);
+  font-size: 0.6875rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ---- Empty state ---- */
+.msf-empty {
+  padding: 12px 10px;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  text-align: center;
+}
+
+/* ---- Clear button ---- */
+.msf-clear {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--color-border-solid);
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.msf-clear:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+/* ---- Scrollbar styling ---- */
+.msf-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.msf-options::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.msf-options::-webkit-scrollbar-thumb {
+  background: var(--color-border-solid);
+  border-radius: 3px;
+}
+
+.msf-options::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-dim);
+}

@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-046
+**Next ID**: BL-047
 
 ## Must Have
 
@@ -310,6 +310,9 @@ Native Python L1 enrichment via Perplexity sonar API, replacing n8n webhook. 8 Q
 
 ### BL-045: Vanilla JS Migration (Done 2026-02-19)
 Eliminate all vanilla JS from the dashboard. Port Import page (3-step wizard, CSV + Google OAuth) and Admin page (namespace/user CRUD) to React. Delete 14 vanilla files (12K lines). Enhanced placeholders for Playbook, Echo, LLM Costs. Simplified deploy script. Spec: `docs/specs/vanilla-js-migration/`. Resolves TD-008.
+
+### BL-046: Contact ICP Filters (Done 2026-02-19)
+Faceted multi-value filtering on the Contacts page. 8 filter dimensions (industry, company_size, geo_region, revenue_range, seniority_level, department, job_titles, linkedin_activity), each with include/exclude toggle. Faceted count endpoint (`POST /api/contacts/filter-counts`), job title typeahead (`GET /api/contacts/job-titles`). Frontend: `MultiSelectFilter`, `JobTitleFilter`, `useAdvancedFilters` hook with URL serialization. Spec: `docs/specs/contact-icp-filters/`.
 
 ### BL-006: Contact List Import & Cleanup — Phase 1 (Done 2026-02-13)
 CSV upload with AI column mapping, dedup preview, batch import. 80 unit tests. ADR-002.
