@@ -35,7 +35,7 @@ export function AppShell() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppNav />
-      <div className="flex-1 min-h-0 px-3 sm:px-5 py-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
         <Outlet />
       </div>
     </div>
