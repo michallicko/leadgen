@@ -4,6 +4,8 @@ Each channel has constraints and a prompt template that gets filled with
 enrichment data and generation config.
 """
 
+from __future__ import annotations
+
 # Channel-specific constraints
 CHANNEL_CONSTRAINTS = {
     "linkedin_connect": {

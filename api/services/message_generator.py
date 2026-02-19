@@ -4,6 +4,8 @@ Generates personalized outreach messages for each contact in a campaign
 using Claude API. Runs as a background thread with progress tracking.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import threading
