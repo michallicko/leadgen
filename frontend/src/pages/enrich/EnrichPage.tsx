@@ -3,7 +3,7 @@
  * Replaces the vanilla dashboard/enrich.html with a React implementation.
  */
 
-import { useRef, useCallback, useMemo } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { FilterBar } from '../../components/ui/FilterBar'
 import { useEnrichState } from './useEnrichState'
 import { useEnrichEstimate, computeAdjustedCost, computeUpstreamEligible } from './useEnrichEstimate'
@@ -55,6 +55,9 @@ export function EnrichPage() {
   const setCardRef = useCallback((code: string) => (el: HTMLDivElement | null) => {
     cardRefsObj.current[code] = el
   }, [])
+
+  // Selected stage for edge highlighting
+  const [selectedStage, setSelectedStage] = useState<string | null>(null)
 
   // Run handler
   const handleRun = useCallback(() => {
@@ -141,6 +144,7 @@ export function EnrichPage() {
               mode={dagMode}
               progress={stageProgress}
               softDepsConfig={softDepsConfig}
+              selectedStage={selectedStage}
             />
             <DagVisualization>
               {(stageCode) => {
@@ -164,7 +168,11 @@ export function EnrichPage() {
                 } : null
 
                 return (
-                  <div key={stageCode} ref={setCardRef(stageCode)}>
+                  <div
+                    key={stageCode}
+                    ref={setCardRef(stageCode)}
+                    onClick={() => setSelectedStage(selectedStage === stageCode ? null : stageCode)}
+                  >
                     <StageCard
                       stage={stageDef}
                       mode={dagMode}

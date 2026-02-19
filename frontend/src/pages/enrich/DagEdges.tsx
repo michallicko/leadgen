@@ -14,6 +14,7 @@ interface DagEdgesProps {
   mode: DagMode
   progress: Record<string, StageProgress>
   softDepsConfig: Record<string, boolean>
+  selectedStage?: string | null
 }
 
 interface Edge {
@@ -26,30 +27,66 @@ interface Edge {
   y2: number
 }
 
-function getEdgeColor(
-  fromCode: string,
+function getEdgeStyle(
+  edge: Edge,
   mode: DagMode,
   progress: Record<string, StageProgress>,
-): { stroke: string; dash: string; opacity: number } {
+  selectedStage: string | null,
+): { stroke: string; dash: string; opacity: number; width: number } {
+  const isSoft = edge.key.includes('~>')
+  const isConnected = selectedStage != null && (edge.from === selectedStage || edge.to === selectedStage)
+  const hasSelection = selectedStage != null
+
+  // Base style from mode/progress
+  let stroke: string
+  let dash = ''
+  let opacity: number
+  let width = isSoft ? 1.5 : 2
+
   if (mode === 'configure') {
-    return { stroke: 'var(--color-text-muted)', dash: '', opacity: 0.5 }
+    stroke = 'var(--color-text-muted)'
+    opacity = 0.5
+  } else {
+    const fromProgress = progress[edge.from]
+    if (!fromProgress) {
+      stroke = 'var(--color-text-muted)'
+      dash = '4 4'
+      opacity = 0.4
+    } else if (fromProgress.status === 'completed') {
+      stroke = 'var(--color-success)'
+      opacity = 0.8
+    } else if (fromProgress.status === 'running') {
+      stroke = 'var(--color-accent-cyan)'
+      dash = '6 3'
+      opacity = 0.9
+    } else if (fromProgress.status === 'failed') {
+      stroke = 'var(--color-error)'
+      opacity = 0.7
+    } else {
+      stroke = 'var(--color-text-muted)'
+      dash = '4 4'
+      opacity = 0.4
+    }
   }
 
-  const fromProgress = progress[fromCode]
-  if (!fromProgress) {
-    return { stroke: 'var(--color-text-muted)', dash: '4 4', opacity: 0.4 }
+  if (isSoft) {
+    dash = '3 3'
   }
 
-  if (fromProgress.status === 'completed') {
-    return { stroke: 'var(--color-success)', dash: '', opacity: 0.8 }
+  // Selection overrides
+  if (hasSelection) {
+    if (isConnected) {
+      stroke = 'var(--color-accent-cyan)'
+      opacity = 1
+      width = isSoft ? 2 : 2.5
+      if (isSoft) dash = '4 4'
+      else dash = ''
+    } else {
+      opacity = 0.15
+    }
   }
-  if (fromProgress.status === 'running') {
-    return { stroke: 'var(--color-accent-cyan)', dash: '6 3', opacity: 0.9 }
-  }
-  if (fromProgress.status === 'failed') {
-    return { stroke: 'var(--color-error)', dash: '', opacity: 0.7 }
-  }
-  return { stroke: 'var(--color-text-muted)', dash: '4 4', opacity: 0.4 }
+
+  return { stroke, dash, opacity, width }
 }
 
 export function DagEdges({
@@ -59,6 +96,7 @@ export function DagEdges({
   mode,
   progress,
   softDepsConfig,
+  selectedStage = null,
 }: DagEdgesProps) {
   const [edges, setEdges] = useState<Edge[]>([])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -144,14 +182,13 @@ export function DagEdges({
 
   return (
     <svg
-      className="absolute inset-0 pointer-events-none"
+      className="absolute inset-0 pointer-events-none z-0"
       width={size.w}
       height={size.h}
       style={{ overflow: 'visible' }}
     >
       {edges.map((edge) => {
-        const { stroke, dash, opacity } = getEdgeColor(edge.from, mode, progress)
-        const isSoft = edge.key.includes('~>')
+        const { stroke, dash, opacity, width } = getEdgeStyle(edge, mode, progress, selectedStage)
         const midY = (edge.y1 + edge.y2) / 2
 
         return (
@@ -160,9 +197,10 @@ export function DagEdges({
             d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${midY}, ${edge.x2} ${midY}, ${edge.x2} ${edge.y2}`}
             fill="none"
             stroke={stroke}
-            strokeWidth={isSoft ? 1.5 : 2}
-            strokeDasharray={isSoft ? '3 3' : dash}
+            strokeWidth={width}
+            strokeDasharray={dash}
             opacity={opacity}
+            className="transition-opacity duration-200"
           />
         )
       })}

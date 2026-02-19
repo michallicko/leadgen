@@ -14,7 +14,7 @@ export function DagVisualization({ children }: DagVisualizationProps) {
   const rows = getStagesByRow()
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="relative z-10 flex flex-col gap-8">
       {rows.map((row, rowIdx) => {
         // Skip empty rows
         if (row.stages.length === 0) return null

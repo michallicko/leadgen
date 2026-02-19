@@ -129,7 +129,7 @@ export function StageCard({
 
   return (
     <div
-      className={`rounded-lg border bg-surface p-4 transition-all duration-200 flex-shrink-0 ${isGate ? 'w-[220px]' : 'w-[280px]'} ${statusClass}`}
+      className={`relative z-10 rounded-lg border bg-surface p-4 transition-all duration-200 flex-shrink-0 ${isGate ? 'w-[220px]' : 'w-[280px]'} ${statusClass}`}
       style={{ borderColor: enabled && mode === 'configure' ? stage.color : undefined }}
     >
       {/* Header: icon + name + settings gear + toggle/status */}
