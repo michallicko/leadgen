@@ -380,8 +380,8 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                     {(reg.insolvency_details as Array<Record<string, unknown>>).map((p, i) => (
                       <div key={i} className="text-sm bg-red-500/5 border border-red-500/20 rounded p-2">
                         <span className="font-medium text-text">{String(p.file_ref || p.spisova_znacka || `Proceeding ${i + 1}`)}</span>
-                        {p.status && <span className="text-xs text-text-muted ml-2">({String(p.status)})</span>}
-                        {p.start_date && <span className="text-xs text-text-dim ml-2">{String(p.start_date)}</span>}
+                        {p.status ? <span className="text-xs text-text-muted ml-2">({String(p.status)})</span> : null}
+                        {p.start_date ? <span className="text-xs text-text-dim ml-2">{String(p.start_date)}</span> : null}
                       </div>
                     ))}
                   </div>

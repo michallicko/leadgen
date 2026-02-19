@@ -110,8 +110,6 @@ export interface ContactDetail {
   enrichment: ContactEnrichment | null
   stage_completions: StageCompletion[]
   messages: ContactMessage[]
-  batch_name?: string | null
-  stage_completions?: { stage: string; status: string; cost_usd: number | null; completed_at: string | null; error?: string | null }[]
 }
 
 export interface ContactFilters {

@@ -208,8 +208,8 @@ export function ContactDetail({ contact, onNavigate }: Props) {
                       {e.previous_companies.map((pc, i) => (
                         <div key={i} className="text-sm text-text">
                           <span className="font-medium">{String(pc.name || pc.company || `Company ${i + 1}`)}</span>
-                          {pc.role && <span className="text-text-muted"> — {String(pc.role)}</span>}
-                          {pc.years && <span className="text-text-dim ml-1">({String(pc.years)})</span>}
+                          {pc.role ? <span className="text-text-muted"> — {String(pc.role)}</span> : null}
+                          {pc.years ? <span className="text-text-dim ml-1">({String(pc.years)})</span> : null}
                         </div>
                       ))}
                     </div>

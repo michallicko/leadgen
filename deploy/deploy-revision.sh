@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Deploy a feature branch as an API + frontend revision to STAGING.
+# Usage: bash deploy/deploy-revision.sh [commit]
+#
+# If commit is omitted, uses the short SHA of HEAD.
+# Creates:
+#   - leadgen-api-rev-{commit} container on staging
+#   - /srv/dashboard-rev-{commit} static files
+#   - Caddyfile route for /api-rev-{commit}/*
+
+set -euo pipefail
+
+STAGING_KEY="/Users/michal/Downloads/LightsailDefaultKey-eu-central-1 (1).pem"
+STAGING_HOST="ec2-user@3.124.110.199"
+STAGING_DIR="/home/ec2-user"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Resolve commit hash
+COMMIT="${1:-$(git -C "$PROJECT_DIR" rev-parse --short=7 HEAD)}"
+BRANCH="$(git -C "$PROJECT_DIR" branch --show-current)"
+CONTAINER="leadgen-api-rev-${COMMIT}"
+
+echo "==> Deploying revision ${COMMIT} (branch: ${BRANCH}) to staging..."
+echo "    Container: ${CONTAINER}"
+
+# ---- 1. Build frontend ----
+echo ""
+echo "==> Building frontend..."
+cd "${PROJECT_DIR}/frontend"
+npm run build 2>&1 | tail -3
+echo "    Frontend build complete"
+
+# ---- 2. Copy API source to staging ----
+echo ""
+echo "==> Copying API source to staging..."
+API_REMOTE="${STAGING_DIR}/leadgen-api-rev-${COMMIT}"
+
+ssh -i "$STAGING_KEY" "$STAGING_HOST" "mkdir -p ${API_REMOTE}/api/routes ${API_REMOTE}/api/services ${API_REMOTE}/api/services/registries"
+
+scp -i "$STAGING_KEY" "${PROJECT_DIR}/Dockerfile.api" "${STAGING_HOST}:${API_REMOTE}/"
+scp -i "$STAGING_KEY" "${PROJECT_DIR}/api/requirements.txt" "${STAGING_HOST}:${API_REMOTE}/api/"
+scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/*.py "${STAGING_HOST}:${API_REMOTE}/api/"
+scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/routes/*.py "${STAGING_HOST}:${API_REMOTE}/api/routes/"
+scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/services/*.py "${STAGING_HOST}:${API_REMOTE}/api/services/"
+# Copy registry adapters if they exist
+if ls ${PROJECT_DIR}/api/services/registries/*.py 1>/dev/null 2>&1; then
+  scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/services/registries/*.py "${STAGING_HOST}:${API_REMOTE}/api/services/registries/"
+fi
+echo "    API source copied"
+
+# ---- 3. Copy frontend build ----
+echo ""
+echo "==> Copying frontend build to staging..."
+ssh -i "$STAGING_KEY" "$STAGING_HOST" "mkdir -p /srv/dashboard-rev-${COMMIT}"
+scp -i "$STAGING_KEY" -r "${PROJECT_DIR}/frontend/dist/"* "${STAGING_HOST}:/srv/dashboard-rev-${COMMIT}/"
+echo "    Frontend build copied to /srv/dashboard-rev-${COMMIT}"
+
+# ---- 4. Generate docker-compose overlay ----
+echo ""
+echo "==> Generating docker-compose overlay..."
+
+ssh -i "$STAGING_KEY" "$STAGING_HOST" bash <<REMOTE
+cat > ${STAGING_DIR}/docker-compose.api-rev-${COMMIT}.yml <<'COMPOSE'
+services:
+  leadgen-api-rev-${COMMIT}:
+    build:
+      context: ./leadgen-api-rev-${COMMIT}
+      dockerfile: Dockerfile.api
+    container_name: leadgen-api-rev-${COMMIT}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=\${DATABASE_URL_STAGING:-\${DATABASE_URL}}
+    networks:
+      - caddy
+networks:
+  caddy:
+    external: true
+COMPOSE
+echo "    Created docker-compose.api-rev-${COMMIT}.yml"
+REMOTE
+
+# ---- 5. Update Caddyfile with revision route ----
+echo ""
+echo "==> Updating Caddyfile..."
+
+ssh -i "$STAGING_KEY" "$STAGING_HOST" bash <<REMOTE
+CADDYFILE="${STAGING_DIR}/Caddyfile"
+
+# Check if this revision route already exists
+if grep -q "api-rev-${COMMIT}" "\$CADDYFILE"; then
+  echo "    Route /api-rev-${COMMIT}/* already exists in Caddyfile"
+else
+  # Insert revision route BEFORE the catch-all /api/* handler
+  # The pattern: find "handle /api/*" and insert our revision block before it
+  sed -i "/handle \/api\/\*/i\\
+\\\\thandle_path /api-rev-${COMMIT}/* {\\\\n\\\\t\\\\trewrite * /api{uri}\\\\n\\\\t\\\\treverse_proxy ${CONTAINER}:5000\\\\n\\\\t}" "\$CADDYFILE"
+  echo "    Added /api-rev-${COMMIT}/* route to Caddyfile"
+fi
+REMOTE
+
+# ---- 6. Build and start containers ----
+echo ""
+echo "==> Building and starting containers..."
+
+ssh -i "$STAGING_KEY" "$STAGING_HOST" bash <<REMOTE
+cd ${STAGING_DIR}
+
+# Gather all compose files
+COMPOSE_FILES="-f docker-compose.yml"
+for f in docker-compose.api-rev-*.yml; do
+  [ -f "\$f" ] && COMPOSE_FILES="\$COMPOSE_FILES -f \$f"
+done
+
+echo "    Compose files: \$COMPOSE_FILES"
+
+# Build and start the new revision container
+docker compose \$COMPOSE_FILES up -d --build ${CONTAINER}
+echo "    ${CONTAINER} started"
+
+# Reload Caddy to pick up new routes
+docker compose \$COMPOSE_FILES exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || \
+  docker compose \$COMPOSE_FILES restart caddy
+echo "    Caddy reloaded"
+REMOTE
+
+# ---- 7. Report ----
+echo ""
+echo "==========================================="
+echo "  Revision ${COMMIT} deployed to staging"
+echo "==========================================="
+echo ""
+echo "  API:       https://leadgen-staging.visionvolve.com/api-rev-${COMMIT}/api/health"
+echo "  Dashboard: https://leadgen-staging.visionvolve.com/visionvolve/?rev=${COMMIT}"
+echo ""
+echo "  To tear down: bash deploy/teardown-revision.sh ${COMMIT}"
+echo ""
