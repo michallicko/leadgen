@@ -9,6 +9,7 @@ import { Link, useLocation } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useNamespace } from '../../hooks/useNamespace'
 import { type Role } from '../../lib/auth'
+import { getRevision, clearRevision } from '../../lib/revision'
 import { apiFetch } from '../../api/client'
 
 // ---- Pillar config ----
@@ -119,8 +120,11 @@ export function AppNav() {
     return () => document.removeEventListener('click', handleClick)
   }, [])
 
+  const rev = getRevision()
+
   function makePath(pagePath: string) {
-    return namespace ? `/${namespace}/${pagePath}` : `/${pagePath}`
+    const base = namespace ? `/${namespace}/${pagePath}` : `/${pagePath}`
+    return rev ? `${base}?rev=${rev}` : base
   }
 
   return (
@@ -132,6 +136,26 @@ export function AppNav() {
           <img src="/visionvolve-icon-color.svg" alt="VisionVolve" className="h-[26px] w-auto" />
           <span className="font-title text-[1.05rem] font-bold tracking-tight text-text">Leadgen</span>
         </Link>
+
+        {/* Revision indicator */}
+        {rev && (
+          <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.7rem] font-mono font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            rev:{rev}
+            <button
+              onClick={() => {
+                clearRevision()
+                const url = new URL(window.location.href)
+                url.searchParams.delete('rev')
+                window.location.href = url.toString()
+              }}
+              className="ml-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-transparent hover:bg-amber-500/20 text-amber-400/60 hover:text-amber-400 transition-colors cursor-pointer border-none p-0 text-[0.65rem] leading-none"
+              title="Exit revision mode"
+            >
+              &times;
+            </button>
+          </span>
+        )}
 
         {/* Pillars */}
         <div className="flex gap-1 ml-6">
@@ -292,7 +316,9 @@ function NamespaceSwitcher() {
       }
     }
     if (!subPage || subPage === '/') subPage = '/contacts'
-    window.location.href = `/${newNs}${subPage}`
+    const revParam = getRevision()
+    const revSuffix = revParam ? `?rev=${revParam}` : ''
+    window.location.href = `/${newNs}${subPage}${revSuffix}`
   }
 
   return (

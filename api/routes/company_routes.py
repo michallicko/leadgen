@@ -563,6 +563,24 @@ def get_company(company_id):
         else:
             company["registry_data"] = None
 
+    # Stage completions (DAG tracking)
+    sc_rows = db.session.execute(
+        db.text("""
+            SELECT stage, status, completed_at, cost_usd, error
+            FROM entity_stage_completions
+            WHERE entity_type = 'company' AND entity_id = :id
+            ORDER BY completed_at NULLS LAST
+        """),
+        {"id": company_id},
+    ).fetchall()
+    company["stage_completions"] = [{
+        "stage": r[0],
+        "status": r[1],
+        "completed_at": _iso(r[2]),
+        "cost_usd": float(r[3]) if r[3] is not None else None,
+        "error": r[4],
+    } for r in sc_rows]
+
     # Tags
     tag_rows = db.session.execute(
         db.text("SELECT category, value FROM company_tags WHERE company_id = :id ORDER BY category, value"),

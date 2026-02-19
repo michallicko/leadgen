@@ -35,6 +35,31 @@ export interface ContactMessage {
   tone: string | null
 }
 
+export interface ContactEnrichment {
+  person_summary: string | null
+  linkedin_profile_summary: string | null
+  relationship_synthesis: string | null
+  ai_champion: boolean | null
+  ai_champion_score: number | null
+  authority_score: number | null
+  career_trajectory: string | null
+  previous_companies: Array<Record<string, unknown>> | null
+  speaking_engagements: string | null
+  publications: string | null
+  twitter_handle: string | null
+  github_username: string | null
+  enriched_at: string | null
+  enrichment_cost_usd: number | null
+}
+
+export interface StageCompletion {
+  stage: string
+  status: string
+  completed_at: string | null
+  cost_usd: number | null
+  error: string | null
+}
+
 export interface ContactDetail {
   id: string
   first_name: string
@@ -69,6 +94,9 @@ export interface ContactDetail {
   custom_fields: Record<string, string>
   created_at: string | null
   updated_at: string | null
+  last_enriched_at: string | null
+  employment_status: string | null
+  employment_verified_at: string | null
   company: {
     id: string
     name: string
@@ -78,16 +106,10 @@ export interface ContactDetail {
   } | null
   owner_name: string | null
   tag_name: string | null
-  enrichment: {
-    person_summary: string | null
-    linkedin_profile_summary: string | null
-    relationship_synthesis: string | null
-    enriched_at: string | null
-    enrichment_cost_usd: number | null
-  } | null
-  messages: ContactMessage[]
   batch_name?: string | null
-  stage_completions?: { stage: string; status: string; cost_usd: number | null; completed_at: string | null; error?: string | null }[]
+  enrichment: ContactEnrichment | null
+  stage_completions: StageCompletion[]
+  messages: ContactMessage[]
 }
 
 export interface ContactFilters {

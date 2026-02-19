@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import { withRev } from '../../lib/revision'
 import { useContacts, type ContactListItem, type ContactFilters } from '../../api/queries/useContacts'
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useBulkAssignCampaign, useContactsMatchingCount } from '../../api/queries/useBulkActions'
@@ -179,7 +180,7 @@ export function ContactsPage() {
         data={allContacts}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={selectedIds.size === 0 ? (c) => navigate(`/${namespace}/contacts/${c.id}`, { state: { origin: `/${namespace}/contacts` } }) : undefined}
+        onRowClick={selectedIds.size === 0 ? (c) => navigate(withRev(`/${namespace}/contacts/${c.id}`), { state: { origin: withRev(`/${namespace}/contacts`) } }) : undefined}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}

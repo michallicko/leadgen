@@ -221,6 +221,8 @@ def get_contact(contact_id):
                 ct.duplicity_conflict, ct.duplicity_detail,
                 ct.notes, ct.error, ct.custom_fields,
                 ct.created_at, ct.updated_at,
+                ct.last_enriched_at, ct.employment_status,
+                ct.employment_verified_at,
                 co.id AS company_id, co.name AS company_name,
                 co.domain AS company_domain, co.status AS company_status,
                 co.tier AS company_tier,
@@ -273,16 +275,37 @@ def get_contact(contact_id):
         "custom_fields": _parse_jsonb(row[29]),
         "created_at": _iso(row[30]),
         "updated_at": _iso(row[31]),
+        "last_enriched_at": _iso(row[32]),
+        "employment_status": row[33],
+        "employment_verified_at": _iso(row[34]),
         "company": {
-            "id": str(row[32]),
-            "name": row[33],
-            "domain": row[34],
-            "status": display_status(row[35]),
-            "tier": display_tier(row[36]),
-        } if row[32] else None,
-        "owner_name": row[37],
-        "tag_name": row[38],
+            "id": str(row[35]),
+            "name": row[36],
+            "domain": row[37],
+            "status": display_status(row[38]),
+            "tier": display_tier(row[39]),
+        } if row[35] else None,
+        "owner_name": row[40],
+        "tag_name": row[41],
     }
+
+    # Stage completions (DAG tracking)
+    sc_rows = db.session.execute(
+        db.text("""
+            SELECT stage, status, completed_at, cost_usd, error
+            FROM entity_stage_completions
+            WHERE entity_type = 'contact' AND entity_id = :id
+            ORDER BY completed_at NULLS LAST
+        """),
+        {"id": contact_id},
+    ).fetchall()
+    contact["stage_completions"] = [{
+        "stage": r[0],
+        "status": r[1],
+        "completed_at": _iso(r[2]),
+        "cost_usd": float(r[3]) if r[3] is not None else None,
+        "error": r[4],
+    } for r in sc_rows]
 
     # Contact enrichment
     enrich_row = db.session.execute(
