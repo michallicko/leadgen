@@ -165,6 +165,7 @@ export interface CompanyDetail {
   updated_at: string | null
   owner_name: string | null
   tag_name: string | null
+  batch_name?: string | null
   ico: string | null
   website_url: string | null
   linkedin_url: string | null
@@ -174,11 +175,10 @@ export interface CompanyDetail {
   enrichment_l1: CompanyEnrichmentL1 | null
   enrichment_l2: CompanyEnrichmentL2 | null
   registry_data: Record<string, unknown> | null
-  tags: CompanyTag[]
-  contacts: CompanyContactSummary[]
   stage_completions: StageCompletion[]
   derived_stage: DerivedStage | null
-  batch_name?: string | null
+  tags: CompanyTag[]
+  contacts: CompanyContactSummary[]
 }
 
 export interface CompanyFilters {
