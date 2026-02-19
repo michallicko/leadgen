@@ -40,14 +40,9 @@ export function LoginPage() {
       return
     }
 
-    if (user.is_super_admin) {
-      navigate('/admin', { replace: true })
-      return
-    }
-
     const ns = getDefaultNamespace(user)
     if (ns) {
-      navigate(`/${ns}/contacts`, { replace: true })
+      navigate(user.is_super_admin ? `/${ns}/admin` : `/${ns}/contacts`, { replace: true })
     }
   }, [isAuthenticated, user, navigate, searchParams])
 
