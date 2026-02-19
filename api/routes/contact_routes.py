@@ -1,5 +1,6 @@
 import json
 import math
+import re
 
 from flask import Blueprint, jsonify, request
 
@@ -116,6 +117,9 @@ def list_contacts():
     for param_key, param_val in request.args.items():
         if param_key.startswith("cf_") and param_val.strip():
             field_key = param_key[3:]
+            # Reject keys with non-alphanumeric chars to prevent injection
+            if not re.match(r'^[a-zA-Z0-9_]+$', field_key):
+                continue
             # Use json_extract for SQLite compat, ->> for Postgres
             dialect = db.engine.dialect.name
             if dialect == "sqlite":
@@ -532,7 +536,7 @@ def filter_counts():
             if field_key == exclude_facet:
                 continue
             f = filters.get(field_key, {})
-            values = f.get("values", []) if isinstance(f, dict) else []
+            values = f.get("values", [])[:100] if isinstance(f, dict) else []
             if not values:
                 continue
             exclude = f.get("exclude", False) if isinstance(f, dict) else False

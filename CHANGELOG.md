@@ -18,6 +18,12 @@ All notable changes to the Leadgen Pipeline project.
   - EnrichmentTimeline: Color-coded dots (green=completed, red=failed, gray=skipped) with error display
 
 ### Added
+- **Contact ICP Filters** (BL-046): Faceted multi-value filtering on the Contacts page for ICP qualification
+  - 8 filter dimensions: industry, company_size, geo_region, revenue_range, seniority_level, department, job_titles, linkedin_activity
+  - Include/exclude toggle per filter — each dimension can broaden or narrow results independently
+  - Faceted search endpoint: `POST /api/contacts/filter-counts` returns live option counts under current filter state
+  - Job title typeahead: `GET /api/contacts/job-titles?q=<term>` returns ranked suggestions from existing contact records
+  - Frontend: `MultiSelectFilter` component (checkbox list + include/exclude toggle + active-count badge), `JobTitleFilter` component (extends with debounced typeahead), `useAdvancedFilters` hook (filter state, URL serialization, reset)
 - **Entity Selection & Bulk Actions**: Multi-select contacts/companies with bulk operations
   - DataTable: checkbox column, shift-click range selection, select-all-loaded, select-all-matching-filters
   - SelectionActionBar: floating bottom toolbar showing count + action buttons (slide-up animation)
