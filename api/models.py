@@ -360,6 +360,30 @@ class CompanyLegalProfile(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+class ContactTagAssignment(db.Model):
+    __tablename__ = "contact_tag_assignments"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False)
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    __table_args__ = (db.UniqueConstraint("contact_id", "tag_id"),)
+
+
+class CompanyTagAssignment(db.Model):
+    __tablename__ = "company_tag_assignments"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    __table_args__ = (db.UniqueConstraint("company_id", "tag_id"),)
+
+
 class CompanyTag(db.Model):
     __tablename__ = "company_tags"
 

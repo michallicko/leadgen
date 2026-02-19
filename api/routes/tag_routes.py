@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 
-from ..auth import require_auth, resolve_tenant
+from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_message_status, display_status, display_tier, tier_db_values
-from ..models import CustomFieldDefinition, db
+from ..models import CustomFieldDefinition, Tag, db
 
 tag_bp = Blueprint("tags", __name__)
 
@@ -15,7 +15,7 @@ def list_tags():
         return jsonify({"error": "Tenant not found"}), 404
 
     tags = db.session.execute(
-        db.text("SELECT name FROM tags WHERE tenant_id = :t AND is_active = true ORDER BY name"),
+        db.text("SELECT id, name FROM tags WHERE tenant_id = :t AND is_active = true ORDER BY name"),
         {"t": tenant_id},
     ).fetchall()
 
@@ -35,10 +35,37 @@ def list_tags():
     ).order_by(CustomFieldDefinition.entity_type, CustomFieldDefinition.display_order).all()
 
     return jsonify({
-        "tags": [{"name": r[0]} for r in tags],
+        "tags": [{"id": str(r[0]), "name": r[1]} for r in tags],
         "owners": [{"id": str(r[0]), "name": r[1]} for r in owners],
         "custom_fields": [d.to_dict() for d in custom_defs],
     })
+
+
+@tag_bp.route("/api/tags", methods=["POST"])
+@require_role("editor")
+def create_tag():
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    # Check for duplicate
+    existing = db.session.execute(
+        db.text("SELECT id FROM tags WHERE tenant_id = :t AND LOWER(name) = LOWER(:n)"),
+        {"t": tenant_id, "n": name},
+    ).fetchone()
+    if existing:
+        return jsonify({"id": str(existing[0]), "name": name}), 200
+
+    tag = Tag(tenant_id=str(tenant_id), name=name, is_active=True)
+    db.session.add(tag)
+    db.session.commit()
+
+    return jsonify({"id": str(tag.id), "name": tag.name}), 201
 
 
 @tag_bp.route("/api/tag-stats", methods=["POST"])

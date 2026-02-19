@@ -1,4 +1,5 @@
 from .auth_routes import auth_bp
+from .bulk_routes import bulk_bp
 from .tag_routes import tag_bp
 from .campaign_routes import campaigns_bp
 from .company_routes import companies_bp
@@ -20,6 +21,7 @@ from .user_routes import users_bp
 def register_blueprints(app):
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(bulk_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(tenants_bp)
     app.register_blueprint(tag_bp)

@@ -114,7 +114,11 @@ def list_companies():
         where.append("c.tier = :tier")
         params["tier"] = tier
     if tag_name:
-        where.append("b.name = :tag_name")
+        where.append("""EXISTS (
+            SELECT 1 FROM company_tag_assignments cota
+            JOIN tags bt ON bt.id = cota.tag_id
+            WHERE cota.company_id = c.id AND bt.name = :tag_name
+        )""")
         params["tag_name"] = tag_name
     if owner_name:
         where.append("o.name = :owner_name")
@@ -141,7 +145,6 @@ def list_companies():
         db.text(f"""
             SELECT COUNT(*)
             FROM companies c
-            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
         """),
@@ -159,12 +162,11 @@ def list_companies():
         db.text(f"""
             SELECT
                 c.id, c.name, c.domain, c.status, c.tier,
-                o.name AS owner_name, b.name AS tag_name,
+                o.name AS owner_name,
                 c.industry, c.hq_country, c.triage_score,
                 (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
                 c.created_at
             FROM companies c
-            LEFT JOIN tags b ON c.tag_id = b.id
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
             ORDER BY {order}
@@ -192,10 +194,29 @@ def list_companies():
             eid = str(sc[0])
             stage_map.setdefault(eid, []).append({"stage": sc[1], "status": sc[2]})
 
+    # Batch tag lookup via junction table
+    tag_map: dict[str, list[str]] = {cid: [] for cid in company_ids}
+    if company_ids:
+        placeholders = ", ".join(f":cid_{i}" for i in range(len(company_ids)))
+        tag_params = {f"cid_{i}": cid for i, cid in enumerate(company_ids)}
+        tag_rows = db.session.execute(
+            db.text(f"""
+                SELECT cota.company_id, t.name
+                FROM company_tag_assignments cota
+                JOIN tags t ON t.id = cota.tag_id
+                WHERE cota.company_id IN ({placeholders})
+                ORDER BY t.name
+            """),
+            tag_params,
+        ).fetchall()
+        for tr in tag_rows:
+            tag_map.setdefault(str(tr[0]), []).append(tr[1])
+
     companies = []
     for r in rows:
         cid = str(r[0])
         completions = stage_map.get(cid, [])
+        tag_names = tag_map.get(cid, [])
         companies.append({
             "id": cid,
             "name": r[1],
@@ -203,11 +224,12 @@ def list_companies():
             "status": display_status(r[3]),
             "tier": display_tier(r[4]),
             "owner_name": r[5],
-            "tag_name": r[6],
-            "industry": display_industry(r[7]),
-            "hq_country": r[8],
-            "triage_score": float(r[9]) if r[9] is not None else None,
-            "contact_count": r[10] or 0,
+            "tag_name": tag_names[0] if tag_names else None,
+            "tag_names": tag_names,
+            "industry": display_industry(r[6]),
+            "hq_country": r[7],
+            "triage_score": float(r[8]) if r[8] is not None else None,
+            "contact_count": r[9] or 0,
             "derived_stage": _derive_stage(completions),
         })
 
