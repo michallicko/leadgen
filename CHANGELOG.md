@@ -5,6 +5,19 @@ All notable changes to the Leadgen Pipeline project.
 ## [Unreleased]
 
 ### Added
+- **Entity Selection & Bulk Actions**: Multi-select contacts/companies with bulk operations
+  - DataTable: checkbox column, shift-click range selection, select-all-loaded, select-all-matching-filters
+  - SelectionActionBar: floating bottom toolbar showing count + action buttons (slide-up animation)
+  - Bulk Add Tags: tag multiple entities at once via TagPicker modal (with inline tag creation)
+  - Bulk Assign Campaign: assign selected contacts to a campaign via CampaignPicker modal
+  - Bulk Remove Tags: remove tag assignments from selected entities
+  - Multi-tag data model: junction tables (contact_tag_assignments, company_tag_assignments) replacing single FK
+  - Matching count endpoints: server-side count for "select all matching filters" mode
+  - Tags API: GET returns IDs for frontend reference, POST creates new tags inline
+  - Tag display: columns show comma-separated tag names (multi-tag aware)
+  - Keyboard: Escape clears selection
+  - Migration 025 (multi_tag): junction tables with data migration from legacy FK
+  - 14 new unit tests for bulk endpoints
 - **Enrichment Field Audit** (BL-045): Restructure enrichment data model for modularity and extensibility
   - Rename `batches` → `tags` across entire codebase (models, API, frontend, tests — 41 files)
   - New `company_enrichment_l1` table: triage_notes, pre_score, research_query, raw_response, confidence, quality_score, qc_flags
