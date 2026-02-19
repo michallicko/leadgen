@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from flask import current_app
 
 from ..auth import require_auth, require_role, resolve_tenant
-from ..display import display_campaign_status
+from ..display import display_campaign_status, display_tier, display_status
 from ..models import Campaign, CampaignContact, CampaignTemplate, db
 from ..services.message_generator import estimate_generation_cost, start_generation
 
@@ -227,6 +227,23 @@ def update_campaign(campaign_id):
                 "allowed": sorted(allowed),
             }), 400
 
+        # Approval gate: review → approved requires no draft messages
+        if current_status == "review" and new_status == "approved":
+            draft_count = db.session.execute(
+                db.text("""
+                    SELECT COUNT(*) FROM messages m
+                    JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+                    WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                        AND m.status = 'draft'
+                """),
+                {"cid": campaign_id, "t": tenant_id},
+            ).scalar()
+            if draft_count > 0:
+                return jsonify({
+                    "error": f"Cannot approve: {draft_count} messages still in draft status",
+                    "pending_count": draft_count,
+                }), 400
+
     allowed_fields = {
         "name", "description", "status", "owner_id",
         "template_config", "generation_config",
@@ -416,7 +433,11 @@ def add_campaign_contacts(campaign_id):
         cid_params = {f"cid_{i}": v for i, v in enumerate(company_ids)}
         cid_params["t"] = tenant_id
         company_contacts = db.session.execute(
-            db.text(f"SELECT id FROM contacts WHERE tenant_id = :t AND company_id IN ({cid_placeholders})"),
+            db.text(f"""
+                SELECT id FROM contacts
+                WHERE tenant_id = :t AND company_id IN ({cid_placeholders})
+                    AND (is_disqualified = false OR is_disqualified IS NULL)
+            """),
             cid_params,
         ).fetchall()
         contact_ids = list(set(contact_ids + [str(r[0]) for r in company_contacts]))
@@ -429,7 +450,11 @@ def add_campaign_contacts(campaign_id):
     id_params = {f"id_{i}": v for i, v in enumerate(contact_ids)}
     id_params["t"] = tenant_id
     valid = db.session.execute(
-        db.text(f"SELECT id FROM contacts WHERE tenant_id = :t AND id IN ({id_placeholders})"),
+        db.text(f"""
+            SELECT id FROM contacts
+            WHERE tenant_id = :t AND id IN ({id_placeholders})
+                AND (is_disqualified = false OR is_disqualified IS NULL)
+        """),
         id_params,
     ).fetchall()
     valid_ids = {str(r[0]) for r in valid}
@@ -783,4 +808,307 @@ def generation_status(campaign_id):
         "generation_started_at": _format_ts(row[4]),
         "generation_completed_at": _format_ts(row[5]),
         "contact_statuses": status_counts,
+    })
+
+
+# --- T6: Disqualify contact ---
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/disqualify-contact", methods=["POST"])
+@require_role("editor")
+def disqualify_contact(campaign_id):
+    """Disqualify a contact from a campaign (campaign-only or global)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    contact_id = body.get("contact_id")
+    scope = body.get("scope", "campaign")
+    reason = body.get("reason")
+
+    if not contact_id:
+        return jsonify({"error": "contact_id required"}), 400
+    if scope not in ("campaign", "global"):
+        return jsonify({"error": "scope must be 'campaign' or 'global'"}), 400
+
+    # Verify campaign_contact exists
+    cc = db.session.execute(
+        db.text("""
+            SELECT id FROM campaign_contacts
+            WHERE campaign_id = :cid AND contact_id = :ctid AND tenant_id = :t
+        """),
+        {"cid": campaign_id, "ctid": contact_id, "t": tenant_id},
+    ).fetchone()
+    if not cc:
+        return jsonify({"error": "Contact not in this campaign"}), 404
+
+    cc_id = cc[0]
+
+    # Campaign exclusion: set campaign_contact to excluded, reject all messages
+    db.session.execute(
+        db.text("UPDATE campaign_contacts SET status = 'excluded' WHERE id = :id"),
+        {"id": cc_id},
+    )
+    result = db.session.execute(
+        db.text("""
+            UPDATE messages
+            SET status = 'rejected',
+                review_notes = 'Contact excluded from campaign',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE campaign_contact_id = :cc_id AND status = 'draft'
+        """),
+        {"cc_id": cc_id},
+    )
+    messages_rejected = result.rowcount
+
+    # Global disqualification
+    if scope == "global":
+        db.session.execute(
+            db.text("""
+                UPDATE contacts
+                SET is_disqualified = true,
+                    disqualified_at = CURRENT_TIMESTAMP,
+                    disqualified_reason = :reason
+                WHERE id = :id AND tenant_id = :t
+            """),
+            {"id": contact_id, "t": tenant_id, "reason": reason},
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "contact_id": contact_id,
+        "scope": scope,
+        "messages_rejected": messages_rejected,
+    })
+
+
+# --- T7: Review summary + approval gate ---
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/review-summary", methods=["GET"])
+@require_auth
+def review_summary(campaign_id):
+    """Get review progress and approval readiness for a campaign."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Message status counts
+    msg_stats = db.session.execute(
+        db.text("""
+            SELECT m.status, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY m.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    counts = {r[0]: r[1] for r in msg_stats}
+
+    total = sum(counts.values())
+    approved = counts.get("approved", 0)
+    rejected = counts.get("rejected", 0)
+    draft = counts.get("draft", 0)
+
+    # Excluded contacts
+    excluded = db.session.execute(
+        db.text("""
+            SELECT COUNT(*) FROM campaign_contacts
+            WHERE campaign_id = :cid AND tenant_id = :t AND status = 'excluded'
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).scalar()
+
+    active_contacts = db.session.execute(
+        db.text("""
+            SELECT COUNT(DISTINCT cc.contact_id)
+            FROM campaign_contacts cc
+            JOIN messages m ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND cc.status != 'excluded' AND m.status = 'approved'
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).scalar()
+
+    # Breakdown by channel
+    channel_stats = db.session.execute(
+        db.text("""
+            SELECT m.channel, m.status, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY m.channel, m.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    by_channel = {}
+    for ch, st, cnt in channel_stats:
+        if ch not in by_channel:
+            by_channel[ch] = {"approved": 0, "rejected": 0, "draft": 0}
+        by_channel[ch][st] = by_channel[ch].get(st, 0) + cnt
+
+    can_approve = draft == 0 and total > 0
+    pending_reason = None
+    if draft > 0:
+        pending_reason = f"{draft} messages pending review"
+    elif total == 0:
+        pending_reason = "No messages generated"
+
+    return jsonify({
+        "total": total,
+        "approved": approved,
+        "rejected": rejected,
+        "draft": draft,
+        "excluded_contacts": excluded,
+        "active_contacts": active_contacts,
+        "by_channel": by_channel,
+        "can_approve_outreach": can_approve,
+        "pending_reason": pending_reason,
+    })
+
+
+# --- T8: Review queue ---
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/review-queue", methods=["GET"])
+@require_auth
+def review_queue(campaign_id):
+    """Get ordered list of messages with full context for focused review."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Query params
+    status_filter = request.args.get("status", "draft")
+    channel_filter = request.args.get("channel")
+    step_filter = request.args.get("step")
+
+    where = ["cc.campaign_id = :cid", "cc.tenant_id = :t", "cc.status != 'excluded'"]
+    params = {"cid": campaign_id, "t": tenant_id}
+
+    if status_filter:
+        where.append("m.status = :status")
+        params["status"] = status_filter
+    if channel_filter:
+        where.append("m.channel = :channel")
+        params["channel"] = channel_filter
+    if step_filter:
+        where.append("m.sequence_step = :step")
+        params["step"] = int(step_filter)
+
+    where_clause = " AND ".join(where)
+
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                m.id, m.channel, m.sequence_step, m.variant,
+                m.subject, m.body, m.status, m.tone, m.language,
+                m.generation_cost_usd, m.review_notes, m.approved_at,
+                m.original_body, m.original_subject, m.edit_reason,
+                m.edit_reason_text, m.regen_count, m.regen_config,
+                ct.id AS contact_id, ct.first_name, ct.last_name,
+                ct.job_title, ct.email_address, ct.linkedin_url,
+                ct.contact_score, ct.icp_fit, ct.seniority_level,
+                ct.department, ct.location_country,
+                co.id AS company_id, co.name AS company_name,
+                co.domain, co.tier, co.industry, co.hq_country,
+                co.summary AS company_summary, co.status AS company_status,
+                m.label, m.campaign_contact_id
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            JOIN contacts ct ON m.contact_id = ct.id
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE {where_clause}
+            ORDER BY ct.contact_score DESC NULLS LAST,
+                     ct.id,
+                     m.sequence_step ASC
+        """),
+        params,
+    ).fetchall()
+
+    # Queue stats (all messages in campaign, not filtered)
+    stats = db.session.execute(
+        db.text("""
+            SELECT m.status, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND cc.status != 'excluded'
+            GROUP BY m.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    stat_counts = {r[0]: r[1] for r in stats}
+
+    total_count = len(rows)
+    messages = []
+    for idx, r in enumerate(rows):
+        regen_config = r[17]
+        if isinstance(regen_config, str):
+            try:
+                regen_config = json.loads(regen_config)
+            except (json.JSONDecodeError, TypeError):
+                regen_config = None
+
+        messages.append({
+            "position": idx + 1,
+            "total": total_count,
+            "message": {
+                "id": str(r[0]),
+                "channel": r[1],
+                "sequence_step": r[2],
+                "variant": (r[3] or "a").upper(),
+                "subject": r[4],
+                "body": r[5],
+                "status": r[6],
+                "tone": r[7],
+                "language": r[8],
+                "generation_cost": float(r[9]) if r[9] else None,
+                "review_notes": r[10],
+                "approved_at": _format_ts(r[11]),
+                "original_body": r[12],
+                "original_subject": r[13],
+                "edit_reason": r[14],
+                "edit_reason_text": r[15],
+                "regen_count": r[16] or 0,
+                "regen_config": regen_config,
+                "label": r[37],
+                "campaign_contact_id": str(r[38]),
+            },
+            "contact": {
+                "id": str(r[18]),
+                "first_name": r[19],
+                "last_name": r[20],
+                "full_name": ((r[19] or "") + " " + (r[20] or "")).strip(),
+                "job_title": r[21],
+                "email_address": r[22],
+                "linkedin_url": r[23],
+                "contact_score": r[24],
+                "icp_fit": r[25],
+                "seniority_level": r[26],
+                "department": r[27],
+                "location_country": r[28],
+            },
+            "company": {
+                "id": str(r[29]) if r[29] else None,
+                "name": r[30],
+                "domain": r[31],
+                "tier": display_tier(r[32]),
+                "industry": r[33],
+                "hq_country": r[34],
+                "summary": r[35],
+                "status": display_status(r[36]),
+            } if r[29] else None,
+        })
+
+    return jsonify({
+        "queue": messages,
+        "stats": {
+            "total": sum(stat_counts.values()),
+            "approved": stat_counts.get("approved", 0),
+            "rejected": stat_counts.get("rejected", 0),
+            "draft": stat_counts.get("draft", 0),
+        },
     })

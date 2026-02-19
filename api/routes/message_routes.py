@@ -2,7 +2,8 @@ from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_status, display_tier
-from ..models import db
+from ..models import db, EDIT_REASONS
+from ..services.message_generator import regenerate_message, estimate_regeneration_cost
 
 messages_bp = Blueprint("messages", __name__)
 
@@ -109,7 +110,8 @@ def update_message(message_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    allowed = {"status", "review_notes", "approved_at", "body"}
+    allowed = {"status", "review_notes", "approved_at", "body", "subject",
+               "edit_reason", "edit_reason_text"}
     fields = {k: v for k, v in body.items() if k in allowed}
 
     if not fields:
@@ -117,17 +119,47 @@ def update_message(message_id):
 
     # Verify message belongs to tenant
     msg = db.session.execute(
-        db.text("SELECT id FROM messages WHERE id = :id AND tenant_id = :t"),
+        db.text("""
+            SELECT id, body, subject, original_body, original_subject
+            FROM messages WHERE id = :id AND tenant_id = :t
+        """),
         {"id": message_id, "t": tenant_id},
     ).fetchone()
     if not msg:
         return jsonify({"error": "Message not found"}), 404
 
+    current_body = msg[1]
+    current_subject = msg[2]
+    existing_original_body = msg[3]
+    existing_original_subject = msg[4]
+
+    # If body is being changed, require edit_reason and preserve original
+    body_changed = "body" in fields and fields["body"] != current_body
+    subject_changed = "subject" in fields and fields["subject"] != current_subject
+
+    if body_changed or subject_changed:
+        edit_reason = fields.get("edit_reason")
+        if not edit_reason:
+            return jsonify({"error": "edit_reason required when changing body or subject"}), 400
+        if edit_reason not in EDIT_REASONS:
+            return jsonify({"error": f"Invalid edit_reason. Must be one of: {', '.join(EDIT_REASONS)}"}), 400
+
+        # Preserve originals (immutable once set)
+        if body_changed and existing_original_body is None:
+            fields["original_body"] = current_body
+        if subject_changed and existing_original_subject is None:
+            fields["original_subject"] = current_subject
+
     set_parts = []
     params = {"id": message_id}
+    safe_columns = {"status", "review_notes", "approved_at", "body", "subject",
+                    "edit_reason", "edit_reason_text", "original_body", "original_subject"}
     for k, v in fields.items():
-        set_parts.append(f"{k} = :{k}")
-        params[k] = v
+        if k in safe_columns:
+            set_parts.append(f"{k} = :{k}")
+            params[k] = v
+
+    set_parts.append("updated_at = CURRENT_TIMESTAMP")
 
     db.session.execute(
         db.text(f"UPDATE messages SET {', '.join(set_parts)} WHERE id = :id"),
@@ -136,6 +168,72 @@ def update_message(message_id):
     db.session.commit()
 
     return jsonify({"ok": True})
+
+
+@messages_bp.route("/api/messages/<message_id>/regenerate/estimate", methods=["GET"])
+@require_role("editor")
+def regen_estimate(message_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    result = estimate_regeneration_cost(message_id, tenant_id)
+    if not result:
+        return jsonify({"error": "Message not found"}), 404
+
+    return jsonify(result)
+
+
+@messages_bp.route("/api/messages/<message_id>/regenerate", methods=["POST"])
+@require_role("editor")
+def regen_message(message_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+
+    # Validate formality
+    formality = body.get("formality")
+    if formality and formality not in ("formal", "informal"):
+        return jsonify({"error": "formality must be 'formal' or 'informal'"}), 400
+
+    # Validate instruction length
+    instruction = body.get("instruction")
+    if instruction and len(instruction) > 200:
+        return jsonify({"error": "instruction must be 200 characters or fewer"}), 400
+
+    # Verify message is not currently being generated
+    msg_status = db.session.execute(
+        db.text("SELECT status FROM messages WHERE id = :id AND tenant_id = :t"),
+        {"id": message_id, "t": tenant_id},
+    ).fetchone()
+    if not msg_status:
+        return jsonify({"error": "Message not found"}), 404
+    if msg_status[0] == "generating":
+        return jsonify({"error": "Cannot regenerate while message is being generated"}), 409
+
+    from flask import g
+    user_id = str(g.current_user.id) if hasattr(g, 'current_user') else None
+
+    try:
+        result = regenerate_message(
+            message_id=message_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            language=body.get("language"),
+            formality=formality,
+            tone=body.get("tone"),
+            instruction=instruction,
+        )
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Regeneration failed: {str(e)}"}), 500
+
+    if not result:
+        return jsonify({"error": "Message not found"}), 404
+
+    return jsonify(result)
 
 
 @messages_bp.route("/api/messages/batch", methods=["PATCH"])
