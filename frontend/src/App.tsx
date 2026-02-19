@@ -13,6 +13,7 @@ import { MessagesPage } from './pages/messages/MessagesPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
 import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
 import { EnrichPage } from './pages/enrich/EnrichPage'
+import { AdminPage } from './pages/admin/AdminPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,7 +52,7 @@ export default function App() {
 
             {/* Root-level admin pages (no namespace) */}
             <Route path="/admin" element={<AppShell />}>
-              <Route index element={<PlaceholderPage title="Administration" />} />
+              <Route index element={<AdminPage />} />
             </Route>
             <Route path="/llm-costs" element={<AppShell />}>
               <Route index element={<PlaceholderPage title="LLM Cost Tracking" />} />
