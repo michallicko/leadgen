@@ -3,8 +3,6 @@
 Covers: edit with version tracking, disqualification, review queue,
 review summary, and approval gate.
 """
-import json
-
 from tests.conftest import auth_header
 
 
