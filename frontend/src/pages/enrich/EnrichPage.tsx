@@ -56,8 +56,8 @@ export function EnrichPage() {
     cardRefsObj.current[code] = el
   }, [])
 
-  // Selected stage for edge highlighting
-  const [selectedStage, setSelectedStage] = useState<string | null>(null)
+  // Hovered stage for edge highlighting
+  const [hoveredStage, setHoveredStage] = useState<string | null>(null)
 
   // Run handler
   const handleRun = useCallback(() => {
@@ -144,7 +144,7 @@ export function EnrichPage() {
               mode={dagMode}
               progress={stageProgress}
               softDepsConfig={softDepsConfig}
-              selectedStage={selectedStage}
+              hoveredStage={hoveredStage}
             />
             <DagVisualization>
               {(stageCode) => {
@@ -171,7 +171,8 @@ export function EnrichPage() {
                   <div
                     key={stageCode}
                     ref={setCardRef(stageCode)}
-                    onClick={() => setSelectedStage(selectedStage === stageCode ? null : stageCode)}
+                    onMouseEnter={() => setHoveredStage(stageCode)}
+                    onMouseLeave={() => setHoveredStage(null)}
                   >
                     <StageCard
                       stage={stageDef}
