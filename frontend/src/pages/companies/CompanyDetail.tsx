@@ -14,12 +14,9 @@ import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import { ModuleSummaryCard, type ModuleField } from './ModuleSummaryCard'
 import { deriveStage } from '../../lib/deriveStage'
 import {
-  STATUS_DISPLAY, STATUS_REVERSE,
   TIER_DISPLAY, TIER_REVERSE,
   BUYING_STAGE_DISPLAY, BUYING_STAGE_REVERSE,
   ENGAGEMENT_STATUS_DISPLAY, ENGAGEMENT_STATUS_REVERSE,
-  CRM_STATUS_DISPLAY, CRM_STATUS_REVERSE,
-  COHORT_DISPLAY, COHORT_REVERSE,
   filterOptions,
 } from '../../lib/display'
 
@@ -51,12 +48,9 @@ export function CompanyDetail({ company, onNavigate }: Props) {
 
   const handleSave = async () => {
     const reverseMap: Record<string, Record<string, string>> = {
-      status: STATUS_REVERSE,
       tier: TIER_REVERSE,
       buying_stage: BUYING_STAGE_REVERSE,
       engagement_status: ENGAGEMENT_STATUS_REVERSE,
-      crm_status: CRM_STATUS_REVERSE,
-      cohort: COHORT_REVERSE,
     }
 
     const payload: Record<string, unknown> = {}
@@ -164,25 +158,18 @@ export function CompanyDetail({ company, onNavigate }: Props) {
           <Field label="Business Type" value={company.business_type} source={l1Source} />
         </FieldGrid>
 
-        <SectionDivider title="Pipeline" />
+        <SectionDivider title="CRM" />
         <FieldGrid cols={3}>
-          <EditableSelect label="Status" name="status" value={getEditableValue('status', company.status)} options={filterOptions(STATUS_DISPLAY)} onChange={handleFieldChange} />
           <EditableSelect label="Tier" name="tier" value={getEditableValue('tier', company.tier)} options={filterOptions(TIER_DISPLAY)} onChange={handleFieldChange} />
           <EditableSelect label="Buying Stage" name="buying_stage" value={getEditableValue('buying_stage', company.buying_stage)} options={filterOptions(BUYING_STAGE_DISPLAY)} onChange={handleFieldChange} />
           <EditableSelect label="Engagement" name="engagement_status" value={getEditableValue('engagement_status', company.engagement_status)} options={filterOptions(ENGAGEMENT_STATUS_DISPLAY)} onChange={handleFieldChange} />
-          <EditableSelect label="CRM Status" name="crm_status" value={getEditableValue('crm_status', company.crm_status)} options={filterOptions(CRM_STATUS_DISPLAY)} onChange={handleFieldChange} />
-          <EditableSelect label="Cohort" name="cohort" value={getEditableValue('cohort', company.cohort)} options={filterOptions(COHORT_DISPLAY)} onChange={handleFieldChange} />
         </FieldGrid>
 
-        <SectionDivider title="Scores" />
+        <SectionDivider title="Key Metrics" />
         <FieldGrid cols={3}>
-          <Field label="Triage Score" value={company.triage_score?.toFixed(2)} source={l1Source} />
-          <Field label="Pre Score" value={company.pre_score?.toFixed(2)} source={l1Source} />
+          <Field label="Triage Score" value={company.triage_score?.toFixed(1)} source={l1Source} />
           <Field label="Verified Revenue (EUR M)" value={company.verified_revenue_eur_m} source={l1Source} />
           <Field label="Verified Employees" value={company.verified_employees} source={l1Source} />
-          <Field label="Enrichment Cost (USD)" value={company.enrichment_cost_usd?.toFixed(4)} source={l1Source} />
-          <Field label="AI Adoption" value={company.ai_adoption} source={l1Source} />
-          <Field label="News Confidence" value={company.news_confidence} source={l1Source} />
         </FieldGrid>
 
         <SectionDivider title="Location" />
@@ -195,7 +182,6 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         <div className="space-y-3">
           <Field label="Summary" value={company.summary} className="col-span-full" source={l1Source} />
           <EditableTextarea label="Notes" name="notes" value={getEditableValue('notes', company.notes)} onChange={handleFieldChange} />
-          <EditableTextarea label="Triage Notes" name="triage_notes" value={getEditableValue('triage_notes', company.triage_notes)} onChange={handleFieldChange} />
         </div>
 
         {company.tags.length > 0 && (
@@ -359,6 +345,9 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                 <Field label="Match Confidence" value={reg.match_confidence as number} source={regSource} />
                 <Field label="Match Method" value={reg.match_method as string} source={regSource} />
                 <Field label="Insolvency" value={reg.insolvency_flag ? 'Yes' : 'No'} source={regSource} />
+                {(reg.active_insolvency_count as number) > 0 && (
+                  <Field label="Active Proceedings" value={String(reg.active_insolvency_count)} />
+                )}
               </FieldGrid>
               <Field label="Address" value={reg.registered_address as string} className="mt-3" source={regSource} />
 
@@ -380,6 +369,20 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                       <span key={i} className="px-2 py-0.5 text-xs bg-surface-alt rounded border border-border-solid text-text-muted">
                         {String(n.code || n.kod)}: {String(n.name || n.nazev || '')}
                       </span>
+                    ))}
+                  </div>
+                </>
+              )}
+              {Array.isArray(reg.insolvency_details) && (reg.insolvency_details as unknown[]).length > 0 && (
+                <>
+                  <h4 className="text-xs text-text-muted font-medium mt-4 mb-2">Insolvency Proceedings</h4>
+                  <div className="space-y-2">
+                    {(reg.insolvency_details as Array<Record<string, unknown>>).map((p, i) => (
+                      <div key={i} className="text-sm bg-red-500/5 border border-red-500/20 rounded p-2">
+                        <span className="font-medium text-text">{String(p.file_ref || p.spisova_znacka || `Proceeding ${i + 1}`)}</span>
+                        {p.status && <span className="text-xs text-text-muted ml-2">({String(p.status)})</span>}
+                        {p.start_date && <span className="text-xs text-text-dim ml-2">{String(p.start_date)}</span>}
+                      </div>
                     ))}
                   </div>
                 </>
@@ -415,7 +418,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     })
   }
 
-  // History tab — timeline + timestamps + errors merged
+  // History tab — timeline + L1 metadata + timestamps + errors
   tabs.push({
     id: 'history',
     label: 'History',
@@ -433,10 +436,53 @@ export function CompanyDetail({ company, onNavigate }: Props) {
           })),
         ]} />
 
+        {/* L1 Triage Metadata */}
+        {company.enrichment_l1 && (
+          <>
+            <SectionDivider title="L1 Triage Details" />
+            <FieldGrid cols={3}>
+              <Field label="Confidence" value={company.enrichment_l1.confidence?.toFixed(2)} />
+              <Field label="Quality Score" value={company.enrichment_l1.quality_score} />
+              <Field label="Pre Score" value={company.enrichment_l1.pre_score?.toFixed(1)} />
+              <Field label="Cost (USD)" value={company.enrichment_l1.enrichment_cost_usd?.toFixed(4)} />
+              <Field label="Enriched At" value={company.enrichment_l1.enriched_at ? new Date(company.enrichment_l1.enriched_at).toLocaleString() : null} />
+            </FieldGrid>
+            {company.enrichment_l1.qc_flags && company.enrichment_l1.qc_flags.length > 0 && (
+              <div className="mt-2">
+                <span className="text-xs text-text-muted">QC Flags:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {company.enrichment_l1.qc_flags.map((flag) => (
+                    <span key={flag} className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
+                      {flag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {company.enrichment_l1.research_query && (
+              <div className="mt-2">
+                <span className="text-xs text-text-muted">Research Query:</span>
+                <p className="text-xs text-text-dim mt-0.5 bg-surface-alt/50 rounded p-2">{company.enrichment_l1.research_query}</p>
+              </div>
+            )}
+            <EditableTextarea label="Triage Notes" name="triage_notes" value={getEditableValue('triage_notes', company.triage_notes)} onChange={handleFieldChange} />
+          </>
+        )}
+
+        {/* Enrichment Costs */}
+        <SectionDivider title="Costs & Quality" />
+        <FieldGrid cols={3}>
+          <Field label="Total Enrichment Cost" value={company.enrichment_cost_usd?.toFixed(4)} />
+          <Field label="Data Quality Score" value={company.data_quality_score} />
+          <Field label="AI Adoption" value={company.ai_adoption} />
+          <Field label="News Confidence" value={company.news_confidence} />
+        </FieldGrid>
+
         <SectionDivider title="Timestamps" />
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <Field label="Created" value={company.created_at ? new Date(company.created_at).toLocaleString() : null} />
           <Field label="Updated" value={company.updated_at ? new Date(company.updated_at).toLocaleString() : null} />
+          <Field label="Last Enriched" value={company.last_enriched_at ? new Date(company.last_enriched_at).toLocaleString() : null} />
         </FieldGrid>
 
         {company.error_message && (
@@ -453,16 +499,37 @@ export function CompanyDetail({ company, onNavigate }: Props) {
 
   return (
     <div>
-      {/* Header — badges + metadata */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {derived && (
-          <span className="px-2.5 py-0.5 text-xs font-medium rounded-full text-white" style={{ backgroundColor: derived.color }}>
-            {derived.label}
-          </span>
-        )}
-        <Badge variant="tier" value={company.tier} />
-        {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
-        {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
+      {/* Header — badges + links + metadata */}
+      <div className="mb-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {derived && (
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-full text-white" style={{ backgroundColor: derived.color }}>
+              {derived.label}
+            </span>
+          )}
+          <Badge variant="tier" value={company.tier} />
+          {company.data_quality_score != null && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan">
+              DQ {company.data_quality_score}
+            </span>
+          )}
+          {company.owner_name && <span className="text-xs text-text-muted">{company.owner_name}</span>}
+          {company.tag_name && <span className="text-xs text-text-dim">{company.tag_name}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          {company.domain && (
+            <a href={`https://${company.domain}`} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">{company.domain}</a>
+          )}
+          {company.website_url && !company.domain && (
+            <a href={company.website_url} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">Website</a>
+          )}
+          {company.linkedin_url && (
+            <a href={company.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">LinkedIn</a>
+          )}
+          {company.last_enriched_at && (
+            <span className="text-text-dim">Enriched {new Date(company.last_enriched_at).toLocaleDateString()}</span>
+          )}
+        </div>
       </div>
 
       {/* Corrective actions for failed/review entities */}
