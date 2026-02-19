@@ -231,23 +231,16 @@ export function AppNav() {
             if (!hasRole(page.minRole)) return null
             const isActive = page.path === currentPage
 
-            // Pages served by vanilla HTML need full-page navigation
-            const isExternal = page.path === 'import'
-            const linkProps = {
-              key: page.id,
-              className: `px-3 py-1 rounded text-[0.78rem] font-medium no-underline transition-colors ${
-                isActive
-                  ? 'text-accent-cyan bg-accent-cyan/10'
-                  : 'text-text-muted hover:text-text hover:bg-accent/8'
-              }`,
-            }
-
-            return isExternal ? (
-              <a {...linkProps} href={makePath(page.path)}>
-                {page.label}
-              </a>
-            ) : (
-              <Link {...linkProps} to={makePath(page.path)}>
+            return (
+              <Link
+                key={page.id}
+                className={`px-3 py-1 rounded text-[0.78rem] font-medium no-underline transition-colors ${
+                  isActive
+                    ? 'text-accent-cyan bg-accent-cyan/10'
+                    : 'text-text-muted hover:text-text hover:bg-accent/8'
+                }`}
+                to={makePath(page.path)}
+              >
                 {page.label}
               </Link>
             )

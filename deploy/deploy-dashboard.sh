@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Deploy the dashboard to VPS (React SPA + vanilla HTML fallbacks)
+# Deploy the dashboard to VPS (React SPA only + standalone roadmap.html)
 # Usage: bash deploy/deploy-dashboard.sh
-#
-# The React SPA (frontend/) handles: contacts, companies, messages, enrich, login
-# Vanilla HTML pages (dashboard/) handle: import, admin, llm-costs, etc.
-# Caddy try_files serves {path}.html first, then falls back to React's index.html
 
 set -euo pipefail
 
@@ -31,32 +27,24 @@ scp -i "$VPS_KEY" ${FRONTEND_DIR}/dist/assets/* "${VPS_HOST}:${VPS_DIR}/dashboar
 scp -i "$VPS_KEY" ${FRONTEND_DIR}/dist/*.svg "${VPS_HOST}:${VPS_DIR}/dashboard/"
 echo "    Copied React SPA build"
 
-# 3. Deploy vanilla HTML pages that React doesn't handle yet
-#    SKIP: contacts.html, companies.html, messages.html, index.html (React handles these)
-VANILLA_PAGES="import.html admin.html llm-costs.html pipeline-archive.html playbook.html roadmap.html echo.html"
-for page in $VANILLA_PAGES; do
-  if [ -f "${PROJECT_DIR}/dashboard/${page}" ]; then
-    scp -i "$VPS_KEY" "${PROJECT_DIR}/dashboard/${page}" "${VPS_HOST}:${VPS_DIR}/dashboard/"
-  fi
-done
-echo "    Copied vanilla HTML pages"
+# 3. Deploy standalone pages (not part of the React SPA)
+scp -i "$VPS_KEY" "${PROJECT_DIR}/dashboard/roadmap.html" "${VPS_HOST}:${VPS_DIR}/dashboard/"
+echo "    Copied roadmap.html"
 
-# 4. Deploy shared assets (nav, auth) used by vanilla pages
-scp -i "$VPS_KEY" ${PROJECT_DIR}/dashboard/*.js ${PROJECT_DIR}/dashboard/*.css "${VPS_HOST}:${VPS_DIR}/dashboard/"
-echo "    Copied shared JS/CSS assets"
-
-# 5. Clean up stale vanilla files that React now handles
+# 4. Clean up stale vanilla files from previous deploys
 ssh -i "$VPS_KEY" "$VPS_HOST" bash <<'REMOTE'
 cd /home/ec2-user/n8n-docker-caddy/dashboard
-for stale in contacts.html companies.html messages.html enrich.html; do
+for stale in contacts.html companies.html messages.html enrich.html \
+             import.html admin.html llm-costs.html echo.html playbook.html \
+             pipeline-archive.html auth.js nav.js nav.css; do
   if [ -f "$stale" ]; then
     rm "$stale"
-    echo "    Removed stale $stale (React handles this route)"
+    echo "    Removed stale $stale"
   fi
 done
 REMOTE
 
-# 6. Add dashboard volume to Caddy if not already present
+# 5. Add dashboard volume to Caddy if not already present
 ssh -i "$VPS_KEY" "$VPS_HOST" bash <<'REMOTE'
 cd /home/ec2-user/n8n-docker-caddy
 
@@ -79,5 +67,5 @@ echo "    Caddy restarted"
 REMOTE
 
 echo "==> Dashboard deployed to https://leadgen.visionvolve.com/"
-echo "    React SPA: contacts, companies, messages, enrich, login"
-echo "    Vanilla: import, admin, llm-costs, pipeline-archive, playbook, roadmap"
+echo "    React SPA handles all pages"
+echo "    Standalone: roadmap.html"
