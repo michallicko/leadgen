@@ -47,14 +47,13 @@ rm -rf "leadgen-api-rev-${COMMIT}"
 echo "    Removed API source"
 
 # Remove dashboard build
-rm -rf "/srv/dashboard-rev-${COMMIT}"
+sudo rm -rf "/srv/dashboard-rev-${COMMIT}"
 echo "    Removed dashboard build"
 
-# Remove Caddyfile route
+# Remove Caddyfile route (between marker comments)
 CADDYFILE="${STAGING_DIR}/Caddyfile"
-if grep -q "api-rev-${COMMIT}" "\$CADDYFILE"; then
-  # Remove the handle_path block for this revision
-  sed -i "/handle_path \/api-rev-${COMMIT}/,/}/d" "\$CADDYFILE"
+if grep -q "rev:${COMMIT}" "\$CADDYFILE"; then
+  sed -i "/# --- rev:${COMMIT} ---/,/# --- \/rev:${COMMIT} ---/d" "\$CADDYFILE"
   echo "    Removed Caddyfile route"
 fi
 REMOTE

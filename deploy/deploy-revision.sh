@@ -52,7 +52,7 @@ echo "    API source copied"
 # ---- 3. Copy frontend build ----
 echo ""
 echo "==> Copying frontend build to staging..."
-ssh -i "$STAGING_KEY" "$STAGING_HOST" "mkdir -p /srv/dashboard-rev-${COMMIT}"
+ssh -i "$STAGING_KEY" "$STAGING_HOST" "sudo mkdir -p /srv/dashboard-rev-${COMMIT} && sudo chown ec2-user:ec2-user /srv/dashboard-rev-${COMMIT}"
 scp -i "$STAGING_KEY" -r "${PROJECT_DIR}/frontend/dist/"* "${STAGING_HOST}:/srv/dashboard-rev-${COMMIT}/"
 echo "    Frontend build copied to /srv/dashboard-rev-${COMMIT}"
 
@@ -69,14 +69,14 @@ services:
       dockerfile: Dockerfile.api
     container_name: leadgen-api-rev-${COMMIT}
     restart: unless-stopped
-    env_file: .env
     environment:
-      - DATABASE_URL=\${DATABASE_URL_STAGING:-\${DATABASE_URL}}
+      - DATABASE_URL=postgresql://\${DB_POSTGRESDB_USER}:\${DB_POSTGRESDB_PASSWORD}@\${DB_POSTGRESDB_HOST}:\${DB_POSTGRESDB_PORT}/leadgen_staging?sslmode=require
+      - JWT_SECRET_KEY=\${LEADGEN_JWT_SECRET}
+      - CORS_ORIGINS=https://leadgen-staging.visionvolve.com
+      - ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY:-}
+      - PERPLEXITY_API_KEY=\${PERPLEXITY_API_KEY:-}
     networks:
-      - caddy
-networks:
-  caddy:
-    external: true
+      - default
 COMPOSE
 echo "    Created docker-compose.api-rev-${COMMIT}.yml"
 REMOTE
@@ -92,10 +92,10 @@ CADDYFILE="${STAGING_DIR}/Caddyfile"
 if grep -q "api-rev-${COMMIT}" "\$CADDYFILE"; then
   echo "    Route /api-rev-${COMMIT}/* already exists in Caddyfile"
 else
-  # Insert revision route BEFORE the catch-all /api/* handler
-  # The pattern: find "handle /api/*" and insert our revision block before it
+  # Insert revision route block BEFORE the catch-all "handle /api/*" line
+  BLOCK="    # --- rev:${COMMIT} ---\n    handle_path /api-rev-${COMMIT}/* {\n        reverse_proxy ${CONTAINER}:5000\n    }\n    # --- /rev:${COMMIT} ---"
   sed -i "/handle \/api\/\*/i\\
-\\\\thandle_path /api-rev-${COMMIT}/* {\\\\n\\\\t\\\\trewrite * /api{uri}\\\\n\\\\t\\\\treverse_proxy ${CONTAINER}:5000\\\\n\\\\t}" "\$CADDYFILE"
+\${BLOCK}" "\$CADDYFILE"
   echo "    Added /api-rev-${COMMIT}/* route to Caddyfile"
 fi
 REMOTE
