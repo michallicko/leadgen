@@ -1,3 +1,5 @@
+import uuid
+
 from flask import Blueprint, jsonify, request
 
 from ..auth import require_role, resolve_tenant
@@ -142,11 +144,11 @@ def bulk_add_tags():
             try:
                 db.session.execute(
                     db.text(f"""
-                        INSERT INTO {junction_table} (tenant_id, {fk_col}, tag_id)
-                        VALUES (:tenant_id, :entity_id, :tag_id)
+                        INSERT INTO {junction_table} (id, tenant_id, {fk_col}, tag_id)
+                        VALUES (:id, :tenant_id, :entity_id, :tag_id)
                         ON CONFLICT DO NOTHING
                     """),
-                    {"tenant_id": str(tenant_id), "entity_id": eid, "tag_id": tag_id},
+                    {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "entity_id": eid, "tag_id": tag_id},
                 )
                 new_count += 1
             except Exception:
@@ -270,11 +272,11 @@ def bulk_assign_campaign():
         try:
             db.session.execute(
                 db.text("""
-                    INSERT INTO campaign_contacts (campaign_id, contact_id, tenant_id)
-                    VALUES (:campaign_id, :contact_id, :tenant_id)
+                    INSERT INTO campaign_contacts (id, campaign_id, contact_id, tenant_id)
+                    VALUES (:id, :campaign_id, :contact_id, :tenant_id)
                     ON CONFLICT DO NOTHING
                 """),
-                {"campaign_id": campaign_id, "contact_id": cid, "tenant_id": str(tenant_id)},
+                {"id": str(uuid.uuid4()), "campaign_id": campaign_id, "contact_id": cid, "tenant_id": str(tenant_id)},
             )
             new_count += 1
         except Exception:
