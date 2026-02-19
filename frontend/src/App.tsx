@@ -13,6 +13,8 @@ import { MessagesPage } from './pages/messages/MessagesPage'
 import { CampaignsPage } from './pages/campaigns/CampaignsPage'
 import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
 import { EnrichPage } from './pages/enrich/EnrichPage'
+import { ImportPage } from './pages/import/ImportPage'
+import { AdminPage } from './pages/admin/AdminPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,21 +42,21 @@ export default function App() {
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="companies/:companyId" element={<CompanyDetailPage />} />
-              <Route path="import" element={<PlaceholderPage title="Import Contacts" />} />
+              <Route path="import" element={<ImportPage />} />
               <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
-              <Route path="playbook" element={<PlaceholderPage title="ICP Summary" />} />
-              <Route path="echo" element={<PlaceholderPage title="Dashboard Demo" />} />
+              <Route path="playbook" element={<PlaceholderPage title="ICP Playbook" description="Your Ideal Customer Profile definition — target segments, company signals, decision-maker titles, and disqualification criteria." />} />
+              <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
             </Route>
 
             {/* Root-level admin pages (no namespace) */}
             <Route path="/admin" element={<AppShell />}>
-              <Route index element={<PlaceholderPage title="Administration" />} />
+              <Route index element={<AdminPage />} />
             </Route>
             <Route path="/llm-costs" element={<AppShell />}>
-              <Route index element={<PlaceholderPage title="LLM Cost Tracking" />} />
+              <Route index element={<PlaceholderPage title="LLM Costs" description="AI usage tracking — cost over time, per-operation breakdown, per-tenant analysis, and call logs." />} />
             </Route>
           </Routes>
         </BrowserRouter>
