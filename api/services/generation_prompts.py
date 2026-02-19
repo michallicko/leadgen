@@ -4,6 +4,8 @@ Each channel has constraints and a prompt template that gets filled with
 enrichment data and generation config.
 """
 
+from __future__ import annotations
+
 # Channel-specific constraints
 CHANNEL_CONSTRAINTS = {
     "linkedin_connect": {
@@ -34,6 +36,18 @@ You avoid cliches, buzzwords, and generic pitches. Every message references \
 specific details about the recipient and their company to show genuine research."""
 
 
+FORMALITY_INSTRUCTIONS = {
+    "cs": {"formal": "Use formal address (vykání – Vy).", "informal": "Use informal address (tykání – ty)."},
+    "de": {"formal": "Use formal address (Sie).", "informal": "Use informal address (du)."},
+    "fr": {"formal": "Use formal address (vous).", "informal": "Use informal address (tu)."},
+    "es": {"formal": "Use formal address (usted).", "informal": "Use informal address (tú)."},
+    "it": {"formal": "Use formal address (Lei).", "informal": "Use informal address (tu)."},
+    "pt": {"formal": "Use formal address (o senhor/a senhora).", "informal": "Use informal address (você/tu)."},
+    "pl": {"formal": "Use formal address (Pan/Pani).", "informal": "Use informal address (ty)."},
+    "nl": {"formal": "Use formal address (u).", "informal": "Use informal address (je/jij)."},
+}
+
+
 def build_generation_prompt(
     *,
     channel: str,
@@ -44,6 +58,8 @@ def build_generation_prompt(
     generation_config: dict,
     step_number: int,
     total_steps: int,
+    formality: str | None = None,
+    per_message_instruction: str | None = None,
 ) -> str:
     """Build the user prompt for generating a single message step.
 
@@ -87,17 +103,34 @@ def build_generation_prompt(
         f"Channel: {channel.replace('_', ' ')}",
         f"Tone: {tone}",
         f"Language: {language}",
+    ]
+
+    # Formality instruction (language-specific address form)
+    effective_formality = formality or generation_config.get("formality")
+    if effective_formality and language in FORMALITY_INSTRUCTIONS:
+        fi = FORMALITY_INSTRUCTIONS[language].get(effective_formality, "")
+        if fi:
+            parts.append(f"Formality: {fi}")
+
+    parts.extend([
         "",
         f"--- OUTPUT FORMAT ---",
         format_instructions,
         "Return ONLY the JSON object, no markdown fencing or explanation.",
-    ]
+    ])
 
     if custom_instructions:
         parts.extend([
             "",
             f"--- ADDITIONAL INSTRUCTIONS ---",
             custom_instructions[:2000],
+        ])
+
+    if per_message_instruction:
+        parts.extend([
+            "",
+            f"--- PER-MESSAGE INSTRUCTION ---",
+            per_message_instruction[:200],
         ])
 
     return "\n".join(parts)

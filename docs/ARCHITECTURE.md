@@ -101,7 +101,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Channel constraints**: LinkedIn connect ≤ 300 chars (body only), LinkedIn message ≤ 2000 chars, email requires subject + body
 - **Prompts** (`generation_prompts.py`): Incorporates company summary, L2 intel, person enrichment, signals, tone, custom instructions
 - **Cost tracking**: Per-message cost logged via `llm_logger.py`, aggregated per campaign_contact and campaign
-- **Review**: Messages saved as drafts, reviewable on Messages page with campaign filter
+- **Review workflow**: Focused single-message queue with sequential gated navigation (approve/reject to advance). Manual editing with version tracking (original_body/original_subject preserved immutably, structured edit_reason tags for LLM training feedback — ADR-007). Per-message regeneration with language, formality (Ty/Vy), tone overrides, custom instruction (max 200 chars), cost estimate. Contact disqualification (campaign-only exclusion or global). Campaign outreach approval gate (all messages must be reviewed before campaign → approved).
 
 ### 7. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`

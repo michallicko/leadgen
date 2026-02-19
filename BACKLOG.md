@@ -132,6 +132,12 @@ Core generation service. Background thread processes contacts, calls Claude API 
 
 Campaign filter on Messages page. Campaign-level bulk approve. Campaign detail shows generated/approved/rejected counts.
 
+### BL-045: Message Review Workflow
+**Status**: In Progress | **Effort**: XL | **Spec**: `docs/specs/message-review-workflow/`
+**Depends on**: BL-035, BL-036 | **Theme**: Outreach Engine
+
+Enhanced review with focused single-message queue (must approve/reject to advance), per-message regeneration (language, formality, tone, custom instruction), version tracking with tagged edit feedback for LLM training, contact disqualification (campaign-only or global), and campaign outreach approval gate.
+
 ### BL-037: Template Library
 **Status**: Idea | **Effort**: S | **Spec**: —
 **Depends on**: BL-031 | **Theme**: Outreach Engine

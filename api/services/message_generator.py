@@ -4,16 +4,15 @@ Generates personalized outreach messages for each contact in a campaign
 using Claude API. Runs as a background thread with progress tracking.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import threading
 import time
 from decimal import Decimal
 
-from ..models import (
-    Campaign, CampaignContact, Contact, Company,
-    CompanyEnrichmentL2, ContactEnrichment, Message, db,
-)
+from ..models import Message, db
 from .generation_prompts import SYSTEM_PROMPT, build_generation_prompt, CHANNEL_CONSTRAINTS
 from .llm_logger import log_llm_usage, compute_cost
 
@@ -405,3 +404,278 @@ def _generate_single_message(
     db.session.flush()
 
     return cost
+
+
+def estimate_regeneration_cost(message_id: str, tenant_id: str) -> dict:
+    """Estimate the cost of regenerating a single message.
+
+    Counts tokens from the enrichment context to give a real estimate.
+    Returns dict with cost, input_tokens, output_tokens, model.
+    """
+    msg = db.session.execute(
+        db.text("""
+            SELECT m.contact_id, ct.company_id, m.channel
+            FROM messages m
+            JOIN contacts ct ON m.contact_id = ct.id
+            WHERE m.id = :id AND m.tenant_id = :t
+        """),
+        {"id": message_id, "t": tenant_id},
+    ).fetchone()
+
+    if not msg:
+        return None
+
+    contact_id = str(msg[0])
+    company_id = str(msg[1]) if msg[1] else None
+    channel = msg[2]
+
+    # Load enrichment to estimate prompt size
+    company_data, enrichment_data = _load_enrichment_context(contact_id, company_id)
+
+    # Build a sample prompt to count tokens (approximate)
+    sample_prompt = build_generation_prompt(
+        channel=channel,
+        step_label="Step 1",
+        contact_data={"first_name": "X"},
+        company_data=company_data,
+        enrichment_data=enrichment_data,
+        generation_config={},
+        step_number=1,
+        total_steps=1,
+    )
+
+    # Rough token estimate: ~4 chars per token
+    est_input = max(len(sample_prompt) // 4, EST_INPUT_TOKENS)
+    est_output = EST_OUTPUT_TOKENS
+
+    cost = compute_cost(GENERATION_PROVIDER, GENERATION_MODEL, est_input, est_output)
+
+    return {
+        "estimated_cost": float(cost),
+        "input_tokens": est_input,
+        "output_tokens": est_output,
+        "model": GENERATION_MODEL,
+    }
+
+
+def regenerate_message(
+    message_id: str,
+    tenant_id: str,
+    user_id: str = None,
+    language: str = None,
+    formality: str = None,
+    tone: str = None,
+    instruction: str = None,
+) -> dict:
+    """Regenerate a single message with optional overrides.
+
+    Preserves the original body/subject on first regeneration.
+    Returns the updated message dict or None if message not found.
+    """
+    # Load message with context
+    row = db.session.execute(
+        db.text("""
+            SELECT m.id, m.tenant_id, m.contact_id, m.owner_id,
+                   m.channel, m.sequence_step, m.variant, m.label,
+                   m.subject, m.body, m.status, m.tone, m.language,
+                   m.generation_cost_usd, m.campaign_contact_id,
+                   m.original_body, m.original_subject,
+                   m.regen_count, m.regen_config,
+                   ct.first_name, ct.last_name, ct.job_title,
+                   ct.email_address, ct.linkedin_url,
+                   ct.seniority_level, ct.department, ct.company_id
+            FROM messages m
+            JOIN contacts ct ON m.contact_id = ct.id
+            WHERE m.id = :id AND m.tenant_id = :t
+        """),
+        {"id": message_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return None
+
+    contact_id = str(row[2])
+    channel = row[4]
+    sequence_step = row[5]
+    label = row[7]
+    current_subject = row[8]
+    current_body = row[9]
+    current_tone = row[11]
+    current_language = row[12]
+    cc_id = row[14]
+    original_body = row[15]
+    original_subject = row[16]
+    regen_count = row[17] or 0
+    company_id = str(row[27]) if row[27] else None
+
+    # Preserve originals on first regen/edit
+    if original_body is None:
+        original_body = current_body
+    if original_subject is None and current_subject:
+        original_subject = current_subject
+
+    # Load enrichment context
+    contact_data = {
+        "first_name": row[19],
+        "last_name": row[20],
+        "job_title": row[21],
+        "email_address": row[22],
+        "linkedin_url": row[23],
+        "seniority_level": row[24],
+        "department": row[25],
+    }
+    company_data, enrichment_data = _load_enrichment_context(contact_id, company_id)
+
+    # Load campaign generation config
+    campaign_config = {}
+    if cc_id:
+        camp_row = db.session.execute(
+            db.text("""
+                SELECT c.generation_config, c.template_config
+                FROM campaigns c
+                JOIN campaign_contacts cc ON cc.campaign_id = c.id
+                WHERE cc.id = :cc_id
+            """),
+            {"cc_id": cc_id},
+        ).fetchone()
+        if camp_row:
+            campaign_config = json.loads(camp_row[0]) if isinstance(camp_row[0], str) else (camp_row[0] or {})
+            template_config = json.loads(camp_row[1]) if isinstance(camp_row[1], str) else (camp_row[1] or [])
+            total_steps = len([s for s in template_config if s.get("enabled")])
+        else:
+            total_steps = 1
+    else:
+        total_steps = 1
+
+    # Apply overrides
+    effective_language = language or current_language or campaign_config.get("language", "en")
+    effective_tone = tone or current_tone or campaign_config.get("tone", "professional")
+
+    gen_config = dict(campaign_config)
+    gen_config["language"] = effective_language
+    gen_config["tone"] = effective_tone
+
+    prompt = build_generation_prompt(
+        channel=channel,
+        step_label=label or f"Step {sequence_step}",
+        contact_data=contact_data,
+        company_data=company_data,
+        enrichment_data=enrichment_data,
+        generation_config=gen_config,
+        step_number=sequence_step or 1,
+        total_steps=total_steps,
+        formality=formality,
+        per_message_instruction=instruction,
+    )
+
+    start_time = time.time()
+
+    import anthropic
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=GENERATION_MODEL,
+        max_tokens=1024,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Parse response
+    raw_text = response.content[0].text
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        import re
+        match = re.search(r'\{[^}]+\}', raw_text, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group())
+        else:
+            parsed = {"body": raw_text}
+
+    new_subject = parsed.get("subject")
+    new_body = parsed.get("body", raw_text)
+
+    constraints = CHANNEL_CONSTRAINTS.get(channel, {})
+    max_chars = constraints.get("max_chars", 5000)
+    if len(new_body) > max_chars:
+        new_body = new_body[:max_chars]
+
+    # Log cost
+    input_tokens = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
+    cost = compute_cost(GENERATION_PROVIDER, GENERATION_MODEL, input_tokens, output_tokens)
+
+    log_llm_usage(
+        tenant_id=tenant_id,
+        operation="message_regeneration",
+        model=GENERATION_MODEL,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        provider=GENERATION_PROVIDER,
+        user_id=user_id,
+        duration_ms=duration_ms,
+        metadata={
+            "message_id": message_id,
+            "contact_id": contact_id,
+            "channel": channel,
+            "overrides": {
+                "language": language,
+                "formality": formality,
+                "tone": tone,
+                "instruction": instruction,
+            },
+        },
+    )
+
+    # Store regen config
+    regen_config = {
+        "language": effective_language,
+        "formality": formality,
+        "tone": effective_tone,
+        "instruction": instruction,
+    }
+
+    # Update message
+    db.session.execute(
+        db.text("""
+            UPDATE messages
+            SET body = :body,
+                subject = :subject,
+                original_body = :orig_body,
+                original_subject = :orig_subject,
+                regen_count = :regen_count,
+                regen_config = :regen_config,
+                generation_cost_usd = COALESCE(generation_cost_usd, 0) + :cost,
+                language = :language,
+                tone = :tone,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        """),
+        {
+            "body": new_body,
+            "subject": new_subject,
+            "orig_body": original_body,
+            "orig_subject": original_subject,
+            "regen_count": regen_count + 1,
+            "regen_config": json.dumps(regen_config),
+            "cost": float(cost),
+            "language": effective_language,
+            "tone": effective_tone,
+            "id": message_id,
+        },
+    )
+    db.session.commit()
+
+    return {
+        "id": message_id,
+        "body": new_body,
+        "subject": new_subject,
+        "original_body": original_body,
+        "original_subject": original_subject,
+        "regen_count": regen_count + 1,
+        "regen_config": regen_config,
+        "language": effective_language,
+        "tone": effective_tone,
+        "generation_cost_usd": float(cost),
+    }

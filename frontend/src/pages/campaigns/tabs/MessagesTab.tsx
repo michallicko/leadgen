@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { FilterBar, type FilterConfig } from '../../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../../api/queries/useMessages'
 import { useToast } from '../../../components/ui/Toast'
@@ -32,6 +33,7 @@ interface Props {
 
 export function MessagesTab({ campaignId, onNavigate }: Props) {
   const { toast } = useToast()
+  const navigate = useNavigate()
 
   const [status, setStatus] = useState('draft')
   const [channel, setChannel] = useState('')
@@ -126,10 +128,18 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
         onChange={handleFilterChange}
         action={
           <div className="flex items-center gap-2 ml-auto">
+            {draftCount > 0 && (
+              <button
+                onClick={() => navigate(`review?status=draft`)}
+                className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
+              >
+                Start Review ({draftCount})
+              </button>
+            )}
             <button
               onClick={() => refetch()}
               disabled={isLoading || isRefetching}
-              className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt disabled:opacity-50 transition-colors"
             >
               {isLoading || isRefetching ? 'Loading...' : 'Refresh'}
             </button>

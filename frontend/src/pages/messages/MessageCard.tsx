@@ -2,6 +2,19 @@ import { useState, useCallback } from 'react'
 import { useUpdateMessage, type Message } from '../../api/queries/useMessages'
 import { useToast } from '../../components/ui/Toast'
 
+const EDIT_REASONS = [
+  { value: 'too_formal', label: 'Too formal' },
+  { value: 'too_casual', label: 'Too casual' },
+  { value: 'wrong_tone', label: 'Wrong tone' },
+  { value: 'wrong_language', label: 'Wrong language' },
+  { value: 'too_long', label: 'Too long' },
+  { value: 'too_short', label: 'Too short' },
+  { value: 'factually_wrong', label: 'Factually wrong' },
+  { value: 'off_topic', label: 'Off topic' },
+  { value: 'generic', label: 'Too generic' },
+  { value: 'other', label: 'Other' },
+]
+
 const REVIEW_BADGE_COLORS: Record<string, string> = {
   draft: 'bg-warning/15 text-warning border-warning/30',
   approved: 'bg-success/15 text-success border-success/30',
@@ -34,6 +47,7 @@ export function MessageCard({ message }: MessageCardProps) {
   const mutation = useUpdateMessage()
   const [mode, setMode] = useState<'view' | 'edit' | 'reject'>('view')
   const [editBody, setEditBody] = useState(message.body)
+  const [editReason, setEditReason] = useState('')
   const [rejectNotes, setRejectNotes] = useState('')
 
   const handleApprove = useCallback(async () => {
@@ -48,22 +62,31 @@ export function MessageCard({ message }: MessageCardProps) {
     }
   }, [message.id, mutation, toast])
 
+  const bodyChanged = editBody !== message.body
+
   const handleSaveEdit = useCallback(async () => {
     if (!editBody.trim()) {
       toast('Body cannot be empty', 'error')
       return
     }
+    if (bodyChanged && !editReason) {
+      toast('Please select an edit reason', 'error')
+      return
+    }
+    const data: Record<string, unknown> = { status: 'approved', approved_at: new Date().toISOString() }
+    if (bodyChanged) {
+      data.body = editBody
+      data.edit_reason = editReason
+    }
     try {
-      await mutation.mutateAsync({
-        id: message.id,
-        data: { body: editBody, status: 'approved', approved_at: new Date().toISOString() },
-      })
-      toast('Edited and approved', 'success')
+      await mutation.mutateAsync({ id: message.id, data })
+      toast(bodyChanged ? 'Edited and approved' : 'Approved', 'success')
       setMode('view')
+      setEditReason('')
     } catch {
       toast('Failed to save', 'error')
     }
-  }, [message.id, editBody, mutation, toast])
+  }, [message.id, editBody, editReason, bodyChanged, mutation, toast])
 
   const handleReject = useCallback(async () => {
     try {
@@ -134,16 +157,28 @@ export function MessageCard({ message }: MessageCardProps) {
             rows={5}
             className="w-full bg-surface-alt border border-border-solid rounded-md px-3 py-2 text-sm text-text resize-y focus:outline-none focus:border-accent"
           />
+          {bodyChanged && (
+            <select
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              className="w-full px-3 py-1.5 bg-surface-alt border border-border-solid rounded-md text-xs text-text focus:outline-none focus:border-accent"
+            >
+              <option value="">Edit reason *</option>
+              {EDIT_REASONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-2">
             <button
               onClick={handleSaveEdit}
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || (bodyChanged && !editReason)}
               className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md disabled:opacity-50"
             >
-              Save & Approve
+              {bodyChanged ? 'Save & Approve' : 'Approve'}
             </button>
             <button
-              onClick={() => { setMode('view'); setEditBody(message.body) }}
+              onClick={() => { setMode('view'); setEditBody(message.body); setEditReason('') }}
               className="px-3 py-1.5 text-xs text-text-muted hover:text-text"
             >
               Cancel

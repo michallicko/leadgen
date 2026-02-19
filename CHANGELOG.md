@@ -24,6 +24,15 @@ All notable changes to the Leadgen Pipeline project.
   - Faceted search endpoint: `POST /api/contacts/filter-counts` returns live option counts under current filter state
   - Job title typeahead: `GET /api/contacts/job-titles?q=<term>` returns ranked suggestions from existing contact records
   - Frontend: `MultiSelectFilter` component (checkbox list + include/exclude toggle + active-count badge), `JobTitleFilter` component (extends with debounced typeahead), `useAdvancedFilters` hook (filter state, URL serialization, reset)
+- **Message Review Workflow** (BL-045, ADR-007): Enhanced message review with focused queue, version tracking, regeneration, and outreach approval
+  - **Review queue**: Sequential gated navigation — must approve/reject each message to advance. Ordered by contact_score DESC, then sequence_step/variant. Step filter support.
+  - **Version tracking**: `original_body`/`original_subject` columns preserved immutably on first edit. Structured `edit_reason` tags (10 categories) for LLM training feedback. `edit_reason_text` for free-form notes.
+  - **Regeneration**: Per-message regeneration with language, formality (formal/informal — Ty/Vy in Czech etc.), tone overrides, custom instruction (max 200 chars). Cost estimate endpoint. Status guard prevents concurrent regeneration.
+  - **Contact disqualification**: Campaign-level exclusion (campaign_contacts.status → excluded) or global disqualification (contacts.disqualified → true). Disqualified contacts filtered from review queue.
+  - **Outreach approval**: Review summary endpoint (total/approved/rejected/draft/generating counts). Campaign status transition review → approved only when no drafts/generating remain.
+  - **Security hardening**: Tenant-scoped UPDATE queries (defense-in-depth), input validation on step filter, no error detail leakage
+  - Migration 027 (original_body, original_subject, edit_reason, edit_reason_text, regen_count, regen_config, disqualified flag)
+  - 34 new unit tests (edit tracking, disqualification, review summary, approval gate, review queue, regeneration validation, formality prompts)
 - **Entity Selection & Bulk Actions**: Multi-select contacts/companies with bulk operations
   - DataTable: checkbox column, shift-click range selection, select-all-loaded, select-all-matching-filters
   - SelectionActionBar: floating bottom toolbar showing count + action buttons (slide-up animation)
