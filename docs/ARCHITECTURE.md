@@ -1,6 +1,6 @@
 # Leadgen Pipeline - Architecture
 
-> Last updated: 2026-02-16
+> Last updated: 2026-02-19
 
 ## System Overview
 
@@ -50,13 +50,15 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 
 ## Components
 
-### 1. Dashboard (Static Frontend)
-- **Tech**: Vanilla HTML/JS/CSS, no build step
-- **Hosting**: Caddy file server at `leadgen.visionvolve.com`
-- **Pages**: `index.html` (Pipeline), `companies.html` (Companies), `contacts.html` (Contacts), `messages.html` (Messages), `import.html` (Import — CSV + Google), `enrich.html` (Enrichment Wizard), `llm-costs.html` (LLM Costs, super admin), `admin.html` (Admin)
+### 1. Dashboard (React SPA)
+- **Tech**: React 19 + TypeScript + Vite + Tailwind CSS v4 + TanStack Query v5
+- **Hosting**: Caddy file server at `leadgen.visionvolve.com`, SPA fallback to `index.html`
+- **Pages**: Contacts, Companies, Messages, Campaigns, Enrich (pipeline control), Import (CSV + Google wizard), Admin (namespace/user CRUD), Placeholders (Playbook, Echo, LLM Costs)
+- **Standalone**: `roadmap.html` — standalone backlog viewer, no auth, no SPA routing
 - **Virtual scroll**: Companies and Contacts tables use DOM windowing — only ~60-80 rows rendered at any time regardless of dataset size. Data fetched via infinite scroll (IntersectionObserver), rendered via `renderWindow()` on scroll (see ADR-001)
-- **Auth**: JWT stored in localStorage, managed by `auth.js`
-- **Namespace routing**: `/{tenant-slug}/page` — Caddy strips prefix, JS reads namespace from URL
+- **Auth**: JWT stored in localStorage, managed by `useAuth` hook
+- **Namespace routing**: `/{tenant-slug}/page` — React Router reads namespace from URL, API calls include `X-Namespace` header
+- **API layer**: `apiFetch` (JSON) + `apiUpload` (FormData) in `api/client.ts`, TanStack Query hooks in `api/queries/`
 
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn

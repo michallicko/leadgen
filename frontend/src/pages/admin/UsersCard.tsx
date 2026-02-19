@@ -116,15 +116,19 @@ export function UsersCard({ isSuperAdmin, refreshKey }: UsersCardProps) {
                     {u.email}
                   </td>
                   <td className="px-2.5 py-2.5 border-b border-border-solid/40">
-                    <select
-                      value={u.role}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      className="bg-bg border border-border rounded px-1.5 py-1 text-xs text-text focus:outline-none focus:border-accent-cyan cursor-pointer"
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    {u.role === 'super_admin' ? (
+                      <span className="text-xs text-accent-cyan font-semibold">Super Admin</span>
+                    ) : (
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                        className="bg-bg border border-border rounded px-1.5 py-1 text-xs text-text focus:outline-none focus:border-accent-cyan cursor-pointer"
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    )}
                   </td>
                   <td className="px-2.5 py-2.5 border-b border-border-solid/40">
                     {u.is_active ? (

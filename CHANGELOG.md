@@ -18,6 +18,18 @@ All notable changes to the Leadgen Pipeline project.
   - Keyboard: Escape clears selection
   - Migration 025 (multi_tag): junction tables with data migration from legacy FK
   - 14 new unit tests for bulk endpoints
+- **Vanilla JS Migration** (BL-045/TD-008): Eliminate all vanilla JS from the dashboard
+  - Port Import page to React: 3-step wizard (Upload → Map Columns → Preview), CSV + Google OAuth dual-source, AI column mapping, dedup preview, past imports with resume
+  - Port Admin page to React: namespace CRUD (super_admin), user management per namespace, inline editing, temp password display
+  - New reusable UI components: Modal, WizardSteps, ProgressBar
+  - `apiUpload` function for FormData file uploads (multipart)
+  - Enhanced placeholder pages (Playbook, Echo, LLM Costs) with page-specific descriptions
+  - All navigation is SPA (React Router) — no more full-page reloads
+
+### Removed
+- 14 vanilla HTML/JS/CSS files (12,012 lines): admin.html, import.html, contacts.html, companies.html, messages.html, enrich.html, index.html, llm-costs.html, echo.html, playbook.html, pipeline-archive.html, auth.js, nav.js, nav.css
+- `isExternal` hack from AppNav.tsx — all nav links now use React Router `<Link>`
+- Vanilla page loop from deploy-dashboard.sh — simplified to React-only + roadmap.html
 - **Enrichment Field Audit** (BL-045): Restructure enrichment data model for modularity and extensibility
   - Rename `batches` → `tags` across entire codebase (models, API, frontend, tests — 41 files)
   - New `company_enrichment_l1` table: triage_notes, pre_score, research_query, raw_response, confidence, quality_score, qc_flags

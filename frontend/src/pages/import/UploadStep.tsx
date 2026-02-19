@@ -41,7 +41,10 @@ export function UploadStep({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateFile = useCallback((file: File): string | null => {
-    if (!/\.(csv|xlsx)$/i.test(file.name)) {
+    const validExtension = /\.(csv|xlsx)$/i.test(file.name)
+    const validMime = ['text/csv', 'application/csv', 'text/plain',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(file.type)
+    if (!validExtension && !validMime) {
       return 'Only CSV and XLSX files are supported'
     }
     if (file.size > MAX_FILE_SIZE) {

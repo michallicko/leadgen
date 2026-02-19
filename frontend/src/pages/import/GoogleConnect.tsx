@@ -54,7 +54,8 @@ export function GoogleConnect({ batchName, onBatchNameChange, onComplete }: Goog
 
   const handleConnect = useCallback(async () => {
     try {
-      const data = await getGoogleAuthUrl(window.location.href)
+      const returnUrl = window.location.origin + window.location.pathname
+      const data = await getGoogleAuthUrl(returnUrl)
       window.location.href = data.auth_url
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start OAuth')

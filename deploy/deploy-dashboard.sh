@@ -24,7 +24,10 @@ ssh -i "$VPS_KEY" "$VPS_HOST" "mkdir -p ${VPS_DIR}/dashboard/assets"
 # 2. Deploy React SPA build output (index.html + assets/)
 scp -i "$VPS_KEY" "${FRONTEND_DIR}/dist/index.html" "${VPS_HOST}:${VPS_DIR}/dashboard/"
 scp -i "$VPS_KEY" ${FRONTEND_DIR}/dist/assets/* "${VPS_HOST}:${VPS_DIR}/dashboard/assets/"
-scp -i "$VPS_KEY" ${FRONTEND_DIR}/dist/*.svg "${VPS_HOST}:${VPS_DIR}/dashboard/"
+# SVGs may not exist if Vite inlines them — only copy if present
+if compgen -G "${FRONTEND_DIR}/dist/*.svg" > /dev/null 2>&1; then
+  scp -i "$VPS_KEY" ${FRONTEND_DIR}/dist/*.svg "${VPS_HOST}:${VPS_DIR}/dashboard/"
+fi
 echo "    Copied React SPA build"
 
 # 3. Deploy standalone pages (not part of the React SPA)

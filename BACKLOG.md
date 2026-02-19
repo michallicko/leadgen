@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-045
+**Next ID**: BL-046
 
 ## Must Have
 
@@ -303,6 +303,9 @@ Dashboard screens with infinite scroll, virtual DOM windowing, filters, detail m
 
 ### BL-002: L1 Workflow Postgres Migration (Done 2026-02-16)
 Native Python L1 enrichment via Perplexity sonar API, replacing n8n webhook. 8 QC checks, research storage, review workflow, LinkedIn context. 105 enricher + 32 route tests. ADR-003, PR #1.
+
+### BL-045: Vanilla JS Migration (Done 2026-02-19)
+Eliminate all vanilla JS from the dashboard. Port Import page (3-step wizard, CSV + Google OAuth) and Admin page (namespace/user CRUD) to React. Delete 14 vanilla files (12K lines). Enhanced placeholders for Playbook, Echo, LLM Costs. Simplified deploy script. Spec: `docs/specs/vanilla-js-migration/`. Resolves TD-008.
 
 ### BL-006: Contact List Import & Cleanup — Phase 1 (Done 2026-02-13)
 CSV upload with AI column mapping, dedup preview, batch import. 80 unit tests. ADR-002.
