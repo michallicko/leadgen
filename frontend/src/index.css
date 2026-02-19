@@ -46,6 +46,15 @@
   80% { transform: translateX(2px); }
 }
 
+/* ---- Scrollbar hide ---- */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---- Base styles ---- */
 @layer base {
   body {

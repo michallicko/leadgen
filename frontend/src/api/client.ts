@@ -12,7 +12,14 @@ import {
   getNamespaceFromPath,
 } from '../lib/auth'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
+function resolveApiBase(): string {
+  const env = import.meta.env.VITE_API_BASE
+  if (env) return env
+  const rev = new URLSearchParams(window.location.search).get('rev')
+  return rev ? `/api-rev-${rev}/api` : '/api'
+}
+
+const API_BASE = resolveApiBase()
 
 export class ApiError extends Error {
   status: number
@@ -149,6 +156,93 @@ export async function apiFetch<T = unknown>(
   }
 
   // Handle 204 No Content
+  if (resp.status === 204) {
+    return undefined as T
+  }
+
+  return (await resp.json()) as T
+}
+
+/**
+ * Upload wrapper for FormData (file uploads).
+ * Same auth/refresh/error handling as apiFetch, but does NOT set Content-Type
+ * (browser sets it automatically with the multipart boundary).
+ */
+export async function apiUpload<T = unknown>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  const url = `${API_BASE}${path}`
+
+  let token = getAccessToken()
+
+  // Auto-refresh expired access token
+  if (token && isTokenExpired(token)) {
+    try {
+      token = await refreshAccessToken()
+    } catch {
+      clearTokens()
+      window.location.href = '/'
+      throw new ApiError('Session expired', 401)
+    }
+  }
+
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const ns = getNamespaceFromPath()
+  if (ns) {
+    headers['X-Namespace'] = ns
+  }
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  // 401 — try one refresh, then give up
+  if (resp.status === 401 && token) {
+    try {
+      const newToken = await refreshAccessToken()
+      const retryHeaders: Record<string, string> = {
+        Authorization: `Bearer ${newToken}`,
+      }
+      if (ns) {
+        retryHeaders['X-Namespace'] = ns
+      }
+      const retry = await fetch(url, {
+        method: 'POST',
+        headers: retryHeaders,
+        body: formData,
+      })
+      if (retry.ok) {
+        return (await retry.json()) as T
+      }
+    } catch {
+      // refresh failed — fall through to error handling
+    }
+    clearTokens()
+    window.location.href = '/'
+    throw new ApiError('Session expired', 401)
+  }
+
+  if (!resp.ok) {
+    let errorBody: { error?: string; code?: string; details?: Record<string, unknown> } = {}
+    try {
+      errorBody = (await resp.json()) as typeof errorBody
+    } catch {
+      // non-JSON error
+    }
+    throw new ApiError(
+      errorBody.error ?? `Request failed (${resp.status})`,
+      resp.status,
+      errorBody.code,
+      errorBody.details,
+    )
+  }
+
   if (resp.status === 204) {
     return undefined as T
   }

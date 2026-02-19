@@ -1,7 +1,6 @@
 """Unit tests for L1 company profile enrichment via Perplexity."""
 
 import json
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -122,13 +121,13 @@ class TestDeriveGeoRegion:
         assert self.derive("Czech Republic") == "cee"
 
     def test_uk(self):
-        assert self.derive("United Kingdom") == "uk_ie"
+        assert self.derive("United Kingdom") == "uk_ireland"
 
     def test_france(self):
-        assert self.derive("France") == "france"
+        assert self.derive("France") == "southern_europe"
 
     def test_us(self):
-        assert self.derive("United States") == "north_america"
+        assert self.derive("United States") == "us"
 
     def test_unknown(self):
         assert self.derive("Mars") is None
@@ -155,7 +154,7 @@ class TestMapOwnership:
         assert self.map("Public") == "public"
 
     def test_private(self):
-        assert self.map("Private") == "private"
+        assert self.map("Private") == "bootstrapped"
 
     def test_vc(self):
         assert self.map("VC-backed") == "vc_backed"
@@ -196,11 +195,11 @@ class TestEmployeesToBucket:
     def test_micro(self):
         assert self.bucket(5) == "micro"
 
-    def test_startup(self):
-        assert self.bucket(30) == "startup"
+    def test_small(self):
+        assert self.bucket(30) == "small"
 
-    def test_smb(self):
-        assert self.bucket(100) == "smb"
+    def test_medium(self):
+        assert self.bucket(100) == "medium"
 
     def test_mid_market(self):
         assert self.bucket(500) == "mid_market"
@@ -334,7 +333,7 @@ class TestMapFields:
         assert mapped["hq_city"] == "Berlin"
         assert mapped["hq_country"] == "Germany"
         assert mapped["geo_region"] == "dach"
-        assert mapped["ownership_type"] == "private"
+        assert mapped["ownership_type"] == "bootstrapped"
         assert mapped["industry"] == "software_saas"
         assert mapped["business_type"] == "saas"
         assert mapped["verified_revenue_eur_m"] == 42.0
@@ -354,6 +353,42 @@ class TestMapFields:
         research = {"revenue_eur_m": "unverified"}
         mapped = self.map(research)
         assert "verified_revenue_eur_m" not in mapped
+
+    def test_enum_mapping_applied_geo_region(self):
+        """Verify _map_fields routes geo_region through the enum mapper."""
+        research = {"hq": "London, United Kingdom"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "uk_ireland"
+
+    def test_enum_mapping_applied_ownership(self):
+        """Verify _map_fields routes ownership through the enum mapper."""
+        research = {"ownership": "Privately held"}
+        mapped = self.map(research)
+        assert mapped["ownership_type"] == "bootstrapped"
+
+    def test_enum_mapping_us_from_map_fields(self):
+        """USA country → us geo_region (not north_america)."""
+        research = {"hq": "New York, United States"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "us"
+
+    def test_enum_mapping_france_from_map_fields(self):
+        """France country → southern_europe geo_region (not 'france')."""
+        research = {"hq": "Paris, France"}
+        mapped = self.map(research)
+        assert mapped["geo_region"] == "southern_europe"
+
+    def test_enum_mapping_arts_industry(self):
+        """Arts & entertainment → creative_services via enum mapper."""
+        research = {"industry": "arts & entertainment"}
+        mapped = self.map(research)
+        assert mapped["industry"] == "creative_services"
+
+    def test_enum_mapping_events_industry(self):
+        """Events → creative_services via enum mapper."""
+        research = {"industry": "events"}
+        mapped = self.map(research)
+        assert mapped["industry"] == "creative_services"
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +488,135 @@ class TestValidateResearch:
         assert "source_warning" not in flags
 
 
+class TestLoadPreviousEnrichment:
+    """Test auto-loading previous enrichment data for re-enrichment."""
+
+    def test_load_from_enrichment_table(self, app, db, seed_companies_contacts):
+        """When company has prior L1 enrichment, load it as previous_data."""
+        from api.services.l1_enricher import _load_previous_enrichment
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Insert a prior enrichment record
+            from sqlalchemy import text as sa_text
+            db.session.execute(sa_text("""
+                INSERT INTO company_enrichment_l1 (
+                    company_id, raw_response, qc_flags, confidence, quality_score,
+                    enrichment_cost_usd
+                ) VALUES (
+                    :cid, :raw, :flags, :conf, :qs, :cost
+                )
+            """), {
+                "cid": str(company.id),
+                "raw": '{"summary": "Old summary", "industry": "Software"}',
+                "flags": '["name_mismatch"]',
+                "conf": 0.7,
+                "qs": 85,
+                "cost": 0.001,
+            })
+            db.session.commit()
+
+            prev = _load_previous_enrichment(str(company.id))
+            assert prev is not None
+            assert prev["summary"] == "Old summary"
+            assert prev["industry"] == "Software"
+            assert "name_mismatch" in prev.get("previous_qc_flags", "")
+
+    def test_no_prior_enrichment_returns_none(self, app, db, seed_companies_contacts):
+        """When company has no prior enrichment, return None."""
+        from api.services.l1_enricher import _load_previous_enrichment
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            prev = _load_previous_enrichment(str(company.id))
+            assert prev is None
+
+
+class TestQCThresholdsConfigurable:
+    """Test that QC thresholds can be overridden via config dict."""
+
+    def setup_method(self):
+        from api.services.l1_enricher import _validate_research, QC_DEFAULTS
+        self.validate = _validate_research
+        self.defaults = QC_DEFAULTS
+
+    def _good_research(self, **overrides):
+        base = {
+            "company_name": "Acme Corp",
+            "summary": "A leading software company based in Germany with 500 employees.",
+            "b2b": True,
+            "hq": "Berlin, Germany",
+            "industry": "Software",
+            "employees": 500,
+            "revenue_eur_m": 42,
+            "confidence": 0.8,
+        }
+        base.update(overrides)
+        return base
+
+    def test_defaults_exist(self):
+        """QC_DEFAULTS dict should be importable with all threshold keys."""
+        assert "name_similarity_min" in self.defaults
+        assert "min_critical_fields" in self.defaults
+        assert "confidence_min" in self.defaults
+        assert "summary_min_length" in self.defaults
+
+    def test_name_similarity_custom_threshold(self):
+        """Lower name_similarity_min should pass previously-flagged names."""
+        # "Acme Corp" vs "Acme Corporation" fails at 0.6 but passes at 0.3
+        research = self._good_research(company_name="Acme Corporation Ltd")
+        # Default should NOT flag (similar enough)
+        flags = self.validate(research, "Acme Corp")
+        assert "name_mismatch" not in flags
+
+        # Very different name should still flag
+        research2 = self._good_research(company_name="Completely Different Inc")
+        flags2 = self.validate(research2, "Acme Corp", qc_config={"name_similarity_min": 0.3})
+        assert "name_mismatch" in flags2
+
+    def test_lenient_name_threshold_passes_close_names(self):
+        """With a very low threshold, close-ish names should pass."""
+        research = self._good_research(company_name="Completely Different Inc")
+        # With default 0.6 it fails
+        flags_default = self.validate(research, "Acme Corp")
+        assert "name_mismatch" in flags_default
+        # With 0.0 threshold everything passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"name_similarity_min": 0.0})
+        assert "name_mismatch" not in flags_lenient
+
+    def test_critical_fields_threshold_configurable(self):
+        """Lower min_critical_fields should pass research with fewer fields."""
+        # Only 3 of 5 fields → fails at threshold 4
+        research = self._good_research(employees="unverified", revenue_eur_m="unverified")
+        flags_strict = self.validate(research, "Acme Corp")
+        assert "incomplete_research" in flags_strict
+        # Passes at threshold 3
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"min_critical_fields": 3})
+        assert "incomplete_research" not in flags_lenient
+
+    def test_confidence_threshold_configurable(self):
+        """Custom confidence_min should change when low_confidence fires."""
+        research = self._good_research(confidence=0.35)
+        # Default 0.4 → flags it
+        flags_default = self.validate(research, "Acme Corp")
+        assert "low_confidence" in flags_default
+        # Threshold 0.3 → passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"confidence_min": 0.3})
+        assert "low_confidence" not in flags_lenient
+
+    def test_summary_length_configurable(self):
+        """Custom summary_min_length should change when summary_too_short fires."""
+        research = self._good_research(summary="A decent company summary")
+        # Default 30 → flags (24 chars)
+        flags_default = self.validate(research, "Acme Corp")
+        assert "summary_too_short" in flags_default
+        # Threshold 20 → passes
+        flags_lenient = self.validate(research, "Acme Corp", qc_config={"summary_min_length": 20})
+        assert "summary_too_short" not in flags_lenient
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (with DB, mocked Perplexity)
 # ---------------------------------------------------------------------------
@@ -477,48 +641,51 @@ MOCK_PERPLEXITY_RESPONSE = {
 }
 
 
-def _mock_perplexity_success(*args, **kwargs):
-    """Mock requests.post for Perplexity API returning success."""
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "choices": [{
-            "message": {
-                "content": json.dumps(MOCK_PERPLEXITY_RESPONSE),
-            }
-        }],
-        "usage": {
-            "prompt_tokens": 350,
-            "completion_tokens": 200,
-        },
-    }
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
-
-
-def _mock_perplexity_error(*args, **kwargs):
-    """Mock requests.post for Perplexity API returning error."""
-    import requests as req
+def _make_mock_pplx_response(content_dict, input_tokens=350, output_tokens=200, cost=0.00055):
+    """Create a mock PerplexityResponse object."""
     resp = MagicMock()
-    resp.status_code = 500
-    resp.raise_for_status.side_effect = req.HTTPError("Server error")
+    resp.content = json.dumps(content_dict)
+    resp.model = "sonar"
+    resp.input_tokens = input_tokens
+    resp.output_tokens = output_tokens
+    resp.cost_usd = cost
     return resp
 
 
-def _mock_perplexity_bad_json(*args, **kwargs):
-    """Mock requests.post returning unparseable response."""
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "choices": [{
-            "message": {
-                "content": "I couldn't find any information about this company.",
-            }
-        }],
-        "usage": {"prompt_tokens": 100, "completion_tokens": 20},
-    }
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
+def _patch_perplexity_client(response):
+    """Return a patch context manager that mocks PerplexityClient.
+
+    The mock's .query() returns the given response object.
+    """
+    mock_client_cls = MagicMock()
+    instance = mock_client_cls.return_value
+    instance.query.return_value = response
+    return patch("api.services.l1_enricher.PerplexityClient", mock_client_cls)
+
+
+def _mock_perplexity_success_response():
+    """Create a successful mock PerplexityResponse."""
+    return _make_mock_pplx_response(MOCK_PERPLEXITY_RESPONSE)
+
+
+def _mock_perplexity_error_client():
+    """Return a patch that makes PerplexityClient.query() raise an error."""
+    import requests as req
+    mock_client_cls = MagicMock()
+    instance = mock_client_cls.return_value
+    instance.query.side_effect = req.HTTPError("Server error")
+    return patch("api.services.l1_enricher.PerplexityClient", mock_client_cls)
+
+
+def _mock_perplexity_bad_json_response():
+    """Create a mock PerplexityResponse with unparseable content."""
+    resp = MagicMock()
+    resp.content = "I couldn't find any information about this company."
+    resp.model = "sonar"
+    resp.input_tokens = 100
+    resp.output_tokens = 20
+    resp.cost_usd = 0.00012
+    return resp
 
 
 class TestEnrichL1Integration:
@@ -533,7 +700,7 @@ class TestEnrichL1Integration:
             # Set Perplexity API key in config
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_success):
+            with _patch_perplexity_client(_mock_perplexity_success_response()):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -560,7 +727,7 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_error):
+            with _mock_perplexity_error_client():
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -581,7 +748,7 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_bad_json):
+            with _patch_perplexity_client(_mock_perplexity_bad_json_response()):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -604,20 +771,10 @@ class TestEnrichL1Integration:
         bad_research["confidence"] = 0.2
         bad_research["b2b"] = None
 
-        def _mock_bad_qc(*args, **kwargs):
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {
-                "choices": [{"message": {"content": json.dumps(bad_research)}}],
-                "usage": {"prompt_tokens": 350, "completion_tokens": 200},
-            }
-            mock_resp.raise_for_status = MagicMock()
-            return mock_resp
-
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_bad_qc):
+            with _patch_perplexity_client(_make_mock_pplx_response(bad_research)):
                 from api.services.l1_enricher import enrich_l1
                 result = enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -670,7 +827,7 @@ class TestEnrichL1Integration:
 
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            with patch("api.services.l1_enricher.requests.post", side_effect=_mock_perplexity_success):
+            with _patch_perplexity_client(_mock_perplexity_success_response()):
                 from api.services.l1_enricher import enrich_l1
                 enrich_l1(str(company.id), str(data["tenant"].id))
 
@@ -689,17 +846,111 @@ class TestEnrichL1Integration:
         with app.app_context():
             app.config["PERPLEXITY_API_KEY"] = "test-key"
 
-            captured_payload = {}
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = _mock_perplexity_success_response()
 
-            def _capture_post(*args, **kwargs):
-                captured_payload.update(kwargs.get("json", {}))
-                return _mock_perplexity_success()
-
-            with patch("api.services.l1_enricher.requests.post", side_effect=_capture_post):
                 from api.services.l1_enricher import enrich_l1
                 enrich_l1(str(company.id), str(data["tenant"].id))
 
-            # The user message should contain LinkedIn URLs
-            user_msg = captured_payload["messages"][1]["content"]
-            assert "linkedin.com/in/" in user_msg
-            assert "Known employees" in user_msg
+                # Check that the user_prompt passed to client.query contains LinkedIn URLs
+                query_call = instance.query.call_args
+                user_prompt = query_call[1]["user_prompt"]
+                assert "linkedin.com/in/" in user_prompt
+                assert "Known employees" in user_prompt
+
+
+class TestPerplexityClientIntegration:
+    """Test that L1 enricher uses the shared PerplexityClient."""
+
+    def test_standard_model_used_by_default(self, app, db, seed_companies_contacts):
+        """Without boost, L1 uses the standard Perplexity model from BOOST_MODELS."""
+        from api.services.stage_registry import BOOST_MODELS
+
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = BOOST_MODELS["l1"]["standard"]
+            mock_response.input_tokens = 350
+            mock_response.output_tokens = 200
+            mock_response.cost_usd = 0.00055
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id))
+
+                # Verify the client was instantiated with the API key
+                MockClient.assert_called_once()
+                call_kwargs = MockClient.call_args
+                assert call_kwargs[1]["api_key"] == "test-key" or call_kwargs[0][0] == "test-key"
+
+                # Verify query was called with the standard model
+                query_call = instance.query.call_args
+                assert query_call[1]["model"] == BOOST_MODELS["l1"]["standard"]
+
+            assert result["qc_flags"] == []
+            assert result["enrichment_cost_usd"] > 0
+
+    def test_boost_model_used_when_boost_true(self, app, db, seed_companies_contacts):
+        """With boost=True, L1 uses the boost Perplexity model."""
+        from api.services.stage_registry import BOOST_MODELS
+
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = BOOST_MODELS["l1"]["boost"]
+            mock_response.input_tokens = 350
+            mock_response.output_tokens = 200
+            mock_response.cost_usd = 0.0063
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id),
+                                   boost=True)
+
+                # Verify boost model was requested
+                query_call = instance.query.call_args
+                assert query_call[1]["model"] == BOOST_MODELS["l1"]["boost"]
+
+            assert result["enrichment_cost_usd"] > 0
+
+    def test_cost_from_client_used(self, app, db, seed_companies_contacts):
+        """Cost should come from the PerplexityClient response."""
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            mock_response = MagicMock()
+            mock_response.content = json.dumps(MOCK_PERPLEXITY_RESPONSE)
+            mock_response.model = "sonar"
+            mock_response.input_tokens = 500
+            mock_response.output_tokens = 300
+            mock_response.cost_usd = 0.123  # Distinctive value
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient:
+                instance = MockClient.return_value
+                instance.query.return_value = mock_response
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id))
+
+            # Cost should match the client's cost_usd
+            assert result["enrichment_cost_usd"] == 0.123

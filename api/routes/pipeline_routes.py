@@ -642,6 +642,8 @@ def pipeline_dag_status():
                         stage_data["current_item"] = sr_config["current_item"]
                     if sr_config.get("recent_items"):
                         stage_data["recent_items"] = sr_config["recent_items"]
+                    if sr_config.get("failed_items"):
+                        stage_data["failed_items"] = sr_config["failed_items"]
                 except (json.JSONDecodeError, TypeError):
                     pass
             stage_statuses[stage_code] = stage_data

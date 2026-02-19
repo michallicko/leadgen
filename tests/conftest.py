@@ -143,8 +143,8 @@ def auth_header(client, email="admin@test.com", password="testpass123"):
 def seed_companies_contacts(db, seed_tenant, seed_super_admin):
     """Seed owners, tags, companies (mixed statuses/tiers), and contacts for testing."""
     from api.models import (
-        Tag, Company, CompanyEnrichmentL2, CompanyTag,
-        Contact, ContactEnrichment, Message, Owner, UserTenantRole,
+        Tag, Company, CompanyEnrichmentL2, CompanyTag, CompanyTagAssignment,
+        Contact, ContactEnrichment, ContactTagAssignment, Message, Owner, UserTenantRole,
     )
 
     # Give super_admin editor role on tenant
@@ -188,14 +188,29 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
         companies.append(c)
     db.session.flush()
 
-    # L2 enrichment for Delta GmbH
-    l2 = CompanyEnrichmentL2(
+    # Populate company_tag_assignments junction table (mirrors tag_id FK)
+    for c in companies:
+        if c.tag_id:
+            db.session.add(CompanyTagAssignment(
+                tenant_id=seed_tenant.id, company_id=c.id, tag_id=c.tag_id,
+            ))
+    db.session.flush()
+
+    # L2 enrichment for Delta GmbH (module tables)
+    from api.models import CompanyEnrichmentProfile, CompanyEnrichmentMarket, CompanyEnrichmentOpportunity
+    l2_profile = CompanyEnrichmentProfile(
         company_id=companies[3].id,
         company_intel="Leading manufacturer in DACH region",
+    )
+    l2_market = CompanyEnrichmentMarket(
+        company_id=companies[3].id,
         recent_news="Expanded to new markets",
+    )
+    l2_opportunity = CompanyEnrichmentOpportunity(
+        company_id=companies[3].id,
         ai_opportunities="Process automation in supply chain",
     )
-    db.session.add(l2)
+    db.session.add_all([l2_profile, l2_market, l2_opportunity])
 
     # Tags for Beta Inc
     tags = [
@@ -229,6 +244,14 @@ def seed_companies_contacts(db, seed_tenant, seed_super_admin):
         )
         db.session.add(ct)
         contacts.append(ct)
+    db.session.flush()
+
+    # Populate contact_tag_assignments junction table (mirrors tag_id FK)
+    for ct in contacts:
+        if ct.tag_id:
+            db.session.add(ContactTagAssignment(
+                tenant_id=seed_tenant.id, contact_id=ct.id, tag_id=ct.tag_id,
+            ))
     db.session.flush()
 
     # Contact enrichment for John Doe

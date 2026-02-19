@@ -155,24 +155,36 @@ class TestBuildEligibilityQuery:
             )
         assert len(ids) == 5  # All 5 companies
 
-    def test_l2_requires_l1_completed(self, app, db, seed_tenant):
-        """L2 requires L1 completed — only companies with L1 completion are eligible."""
+    def test_l2_requires_triage_completed(self, app, db, seed_tenant):
+        """L2 requires triage completed — only companies with L1+triage are eligible."""
         from api.services.dag_executor import get_dag_eligible_ids, record_completion
 
         data = _seed_dag_data(db, seed_tenant)
 
         with app.app_context():
-            # No L1 completions — L2 should have 0 eligible
+            # No completions — L2 should have 0 eligible
             ids = get_dag_eligible_ids(
                 "l2", data["pipeline_run"].id,
                 seed_tenant.id, data["tag"].id,
             )
             assert len(ids) == 0
 
-            # Complete L1 for first company
+            # Complete L1 for first company — still not eligible (triage missing)
             record_completion(
                 seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
                 "company", data["companies"][0].id, "l1",
+            )
+
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 0
+
+            # Complete triage for first company — now eligible for L2
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", data["companies"][0].id, "triage",
             )
 
             ids = get_dag_eligible_ids(
@@ -399,7 +411,7 @@ class TestDagRunEndpoint:
         resp = client.post("/api/pipeline/dag-run",
                            json={
                                "tag_name": "test-batch",
-                               "stages": ["l1", "l2"],
+                               "stages": ["l1", "triage", "l2"],
                                "soft_deps": {},
                            },
                            headers=headers)
@@ -408,8 +420,9 @@ class TestDagRunEndpoint:
         assert "pipeline_run_id" in data
         assert "stage_run_ids" in data
         assert "l1" in data["stage_run_ids"]
+        assert "triage" in data["stage_run_ids"]
         assert "l2" in data["stage_run_ids"]
-        assert data["stage_order"] == ["l1", "l2"]
+        assert data["stage_order"] == ["l1", "triage", "l2"]
 
 
 class TestDagStatusEndpoint:
@@ -475,6 +488,354 @@ class TestDagStopEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Triage gate integration
+# ---------------------------------------------------------------------------
+
+class TestTriageGateIntegration:
+    """Test triage gate stage in DAG pipeline."""
+
+    def _setup_company_for_triage(self, db, company, tier="tier_1",
+                                   industry="software_saas", b2b=True):
+        """Set company fields + insert L1 enrichment for triage evaluation."""
+        from sqlalchemy import text as sa_text
+
+        db.session.execute(sa_text("""
+            UPDATE companies
+            SET tier = :tier, industry = :industry
+            WHERE id = :id
+        """), {"tier": tier, "industry": industry, "id": str(company.id)})
+
+        # Insert L1 enrichment with b2b in raw_response
+        raw = json.dumps({"b2b": b2b, "company_name": "Test"})
+        db.session.execute(sa_text("""
+            INSERT INTO company_enrichment_l1 (company_id, raw_response, qc_flags,
+                enrichment_cost_usd)
+            VALUES (:cid, :raw, '[]', 0)
+            ON CONFLICT (company_id) DO UPDATE
+            SET raw_response = :raw, qc_flags = '[]'
+        """), {"cid": str(company.id), "raw": raw})
+        db.session.commit()
+
+    def test_process_entity_triage_passes_good_company(self, app, db, seed_tenant):
+        """Triage stage processes a company and returns gate_passed=True."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, tier="tier_1",
+                                            industry="software_saas", b2b=True)
+
+            result = _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            assert isinstance(result, dict)
+            assert result["gate_passed"] is True
+            assert result["enrichment_cost_usd"] == 0
+
+    def test_process_entity_triage_fails_non_b2b(self, app, db, seed_tenant):
+        """Triage disqualifies a non-B2B company."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, b2b=False)
+
+            result = _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            assert result["gate_passed"] is False
+            assert len(result["gate_reasons"]) > 0
+            assert result["enrichment_cost_usd"] == 0
+
+    def test_process_entity_triage_uses_custom_rules(self, app, db, seed_tenant):
+        """Triage accepts custom rules via triage_rules parameter."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, tier="tier_3",
+                                            industry="manufacturing", b2b=True)
+
+            # With tier allowlist that excludes tier_3
+            result = _process_entity(
+                "triage", str(company.id), str(seed_tenant.id),
+                triage_rules={"tier_allowlist": ["tier_1", "tier_2"]},
+            )
+            assert result["gate_passed"] is False
+
+    def test_triage_disqualified_blocks_l2(self, app, db, seed_tenant):
+        """Company with triage status='disqualified' is NOT eligible for L2."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Complete L1
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            # Record triage as disqualified
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="disqualified",
+            )
+
+            # L2 should have 0 eligible (triage not "completed")
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 0
+
+    def test_triage_passed_enables_l2(self, app, db, seed_tenant):
+        """Company with triage status='completed' IS eligible for L2."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Complete L1
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            # Record triage as completed (passed)
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="completed",
+            )
+
+            ids = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids) == 1
+            assert ids[0] == str(company.id)
+
+    def test_triage_sets_company_status_disqualified(self, app, db, seed_tenant):
+        """When triage fails, company status is set to triage_disqualified."""
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_triage(db, company, b2b=False)
+
+            _process_entity("triage", str(company.id), str(seed_tenant.id))
+
+            from sqlalchemy import text as sa_text
+            row = db.session.execute(sa_text(
+                "SELECT status FROM companies WHERE id = :id"
+            ), {"id": str(company.id)}).fetchone()
+            assert row[0] == "triage_disqualified"
+
+
+# ---------------------------------------------------------------------------
+# L2 enrichment integration
+# ---------------------------------------------------------------------------
+
+class TestL2Integration:
+    """Test L2 stage dispatch through _process_entity."""
+
+    def _setup_company_for_l2(self, db, company, tenant_id):
+        """Set company to triage_passed + insert L1 enrichment data."""
+        from sqlalchemy import text as sa_text
+
+        db.session.execute(sa_text("""
+            UPDATE companies
+            SET status = 'triage_passed', tier = 'tier_1',
+                industry = 'software_saas'
+            WHERE id = :id
+        """), {"id": str(company.id)})
+
+        raw = json.dumps({
+            "company_name": company.name,
+            "summary": "A B2B SaaS platform",
+            "b2b": True,
+            "industry": "software_saas",
+            "revenue_eur_m": 10.0,
+            "employees": 120,
+            "hq": "Berlin, Germany",
+        })
+        db.session.execute(sa_text("""
+            INSERT INTO company_enrichment_l1 (company_id, raw_response, qc_flags,
+                enrichment_cost_usd)
+            VALUES (:cid, :raw, '[]', 0)
+            ON CONFLICT (company_id) DO UPDATE
+            SET raw_response = :raw, qc_flags = '[]'
+        """), {"cid": str(company.id), "raw": raw})
+        db.session.commit()
+
+    def test_l2_dispatches_to_direct_enricher(self, app, db, seed_tenant):
+        """L2 stage dispatches to enrich_l2 (not n8n webhook)."""
+        from unittest.mock import patch, MagicMock
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.009}
+                result = _process_entity("l2", str(company.id),
+                                         str(seed_tenant.id))
+
+            mock_l2.assert_called_once_with(
+                str(company.id), str(seed_tenant.id), previous_data=None,
+            )
+            assert result["enrichment_cost_usd"] == 0.009
+
+    def test_l2_does_not_call_n8n(self, app, db, seed_tenant):
+        """L2 stage should NOT call n8n webhook anymore."""
+        from unittest.mock import patch, MagicMock
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2, \
+                 patch("api.services.pipeline_engine.call_n8n_webhook") as mock_n8n:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.005}
+                _process_entity("l2", str(company.id),
+                                str(seed_tenant.id))
+
+            mock_n8n.assert_not_called()
+
+    def test_l2_passes_previous_data(self, app, db, seed_tenant):
+        """L2 stage forwards previous_data to enricher."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            self._setup_company_for_l2(db, company, seed_tenant.id)
+
+            prev = {"l1": {"summary": "test"}}
+            with patch("api.services.l2_enricher.enrich_l2") as mock_l2:
+                mock_l2.return_value = {"enrichment_cost_usd": 0.01}
+                _process_entity("l2", str(company.id),
+                                str(seed_tenant.id),
+                                previous_data=prev)
+
+            mock_l2.assert_called_once_with(
+                str(company.id), str(seed_tenant.id), previous_data=prev,
+            )
+
+    def test_l2_eligible_after_triage_passed(self, app, db, seed_tenant):
+        """L2 DAG eligibility requires triage completed."""
+        from api.services.dag_executor import get_dag_eligible_ids, record_completion
+
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+
+        with app.app_context():
+            # Before triage: no L2 eligible
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "l1",
+            )
+            ids_before = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids_before) == 0
+
+            # After triage completed: L2 eligible
+            record_completion(
+                seed_tenant.id, data["tag"].id, data["pipeline_run"].id,
+                "company", company.id, "triage",
+                status="completed",
+            )
+            ids_after = get_dag_eligible_ids(
+                "l2", data["pipeline_run"].id,
+                seed_tenant.id, data["tag"].id,
+            )
+            assert len(ids_after) == 1
+            assert ids_after[0] == str(company.id)
+
+
+# ---------------------------------------------------------------------------
+# Person enrichment integration
+# ---------------------------------------------------------------------------
+
+class TestPersonIntegration:
+    """Test person stage dispatch through _process_entity."""
+
+    def test_person_dispatches_to_direct_enricher(self, app, db, seed_tenant):
+        """Person stage dispatches to enrich_person (not n8n webhook)."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            with patch("api.services.person_enricher.enrich_person") as mock_person:
+                mock_person.return_value = {"enrichment_cost_usd": 0.007}
+                result = _process_entity("person", str(contact.id),
+                                         str(seed_tenant.id))
+
+            mock_person.assert_called_once_with(
+                str(contact.id), str(seed_tenant.id), previous_data=None,
+            )
+            assert result["enrichment_cost_usd"] == 0.007
+
+    def test_person_does_not_call_n8n(self, app, db, seed_tenant):
+        """Person stage should NOT call n8n webhook anymore."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            with patch("api.services.person_enricher.enrich_person") as mock_person, \
+                 patch("api.services.pipeline_engine.call_n8n_webhook") as mock_n8n:
+                mock_person.return_value = {"enrichment_cost_usd": 0.005}
+                _process_entity("person", str(contact.id),
+                                str(seed_tenant.id))
+
+            mock_n8n.assert_not_called()
+
+    def test_person_passes_previous_data(self, app, db, seed_tenant):
+        """Person stage forwards previous_data to enricher."""
+        from unittest.mock import patch
+        from api.services.pipeline_engine import _process_entity
+
+        data = _seed_dag_data(db, seed_tenant)
+        contact = data["contacts"][0]
+
+        with app.app_context():
+            prev = {"l1": {"summary": "test"}, "l2": {"pain": "growth"}}
+            with patch("api.services.person_enricher.enrich_person") as mock_person:
+                mock_person.return_value = {"enrichment_cost_usd": 0.01}
+                _process_entity("person", str(contact.id),
+                                str(seed_tenant.id),
+                                previous_data=prev)
+
+            mock_person.assert_called_once_with(
+                str(contact.id), str(seed_tenant.id), previous_data=prev,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Old endpoints still work
 # ---------------------------------------------------------------------------
 
@@ -505,3 +866,123 @@ class TestOldEndpointsUnchanged:
         assert resp.status_code == 200
         data = resp.get_json()
         assert "stages" in data
+
+
+class TestFailedItemsTracking:
+    """Test that _update_current_item tracks failed entities with error messages."""
+
+    def test_failed_items_stored_in_config(self, app, db, seed_tenant):
+        """When status=failed, entity is added to failed_items array in config."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+        from sqlalchemy import text
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Acme Corp", status="failed", error_msg="API timeout")
+
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert "failed_items" in config
+        assert len(config["failed_items"]) == 1
+        assert config["failed_items"][0]["name"] == "Acme Corp"
+        assert config["failed_items"][0]["error"] == "API timeout"
+
+    def test_failed_items_accumulate(self, app, db, seed_tenant):
+        """Multiple failures accumulate in the failed_items array."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Alpha", status="failed", error_msg="Error 1")
+        _update_current_item(sr.id, "Beta", status="failed", error_msg="Error 2")
+        _update_current_item(sr.id, "Gamma", status="failed")
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"]) == 3
+        assert config["failed_items"][0]["name"] == "Alpha"
+        assert config["failed_items"][1]["name"] == "Beta"
+        assert config["failed_items"][2]["name"] == "Gamma"
+        assert "error" not in config["failed_items"][2]  # no error_msg for Gamma
+
+    def test_error_message_truncated(self, app, db, seed_tenant):
+        """Long error messages are truncated to 200 characters."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        long_error = "x" * 500
+        _update_current_item(sr.id, "LongErr Corp", status="failed", error_msg=long_error)
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"][0]["error"]) == 200
+
+    def test_successful_items_not_in_failed(self, app, db, seed_tenant):
+        """Items with status=completed do not appear in failed_items."""
+        from api.services.pipeline_engine import _update_current_item
+        from api.models import StageRun
+
+        sr = StageRun(
+            id=str(uuid.uuid4()),
+            tenant_id=seed_tenant.id,
+            stage="l1",
+            status="running",
+            total=5, done=0, failed=0,
+            config=json.dumps({}),
+        )
+        db.session.add(sr)
+        db.session.commit()
+
+        _update_current_item(sr.id, "Good Corp", status="completed")
+        _update_current_item(sr.id, "Bad Corp", status="failed", error_msg="boom")
+
+        from sqlalchemy import text
+        row = db.session.execute(
+            text("SELECT config FROM stage_runs WHERE id = :id"),
+            {"id": str(sr.id)},
+        ).fetchone()
+        config = json.loads(row[0])
+        assert len(config["failed_items"]) == 1
+        assert config["failed_items"][0]["name"] == "Bad Corp"

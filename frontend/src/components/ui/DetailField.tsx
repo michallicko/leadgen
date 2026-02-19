@@ -6,8 +6,11 @@ export type { SourceInfo } from './SourceTooltip'
 
 /* ---- FieldGrid: 2-column responsive layout ---- */
 
-export function FieldGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">{children}</div>
+export function FieldGrid({ children, cols }: { children: ReactNode; cols?: 2 | 3 }) {
+  const gridClass = cols === 3
+    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3'
+    : 'grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3'
+  return <div className={gridClass}>{children}</div>
 }
 
 /* ---- Field: read-only label + value ---- */

@@ -10,13 +10,14 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from decimal import Decimal
 
-import requests
 from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
+from .enum_mapper import map_enum_value
+from .perplexity_client import PerplexityClient
+from .stage_registry import get_model_for_stage
 
 # Import llm_logger functions — uses existing pricing if perplexity entries
 # are present, otherwise falls back to wildcard pricing
@@ -71,8 +72,8 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
   "markets": ["list", "of", "markets"],
   "founded": "YYYY or null",
   "ownership": "Public|Private|Family-owned|PE-backed (name)|VC-backed|Government|Cooperative|Unknown",
-  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|pharma_biotech|manufacturing|automotive|aerospace_defense|retail|hospitality|media|energy|telecom|transport|construction|real_estate|agriculture|education|public_sector|other",
-  "business_model": "EXACTLY ONE OF: manufacturer|distributor|service_provider|saas|platform|other",
+  "industry": "EXACTLY ONE OF: software_saas|it|professional_services|financial_services|healthcare|pharma_biotech|manufacturing|automotive|aerospace_defense|retail|hospitality|media|energy|telecom|transport|construction|real_estate|agriculture|education|public_sector|creative_services|other",
+  "business_type": "EXACTLY ONE OF: distributor|hybrid|manufacturer|platform|product_company|saas|service_company (product_company = builds/sells own product; saas = cloud software; service_company = consulting/agency/outsourcing; manufacturer = physical production; distributor = resale/wholesale; platform = marketplace/exchange; hybrid = multiple models)",
   "revenue_eur_m": "Annual revenue in EUR millions (number) or 'unverified'",
   "revenue_year": "YYYY of the revenue figure",
   "revenue_source": "Where the revenue figure comes from",
@@ -87,13 +88,14 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def enrich_l1(company_id, tenant_id=None, previous_data=None):
+def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     """Run L1 enrichment for a single company.
 
     Args:
         company_id: UUID string of the company
         tenant_id: UUID string of the tenant (optional, read from company if not given)
         previous_data: dict of prior enrichment fields for re-enrichment context
+        boost: if True, use higher-quality (more expensive) Perplexity model
 
     Returns:
         dict with enrichment_cost_usd and qc_flags
@@ -127,13 +129,24 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
     if not domain:
         domain = _resolve_domain(company_id)
 
+    # 2b. Auto-load previous enrichment if not provided
+    if previous_data is None:
+        previous_data = _load_previous_enrichment(company_id)
+
     # 3. Call Perplexity
+    model = get_model_for_stage("l1", boost=boost)
     try:
-        raw_response, usage = _call_perplexity(company_name, domain,
-                                                existing_industry, existing_size,
-                                                existing_revenue,
-                                                contact_linkedin_urls,
-                                                previous_data=previous_data)
+        pplx_response = _call_perplexity(company_name, domain,
+                                          existing_industry, existing_size,
+                                          existing_revenue,
+                                          contact_linkedin_urls,
+                                          previous_data=previous_data,
+                                          model=model)
+        raw_response = pplx_response.content
+        usage = {
+            "input_tokens": pplx_response.input_tokens,
+            "output_tokens": pplx_response.output_tokens,
+        }
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
         _set_company_status(company_id, "enrichment_failed",
@@ -154,18 +167,11 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
     # 6. QC validation
     qc_flags = _validate_research(research, company_name)
 
-    # 7. Compute cost
+    # 7. Compute cost (use client's cost tracking)
     duration_ms = int((time.time() - start_time) * 1000)
     input_tokens = usage.get("input_tokens", 0)
     output_tokens = usage.get("output_tokens", 0)
-    cost = Decimal("0")
-    if compute_cost:
-        cost = compute_cost("perplexity", PERPLEXITY_MODEL, input_tokens, output_tokens)
-    # Fallback if compute_cost unavailable or returned 0 (no pricing entry)
-    if cost == 0 and (input_tokens + output_tokens) > 0:
-        # $1/1M tokens for both input and output (sonar pricing)
-        cost = (Decimal(str(input_tokens)) + Decimal(str(output_tokens))) / Decimal("1000000")
-    cost_float = float(cost)
+    cost_float = pplx_response.cost_usd
 
     # 8. Determine status
     if qc_flags:
@@ -190,7 +196,7 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
 
     # 10. INSERT research_asset (raw SQL — table may not exist in tests)
     _insert_research_asset(
-        tenant_id, company_id, PERPLEXITY_MODEL, cost_float,
+        tenant_id, company_id, model, cost_float,
         research, confidence_score, quality_score,
     )
 
@@ -199,12 +205,13 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None):
         log_llm_usage(
             tenant_id=tenant_id,
             operation="l1_enrichment",
-            model=PERPLEXITY_MODEL,
+            model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             provider="perplexity",
             duration_ms=duration_ms,
-            metadata={"company_id": company_id, "company_name": company_name},
+            metadata={"company_id": company_id, "company_name": company_name,
+                       "boost": boost},
         )
 
     db.session.commit()
@@ -272,22 +279,83 @@ def _get_contact_linkedin_urls(company_id, limit=3):
 
 
 # ---------------------------------------------------------------------------
+# Previous enrichment loader
+# ---------------------------------------------------------------------------
+
+def _load_previous_enrichment(company_id):
+    """Load prior L1 enrichment data for re-enrichment context.
+
+    Reads from company_enrichment_l1 table. Returns dict of prior research
+    fields + QC flags, or None if no prior enrichment exists.
+    """
+    try:
+        row = db.session.execute(
+            text("""
+                SELECT raw_response, qc_flags, confidence, quality_score
+                FROM company_enrichment_l1
+                WHERE company_id = :id
+            """),
+            {"id": str(company_id)},
+        ).fetchone()
+    except Exception as e:
+        logger.debug("Could not load previous enrichment for %s: %s", company_id, e)
+        return None
+
+    if not row:
+        return None
+
+    raw_response = row[0]
+    qc_flags = row[1]
+    confidence = row[2]
+    quality_score = row[3]
+
+    # Parse raw_response JSON
+    prev = {}
+    if raw_response:
+        try:
+            prev = json.loads(raw_response) if isinstance(raw_response, str) else {}
+        except (json.JSONDecodeError, ValueError):
+            prev = {}
+
+    # Add QC context so the LLM can address previous issues
+    if qc_flags:
+        try:
+            flags_list = json.loads(qc_flags) if isinstance(qc_flags, str) else qc_flags
+            if flags_list:
+                prev["previous_qc_flags"] = ", ".join(str(f) for f in flags_list)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    if confidence is not None:
+        prev["previous_confidence"] = float(confidence)
+    if quality_score is not None:
+        prev["previous_quality_score"] = int(quality_score)
+
+    return prev if prev else None
+
+
+# ---------------------------------------------------------------------------
 # Perplexity API call
 # ---------------------------------------------------------------------------
 
 def _call_perplexity(company_name, domain, existing_industry, existing_size,
                      existing_revenue, contact_linkedin_urls=None,
-                     previous_data=None):
+                     previous_data=None, model=None):
     """Call Perplexity sonar API for company research.
 
+    Args:
+        model: Perplexity model name (default: PERPLEXITY_MODEL constant)
+
     Returns:
-        tuple of (content_string, usage_dict)
+        PerplexityResponse with .content, .input_tokens, .output_tokens, .cost_usd
     """
     api_key = current_app.config.get("PERPLEXITY_API_KEY", "")
     base_url = current_app.config.get("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
 
     if not api_key:
         raise ValueError("PERPLEXITY_API_KEY not configured")
+
+    model = model or PERPLEXITY_MODEL
 
     # Build user prompt
     domain_line = f"Domain: {domain}" if domain else "Domain: unknown"
@@ -332,38 +400,19 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
         claims_section=claims_section,
     ) + previous_section
 
-    payload = {
-        "model": PERPLEXITY_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": PERPLEXITY_MAX_TOKENS,
-        "temperature": PERPLEXITY_TEMPERATURE,
-        "search_recency_filter": "month",
-    }
-
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=60,
+    client = PerplexityClient(
+        api_key=api_key,
+        base_url=base_url,
+        default_model=model,
     )
-    resp.raise_for_status()
-    data = resp.json()
 
-    content = data["choices"][0]["message"]["content"]
-    usage = data.get("usage", {})
-    # Perplexity uses prompt_tokens / completion_tokens
-    token_usage = {
-        "input_tokens": usage.get("prompt_tokens", 0),
-        "output_tokens": usage.get("completion_tokens", 0),
-    }
-
-    return content, token_usage
+    return client.query(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=PERPLEXITY_MAX_TOKENS,
+        temperature=PERPLEXITY_TEMPERATURE,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -434,13 +483,19 @@ def _map_fields(research):
     if ownership:
         mapped["ownership_type"] = _map_ownership(ownership)
 
-    # industry
+    # industry + industry_category
     industry = research.get("industry")
     if industry:
-        mapped["industry"] = _map_industry(industry)
+        mapped_industry = _map_industry(industry)
+        mapped["industry"] = mapped_industry
+        if mapped_industry:
+            from api.services.field_schema import industry_to_category
+            cat = industry_to_category(mapped_industry)
+            if cat:
+                mapped["industry_category"] = cat
 
-    # business_type
-    bm = research.get("business_model")
+    # business_type (Perplexity field is still "business_model" in prompt → maps to DB business_type)
+    bm = research.get("business_model") or research.get("business_type")
     if bm:
         mapped["business_type"] = _map_business_type(bm)
 
@@ -549,51 +604,32 @@ def _parse_employees(raw):
 
 
 def _derive_geo_region(country_str):
-    """Map country name to geo_region enum value."""
-    if not country_str:
-        return None
+    """Map country name to geo_region enum value.
 
-    c = country_str.strip().lower()
-
-    region_map = {
-        # DACH
-        "germany": "dach", "deutschland": "dach", "austria": "dach",
-        "österreich": "dach", "switzerland": "dach", "schweiz": "dach",
-        "liechtenstein": "dach",
-        # Nordics
-        "sweden": "nordics", "norway": "nordics", "denmark": "nordics",
-        "finland": "nordics", "iceland": "nordics",
-        # CEE
-        "czech republic": "cee", "czechia": "cee", "poland": "cee",
-        "hungary": "cee", "slovakia": "cee", "romania": "cee",
-        "bulgaria": "cee", "croatia": "cee", "slovenia": "cee",
-        "serbia": "cee", "estonia": "cee", "latvia": "cee",
-        "lithuania": "cee",
-        # Benelux
-        "netherlands": "benelux", "belgium": "benelux", "luxembourg": "benelux",
-        # UK/IE
-        "uk": "uk_ie", "united kingdom": "uk_ie", "ireland": "uk_ie",
-        "england": "uk_ie", "scotland": "uk_ie", "wales": "uk_ie",
-        # Southern Europe
-        "spain": "southern_europe", "italy": "southern_europe",
-        "portugal": "southern_europe", "greece": "southern_europe",
-        # France
-        "france": "france",
-        # North America
-        "us": "north_america", "usa": "north_america",
-        "united states": "north_america", "canada": "north_america",
-    }
-
-    return region_map.get(c)
+    Delegates to the fuzzy enum mapper which handles synonyms,
+    case normalization, and produces valid DB enum values.
+    """
+    return map_enum_value("geo_region", country_str)
 
 
 def _map_ownership(raw):
-    """Map ownership description to enum value."""
+    """Map ownership description to enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases like "PE-backed (EQT)"
+    3. None if no match
+    """
     if not raw:
         return None
 
-    s = str(raw).strip().lower()
+    # Try enum mapper first (handles clean values)
+    mapped = map_enum_value("ownership_type", raw)
+    if mapped:
+        return mapped
 
+    # Keyword substring matching fallback for complex descriptions
+    s = str(raw).strip().lower()
     if "family" in s:
         return "family_owned"
     if "pe" in s or "private equity" in s:
@@ -606,33 +642,33 @@ def _map_ownership(raw):
         return "state_owned"
     if "cooperative" in s or "coop" in s:
         return "other"
-    if "bootstrap" in s:
-        return "bootstrapped"
-    if "private" in s:
+    if "bootstrap" in s or "private" in s:
         return "bootstrapped"
 
     return None
 
 
 def _map_industry(raw):
-    """Map industry description to an industry_enum value."""
+    """Map industry description to an industry_enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases
+    3. Fallback to "other"
+    """
     if not raw:
         return None
+
+    # Try enum mapper first (handles exact values + common synonyms)
+    mapped = map_enum_value("industry", raw)
+    if mapped:
+        return mapped
+
+    # Keyword substring matching for complex descriptions
     s = str(raw).strip().lower()
-
-    VALID_INDUSTRIES = {
-        "software_saas", "it", "professional_services", "financial_services",
-        "healthcare", "pharma_biotech", "manufacturing", "automotive",
-        "aerospace_defense", "retail", "hospitality", "media", "energy",
-        "telecom", "transport", "construction", "real_estate", "agriculture",
-        "education", "public_sector", "other",
-    }
-    # Direct match
-    if s in VALID_INDUSTRIES:
-        return s
-
-    # Keyword mapping — more specific patterns first to avoid false matches
     keywords = {
+        "creative_services": ["arts", "event", "culture", "performing", "music",
+                              "film", "design", "creative", "pr ", "public relation"],
         "pharma_biotech": ["pharma", "biotech", "life science", "drug", "clinical trial"],
         "aerospace_defense": ["aerospace", "defense", "defence", "military", "space", "satellite", "avionics"],
         "automotive": ["automotive", "car ", "vehicle", "motor", "auto parts", "ev charging"],
@@ -663,16 +699,23 @@ def _map_industry(raw):
 
 
 def _map_business_type(raw):
-    """Map business model/type description to business_type enum value."""
+    """Map business model/type description to business_type enum value.
+
+    Resolution order:
+    1. Fuzzy enum mapper (exact match + synonym lookup)
+    2. Keyword substring matching for complex phrases
+    3. Fallback to "other"
+    """
     if not raw:
         return None
 
+    # Try enum mapper first
+    mapped = map_enum_value("business_type", raw)
+    if mapped:
+        return mapped
+
+    # Keyword substring matching fallback
     s = str(raw).strip().lower()
-
-    VALID_TYPES = {"manufacturer", "distributor", "service_provider", "saas", "platform", "other"}
-    if s in VALID_TYPES:
-        return s
-
     type_map = {
         "saas": "saas",
         "software": "saas",
@@ -693,32 +736,14 @@ def _map_business_type(raw):
 
 def _revenue_to_bucket(rev_m):
     """Map revenue in EUR millions to a bucket."""
-    if rev_m is None:
-        return None
-    if rev_m < 1:
-        return "micro"
-    if rev_m < 10:
-        return "small"
-    if rev_m < 50:
-        return "medium"
-    if rev_m < 200:
-        return "mid_market"
-    return "enterprise"
+    from api.services.field_schema import revenue_to_range
+    return revenue_to_range(rev_m)
 
 
 def _employees_to_bucket(emp):
     """Map employee count to a size bucket."""
-    if emp is None:
-        return None
-    if emp < 10:
-        return "micro"
-    if emp < 50:
-        return "startup"
-    if emp < 200:
-        return "smb"
-    if emp < 1000:
-        return "mid_market"
-    return "enterprise"
+    from api.services.field_schema import employees_to_size
+    return employees_to_size(emp)
 
 
 def _parse_confidence(raw):
@@ -747,44 +772,65 @@ def _parse_confidence(raw):
 # QC validation
 # ---------------------------------------------------------------------------
 
-def _validate_research(research, original_name):
-    """Run QC checks on parsed research. Returns list of flag strings."""
+QC_DEFAULTS = {
+    "name_similarity_min": 0.6,
+    "min_critical_fields": 4,
+    "confidence_min": 0.4,
+    "summary_min_length": 30,
+    "max_revenue_m": 50000,
+    "max_revenue_per_employee": 500_000,
+    "max_employees": 500_000,
+}
+
+
+def _validate_research(research, original_name, qc_config=None):
+    """Run QC checks on parsed research. Returns list of flag strings.
+
+    Args:
+        research: Parsed research dict from Perplexity
+        original_name: Company name from DB for name matching
+        qc_config: Optional dict of threshold overrides (keys from QC_DEFAULTS)
+    """
+    cfg = dict(QC_DEFAULTS)
+    if qc_config:
+        cfg.update(qc_config)
+
     flags = []
 
     # Name mismatch
     research_name = research.get("company_name", "")
     if research_name and original_name:
         similarity = _name_similarity(original_name, research_name)
-        if similarity < 0.6:
+        if similarity < cfg["name_similarity_min"]:
             flags.append("name_mismatch")
 
-    # Missing critical fields (need at least 4 of 5)
+    # Missing critical fields
     critical_fields = ["summary", "hq", "industry", "employees", "revenue_eur_m"]
     populated = sum(1 for f in critical_fields
                     if research.get(f) and str(research.get(f)).lower()
                     not in ("unverified", "unknown", "null", "none", "n/a"))
-    if populated < 4:
+    if populated < cfg["min_critical_fields"]:
         flags.append("incomplete_research")
 
     # Revenue sanity
     revenue = _parse_revenue(research.get("revenue_eur_m"))
     employees = _parse_employees(research.get("employees"))
     if revenue is not None:
-        if revenue > 50000:  # >50B EUR
+        if revenue > cfg["max_revenue_m"]:
             flags.append("revenue_implausible")
         elif employees and employees > 0 and revenue > 0:
-            ratio = (revenue * 1_000_000) / employees  # Convert M to absolute
-            if ratio > 500_000:
+            ratio = (revenue * 1_000_000) / employees
+            if ratio > cfg["max_revenue_per_employee"]:
                 flags.append("revenue_implausible")
 
     # Employee sanity
     if employees is not None:
-        if employees > 500_000 or employees < 0:
+        if employees > cfg["max_employees"] or employees < 0:
             flags.append("employees_implausible")
 
     # Low confidence
     confidence = _parse_confidence(research.get("confidence"))
-    if confidence is not None and confidence < 0.4:
+    if confidence is not None and confidence < cfg["confidence_min"]:
         flags.append("low_confidence")
 
     # B2B unclear
@@ -794,7 +840,7 @@ def _validate_research(research, original_name):
 
     # Summary too short
     summary = research.get("summary", "")
-    if isinstance(summary, str) and len(summary.strip()) < 30:
+    if isinstance(summary, str) and len(summary.strip()) < cfg["summary_min_length"]:
         flags.append("summary_too_short")
 
     # Merge Perplexity's own flags — look for high-severity indicators

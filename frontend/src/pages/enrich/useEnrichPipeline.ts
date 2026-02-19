@@ -37,6 +37,7 @@ interface DagRunConfig {
   sample_size?: number
   entity_ids?: string[]
   re_enrich?: Record<string, { enabled: boolean; horizon: string | null }>
+  boost?: Record<string, boolean>
 }
 
 const POLL_INTERVAL = 5000
@@ -98,6 +99,7 @@ export function useEnrichPipeline(filters: EnrichFilters) {
     if (config.sample_size) body.sample_size = config.sample_size
     if (config.entity_ids?.length) body.entity_ids = config.entity_ids
     if (config.re_enrich) body.re_enrich = config.re_enrich
+    if (config.boost) body.boost = config.boost
 
     const result = await apiFetch<{ pipeline_run_id: string }>('/pipeline/dag-run', {
       method: 'POST',

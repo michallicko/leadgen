@@ -27,7 +27,7 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "registry"}
+DIRECT_STAGES = {"l1", "l2", "person", "registry", "triage"}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 # Legacy aliases for backward compat with old API calls
@@ -285,7 +285,7 @@ def _get_entity_name(stage, entity_id, tenant_id):
     return entity_id
 
 
-def _update_current_item(run_id, entity_name, status="processing"):
+def _update_current_item(run_id, entity_name, status="processing", error_msg=None):
     """Store the current item being processed in the stage_run config."""
     try:
         row = db.session.execute(
@@ -304,6 +304,17 @@ def _update_current_item(run_id, entity_name, status="processing"):
                 if len(recent) > 20:
                     recent = recent[-20:]
                 config["recent_items"] = recent
+
+            # Track failed items separately (keep all, capped at 100)
+            if status == "failed":
+                failed_items = config.get("failed_items", [])
+                entry = {"name": entity_name}
+                if error_msg:
+                    entry["error"] = str(error_msg)[:200]
+                failed_items.append(entry)
+                if len(failed_items) > 100:
+                    failed_items = failed_items[-100:]
+                config["failed_items"] = failed_items
 
             db.session.execute(
                 text("UPDATE stage_runs SET config = :config WHERE id = :id"),
@@ -346,7 +357,90 @@ def _process_registry_unified(company_id, tenant_id):
     return result
 
 
-def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
+def _process_triage(company_id, tenant_id, triage_rules=None):
+    """Run triage evaluation on a company using L1 enrichment data.
+
+    Reads company fields + L1 raw_response to build the evaluation context,
+    then calls evaluate_triage(). Updates company status on disqualification.
+
+    Returns:
+        dict with gate_passed, gate_reasons, enrichment_cost_usd
+    """
+    import json as _json
+    from .triage_evaluator import evaluate_triage, DEFAULT_RULES
+
+    row = db.session.execute(
+        text("""
+            SELECT c.tier, c.industry, c.geo_region,
+                   c.verified_revenue_eur_m, c.verified_employees,
+                   el.qc_flags, el.raw_response
+            FROM companies c
+            LEFT JOIN company_enrichment_l1 el ON el.company_id = c.id
+            WHERE c.id = :id
+        """),
+        {"id": str(company_id)},
+    ).fetchone()
+
+    if not row:
+        return {"gate_passed": False, "gate_reasons": ["company_not_found"],
+                "enrichment_cost_usd": 0}
+
+    tier, industry, geo_region, revenue, employees, qc_flags_raw, raw_resp = row
+
+    # Parse QC flags
+    qc_flags = []
+    if qc_flags_raw:
+        try:
+            qc_flags = _json.loads(qc_flags_raw) if isinstance(qc_flags_raw, str) else (qc_flags_raw or [])
+        except (ValueError, TypeError):
+            qc_flags = []
+
+    # Parse B2B from raw response
+    is_b2b = None
+    if raw_resp:
+        try:
+            resp_data = _json.loads(raw_resp) if isinstance(raw_resp, str) else (raw_resp or {})
+            is_b2b = resp_data.get("b2b")
+        except (ValueError, TypeError):
+            pass
+
+    company_data = {
+        "tier": tier,
+        "industry": industry,
+        "geo_region": geo_region,
+        "revenue_eur_m": float(revenue) if revenue else None,
+        "employees": int(employees) if employees else None,
+        "is_b2b": is_b2b,
+        "qc_flags": qc_flags,
+    }
+
+    rules = triage_rules or DEFAULT_RULES
+    result = evaluate_triage(company_data, rules)
+
+    # Update company status based on triage result
+    if result["passed"]:
+        db.session.execute(
+            text("UPDATE companies SET status = 'triage_passed' WHERE id = :id"),
+            {"id": str(company_id)},
+        )
+    else:
+        reasons_str = "; ".join(result["reasons"])[:500]
+        db.session.execute(
+            text("""UPDATE companies SET status = 'triage_disqualified',
+                    triage_notes = :notes WHERE id = :id"""),
+            {"id": str(company_id), "notes": reasons_str},
+        )
+    db.session.commit()
+
+    return {
+        "gate_passed": result["passed"],
+        "gate_reasons": result["reasons"],
+        "enrichment_cost_usd": 0,
+    }
+
+
+def _process_entity(stage, entity_id, tenant_id=None, previous_data=None,
+                    triage_rules=None):
     """Dispatch entity processing to the right backend (n8n or direct Python)."""
     # Resolve legacy stage names
     stage = _LEGACY_STAGE_ALIASES.get(stage, stage)
@@ -355,8 +449,16 @@ def _process_entity(stage, entity_id, tenant_id=None, previous_data=None):
         if stage == "l1":
             from .l1_enricher import enrich_l1
             return enrich_l1(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "l2":
+            from .l2_enricher import enrich_l2
+            return enrich_l2(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "person":
+            from .person_enricher import enrich_person
+            return enrich_person(entity_id, tenant_id, previous_data=previous_data)
         if stage == "registry":
             return _process_registry_unified(entity_id, tenant_id)
+        if stage == "triage":
+            return _process_triage(entity_id, tenant_id, triage_rules)
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
     payload = {_data_key_for_stage(stage): entity_id}
@@ -394,7 +496,7 @@ def run_stage(app, run_id, stage, entity_ids, tenant_id=None):
             except Exception as e:
                 db.session.rollback()  # Reset aborted transaction
                 failed += 1
-                _update_current_item(run_id, entity_name, "failed")
+                _update_current_item(run_id, entity_name, "failed", error_msg=str(e))
                 logger.warning("Stage %s item %s failed: %s", stage, entity_id, e)
                 update_run(run_id, done=i + 1, failed=failed, cost_usd=total_cost,
                            error=str(e)[:500])
@@ -519,7 +621,8 @@ def run_stage_reactive(app, run_id, stage, tenant_id, tag_id,
                     except Exception as e:
                         db.session.rollback()  # Reset aborted transaction
                         failed_count += 1
-                        _update_current_item(run_id, entity_name, "failed")
+                        _update_current_item(run_id, entity_name, "failed",
+                                             error_msg=str(e))
                         logger.warning("Reactive stage %s item %s failed: %s",
                                        stage, entity_id, e)
                         update_run(run_id, done=done_count, failed=failed_count,

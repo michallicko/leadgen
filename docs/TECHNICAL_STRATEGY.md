@@ -18,7 +18,7 @@
 |-----------|---------|-----------|------------|--------------|
 | Backend | Flask + SQLAlchemy + **Pydantic v2** | Simple, fast iteration. Adding Pydantic for validation + OpenAPI generation. | Manual validation in routes (TD-004), no API docs, manual serialization | Adopting Pydantic incrementally alongside frontend migration |
 | Database | PostgreSQL (RDS) | Relational data, ACID, managed hosting | None | >10GB data or need read replicas |
-| Frontend | Vanilla HTML/JS/CSS → **React + TS + Tailwind** | No build step was fast early; now 13K lines of duplicated code. **Migration planned.** | 11 pages, 7× duplicated apiFetch, 3.5K duplicated CSS lines, XSS surface | Now — see `docs/specs/frontend-migration.md` |
+| Frontend | **React 19 + TypeScript + Vite + Tailwind v4** | Component reuse, type safety, SPA routing, TanStack Query. **Migration complete.** | None (vanilla JS eliminated 2026-02-19) | — |
 | Orchestration | n8n (self-hosted) → **removing** | Visual workflows, quick prototyping | **Hard to version, test, extend. Full removal planned.** | Now — see Migration Path below |
 | Auth | JWT + bcrypt | Stateless, standard | No rate limiting, no session revocation | Adding billing or external API keys |
 | Infra | Single VPS (2GB) | Cheap, simple | Shared resources | >10 tenants or sustained background processing |
@@ -70,7 +70,7 @@ Begin Phase 2 when ALL of:
 | TD-005 | Pipeline logic locked in n8n GUI | High | Pipeline extensibility, testing, cost tracking | See Migration Path |
 | TD-006 | JWT tokens have no revocation mechanism | Low | Account security (logout doesn't invalidate) | — |
 | TD-007 | No background job processing (all work is synchronous or via n8n) | Medium | Long-running operations (bulk enrichment, PDF generation) | — |
-| TD-008 | Frontend: 13K lines vanilla JS/CSS with massive duplication | High | Every new page adds 200+ lines of boilerplate, XSS surface growing | `docs/specs/frontend-migration.md` |
+| TD-008 | ~~Frontend: 13K lines vanilla JS/CSS with massive duplication~~ | ~~High~~ | **Resolved** — vanilla JS eliminated (BL-045, 2026-02-19). All pages React+TS. | `docs/specs/vanilla-js-migration/` |
 | TD-009 | No API input validation library (manual in every route) | Medium | Security, consistency, no OpenAPI docs | Phase 6 of frontend migration |
 | TD-010 | No auto-generated API types for frontend | Medium | API contract changes silently break UI | Phase 6 of frontend migration |
 
@@ -105,7 +105,7 @@ Begin Phase 2 when ALL of:
 - [ ] Read replica for heavy query workloads (company/contact browsing)
 - [ ] Object storage for file uploads (S3) instead of local/container storage
 - [ ] CDN for dashboard static assets
-- [ ] Frontend migrated to React + TS + Tailwind (see `docs/specs/frontend-migration.md`)
+- [x] Frontend migrated to React + TS + Tailwind (BL-045, done 2026-02-19)
 
 ## Security Posture
 

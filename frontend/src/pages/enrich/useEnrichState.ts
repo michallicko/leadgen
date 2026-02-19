@@ -48,6 +48,12 @@ export function useEnrichState() {
   // Re-enrich config per stage
   const [reEnrichConfig, setReEnrichConfig] = useState<Record<string, ReEnrichConfig>>({})
 
+  // Boost mode per stage
+  const [boostStages, setBoostStages] = useLocalStorage<Record<string, boolean>>(
+    'en_boost_stages',
+    {},
+  )
+
   // Pipeline run ID
   const [pipelineRunId, setPipelineRunId] = useState<string | null>(null)
 
@@ -169,6 +175,14 @@ export function useEnrichState() {
     [],
   )
 
+  // Boost toggle handler
+  const toggleBoost = useCallback(
+    (stageCode: string, enabled: boolean) => {
+      setBoostStages({ ...boostStages, [stageCode]: enabled })
+    },
+    [boostStages, setBoostStages],
+  )
+
   // Enabled stage codes (for API calls)
   const enabledStageCodes = useMemo(
     () => Object.entries(enabledStages)
@@ -191,6 +205,17 @@ export function useEnrichState() {
     }
     return result
   }, [enabledStages, softDepsConfig])
+
+  // Build boost payload for API
+  const boostPayload = useMemo(() => {
+    const result: Record<string, boolean> = {}
+    for (const [code, enabled] of Object.entries(boostStages)) {
+      if (enabled && enabledStages[code]) {
+        result[code] = true
+      }
+    }
+    return Object.keys(result).length > 0 ? result : undefined
+  }, [boostStages, enabledStages])
 
   // Build re_enrich payload for API
   const reEnrichPayload = useMemo(() => {
@@ -228,6 +253,25 @@ export function useEnrichState() {
     toggleReEnrich,
     setFreshness,
     reEnrichPayload,
+
+    // Boost
+    boostStages,
+    toggleBoost,
+    boostPayload,
+
+    // Config snapshot (for save/load)
+    getConfigSnapshot: () => ({
+      stages: enabledStages,
+      soft_deps: softDepsConfig,
+      re_enrich: reEnrichConfig,
+      boost: boostStages,
+    }),
+    loadConfigSnapshot: (cfg: Record<string, unknown>) => {
+      if (cfg.stages) setEnabledStages(cfg.stages as Record<string, boolean>)
+      if (cfg.soft_deps) setSoftDepsConfig(cfg.soft_deps as Record<string, boolean>)
+      if (cfg.re_enrich) setReEnrichConfig(cfg.re_enrich as Record<string, ReEnrichConfig>)
+      if (cfg.boost) setBoostStages(cfg.boost as Record<string, boolean>)
+    },
 
     // Pipeline
     pipelineRunId,

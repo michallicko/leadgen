@@ -1,8 +1,9 @@
 /**
- * DagControls — top bar with tag info, total cost, and run/stop buttons.
+ * DagControls — top bar with tag info, total cost, config manager, and run/stop buttons.
  */
 
 import type { DagMode } from './StageCard.types'
+import { ConfigManager } from './ConfigManager'
 
 interface DagControlsProps {
   mode: DagMode
@@ -13,6 +14,8 @@ interface DagControlsProps {
   onRun: () => void
   onStop: () => void
   isLoading: boolean
+  onLoadConfig?: (config: Record<string, unknown>) => void
+  getConfigSnapshot?: () => Record<string, unknown>
 }
 
 function fmtCost(v: number): string {
@@ -30,6 +33,8 @@ export function DagControls({
   onRun,
   onStop,
   isLoading,
+  onLoadConfig,
+  getConfigSnapshot,
 }: DagControlsProps) {
   return (
     <div className="flex items-center justify-between mb-4 px-1">
@@ -58,13 +63,18 @@ export function DagControls({
       {/* Right: action buttons */}
       <div className="flex items-center gap-2">
         {mode === 'configure' && (
-          <button
-            onClick={onRun}
-            disabled={enabledCount === 0 || !tagName || isLoading}
-            className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Loading...' : `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`}
-          </button>
+          <>
+            {onLoadConfig && getConfigSnapshot && (
+              <ConfigManager onLoad={onLoadConfig} getSnapshot={getConfigSnapshot} />
+            )}
+            <button
+              onClick={onRun}
+              disabled={enabledCount === 0 || !tagName || isLoading}
+              className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? 'Loading...' : `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`}
+            </button>
+          </>
         )}
 
         {mode === 'running' && (
