@@ -87,11 +87,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
     timestamp: company.updated_at,
     cost: company.enrichment_cost_usd,
   }
-  const l2Source: SourceInfo | undefined = l2 ? {
-    label: 'L2 Enrichment',
-    timestamp: l2.enriched_at ?? null,
-    cost: l2.enrichment_cost_usd ?? null,
-  } : undefined
+  // l2Source reserved for future SourceTooltip on L2 fields
   const regSource: SourceInfo | undefined = reg ? {
     label: 'Registry Lookup',
     timestamp: (reg.enriched_at as string | null) ?? null,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { RichText } from '../../components/ui/RichText'
-import { Badge } from '../../components/ui/Badge'
+// Local badge — not the app Badge which requires a variant like status/tier/icp
 
 export interface ModuleField {
   label: string
@@ -57,7 +57,7 @@ function ExpandedField({ field }: { field: ModuleField }) {
 
   const content = (() => {
     if (type === 'badge') {
-      return <Badge variant="default" value={String(value)} />
+      return <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-hover border border-accent/20">{String(value)}</span>
     }
     if (type === 'score') {
       return <span className="text-sm font-medium text-accent-cyan">{typeof value === 'number' ? `${value}%` : String(value)}</span>

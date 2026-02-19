@@ -33,7 +33,7 @@ const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
  */
 export function deriveStage(
   completions: StageCompletion[] | null | undefined,
-  status?: string | null,
+  _status?: string | null,
 ): DerivedStage {
   if (!completions || completions.length === 0) {
     return { label: 'New', stage: null, color: '#94a3b8' } // slate
