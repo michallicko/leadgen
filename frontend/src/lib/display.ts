@@ -189,6 +189,13 @@ export const COHORT_DISPLAY: Record<string, string> = {
   b: 'B',
 }
 
+export const LINKEDIN_ACTIVITY_DISPLAY: Record<string, string> = {
+  active: 'Active',
+  moderate: 'Moderate',
+  quiet: 'Quiet',
+  unknown: 'Unknown',
+}
+
 export const CONTACT_SOURCE_DISPLAY: Record<string, string> = {
   inbound: 'Inbound',
   outbound: 'Outbound',
@@ -222,6 +229,7 @@ export const MESSAGE_STATUS_REVERSE = buildReverse(MESSAGE_STATUS_DISPLAY)
 export const SENIORITY_REVERSE = buildReverse(SENIORITY_DISPLAY)
 export const DEPARTMENT_REVERSE = buildReverse(DEPARTMENT_DISPLAY)
 export const RELATIONSHIP_STATUS_REVERSE = buildReverse(RELATIONSHIP_STATUS_DISPLAY)
+export const LINKEDIN_ACTIVITY_REVERSE = buildReverse(LINKEDIN_ACTIVITY_DISPLAY)
 export const CONTACT_SOURCE_REVERSE = buildReverse(CONTACT_SOURCE_DISPLAY)
 export const LANGUAGE_REVERSE = buildReverse(LANGUAGE_DISPLAY)
 export const BUYING_STAGE_REVERSE = buildReverse(BUYING_STAGE_DISPLAY)

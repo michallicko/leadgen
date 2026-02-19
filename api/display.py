@@ -240,6 +240,13 @@ LANGUAGE_DISPLAY = {
     "cs": "Czech",
 }
 
+LINKEDIN_ACTIVITY_DISPLAY = {
+    "active": "Active",
+    "moderate": "Moderate",
+    "quiet": "Quiet",
+    "unknown": "Unknown",
+}
+
 CAMPAIGN_STATUS_DISPLAY = {
     "draft": "Draft",
     "ready": "Ready",
@@ -370,6 +377,10 @@ def display_contact_source(v):
 
 def display_language(v):
     return LANGUAGE_DISPLAY.get(v, v) if v else v
+
+
+def display_linkedin_activity(v):
+    return LINKEDIN_ACTIVITY_DISPLAY.get(v, v) if v else v
 
 
 def display_campaign_status(v):

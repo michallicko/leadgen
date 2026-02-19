@@ -120,6 +120,24 @@ export interface ContactFilters {
   message_status?: string
   sort?: string
   sort_dir?: string
+  // Multi-value ICP filters (comma-separated values)
+  industry?: string
+  industry_exclude?: string
+  company_size?: string
+  company_size_exclude?: string
+  geo_region?: string
+  geo_region_exclude?: string
+  revenue_range?: string
+  revenue_range_exclude?: string
+  seniority_level?: string
+  seniority_level_exclude?: string
+  department?: string
+  department_exclude?: string
+  job_titles?: string
+  job_titles_exclude?: string
+  linkedin_activity?: string
+  linkedin_activity_exclude?: string
+  [key: string]: string | undefined
 }
 
 const PAGE_SIZE = 50
@@ -132,13 +150,10 @@ export function useContacts(filters: ContactFilters) {
         page: String(pageParam),
         page_size: String(PAGE_SIZE),
       }
-      if (filters.search) params.search = filters.search
-      if (filters.tag_name) params.tag_name = filters.tag_name
-      if (filters.owner_name) params.owner_name = filters.owner_name
-      if (filters.icp_fit) params.icp_fit = filters.icp_fit
-      if (filters.message_status) params.message_status = filters.message_status
-      if (filters.sort) params.sort = filters.sort
-      if (filters.sort_dir) params.sort_dir = filters.sort_dir
+      // Pass through all non-empty filter values
+      for (const [key, value] of Object.entries(filters)) {
+        if (value) params[key] = value
+      }
       return apiFetch<ContactsPage>('/contacts', { params })
     },
     getNextPageParam: (lastPage) =>
