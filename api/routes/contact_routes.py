@@ -74,7 +74,11 @@ def list_contacts():
         )
         params["search"] = f"%{search}%"
     if tag_name:
-        where.append("b.name = :tag_name")
+        where.append("""EXISTS (
+            SELECT 1 FROM contact_tag_assignments cta
+            JOIN tags bt ON bt.id = cta.tag_id
+            WHERE cta.contact_id = ct.id AND bt.name = :tag_name
+        )""")
         params["tag_name"] = tag_name
     if owner_name:
         where.append("o.name = :owner_name")
@@ -111,7 +115,6 @@ def list_contacts():
         db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
-            LEFT JOIN tags b ON ct.tag_id = b.id
             LEFT JOIN owners o ON ct.owner_id = o.id
             WHERE {where_clause}
         """),
@@ -130,10 +133,9 @@ def list_contacts():
                 co.id AS company_id, co.name AS company_name,
                 ct.email_address, ct.contact_score, ct.icp_fit,
                 ct.message_status,
-                o.name AS owner_name, b.name AS tag_name
+                o.name AS owner_name
             FROM contacts ct
             LEFT JOIN companies co ON ct.company_id = co.id
-            LEFT JOIN tags b ON ct.tag_id = b.id
             LEFT JOIN owners o ON ct.owner_id = o.id
             WHERE {where_clause}
             ORDER BY {order}
@@ -142,13 +144,35 @@ def list_contacts():
         {**params, "limit": page_size, "offset": offset},
     ).fetchall()
 
+    # Collect contact IDs for batch tag lookup
+    contact_ids = [str(r[0]) for r in rows]
+    tag_map: dict[str, list[str]] = {cid: [] for cid in contact_ids}
+    if contact_ids:
+        # Use IN clause with positional params for SQLite compat
+        placeholders = ", ".join(f":cid_{i}" for i in range(len(contact_ids)))
+        tag_params = {f"cid_{i}": cid for i, cid in enumerate(contact_ids)}
+        tag_rows = db.session.execute(
+            db.text(f"""
+                SELECT cta.contact_id, t.name
+                FROM contact_tag_assignments cta
+                JOIN tags t ON t.id = cta.tag_id
+                WHERE cta.contact_id IN ({placeholders})
+                ORDER BY t.name
+            """),
+            tag_params,
+        ).fetchall()
+        for tr in tag_rows:
+            tag_map.setdefault(str(tr[0]), []).append(tr[1])
+
     contacts = []
     for r in rows:
+        cid = str(r[0])
         first = r[1] or ""
         last = r[2] or ""
         full_name = (first + " " + last).strip() if last else first
+        tag_names = tag_map.get(cid, [])
         contacts.append({
-            "id": str(r[0]),
+            "id": cid,
             "full_name": full_name,
             "first_name": first,
             "last_name": last,
@@ -160,7 +184,8 @@ def list_contacts():
             "icp_fit": display_icp_fit(r[8]),
             "message_status": r[9],
             "owner_name": r[10],
-            "tag_name": r[11],
+            "tag_name": tag_names[0] if tag_names else None,
+            "tag_names": tag_names,
         })
 
     return jsonify({
