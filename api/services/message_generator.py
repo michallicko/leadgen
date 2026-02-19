@@ -12,11 +12,8 @@ import threading
 import time
 from decimal import Decimal
 
-from ..models import (
-    Campaign, CampaignContact, Contact, Company,
-    CompanyEnrichmentL2, ContactEnrichment, Message, db, EDIT_REASONS,
-)
-from .generation_prompts import SYSTEM_PROMPT, build_generation_prompt, CHANNEL_CONSTRAINTS, FORMALITY_INSTRUCTIONS
+from ..models import Message, db
+from .generation_prompts import SYSTEM_PROMPT, build_generation_prompt, CHANNEL_CONSTRAINTS
 from .llm_logger import log_llm_usage, compute_cost
 
 logger = logging.getLogger(__name__)
@@ -498,7 +495,6 @@ def regenerate_message(
         return None
 
     contact_id = str(row[2])
-    owner_id = row[3]
     channel = row[4]
     sequence_step = row[5]
     label = row[7]

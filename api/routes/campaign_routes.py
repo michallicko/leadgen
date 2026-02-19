@@ -6,7 +6,7 @@ from flask import current_app
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, CampaignTemplate, db
+from ..models import Campaign, CampaignContact, db
 from ..services.message_generator import estimate_generation_cost, start_generation
 
 campaigns_bp = Blueprint("campaigns", __name__)
@@ -846,8 +846,8 @@ def disqualify_contact(campaign_id):
 
     # Campaign exclusion: set campaign_contact to excluded, reject all messages
     db.session.execute(
-        db.text("UPDATE campaign_contacts SET status = 'excluded' WHERE id = :id"),
-        {"id": cc_id},
+        db.text("UPDATE campaign_contacts SET status = 'excluded' WHERE id = :id AND tenant_id = :t"),
+        {"id": cc_id, "t": tenant_id},
     )
     result = db.session.execute(
         db.text("""
@@ -995,8 +995,11 @@ def review_queue(campaign_id):
         where.append("m.channel = :channel")
         params["channel"] = channel_filter
     if step_filter:
+        try:
+            params["step"] = int(step_filter)
+        except (ValueError, TypeError):
+            return jsonify({"error": "step must be an integer"}), 400
         where.append("m.sequence_step = :step")
-        params["step"] = int(step_filter)
 
     where_clause = " AND ".join(where)
 

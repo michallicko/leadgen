@@ -151,7 +151,7 @@ def update_message(message_id):
             fields["original_subject"] = current_subject
 
     set_parts = []
-    params = {"id": message_id}
+    params = {"id": message_id, "t": tenant_id}
     safe_columns = {"status", "review_notes", "approved_at", "body", "subject",
                     "edit_reason", "edit_reason_text", "original_body", "original_subject"}
     for k, v in fields.items():
@@ -162,7 +162,7 @@ def update_message(message_id):
     set_parts.append("updated_at = CURRENT_TIMESTAMP")
 
     db.session.execute(
-        db.text(f"UPDATE messages SET {', '.join(set_parts)} WHERE id = :id"),
+        db.text(f"UPDATE messages SET {', '.join(set_parts)} WHERE id = :id AND tenant_id = :t"),
         params,
     )
     db.session.commit()
@@ -226,9 +226,9 @@ def regen_message(message_id):
             tone=body.get("tone"),
             instruction=instruction,
         )
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({"error": f"Regeneration failed: {str(e)}"}), 500
+        return jsonify({"error": "Regeneration failed. Please try again."}), 500
 
     if not result:
         return jsonify({"error": "Message not found"}), 404
