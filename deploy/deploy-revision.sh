@@ -85,20 +85,28 @@ REMOTE
 echo ""
 echo "==> Updating Caddyfile..."
 
-ssh -i "$STAGING_KEY" "$STAGING_HOST" bash <<REMOTE
-CADDYFILE="${STAGING_DIR}/Caddyfile"
+ssh -i "$STAGING_KEY" "$STAGING_HOST" python3 - "${STAGING_DIR}/Caddyfile" "${COMMIT}" "${CONTAINER}" <<'PYEOF'
+import sys
+caddyfile, commit, container = sys.argv[1], sys.argv[2], sys.argv[3]
 
-# Check if this revision route already exists
-if grep -q "api-rev-${COMMIT}" "\$CADDYFILE"; then
-  echo "    Route /api-rev-${COMMIT}/* already exists in Caddyfile"
-else
-  # Insert revision route block BEFORE the catch-all "handle /api/*" line
-  BLOCK="    # --- rev:${COMMIT} ---\n    handle_path /api-rev-${COMMIT}/* {\n        reverse_proxy ${CONTAINER}:5000\n    }\n    # --- /rev:${COMMIT} ---"
-  sed -i "/handle \/api\/\*/i\\
-\${BLOCK}" "\$CADDYFILE"
-  echo "    Added /api-rev-${COMMIT}/* route to Caddyfile"
-fi
-REMOTE
+with open(caddyfile, 'r') as f:
+    content = f.read()
+
+if f'api-rev-{commit}' in content:
+    print(f'    Route /api-rev-{commit}/* already exists in Caddyfile')
+else:
+    block = (
+        f'    # --- rev:{commit} ---\n'
+        f'    handle_path /api-rev-{commit}/* {{\n'
+        f'        reverse_proxy {container}:5000\n'
+        f'    }}\n'
+        f'    # --- /rev:{commit} ---\n'
+    )
+    content = content.replace('    handle /api/* {', block + '    handle /api/* {')
+    with open(caddyfile, 'w') as f:
+        f.write(content)
+    print(f'    Added /api-rev-{commit}/* route to Caddyfile')
+PYEOF
 
 # ---- 6. Build and start containers ----
 echo ""
