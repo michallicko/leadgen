@@ -87,8 +87,8 @@ interface GearItem {
 }
 
 const GEAR_ITEMS: GearItem[] = [
-  { id: 'admin', label: 'Users & Roles', path: '/admin', minRole: 'admin' },
-  { id: 'llm-costs', label: 'LLM Costs', path: '/llm-costs', minRole: 'admin', superOnly: true },
+  { id: 'admin', label: 'Users & Roles', path: 'admin', minRole: 'admin' },
+  { id: 'llm-costs', label: 'LLM Costs', path: 'llm-costs', minRole: 'admin', superOnly: true },
 ]
 
 // ---- Component ----
@@ -226,7 +226,7 @@ export function AppNav() {
                   }).map((item) => (
                     <Link
                       key={item.id}
-                      to={item.path}
+                      to={makePath(item.path)}
                       className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
                       onClick={() => setGearOpen(false)}
                     >
