@@ -15,6 +15,8 @@ import { MessagesTab } from './tabs/MessagesTab'
 import { OutreachTab } from './tabs/OutreachTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { useEntityStack } from '../../hooks/useEntityStack'
+import { useReviewSummary } from '../../api/queries/useMessages'
+import { OutreachApprovalDialog } from './OutreachApprovalDialog'
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
@@ -48,6 +50,11 @@ export function CampaignDetailPage() {
   const { data: campaign, isLoading } = useCampaign(campaignId ?? null)
   const { data: contactsData } = useCampaignContacts(campaignId ?? '')
   const contactCount = contactsData?.contacts?.length ?? 0
+
+  // Review summary for outreach approval
+  const isReviewStatus = campaign?.status === 'Review'
+  const { data: reviewSummary } = useReviewSummary(isReviewStatus ? (campaignId ?? null) : null)
+  const [showOutreachDialog, setShowOutreachDialog] = useState(false)
 
   // Editable state
   const isEditable = campaign?.status === 'Draft' || campaign?.status === 'Ready'
@@ -156,15 +163,28 @@ export function CampaignDetailPage() {
               {campaign.status}
             </span>
           </div>
-          {hasChanges && (
-            <button
-              onClick={handleSave}
-              disabled={updateCampaign.isPending}
-              className="px-3 py-1 text-xs font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50 flex-shrink-0"
-            >
-              {updateCampaign.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isReviewStatus && reviewSummary?.can_approve_outreach && (
+              <button
+                onClick={() => setShowOutreachDialog(true)}
+                className="px-3 py-1 text-xs font-medium rounded bg-success text-white border-none cursor-pointer hover:bg-success/90 transition-colors"
+              >
+                Approve Outreach
+              </button>
+            )}
+            {isReviewStatus && reviewSummary && !reviewSummary.can_approve_outreach && reviewSummary.pending_reason && (
+              <span className="text-xs text-warning">{reviewSummary.pending_reason}</span>
+            )}
+            {hasChanges && (
+              <button
+                onClick={handleSave}
+                disabled={updateCampaign.isPending}
+                className="px-3 py-1 text-xs font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50"
+              >
+                {updateCampaign.isPending ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Description (editable) */}
@@ -233,6 +253,14 @@ export function CampaignDetailPage() {
           <CompanyDetail company={companyDetail} onNavigate={stack.push} />
         )}
       </DetailModal>
+
+      {showOutreachDialog && campaignId && (
+        <OutreachApprovalDialog
+          campaignId={campaignId}
+          onClose={() => setShowOutreachDialog(false)}
+          onApproved={() => { setShowOutreachDialog(false) }}
+        />
+      )}
     </div>
   )
 }
