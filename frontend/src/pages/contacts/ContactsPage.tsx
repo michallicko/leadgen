@@ -5,7 +5,7 @@ import { useContacts, type ContactFilters } from '../../api/queries/useContacts'
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useBulkAssignCampaign, useContactsMatchingCount } from '../../api/queries/useBulkActions'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { useAdvancedFilters } from '../../hooks/useAdvancedFilters'
+import { useAdvancedFilters, CONTACT_MULTI_KEYS } from '../../hooks/useAdvancedFilters'
 import { useFilterCounts } from '../../hooks/useFilterCounts'
 import { useColumnVisibility } from '../../hooks/useColumnVisibility'
 import { DataTable, type SelectionMode } from '../../components/ui/DataTable'
@@ -21,6 +21,8 @@ import { CONTACT_COLUMNS, CONTACT_ALWAYS_VISIBLE } from '../../config/contactCol
 import {
   ICP_FIT_DISPLAY,
   MESSAGE_STATUS_DISPLAY,
+  STATUS_DISPLAY,
+  TIER_DISPLAY,
   INDUSTRY_DISPLAY,
   COMPANY_SIZE_DISPLAY,
   GEO_REGION_DISPLAY,
@@ -60,9 +62,10 @@ export function ContactsPage() {
     toggleExclude,
     clearAll,
     activeFilterCount,
+    getMulti,
     toQueryParams,
     toCountsPayload,
-  } = useAdvancedFilters('ct_adv_filters')
+  } = useAdvancedFilters('ct_adv_filters', CONTACT_MULTI_KEYS)
 
   const [sortField, setSortField] = useLocalStorage('ct_sort_field', 'last_name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('ct_sort_dir', 'asc')
@@ -103,7 +106,7 @@ export function ContactsPage() {
 
   // Filter counts for faceted options
   const countsPayload = useMemo(() => toCountsPayload(), [toCountsPayload])
-  const { data: countsData } = useFilterCounts(countsPayload)
+  const { data: countsData } = useFilterCounts(countsPayload, '/contacts/filter-counts')
 
   const {
     data,
@@ -200,11 +203,11 @@ export function ContactsPage() {
       <FilterBar
         filters={filterConfigs}
         values={{
-          search: advFilters.search,
-          tag_name: advFilters.tag_name,
-          owner_name: advFilters.owner_name,
-          icp_fit: advFilters.icp_fit,
-          message_status: advFilters.message_status,
+          search: advFilters.search as string,
+          tag_name: advFilters.tag_name as string,
+          owner_name: advFilters.owner_name as string,
+          icp_fit: advFilters.icp_fit as string,
+          message_status: advFilters.message_status as string,
         }}
         onChange={handleFilterChange}
         total={total}
@@ -240,64 +243,80 @@ export function ContactsPage() {
       {showAdvanced && (
         <div className="flex flex-wrap items-center gap-2 mb-3 px-0.5">
           <MultiSelectFilter
+            label="Co. Status"
+            options={buildMultiOptions(STATUS_DISPLAY, facets?.company_status)}
+            selected={getMulti('company_status').values}
+            exclude={getMulti('company_status').exclude}
+            onSelectionChange={(v) => setMultiFilter('company_status', v)}
+            onExcludeToggle={() => toggleExclude('company_status')}
+          />
+          <MultiSelectFilter
+            label="Co. Tier"
+            options={buildMultiOptions(TIER_DISPLAY, facets?.company_tier)}
+            selected={getMulti('company_tier').values}
+            exclude={getMulti('company_tier').exclude}
+            onSelectionChange={(v) => setMultiFilter('company_tier', v)}
+            onExcludeToggle={() => toggleExclude('company_tier')}
+          />
+          <MultiSelectFilter
             label="Industry"
             options={buildMultiOptions(INDUSTRY_DISPLAY, facets?.industry)}
-            selected={advFilters.industry.values}
-            exclude={advFilters.industry.exclude}
+            selected={getMulti('industry').values}
+            exclude={getMulti('industry').exclude}
             onSelectionChange={(v) => setMultiFilter('industry', v)}
             onExcludeToggle={() => toggleExclude('industry')}
           />
           <MultiSelectFilter
             label="Company Size"
             options={buildMultiOptions(COMPANY_SIZE_DISPLAY, facets?.company_size)}
-            selected={advFilters.company_size.values}
-            exclude={advFilters.company_size.exclude}
+            selected={getMulti('company_size').values}
+            exclude={getMulti('company_size').exclude}
             onSelectionChange={(v) => setMultiFilter('company_size', v)}
             onExcludeToggle={() => toggleExclude('company_size')}
           />
           <MultiSelectFilter
             label="Region"
             options={buildMultiOptions(GEO_REGION_DISPLAY, facets?.geo_region)}
-            selected={advFilters.geo_region.values}
-            exclude={advFilters.geo_region.exclude}
+            selected={getMulti('geo_region').values}
+            exclude={getMulti('geo_region').exclude}
             onSelectionChange={(v) => setMultiFilter('geo_region', v)}
             onExcludeToggle={() => toggleExclude('geo_region')}
           />
           <MultiSelectFilter
             label="Revenue"
             options={buildMultiOptions(REVENUE_RANGE_DISPLAY, facets?.revenue_range)}
-            selected={advFilters.revenue_range.values}
-            exclude={advFilters.revenue_range.exclude}
+            selected={getMulti('revenue_range').values}
+            exclude={getMulti('revenue_range').exclude}
             onSelectionChange={(v) => setMultiFilter('revenue_range', v)}
             onExcludeToggle={() => toggleExclude('revenue_range')}
           />
           <MultiSelectFilter
             label="Seniority"
             options={buildMultiOptions(SENIORITY_DISPLAY, facets?.seniority_level)}
-            selected={advFilters.seniority_level.values}
-            exclude={advFilters.seniority_level.exclude}
+            selected={getMulti('seniority_level').values}
+            exclude={getMulti('seniority_level').exclude}
             onSelectionChange={(v) => setMultiFilter('seniority_level', v)}
             onExcludeToggle={() => toggleExclude('seniority_level')}
           />
           <MultiSelectFilter
             label="Department"
             options={buildMultiOptions(DEPARTMENT_DISPLAY, facets?.department)}
-            selected={advFilters.department.values}
-            exclude={advFilters.department.exclude}
+            selected={getMulti('department').values}
+            exclude={getMulti('department').exclude}
             onSelectionChange={(v) => setMultiFilter('department', v)}
             onExcludeToggle={() => toggleExclude('department')}
           />
           <JobTitleFilter
-            selected={advFilters.job_titles.values}
-            exclude={advFilters.job_titles.exclude}
+            selected={getMulti('job_titles').values}
+            exclude={getMulti('job_titles').exclude}
             onSelectionChange={(v) => setMultiFilter('job_titles', v)}
             onExcludeToggle={() => toggleExclude('job_titles')}
           />
           <MultiSelectFilter
             label="LinkedIn"
             options={buildMultiOptions(LINKEDIN_ACTIVITY_DISPLAY, facets?.linkedin_activity)}
-            selected={advFilters.linkedin_activity.values}
-            exclude={advFilters.linkedin_activity.exclude}
+            selected={getMulti('linkedin_activity').values}
+            exclude={getMulti('linkedin_activity').exclude}
             onSelectionChange={(v) => setMultiFilter('linkedin_activity', v)}
             onExcludeToggle={() => toggleExclude('linkedin_activity')}
             searchable={false}

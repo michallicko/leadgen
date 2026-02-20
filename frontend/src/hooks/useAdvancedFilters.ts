@@ -6,56 +6,46 @@ export interface MultiFilterValue {
 }
 
 export interface AdvancedFilterState {
+  // Simple string filters (all optional — unused keys stay empty)
   search: string
   tag_name: string
   owner_name: string
   icp_fit: string
   message_status: string
-  // Multi-select filters
-  industry: MultiFilterValue
-  company_size: MultiFilterValue
-  geo_region: MultiFilterValue
-  revenue_range: MultiFilterValue
-  seniority_level: MultiFilterValue
-  department: MultiFilterValue
-  job_titles: MultiFilterValue
-  linkedin_activity: MultiFilterValue
+  // Dynamic multi-select filters keyed by name
+  [key: string]: string | MultiFilterValue
 }
 
 const EMPTY_MULTI: MultiFilterValue = { values: [], exclude: false }
 
-const DEFAULT_STATE: AdvancedFilterState = {
-  search: '',
-  tag_name: '',
-  owner_name: '',
-  icp_fit: '',
-  message_status: '',
-  industry: { ...EMPTY_MULTI },
-  company_size: { ...EMPTY_MULTI },
-  geo_region: { ...EMPTY_MULTI },
-  revenue_range: { ...EMPTY_MULTI },
-  seniority_level: { ...EMPTY_MULTI },
-  department: { ...EMPTY_MULTI },
-  job_titles: { ...EMPTY_MULTI },
-  linkedin_activity: { ...EMPTY_MULTI },
+function isMultiFilter(v: unknown): v is MultiFilterValue {
+  return typeof v === 'object' && v !== null && 'values' in v && 'exclude' in v
 }
 
-const MULTI_KEYS = [
-  'industry', 'company_size', 'geo_region', 'revenue_range',
-  'seniority_level', 'department', 'job_titles', 'linkedin_activity',
-] as const
+function buildDefaultState(multiKeys: readonly string[]): AdvancedFilterState {
+  const state: AdvancedFilterState = {
+    search: '',
+    tag_name: '',
+    owner_name: '',
+    icp_fit: '',
+    message_status: '',
+  }
+  for (const key of multiKeys) {
+    state[key] = { ...EMPTY_MULTI }
+  }
+  return state
+}
 
-type MultiKey = typeof MULTI_KEYS[number]
-
-function loadState(storageKey: string): AdvancedFilterState {
+function loadState(storageKey: string, multiKeys: readonly string[]): AdvancedFilterState {
+  const defaults = buildDefaultState(multiKeys)
   try {
     const saved = localStorage.getItem(storageKey)
     if (saved) {
       const parsed = JSON.parse(saved)
-      return { ...DEFAULT_STATE, ...parsed }
+      return { ...defaults, ...parsed }
     }
   } catch { /* ignore */ }
-  return { ...DEFAULT_STATE }
+  return defaults
 }
 
 function saveState(storageKey: string, state: AdvancedFilterState) {
@@ -64,8 +54,21 @@ function saveState(storageKey: string, state: AdvancedFilterState) {
   } catch { /* ignore */ }
 }
 
-export function useAdvancedFilters(storageKey: string) {
-  const [filters, setFilters] = useState<AdvancedFilterState>(() => loadState(storageKey))
+/** Contact-specific multi-keys (default for backward compat) */
+export const CONTACT_MULTI_KEYS = [
+  'company_status', 'company_tier',
+  'industry', 'company_size', 'geo_region', 'revenue_range',
+  'seniority_level', 'department', 'job_titles', 'linkedin_activity',
+] as const
+
+/** Company-specific multi-keys */
+export const COMPANY_MULTI_KEYS = [
+  'status', 'tier',
+  'industry', 'company_size', 'geo_region', 'revenue_range',
+] as const
+
+export function useAdvancedFilters(storageKey: string, multiKeys: readonly string[] = CONTACT_MULTI_KEYS) {
+  const [filters, setFilters] = useState<AdvancedFilterState>(() => loadState(storageKey, multiKeys))
 
   const setSimpleFilter = useCallback((key: string, value: string) => {
     setFilters(prev => {
@@ -75,21 +78,23 @@ export function useAdvancedFilters(storageKey: string) {
     })
   }, [storageKey])
 
-  const setMultiFilter = useCallback((key: MultiKey, values: string[], exclude?: boolean) => {
+  const setMultiFilter = useCallback((key: string, values: string[], exclude?: boolean) => {
     setFilters(prev => {
-      const current = prev[key] as MultiFilterValue
+      const current = prev[key]
+      const currentExclude = isMultiFilter(current) ? current.exclude : false
       const next = {
         ...prev,
-        [key]: { values, exclude: exclude !== undefined ? exclude : current.exclude },
+        [key]: { values, exclude: exclude !== undefined ? exclude : currentExclude },
       }
       saveState(storageKey, next)
       return next
     })
   }, [storageKey])
 
-  const toggleExclude = useCallback((key: MultiKey) => {
+  const toggleExclude = useCallback((key: string) => {
     setFilters(prev => {
-      const current = prev[key] as MultiFilterValue
+      const current = prev[key]
+      if (!isMultiFilter(current)) return prev
       const next = {
         ...prev,
         [key]: { ...current, exclude: !current.exclude },
@@ -101,7 +106,7 @@ export function useAdvancedFilters(storageKey: string) {
 
   const clearFilter = useCallback((key: string) => {
     setFilters(prev => {
-      const isMulti = MULTI_KEYS.includes(key as MultiKey)
+      const isMulti = multiKeys.includes(key)
       const next = {
         ...prev,
         [key]: isMulti ? { ...EMPTY_MULTI } : '',
@@ -109,56 +114,62 @@ export function useAdvancedFilters(storageKey: string) {
       saveState(storageKey, next)
       return next
     })
-  }, [storageKey])
+  }, [storageKey, multiKeys])
 
   const clearAll = useCallback(() => {
-    const next = { ...DEFAULT_STATE }
+    const next = buildDefaultState(multiKeys)
     saveState(storageKey, next)
     setFilters(next)
-  }, [storageKey])
+  }, [storageKey, multiKeys])
 
   const activeFilterCount = useMemo(() => {
     let count = 0
-    for (const key of MULTI_KEYS) {
-      if (filters[key].values.length > 0) count++
+    for (const key of multiKeys) {
+      const v = filters[key]
+      if (isMultiFilter(v) && v.values.length > 0) count++
     }
     return count
+  }, [filters, multiKeys])
+
+  const getMulti = useCallback((key: string): MultiFilterValue => {
+    const v = filters[key]
+    return isMultiFilter(v) ? v : { ...EMPTY_MULTI }
   }, [filters])
 
   const toQueryParams = useCallback((): Record<string, string> => {
     const params: Record<string, string> = {}
     // Simple filters
-    if (filters.search) params.search = filters.search
-    if (filters.tag_name) params.tag_name = filters.tag_name
-    if (filters.owner_name) params.owner_name = filters.owner_name
-    if (filters.icp_fit) params.icp_fit = filters.icp_fit
-    if (filters.message_status) params.message_status = filters.message_status
+    if (filters.search) params.search = filters.search as string
+    if (filters.tag_name) params.tag_name = filters.tag_name as string
+    if (filters.owner_name) params.owner_name = filters.owner_name as string
+    if (filters.icp_fit) params.icp_fit = filters.icp_fit as string
+    if (filters.message_status) params.message_status = filters.message_status as string
     // Multi-value filters
-    for (const key of MULTI_KEYS) {
+    for (const key of multiKeys) {
       const f = filters[key]
-      if (f.values.length > 0) {
+      if (isMultiFilter(f) && f.values.length > 0) {
         params[key] = f.values.join(',')
         if (f.exclude) params[`${key}_exclude`] = 'true'
       }
     }
     return params
-  }, [filters])
+  }, [filters, multiKeys])
 
   const toCountsPayload = useCallback(() => {
     const filtersPayload: Record<string, { values: string[]; exclude: boolean }> = {}
-    for (const key of MULTI_KEYS) {
+    for (const key of multiKeys) {
       const f = filters[key]
-      if (f.values.length > 0) {
+      if (isMultiFilter(f) && f.values.length > 0) {
         filtersPayload[key] = { values: f.values, exclude: f.exclude }
       }
     }
     return {
       filters: filtersPayload,
-      search: filters.search || undefined,
-      tag_name: filters.tag_name || undefined,
-      owner_name: filters.owner_name || undefined,
+      search: (filters.search as string) || undefined,
+      tag_name: (filters.tag_name as string) || undefined,
+      owner_name: (filters.owner_name as string) || undefined,
     }
-  }, [filters])
+  }, [filters, multiKeys])
 
   return {
     filters,
@@ -168,6 +179,7 @@ export function useAdvancedFilters(storageKey: string) {
     clearFilter,
     clearAll,
     activeFilterCount,
+    getMulti,
     toQueryParams,
     toCountsPayload,
   }

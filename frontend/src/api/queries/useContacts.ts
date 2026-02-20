@@ -133,6 +133,10 @@ export interface ContactFilters {
   sort?: string
   sort_dir?: string
   // Multi-value ICP filters (comma-separated values)
+  company_status?: string
+  company_status_exclude?: string
+  company_tier?: string
+  company_tier_exclude?: string
   industry?: string
   industry_exclude?: string
   company_size?: string
