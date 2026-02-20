@@ -265,7 +265,7 @@ export function DataTable<T extends { id?: string }>({
             return (
               <tr
                 key={item.id ?? globalIndex}
-                className={`border-b border-border/30 ${isSelected ? 'bg-accent/5' : ''} ${onRowClick && !selectable ? 'cursor-pointer hover:bg-surface-alt/50' : selectable ? 'hover:bg-surface-alt/30' : ''}`}
+                className={`border-b border-border/30 ${isSelected ? 'bg-accent/5' : ''} ${onRowClick ? 'cursor-pointer hover:bg-surface-alt/50' : selectable ? 'hover:bg-surface-alt/30' : ''}`}
                 style={{ height: ROW_HEIGHT }}
               >
                 {selectable && (
@@ -287,13 +287,9 @@ export function DataTable<T extends { id?: string }>({
                   <td
                     key={col.key}
                     onClick={() => {
-                      if (selectable) {
-                        toggleRow(item, globalIndex, false)
-                      } else {
-                        onRowClick?.(item)
-                      }
+                      onRowClick?.(item)
                     }}
-                    className={`px-3 py-0 text-text ${col.shrink !== false ? 'truncate' : ''} ${selectable || onRowClick ? 'cursor-pointer' : ''}`}
+                    className={`px-3 py-0 text-text ${col.shrink !== false ? 'truncate' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
                     style={{
                       maxWidth: col.width ?? '200px',
                       minWidth: col.minWidth,

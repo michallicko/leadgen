@@ -10,6 +10,7 @@ from ..display import (
     display_department,
     display_icp_fit,
     display_language,
+    display_linkedin_activity,
     display_relationship_status,
     display_seniority,
     display_status,
@@ -55,7 +56,9 @@ def _parse_jsonb(v):
 
 ALLOWED_SORT = {
     "last_name", "first_name", "job_title", "email_address", "contact_score",
-    "icp_fit", "message_status", "created_at",
+    "icp_fit", "message_status", "created_at", "seniority_level",
+    "department", "ai_champion_score", "authority_score",
+    "linkedin_activity_level",
 }
 
 
@@ -117,7 +120,9 @@ def list_contacts():
     for param_key, param_val in request.args.items():
         if param_key.startswith("cf_") and param_val.strip():
             field_key = param_key[3:]
-            # Reject keys with non-alphanumeric chars to prevent injection
+            # SECURITY: field_key is interpolated into SQLite json_extract path below.
+            # This regex whitelist is the ONLY defense against SQL injection for custom field keys.
+            # Do NOT weaken this pattern without also parameterizing the SQLite path.
             if not re.match(r'^[a-zA-Z0-9_]+$', field_key):
                 continue
             # Use json_extract for SQLite compat, ->> for Postgres
@@ -131,6 +136,8 @@ def list_contacts():
             cf_idx += 1
 
     # --- Multi-value ICP filters ---
+    _add_multi_filter(where, params, "company_status", "co.status", request)
+    _add_multi_filter(where, params, "company_tier", "co.tier", request)
     _add_multi_filter(where, params, "industry", "co.industry", request)
     _add_multi_filter(where, params, "company_size", "co.company_size", request)
     _add_multi_filter(where, params, "geo_region", "co.geo_region", request)
@@ -199,7 +206,13 @@ def list_contacts():
                 co.id AS company_id, co.name AS company_name,
                 ct.email_address, ct.contact_score, ct.icp_fit,
                 ct.message_status,
-                o.name AS owner_name
+                o.name AS owner_name,
+                ct.seniority_level, ct.department,
+                ct.location_city, ct.location_country,
+                ct.linkedin_url, ct.phone_number,
+                ct.ai_champion_score, ct.authority_score,
+                ct.linkedin_activity_level, ct.language,
+                ct.contact_source
             FROM contacts ct
             {joins}
             WHERE {where_clause}
@@ -251,6 +264,17 @@ def list_contacts():
             "owner_name": r[10],
             "tag_name": tag_names[0] if tag_names else None,
             "tag_names": tag_names,
+            "seniority_level": display_seniority(r[11]),
+            "department": display_department(r[12]),
+            "location_city": r[13],
+            "location_country": r[14],
+            "linkedin_url": r[15],
+            "phone_number": r[16],
+            "ai_champion_score": int(r[17]) if r[17] is not None else None,
+            "authority_score": int(r[18]) if r[18] is not None else None,
+            "linkedin_activity_level": display_linkedin_activity(r[19]),
+            "language": display_language(r[20]),
+            "contact_source": display_contact_source(r[21]),
         })
 
     return jsonify({
@@ -499,6 +523,8 @@ def filter_counts():
 
     # Define all facet fields with their column references
     FACET_FIELDS = {
+        "company_status": "co.status",
+        "company_tier": "co.tier",
         "industry": "co.industry",
         "company_size": "co.company_size",
         "geo_region": "co.geo_region",

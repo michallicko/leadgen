@@ -1,5 +1,6 @@
 import json
 import math
+import re
 
 from flask import Blueprint, jsonify, request
 
@@ -25,6 +26,24 @@ from ..display import (
 from ..models import db
 
 companies_bp = Blueprint("companies", __name__)
+
+
+def _add_multi_filter(where, params, param_name, column, request_obj):
+    """Add a multi-value include/exclude filter to the WHERE clause."""
+    raw = request_obj.args.get(param_name, "").strip()
+    if not raw:
+        return
+    values = [v.strip() for v in raw.split(",") if v.strip()]
+    if not values:
+        return
+    exclude = request_obj.args.get(f"{param_name}_exclude", "").strip().lower() == "true"
+    placeholders = ", ".join(f":{param_name}_{i}" for i in range(len(values)))
+    for i, v in enumerate(values):
+        params[f"{param_name}_{i}"] = v
+    if exclude:
+        where.append(f"({column} IS NULL OR {column} NOT IN ({placeholders}))")
+    else:
+        where.append(f"{column} IN ({placeholders})")
 
 
 def _iso(v):
@@ -75,7 +94,9 @@ def _derive_stage(completions, status=None):
 
 ALLOWED_SORT = {
     "name", "domain", "status", "tier", "triage_score", "hq_country",
-    "industry", "contact_count", "created_at",
+    "industry", "contact_count", "created_at", "company_size",
+    "geo_region", "revenue_range", "data_quality_score",
+    "verified_employees", "verified_revenue_eur_m", "credibility_score",
 }
 
 
@@ -89,8 +110,6 @@ def list_companies():
     page = max(1, request.args.get("page", 1, type=int))
     page_size = min(100, max(1, request.args.get("page_size", 25, type=int)))
     search = request.args.get("search", "").strip()
-    status = request.args.get("status", "").strip()
-    tier = request.args.get("tier", "").strip()
     tag_name = request.args.get("tag_name", "").strip()
     owner_name = request.args.get("owner_name", "").strip()
     sort = request.args.get("sort", "name").strip()
@@ -107,12 +126,6 @@ def list_companies():
     if search:
         where.append("(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))")
         params["search"] = f"%{search}%"
-    if status:
-        where.append("c.status = :status")
-        params["status"] = status
-    if tier:
-        where.append("c.tier = :tier")
-        params["tier"] = tier
     if tag_name:
         where.append("""EXISTS (
             SELECT 1 FROM company_tag_assignments cota
@@ -124,11 +137,24 @@ def list_companies():
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
 
+    # --- Multi-value ICP filters ---
+    _add_multi_filter(where, params, "status", "c.status", request)
+    _add_multi_filter(where, params, "tier", "c.tier", request)
+    _add_multi_filter(where, params, "industry", "c.industry", request)
+    _add_multi_filter(where, params, "company_size", "c.company_size", request)
+    _add_multi_filter(where, params, "geo_region", "c.geo_region", request)
+    _add_multi_filter(where, params, "revenue_range", "c.revenue_range", request)
+
     # Custom field filters: cf_{key}=value
     cf_idx = 0
     for param_key, param_val in request.args.items():
         if param_key.startswith("cf_") and param_val.strip():
             field_key = param_key[3:]
+            # SECURITY: field_key is interpolated into SQLite json_extract path below.
+            # This regex whitelist is the ONLY defense against SQL injection for custom field keys.
+            # Do NOT weaken this pattern without also parameterizing the SQLite path.
+            if not re.match(r'^[a-zA-Z0-9_]+$', field_key):
+                continue
             dialect = db.engine.dialect.name
             if dialect == "sqlite":
                 where.append(f"json_extract(c.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}")
@@ -165,7 +191,13 @@ def list_companies():
                 o.name AS owner_name,
                 c.industry, c.hq_country, c.triage_score,
                 (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
-                c.created_at
+                c.created_at,
+                c.company_size, c.geo_region, c.revenue_range,
+                c.business_model, c.ownership_type, c.buying_stage,
+                c.engagement_status, c.ai_adoption,
+                c.verified_employees, c.verified_revenue_eur_m,
+                c.credibility_score, c.linkedin_url, c.website_url,
+                c.data_quality_score, c.last_enriched_at
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
@@ -231,6 +263,21 @@ def list_companies():
             "triage_score": float(r[8]) if r[8] is not None else None,
             "contact_count": r[9] or 0,
             "derived_stage": _derive_stage(completions),
+            "company_size": display_company_size(r[11]),
+            "geo_region": display_geo_region(r[12]),
+            "revenue_range": display_revenue_range(r[13]),
+            "business_model": display_business_model(r[14]),
+            "ownership_type": display_ownership_type(r[15]),
+            "buying_stage": display_buying_stage(r[16]),
+            "engagement_status": display_engagement_status(r[17]),
+            "ai_adoption": display_confidence(r[18]),
+            "verified_employees": float(r[19]) if r[19] is not None else None,
+            "verified_revenue_eur_m": float(r[20]) if r[20] is not None else None,
+            "credibility_score": int(r[21]) if r[21] is not None else None,
+            "linkedin_url": r[22],
+            "website_url": r[23],
+            "data_quality_score": int(r[24]) if r[24] is not None else None,
+            "last_enriched_at": r[25].isoformat() if r[25] else None,
         })
 
     return jsonify({
@@ -240,6 +287,114 @@ def list_companies():
         "page_size": page_size,
         "pages": pages,
     })
+
+
+@companies_bp.route("/api/companies/filter-counts", methods=["POST"])
+@require_auth
+def company_filter_counts():
+    """Return faceted counts for all filterable company fields.
+
+    Each field's counts are computed with all OTHER active filters applied
+    (standard faceted search pattern).
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    filters = body.get("filters", {})
+    search = body.get("search", "").strip()
+    tag_name = body.get("tag_name", "").strip()
+    owner_name = body.get("owner_name", "").strip()
+
+    # Define all facet fields with their column references
+    FACET_FIELDS = {
+        "status": "c.status",
+        "tier": "c.tier",
+        "industry": "c.industry",
+        "company_size": "c.company_size",
+        "geo_region": "c.geo_region",
+        "revenue_range": "c.revenue_range",
+    }
+
+    def _build_base_where(params, exclude_facet=None):
+        """Build WHERE clause applying all filters EXCEPT exclude_facet."""
+        where = ["c.tenant_id = :tenant_id"]
+        params["tenant_id"] = tenant_id
+
+        if search:
+            where.append(
+                "(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))"
+            )
+            params["search"] = f"%{search}%"
+        if tag_name:
+            where.append("""EXISTS (
+                SELECT 1 FROM company_tag_assignments cota
+                JOIN tags bt ON bt.id = cota.tag_id
+                WHERE cota.company_id = c.id AND bt.name = :tag_name
+            )""")
+            params["tag_name"] = tag_name
+        if owner_name:
+            where.append("o.name = :owner_name")
+            params["owner_name"] = owner_name
+
+        # Apply all multi-value filters EXCEPT the one being faceted
+        for field_key, column in FACET_FIELDS.items():
+            if field_key == exclude_facet:
+                continue
+            f = filters.get(field_key, {})
+            values = f.get("values", [])[:100] if isinstance(f, dict) else []
+            if not values:
+                continue
+            exclude = f.get("exclude", False) if isinstance(f, dict) else False
+            placeholders = ", ".join(f":{field_key}_{i}" for i in range(len(values)))
+            for i, v in enumerate(values):
+                params[f"{field_key}_{i}"] = v
+            if exclude:
+                where.append(f"({column} IS NULL OR {column} NOT IN ({placeholders}))")
+            else:
+                where.append(f"{column} IN ({placeholders})")
+
+        return " AND ".join(where)
+
+    joins = """
+        LEFT JOIN owners o ON c.owner_id = o.id
+    """
+
+    facets = {}
+    for field_key, column in FACET_FIELDS.items():
+        params = {}
+        where_clause = _build_base_where(params, exclude_facet=field_key)
+
+        rows = db.session.execute(
+            db.text(f"""
+                SELECT {column} AS val, COUNT(*) AS cnt
+                FROM companies c
+                {joins}
+                WHERE {where_clause}
+                  AND {column} IS NOT NULL
+                GROUP BY {column}
+                ORDER BY cnt DESC
+            """),
+            params,
+        ).fetchall()
+        facets[field_key] = [{"value": r[0], "count": r[1]} for r in rows]
+
+    # Total count with ALL filters applied
+    total_params = {}
+    total_where = _build_base_where(total_params)
+
+    total = db.session.execute(
+        db.text(f"""
+            SELECT COUNT(*)
+            FROM companies c
+            {joins}
+            WHERE {total_where}
+        """),
+        total_params,
+    ).scalar() or 0
+
+    return jsonify({"total": total, "facets": facets})
 
 
 @companies_bp.route("/api/companies/<company_id>", methods=["GET"])

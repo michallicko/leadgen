@@ -9,10 +9,26 @@ export interface CompanyListItem {
   tier: string | null
   owner_name: string | null
   tag_name: string | null
+  tag_names?: string[]
   industry: string | null
   hq_country: string | null
   triage_score: number | null
   contact_count: number
+  company_size: string | null
+  geo_region: string | null
+  revenue_range: string | null
+  business_model: string | null
+  ownership_type: string | null
+  buying_stage: string | null
+  engagement_status: string | null
+  ai_adoption: string | null
+  verified_employees: number | null
+  verified_revenue_eur_m: number | null
+  credibility_score: number | null
+  linkedin_url: string | null
+  website_url: string | null
+  data_quality_score: number | null
+  last_enriched_at: string | null
 }
 
 interface CompaniesPage {
@@ -183,12 +199,24 @@ export interface CompanyDetail {
 
 export interface CompanyFilters {
   search?: string
-  status?: string
-  tier?: string
   tag_name?: string
   owner_name?: string
   sort?: string
   sort_dir?: string
+  // Multi-value filters (comma-separated values)
+  status?: string
+  status_exclude?: string
+  tier?: string
+  tier_exclude?: string
+  industry?: string
+  industry_exclude?: string
+  company_size?: string
+  company_size_exclude?: string
+  geo_region?: string
+  geo_region_exclude?: string
+  revenue_range?: string
+  revenue_range_exclude?: string
+  [key: string]: string | undefined
 }
 
 const PAGE_SIZE = 50
@@ -201,13 +229,10 @@ export function useCompanies(filters: CompanyFilters) {
         page: String(pageParam),
         page_size: String(PAGE_SIZE),
       }
-      if (filters.search) params.search = filters.search
-      if (filters.status) params.status = filters.status
-      if (filters.tier) params.tier = filters.tier
-      if (filters.tag_name) params.tag_name = filters.tag_name
-      if (filters.owner_name) params.owner_name = filters.owner_name
-      if (filters.sort) params.sort = filters.sort
-      if (filters.sort_dir) params.sort_dir = filters.sort_dir
+      // Pass through all non-empty filter values
+      for (const [key, value] of Object.entries(filters)) {
+        if (value) params[key] = value
+      }
       return apiFetch<CompaniesPage>('/companies', { params })
     },
     getNextPageParam: (lastPage) =>
