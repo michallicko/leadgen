@@ -4,6 +4,21 @@ All notable changes to the Leadgen Pipeline project.
 
 ## [Unreleased]
 
+### Added
+- **Browser Extension** (BL-020): Chrome extension for LinkedIn lead extraction and activity monitoring
+  - Extension auth via email/password login (reuses existing JWT system with `chrome.storage` token persistence)
+  - `POST /api/extension/leads` — import leads from Sales Navigator with dedup by LinkedIn URL
+  - `POST /api/extension/activities` — sync activity events with dedup by `external_id`
+  - `GET /api/extension/status` — extension connection status and sync stats for dashboard
+  - Activities table in PostgreSQL (migration 028) with contact linking and stub contact creation
+  - Stub contact creation for activities referencing unknown LinkedIn URLs (`is_stub`, `import_source` fields on contacts)
+  - User dropdown menu with Preferences link in navigation header
+  - Preferences page showing extension connection status and sync statistics
+  - Dual-build Chrome extension: purple icons (prod) and orange icons (staging) for visual environment distinction
+  - Content scripts: Sales Navigator lead extraction and LinkedIn activity monitoring
+  - Service worker: background sync queue, JWT auto-refresh, badge notifications
+  - 15 new unit tests for extension API routes
+
 ### Changed
 - **Entity Detail Cleanup** (BL-046): Restructure CompanyDetail and ContactDetail views per enrichment field audit
   - Company: Rename "Pipeline" section to "CRM", remove deprecated status/crm_status/cohort fields

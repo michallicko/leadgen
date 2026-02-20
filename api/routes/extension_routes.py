@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Activity, Company, Contact, Owner, Tag, db
+from ..models import Activity, Company, Contact, Tag, db
 
 extension_bp = Blueprint("extension", __name__)
 

@@ -1,6 +1,6 @@
 # Leadgen Pipeline - Architecture
 
-> Last updated: 2026-02-19
+> Last updated: 2026-02-20
 
 ## System Overview
 
@@ -63,7 +63,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 ### 2. Flask API
 - **Tech**: Flask + SQLAlchemy + Gunicorn
 - **Container**: `leadgen-api` (Docker, port 5000)
-- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/tags/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/campaigns/*`, `/api/campaign-templates`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/bulk/*`, `/api/health`
+- **Routes**: `/api/auth/*`, `/api/tenants/*`, `/api/users/*`, `/api/tags/*`, `/api/companies/*`, `/api/contacts/*`, `/api/messages/*`, `/api/campaigns/*`, `/api/campaign-templates`, `/api/pipeline/*`, `/api/enrich/*`, `/api/imports/*`, `/api/llm-usage/*`, `/api/oauth/*`, `/api/gmail/*`, `/api/bulk/*`, `/api/extension/*`, `/api/health`
 - **Services**: `pipeline_engine.py` (stage orchestration), `dag_executor.py` (DAG-based executor with completion-record eligibility, see ADR-005), `stage_registry.py` (configurable DAG of enrichment stages), `qc_checker.py` (end-of-pipeline quality checks), `l1_enricher.py` (native L1 via Perplexity, see ADR-003), `registries/` (EU registry adapters + unified orchestrator — see ADR-004, ADR-005), `csv_mapper.py` (AI column mapping), `dedup.py` (contact/company deduplication), `llm_logger.py` (LLM usage cost tracking), `google_oauth.py` (OAuth token management), `google_contacts.py` (People API fetch/mapping), `gmail_scanner.py` (background Gmail scan + AI signature extraction), `message_generator.py` (campaign message generation via Claude API), `generation_prompts.py` (channel-specific prompt templates)
 - **Auth**: JWT Bearer tokens, bcrypt password hashing
 - **Multi-tenant**: Shared PG schema, `tenant_id` on all entity tables
@@ -80,7 +80,7 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Databases**: `n8n` (n8n internal), `leadgen` (application data)
 - **Schema**: 19 entity tables + 3 junction tables + 2 auth tables, ~30 enum types
 - **Multi-tenant**: `tenant_id` column on all entity tables
-- **DDL**: `migrations/001_initial_schema.sql` through `018_campaign_tables.sql`
+- **DDL**: `migrations/001_initial_schema.sql` through `028_extension_activities.sql`
 
 ### 5. Contact ICP Filter System
 - **Purpose**: Faceted multi-value filtering on the Contacts page to narrow contacts by ICP (Ideal Customer Profile) criteria
@@ -102,6 +102,20 @@ Leadgen Pipeline is a multi-tenant B2B lead enrichment and outreach platform. It
 - **Prompts** (`generation_prompts.py`): Incorporates company summary, L2 intel, person enrichment, signals, tone, custom instructions
 - **Cost tracking**: Per-message cost logged via `llm_logger.py`, aggregated per campaign_contact and campaign
 - **Review workflow**: Focused single-message queue with sequential gated navigation (approve/reject to advance). Manual editing with version tracking (original_body/original_subject preserved immutably, structured edit_reason tags for LLM training feedback — ADR-007). Per-message regeneration with language, formality (Ty/Vy), tone overrides, custom instruction (max 200 chars), cost estimate. Contact disqualification (campaign-only exclusion or global). Campaign outreach approval gate (all messages must be reviewed before campaign → approved).
+
+### 8. Browser Extension (Chrome)
+- **Tech**: TypeScript + Vite, Chrome Manifest V3
+- **Components**:
+  - **Popup** (`popup.ts`): Login form (email/password), connection status display, manual sync trigger
+  - **Content Scripts**: `sales-navigator.ts` (extracts lead data from Sales Navigator search results), `activity-monitor.ts` (monitors LinkedIn activity feed events)
+  - **Service Worker** (`service-worker.ts`): Background sync queue, JWT auto-refresh via `chrome.storage`, badge notifications for sync status
+- **Auth flow**: User logs in via popup (email + password) -> API returns JWT access + refresh tokens -> tokens stored in `chrome.storage.local` -> service worker auto-refreshes before expiry
+- **Data flow**:
+  - **Leads**: Content script extracts lead data from Sales Navigator -> queued in service worker -> `POST /api/extension/leads` (dedup by LinkedIn URL, company matching by name)
+  - **Activities**: Content script monitors LinkedIn events -> queued in service worker -> `POST /api/extension/activities` (dedup by `external_id`, stub contact creation for unknown LinkedIn URLs)
+- **Configuration** (`config.ts`): Environment-specific API base URLs (prod: `leadgen.visionvolve.com`, staging: `leadgen-staging.visionvolve.com`)
+- **Dual builds**: Vite build produces two variants via manifest overlays — purple icons for production, orange icons for staging — allowing both to be installed simultaneously
+- **Dashboard integration**: `GET /api/extension/status` surfaces connection state and sync stats on the Preferences page
 
 ### 7. Caddy (Reverse Proxy)
 - **Subdomains**: `n8n.visionvolve.com`, `leadgen.visionvolve.com`, `vps.visionvolve.com`, `ds.visionvolve.com`
