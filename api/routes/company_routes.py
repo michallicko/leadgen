@@ -187,9 +187,16 @@ def list_companies():
             # 7. imported: everything else (no L1, no special status)
             # c.status is a PG enum — LIKE requires a text cast.
             # COALESCE handles NULL status (NULL LIKE x → NULL, which breaks NOT).
-            _STATUS_TEXT = "COALESCE(CAST(c.status AS TEXT), '')"
-            _FAILED_COND = f"({_STATUS_TEXT} LIKE '%failed%' OR {_STATUS_TEXT} LIKE '%error%')"
+            # c.status is a PG enum — LIKE requires a text cast.
+            # Use COALESCE for NULL-safety (NULL comparisons yield NULL, not False).
+            _ST = "COALESCE(CAST(c.status AS TEXT), '')"
+            _FAILED_COND = f"({_ST} LIKE '%failed%' OR {_ST} LIKE '%error%')"
             _NOT_FAILED = f"NOT {_FAILED_COND}"
+            # NULL-safe NOT IN: (c.status IS NULL OR c.status NOT IN (...))
+            _NOT_IN_SPECIAL = (
+                "(c.status IS NULL OR c.status NOT IN"
+                " ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review'))"
+            )
             _ES_STATUS_MAP = {
                 "failed": _FAILED_COND,
                 "disqualified": f"({_NOT_FAILED} AND c.status = 'triage_disqualified')",
@@ -203,7 +210,7 @@ def list_companies():
                 ),
                 "enriched": (
                     f"({_NOT_FAILED}"
-                    " AND c.status != 'triage_disqualified'"
+                    " AND (c.status IS NULL OR c.status != 'triage_disqualified')"
                     " AND ("
                     "  c.status IN ('enriched_l2','enriched','synced','needs_review')"
                     "  OR EXISTS (SELECT 1 FROM company_enrichment_profile l2f WHERE l2f.company_id = c.id)"
@@ -224,14 +231,14 @@ def list_companies():
                 ),
                 "researched": (
                     f"({_NOT_FAILED}"
-                    " AND c.status NOT IN ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review')"
+                    f" AND {_NOT_IN_SPECIAL}"
                     " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2r WHERE l2r.company_id = c.id)"
                     " AND EXISTS (SELECT 1 FROM company_enrichment_l1 l1r WHERE l1r.company_id = c.id)"
                     ")"
                 ),
                 "imported": (
                     f"({_NOT_FAILED}"
-                    " AND c.status NOT IN ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review')"
+                    f" AND {_NOT_IN_SPECIAL}"
                     " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2i WHERE l2i.company_id = c.id)"
                     " AND NOT EXISTS (SELECT 1 FROM company_enrichment_l1 l1i WHERE l1i.company_id = c.id)"
                     ")"
