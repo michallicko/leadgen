@@ -107,3 +107,91 @@ def upload_leads():
             "skipped_duplicates": skipped_duplicates,
         }
     )
+
+
+@extension_bp.route("/api/extension/activities", methods=["POST"])
+@require_auth
+def upload_activities():
+    """Sync activity events from browser extension."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json()
+    if not data or "events" not in data:
+        return jsonify({"error": "Missing 'events' in request body"}), 400
+
+    events = data["events"]
+    user = g.current_user
+    owner_id = user.owner_id
+
+    created = 0
+    skipped_duplicates = 0
+
+    for event in events:
+        external_id = event.get("external_id")
+
+        # Dedup by external_id within tenant
+        if external_id:
+            existing = Activity.query.filter_by(
+                tenant_id=str(tenant_id), external_id=external_id
+            ).first()
+            if existing:
+                skipped_duplicates += 1
+                continue
+
+        # Resolve contact by LinkedIn URL
+        contact_id = None
+        linkedin_url = (event.get("contact_linkedin_url") or "").strip()
+        if linkedin_url:
+            contact = Contact.query.filter_by(
+                tenant_id=str(tenant_id), linkedin_url=linkedin_url
+            ).first()
+            if not contact:
+                # Create stub contact
+                payload = event.get("payload", {})
+                contact_name = (payload.get("contact_name") or "").strip()
+                parts = contact_name.split(None, 1)
+                contact = Contact(
+                    tenant_id=str(tenant_id),
+                    first_name=parts[0] if parts else "Unknown",
+                    last_name=parts[1] if len(parts) > 1 else "",
+                    linkedin_url=linkedin_url,
+                    is_stub=True,
+                    import_source="activity_stub",
+                    owner_id=owner_id,
+                )
+                db.session.add(contact)
+                db.session.flush()
+            contact_id = contact.id
+
+        # Parse timestamp
+        ts = event.get("timestamp")
+        timestamp = None
+        if ts:
+            try:
+                timestamp = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                timestamp = datetime.now(timezone.utc)
+
+        # Extract display fields from payload
+        payload = event.get("payload", {})
+
+        activity = Activity(
+            tenant_id=str(tenant_id),
+            contact_id=contact_id,
+            owner_id=owner_id,
+            event_type=event.get("event_type", "event"),
+            activity_name=payload.get("contact_name", ""),
+            activity_detail=payload.get("message", ""),
+            source="linkedin_extension",
+            external_id=external_id,
+            timestamp=timestamp,
+            payload=payload,
+        )
+        db.session.add(activity)
+        created += 1
+
+    db.session.commit()
+
+    return jsonify({"created": created, "skipped_duplicates": skipped_duplicates})

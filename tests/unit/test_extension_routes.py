@@ -130,3 +130,142 @@ class TestUploadLeads:
             headers=headers,
         )
         assert resp.status_code == 400
+
+
+class TestUploadActivities:
+    """POST /api/extension/activities"""
+
+    def test_creates_activities(self, client, seed_companies_contacts):
+        """Given new events, creates activity records."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        # Use an existing contact's linkedin_url from seed data
+        events = [
+            {
+                "event_type": "message",
+                "timestamp": "2026-02-20T10:30:00Z",
+                "contact_linkedin_url": "https://www.linkedin.com/in/johndoe",
+                "external_id": "ext_001",
+                "payload": {
+                    "contact_name": "John Doe",
+                    "message": "Hey, interested in your product",
+                    "direction": "received",
+                },
+            }
+        ]
+        resp = client.post(
+            "/api/extension/activities",
+            json={"events": events},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["created"] == 1
+        assert data["skipped_duplicates"] == 0
+
+    def test_deduplicates_by_external_id(self, client, seed_companies_contacts):
+        """Given duplicate external_id, skips the duplicate."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        events = [
+            {
+                "event_type": "message",
+                "external_id": "ext_dedup",
+                "timestamp": "2026-02-20T10:30:00Z",
+                "contact_linkedin_url": "https://www.linkedin.com/in/someone",
+                "payload": {"contact_name": "Someone", "message": "Hi"},
+            }
+        ]
+        client.post(
+            "/api/extension/activities",
+            json={"events": events},
+            headers=headers,
+        )
+        resp = client.post(
+            "/api/extension/activities",
+            json={"events": events},
+            headers=headers,
+        )
+        data = resp.get_json()
+        assert data["created"] == 0
+        assert data["skipped_duplicates"] == 1
+
+    def test_creates_stub_contact_for_unknown_linkedin_url(
+        self, client, seed_companies_contacts
+    ):
+        """Given activity with unknown linkedin_url, creates stub contact."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        events = [
+            {
+                "event_type": "message",
+                "external_id": "ext_stub",
+                "timestamp": "2026-02-20T10:30:00Z",
+                "contact_linkedin_url": "https://www.linkedin.com/in/unknown-person",
+                "payload": {"contact_name": "Unknown Person", "message": "Hello"},
+            }
+        ]
+        resp = client.post(
+            "/api/extension/activities",
+            json={"events": events},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        from api.models import Contact
+        stub = Contact.query.filter_by(
+            linkedin_url="https://www.linkedin.com/in/unknown-person"
+        ).first()
+        assert stub is not None
+        assert stub.is_stub is True
+        assert stub.import_source == "activity_stub"
+        assert stub.first_name == "Unknown"
+        assert stub.last_name == "Person"
+
+    def test_links_to_existing_contact(self, client, seed_companies_contacts):
+        """Given activity with known linkedin_url, links to existing contact."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        events = [
+            {
+                "event_type": "message",
+                "external_id": "ext_existing",
+                "timestamp": "2026-02-20T10:30:00Z",
+                "contact_linkedin_url": "https://www.linkedin.com/in/johndoe",
+                "payload": {"contact_name": "John Doe", "message": "Hi"},
+            }
+        ]
+        resp = client.post(
+            "/api/extension/activities",
+            json={"events": events},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        from api.models import Activity, Contact
+        # Should NOT create a stub -- should link to existing John Doe
+        john = Contact.query.filter_by(
+            linkedin_url="https://www.linkedin.com/in/johndoe"
+        ).first()
+        activity = Activity.query.filter_by(external_id="ext_existing").first()
+        assert activity is not None
+        assert activity.contact_id == john.id
+
+    def test_requires_auth(self, client, db):
+        """Given no auth header, returns 401."""
+        resp = client.post(
+            "/api/extension/activities",
+            json={"events": []},
+        )
+        assert resp.status_code == 401
+
+    def test_validates_events_field(self, client, seed_companies_contacts):
+        """Given no events field in body, returns 400."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        resp = client.post(
+            "/api/extension/activities",
+            json={"source": "test"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
