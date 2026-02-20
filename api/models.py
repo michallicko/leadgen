@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
@@ -467,6 +469,9 @@ class Contact(db.Model):
     is_disqualified = db.Column(db.Boolean, default=False)
     disqualified_at = db.Column(db.DateTime(timezone=True))
     disqualified_reason = db.Column(db.Text)
+    # Extension import (migration 028)
+    is_stub = db.Column(db.Boolean, default=False)
+    import_source = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
@@ -877,3 +882,21 @@ class EnrichmentSchedule(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class Activity(db.Model):
+    __tablename__ = "activities"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=True)
+    owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"), nullable=True)
+    event_type = db.Column(db.Text, nullable=False)
+    activity_name = db.Column(db.Text)
+    activity_detail = db.Column(db.Text)
+    source = db.Column(db.Text, nullable=False, default="linkedin_extension")
+    external_id = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime(timezone=True))
+    payload = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    processed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
