@@ -129,6 +129,7 @@ class Company(db.Model):
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     pre_score = db.Column(db.Numeric(4, 1))
     batch_number = db.Column(db.Numeric(4, 1))
+    is_self = db.Column(db.Boolean, nullable=False, server_default=db.text("false"), default=False)
     lemlist_synced = db.Column(db.Boolean, default=False)
     error_message = db.Column(db.Text)
     notes = db.Column(db.Text)
@@ -905,3 +906,56 @@ class Activity(db.Model):
     timestamp = db.Column(db.DateTime(timezone=True))
     payload = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class StrategyDocument(db.Model):
+    __tablename__ = "strategy_documents"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False, unique=True)
+    content = db.Column(JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict)
+    extracted_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict)
+    status = db.Column(db.String(20), nullable=False, default="draft")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    enrichment_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "content": self.content or {},
+            "extracted_data": self.extracted_data or {},
+            "status": self.status,
+            "version": self.version,
+            "enrichment_id": self.enrichment_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by,
+        }
+
+
+class StrategyChatMessage(db.Model):
+    __tablename__ = "strategy_chat_messages"
+
+    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    document_id = db.Column(UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"), nullable=False)
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    extra = db.Column("metadata", JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    created_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "document_id": self.document_id,
+            "role": self.role,
+            "content": self.content,
+            "metadata": self.extra or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by,
+        }
