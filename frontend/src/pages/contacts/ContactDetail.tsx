@@ -5,10 +5,11 @@ import { Badge } from '../../components/ui/Badge'
 import {
   FieldGrid, Field, FieldLink,
   EditableSelect, EditableTextarea,
-  SectionDivider, MiniTable,
+  SectionDivider, CollapsibleSection, MiniTable,
 } from '../../components/ui/DetailField'
 import { Tabs, type TabDef } from '../../components/ui/Tabs'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
+import { RawResearchSection } from '../../components/ui/RawResearchSection'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import {
   SENIORITY_DISPLAY, SENIORITY_REVERSE,
@@ -184,59 +185,256 @@ export function ContactDetail({ contact, onNavigate }: Props) {
   // Enrichment tab (only if person enrichment exists)
   if (contact.enrichment) {
     const e = contact.enrichment
+
+    // Career trajectory color mapping
+    const careerTrajectoryColors: Record<string, string> = {
+      ascending: 'bg-success/15 text-success border-success/30',
+      lateral: 'bg-[#3B82F6]/15 text-[#3B82F6] border-[#3B82F6]/30',
+      descending: 'bg-warning/15 text-warning border-warning/30',
+      early_career: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
+    }
+    const careerColor = e.career_trajectory ? (careerTrajectoryColors[e.career_trajectory.toLowerCase()] ?? null) : null
+
+    // Check if various sections have data
+    const hasCareerData = e.career_trajectory || (e.previous_companies && e.previous_companies.length > 0)
+      || e.speaking_engagements || e.publications || e.twitter_handle || e.github_username
+      || e.education || e.certifications || e.expertise_areas
+
+    const hasBuyingSignals = (e.ai_champion != null) || e.ai_champion_score != null
+      || (e.authority_score ?? contact.authority_score) != null
+      || e.budget_signals || e.buying_signals || e.pain_indicators || e.technology_interests
+
+    const hasRelationshipStrategy = e.personalization_angle || e.connection_points || e.conversation_starters || e.objection_prediction
+
     tabs.push({
       id: 'enrichment',
       label: 'Enrichment',
       content: (
-        <div className="space-y-1">
-          <SectionDivider title="Person Summary" />
-          <div className="space-y-4">
-            <Field label="Person Summary" value={e.person_summary} className="col-span-full" source={personSource} />
-            <Field label="LinkedIn Summary" value={e.linkedin_profile_summary} className="col-span-full" source={personSource} />
-            <Field label="Relationship Synthesis" value={e.relationship_synthesis} className="col-span-full" source={personSource} />
-          </div>
+        <div className="max-w-3xl space-y-3">
+          {/* ---- Person Summary (always visible, no collapse) ---- */}
+          {(e.person_summary || e.relationship_synthesis || e.linkedin_profile_summary) && (
+            <div className="border border-accent/20 rounded-lg p-4 bg-accent/5 space-y-3">
+              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Person Summary</h3>
+              {e.person_summary && (
+                <p className="text-sm text-text leading-relaxed">{e.person_summary}</p>
+              )}
+              {e.relationship_synthesis && (
+                <div>
+                  <h4 className="text-xs font-medium text-text-muted mb-1">Relationship Insights</h4>
+                  <p className="text-sm text-text leading-relaxed">{e.relationship_synthesis}</p>
+                </div>
+              )}
+              {e.linkedin_profile_summary && (
+                <div>
+                  <h4 className="text-xs font-medium text-text-muted mb-1">LinkedIn Summary</h4>
+                  <p className="text-sm text-text leading-relaxed">{e.linkedin_profile_summary}</p>
+                </div>
+              )}
+            </div>
+          )}
 
-          {(e.career_trajectory || (e.previous_companies && e.previous_companies.length > 0) || e.speaking_engagements || e.publications || e.twitter_handle || e.github_username) && (
-            <>
-              <SectionDivider title="Career & Social" />
+          {/* ---- Career & Background (collapsible) ---- */}
+          {hasCareerData && (
+            <CollapsibleSection
+              title="Career & Background"
+              defaultOpen
+              badge={careerColor && e.career_trajectory ? (
+                <span className={`px-2 py-0.5 text-xs rounded-full border ${careerColor}`}>
+                  {e.career_trajectory.replace(/_/g, ' ')}
+                </span>
+              ) : undefined}
+            >
               <div className="space-y-4">
-                <Field label="Career Trajectory" value={e.career_trajectory} className="col-span-full" source={personSource} />
+                {e.career_trajectory && (
+                  <div>
+                    <h4 className="text-xs font-medium text-text-muted mb-1">Career Trajectory</h4>
+                    {careerColor ? (
+                      <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${careerColor}`}>
+                        {e.career_trajectory.replace(/_/g, ' ')}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-text">{e.career_trajectory}</span>
+                    )}
+                  </div>
+                )}
+
                 {e.previous_companies && e.previous_companies.length > 0 && (
                   <div>
-                    <span className="text-xs text-text-muted font-medium">Previous Companies</span>
-                    <div className="space-y-1 mt-1">
+                    <h4 className="text-xs font-medium text-text-muted mb-1">Previous Companies</h4>
+                    <div className="space-y-1.5">
                       {e.previous_companies.map((pc, i) => (
-                        <div key={i} className="text-sm text-text">
+                        <div key={i} className="flex items-baseline gap-2 text-sm text-text pl-2 border-l-2 border-border-solid/40">
                           <span className="font-medium">{String(pc.name || pc.company || `Company ${i + 1}`)}</span>
-                          {pc.role ? <span className="text-text-muted"> — {String(pc.role)}</span> : null}
-                          {pc.years ? <span className="text-text-dim ml-1">({String(pc.years)})</span> : null}
+                          {pc.role ? <span className="text-text-muted">-- {String(pc.role)}</span> : null}
+                          {pc.years ? <span className="text-text-dim text-xs">({String(pc.years)})</span> : null}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                <Field label="Speaking Engagements" value={e.speaking_engagements} className="col-span-full" source={personSource} />
-                <Field label="Publications" value={e.publications} className="col-span-full" source={personSource} />
-                <FieldGrid cols={3}>
-                  {e.twitter_handle && (
-                    <FieldLink label="Twitter / X" value={`@${e.twitter_handle.replace(/^@/, '')}`} href={`https://x.com/${e.twitter_handle.replace(/^@/, '')}`} />
-                  )}
-                  {e.github_username && (
-                    <FieldLink label="GitHub" value={e.github_username} href={`https://github.com/${e.github_username}`} />
-                  )}
-                </FieldGrid>
+
+                {e.education && (
+                  <Field label="Education" value={e.education} className="col-span-full" source={personSource} />
+                )}
+                {e.certifications && (
+                  <Field label="Certifications" value={e.certifications} className="col-span-full" source={personSource} />
+                )}
+                {e.expertise_areas && (
+                  <div>
+                    <h4 className="text-xs font-medium text-text-muted mb-1">Expertise Areas</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Array.isArray(e.expertise_areas) ? e.expertise_areas : String(e.expertise_areas).split(',').map(s => s.trim())).filter(Boolean).map((area, i) => (
+                        <span key={i} className="px-2 py-0.5 text-xs bg-accent/10 text-accent-hover rounded border border-accent/20">
+                          {String(area)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {e.speaking_engagements && (
+                  <Field label="Speaking Engagements" value={e.speaking_engagements} className="col-span-full" source={personSource} />
+                )}
+                {e.publications && (
+                  <Field label="Publications" value={e.publications} className="col-span-full" source={personSource} />
+                )}
+
+                {(e.twitter_handle || e.github_username) && (
+                  <FieldGrid cols={3}>
+                    {e.twitter_handle && (
+                      <FieldLink label="Twitter / X" value={`@${e.twitter_handle.replace(/^@/, '')}`} href={`https://x.com/${e.twitter_handle.replace(/^@/, '')}`} />
+                    )}
+                    {e.github_username && (
+                      <FieldLink label="GitHub" value={e.github_username} href={`https://github.com/${e.github_username}`} />
+                    )}
+                  </FieldGrid>
+                )}
               </div>
-            </>
+            </CollapsibleSection>
           )}
 
-          <SectionDivider title="Scores" />
-          <FieldGrid cols={3}>
-            <Field label="Contact Score" value={contact.contact_score} />
-            <Field label="AI Champion" value={e.ai_champion != null ? (e.ai_champion ? 'Yes' : 'No') : contact.ai_champion} />
-            <Field label="AI Champion Score" value={e.ai_champion_score ?? contact.ai_champion_score} />
-            <Field label="Authority Score" value={e.authority_score ?? contact.authority_score} />
-            <Field label="Enrichment Cost" value={(e.enrichment_cost_usd ?? contact.enrichment_cost_usd)?.toFixed(4)} />
-          </FieldGrid>
+          {/* ---- Buying Signals (collapsible) ---- */}
+          {hasBuyingSignals && (
+            <CollapsibleSection
+              title="Buying Signals"
+              defaultOpen
+              badge={(() => {
+                const isChampion = e.ai_champion ?? (contact.ai_champion === 'true' || contact.ai_champion === 'True')
+                if (isChampion) return <span className="px-2 py-0.5 text-xs rounded-full bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30 font-medium">AI Champion</span>
+                return undefined
+              })()}
+            >
+              <div className="space-y-4">
+                {/* AI Champion + Score — prominent display */}
+                <div className="flex items-center gap-4 flex-wrap">
+                  {e.ai_champion != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">AI Champion:</span>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
+                        e.ai_champion
+                          ? 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30'
+                          : 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20'
+                      }`}>
+                        {e.ai_champion ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  )}
+                  {(e.ai_champion_score ?? contact.ai_champion_score) != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">Champion Score:</span>
+                      <span className="text-sm font-bold text-accent-cyan">{e.ai_champion_score ?? contact.ai_champion_score}</span>
+                    </div>
+                  )}
+                  {(e.authority_score ?? contact.authority_score) != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">Authority:</span>
+                      {(() => {
+                        const score = e.authority_score ?? contact.authority_score ?? 0
+                        const color = score >= 7 ? 'text-success' : score >= 4 ? 'text-warning' : 'text-text-muted'
+                        return <span className={`text-sm font-bold ${color}`}>{score}/10</span>
+                      })()}
+                    </div>
+                  )}
+                  {contact.contact_score != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">Contact Score:</span>
+                      <span className="text-sm font-medium text-text">{contact.contact_score}</span>
+                    </div>
+                  )}
+                </div>
+
+                {e.budget_signals && (
+                  <Field label="Budget Signals" value={e.budget_signals} className="col-span-full" source={personSource} />
+                )}
+                {e.buying_signals && (
+                  <Field label="Buying Signals" value={e.buying_signals} className="col-span-full" source={personSource} />
+                )}
+                {e.pain_indicators && (
+                  <Field label="Pain Indicators" value={e.pain_indicators} className="col-span-full" source={personSource} />
+                )}
+                {e.technology_interests && (
+                  <div>
+                    <h4 className="text-xs font-medium text-text-muted mb-1">Technology Interests</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Array.isArray(e.technology_interests) ? e.technology_interests : String(e.technology_interests).split(',').map(s => s.trim())).filter(Boolean).map((tech, i) => (
+                        <span key={i} className="px-2 py-0.5 text-xs bg-[#3B82F6]/10 text-[#3B82F6] rounded border border-[#3B82F6]/20">
+                          {String(tech)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* ---- Relationship Strategy (collapsible, only if data) ---- */}
+          {hasRelationshipStrategy && (
+            <CollapsibleSection title="Relationship Strategy">
+              <div className="space-y-4">
+                {e.personalization_angle && (
+                  <Field label="Personalization Angle" value={e.personalization_angle} className="col-span-full" source={personSource} />
+                )}
+                {e.connection_points && (
+                  <div>
+                    <h4 className="text-xs font-medium text-text-muted mb-1">Connection Points</h4>
+                    {Array.isArray(e.connection_points) ? (
+                      <ul className="list-disc list-outside ml-5 space-y-1 text-sm text-text">
+                        {(e.connection_points as unknown[]).map((point, i) => (
+                          <li key={i}>{typeof point === 'object' ? JSON.stringify(point) : String(point)}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-text">{String(e.connection_points)}</p>
+                    )}
+                  </div>
+                )}
+                {e.conversation_starters && (
+                  <Field label="Conversation Starters" value={e.conversation_starters} className="col-span-full" source={personSource} />
+                )}
+                {e.objection_prediction && (
+                  <Field label="Objection Prediction" value={e.objection_prediction} className="col-span-full" source={personSource} />
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* ---- Enrichment Metadata ---- */}
+          <div className="border-t border-border/40 pt-4 mt-4">
+            <FieldGrid cols={3}>
+              <Field label="Enrichment Cost" value={(e.enrichment_cost_usd ?? contact.enrichment_cost_usd)?.toFixed(4)} />
+              {e.enriched_at && (
+                <Field label="Enriched At" value={new Date(e.enriched_at).toLocaleString()} />
+              )}
+            </FieldGrid>
+          </div>
+
+          {/* ---- Raw Research ---- */}
+          <RawResearchSection
+            title="Raw Research"
+            data={e.raw_response}
+            subtitle="Unstructured research data -- may contain additional insights not captured in structured fields above."
+          />
         </div>
       ),
     })

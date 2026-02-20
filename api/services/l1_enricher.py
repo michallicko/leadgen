@@ -91,6 +91,7 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
   "revenue_source": "Where the revenue figure comes from",
   "employees": "Headcount (number) or 'unverified'",
   "employees_source": "Where the headcount comes from",
+  "competitors": "Top 3-5 named competitors. Or 'Unknown'",
   "confidence": 0.0 to 1.0,
   "flags": ["list of any concerns or data quality issues"]
 }}"""

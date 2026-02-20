@@ -10,6 +10,7 @@ import {
 import { Tabs, type TabDef } from '../../components/ui/Tabs'
 import { EnrichmentTimeline } from '../../components/ui/EnrichmentTimeline'
 import { CorrectiveActionButtons } from '../../components/ui/CorrectiveActionButtons'
+import { RawResearchSection } from '../../components/ui/RawResearchSection'
 import type { SourceInfo } from '../../components/ui/SourceTooltip'
 import { ModuleSummaryCard, type ModuleField } from './ModuleSummaryCard'
 import { deriveStage } from '../../lib/deriveStage'
@@ -241,12 +242,31 @@ export function CompanyDetail({ company, onNavigate }: Props) {
   })
 
   // Intelligence tab — module-based progressive disclosure
-  if (l2m || reg) {
+  if (l2m || reg || company.enrichment_l1) {
+    // Color maps for colored badges
+    const pitchFramingColors: Record<string, string> = {
+      growth_acceleration: 'bg-success/15 text-success border-success/30',
+      efficiency_protection: 'bg-[#3B82F6]/15 text-[#3B82F6] border-[#3B82F6]/30',
+      competitive_catch_up: 'bg-warning/15 text-warning border-warning/30',
+      compliance_driven: 'bg-error/15 text-error border-error/30',
+    }
+    const revenueTrendColors: Record<string, string> = {
+      growing: 'bg-success/15 text-success border-success/30',
+      stable: 'bg-[#3B82F6]/15 text-[#3B82F6] border-[#3B82F6]/30',
+      declining: 'bg-error/15 text-error border-error/30',
+      restructuring: 'bg-warning/15 text-warning border-warning/30',
+    }
+
+    // Extract pitch framing and executive brief from opportunity module
+    const pitchFraming = (l2m?.opportunity as Record<string, unknown> | undefined)?.pitch_framing as string | null ?? null
+    const executiveBrief = (l2m?.opportunity as Record<string, unknown> | undefined)?.executive_brief as string | null ?? null
+    const painHypothesis = l2m?.opportunity?.pain_hypothesis ?? null
+
     const profileFields: ModuleField[] = l2m?.profile ? [
       { label: 'Company Intel', value: l2m.profile.company_intel },
       { label: 'Key Products', value: l2m.profile.key_products },
       { label: 'Customer Segments', value: l2m.profile.customer_segments },
-      { label: 'Competitors', value: l2m.profile.competitors },
+      { label: 'Competitors', value: l2m.profile.competitors, type: 'tags' as const },
       { label: 'Tech Stack', value: l2m.profile.tech_stack },
       { label: 'Leadership', value: l2m.profile.leadership_team },
       { label: 'Certifications', value: l2m.profile.certifications },
@@ -254,22 +274,39 @@ export function CompanyDetail({ company, onNavigate }: Props) {
 
     const signalsFields: ModuleField[] = l2m?.signals ? [
       { label: 'AI Adoption', value: l2m.signals.ai_adoption_level, type: 'badge' as const },
+      { label: 'Digital Maturity', value: l2m.signals.digital_maturity_score, type: 'score_bar' as const },
+      { label: 'Fiscal Year End', value: l2m.signals.fiscal_year_end },
+      { label: 'Tech Stack Categories', value: l2m.signals.tech_stack_categories },
+      { label: 'IT Spend Indicators', value: l2m.signals.it_spend_indicators },
       { label: 'Growth Indicators', value: l2m.signals.growth_indicators },
       { label: 'Digital Initiatives', value: l2m.signals.digital_initiatives },
       { label: 'Job Postings', value: l2m.signals.job_posting_count, type: 'count' as const },
       { label: 'Hiring Departments', value: l2m.signals.hiring_departments },
+      { label: 'Hiring Signals', value: l2m.signals.hiring_signals },
+      { label: 'AI Hiring', value: l2m.signals.ai_hiring },
+      { label: 'Leadership Changes', value: l2m.signals.leadership_changes },
+      { label: 'Tech Partnerships', value: l2m.signals.tech_partnerships },
+      { label: 'Competitor AI Moves', value: l2m.signals.competitor_ai_moves },
+      { label: 'Regulatory Pressure', value: l2m.signals.regulatory_pressure },
+      { label: 'Employee Sentiment', value: l2m.signals.employee_sentiment },
     ] : []
 
     const marketFields: ModuleField[] = l2m?.market ? [
+      { label: 'Revenue Trend', value: l2m.market.revenue_trend, type: 'colored_badge' as const, colorMap: revenueTrendColors },
+      { label: 'Growth Signals', value: l2m.market.growth_signals },
       { label: 'Recent News', value: l2m.market.recent_news },
       { label: 'Media Sentiment', value: l2m.market.media_sentiment, type: 'badge' as const },
       { label: 'Funding History', value: l2m.market.funding_history },
       { label: 'EU Grants', value: l2m.market.eu_grants },
+      { label: 'M&A Activity', value: l2m.market.ma_activity },
+      { label: 'Expansion', value: l2m.market.expansion },
+      { label: 'Workflow AI Evidence', value: l2m.market.workflow_ai_evidence },
       { label: 'Press Releases', value: l2m.market.press_releases },
       { label: 'Thought Leadership', value: l2m.market.thought_leadership },
     ] : []
 
     const opportunityFields: ModuleField[] = l2m?.opportunity ? [
+      { label: 'Pitch Framing', value: pitchFraming, type: 'colored_badge' as const, colorMap: pitchFramingColors },
       { label: 'Pain Hypothesis', value: l2m.opportunity.pain_hypothesis },
       { label: 'AI Opportunities', value: l2m.opportunity.ai_opportunities },
       { label: 'Quick Wins', value: l2m.opportunity.quick_wins, type: 'list' as const },
@@ -279,11 +316,39 @@ export function CompanyDetail({ company, onNavigate }: Props) {
       { label: 'Relevant Case Study', value: l2m.opportunity.relevant_case_study },
     ] : []
 
+    // Check if executive brief section has data
+    const hasExecutiveBrief = pitchFraming || executiveBrief || painHypothesis
+
     tabs.push({
       id: 'intelligence',
       label: 'Intelligence',
       content: (
         <div className="max-w-3xl space-y-3">
+          {/* ---- Executive Brief (always visible, no collapse) ---- */}
+          {hasExecutiveBrief && (
+            <div className="border border-accent/20 rounded-lg p-4 bg-accent/5 space-y-3">
+              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Executive Brief</h3>
+              {pitchFraming && (
+                <div>
+                  <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${pitchFramingColors[pitchFraming.toLowerCase()] ?? 'bg-accent/10 text-accent-hover border-accent/20'}`}>
+                    {pitchFraming.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
+              {executiveBrief && (
+                <div>
+                  <p className="text-sm text-text leading-relaxed">{executiveBrief}</p>
+                </div>
+              )}
+              {painHypothesis && (
+                <div>
+                  <h4 className="text-xs font-medium text-text-muted mb-1">Pain Hypothesis</h4>
+                  <p className="text-sm text-text leading-relaxed">{painHypothesis}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {l2m && (
             <>
               <ModuleSummaryCard
@@ -295,7 +360,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
                 defaultOpen
               />
               <ModuleSummaryCard
-                title="Signals & Digital"
+                title="Strategic Signals"
                 icon="📡"
                 fields={signalsFields}
                 enrichedAt={l2m.signals?.enriched_at}
@@ -389,6 +454,13 @@ export function CompanyDetail({ company, onNavigate }: Props) {
               )}
             </section>
           )}
+
+          {/* ---- Raw Research ---- */}
+          <RawResearchSection
+            title="Raw Intelligence"
+            data={company.enrichment_l1?.raw_response}
+            subtitle="Unstructured research data — may contain additional insights not captured in structured fields above."
+          />
         </div>
       ),
     })
