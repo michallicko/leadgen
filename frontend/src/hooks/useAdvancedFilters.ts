@@ -63,7 +63,7 @@ function saveState(storageKey: string, state: AdvancedFilterState) {
 
 /** Contact-specific multi-keys (default for backward compat) */
 export const CONTACT_MULTI_KEYS = [
-  'company_status', 'company_tier',
+  'company_tier',
   'industry', 'company_size', 'geo_region', 'revenue_range',
   'seniority_level', 'department', 'job_titles', 'linkedin_activity',
 ] as const
