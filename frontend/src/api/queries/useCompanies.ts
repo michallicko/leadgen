@@ -6,6 +6,7 @@ export interface CompanyListItem {
   name: string
   domain: string | null
   status: string | null
+  enrichment_stage: string | null
   tier: string | null
   owner_name: string | null
   tag_name: string | null
@@ -13,6 +14,7 @@ export interface CompanyListItem {
   industry: string | null
   hq_country: string | null
   triage_score: number | null
+  score: number | null
   contact_count: number
   company_size: string | null
   geo_region: string | null
@@ -204,8 +206,8 @@ export interface CompanyFilters {
   sort?: string
   sort_dir?: string
   // Multi-value filters (comma-separated values)
-  status?: string
-  status_exclude?: string
+  enrichment_stage?: string
+  enrichment_stage_exclude?: string
   tier?: string
   tier_exclude?: string
   industry?: string

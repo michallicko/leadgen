@@ -21,7 +21,6 @@ import { CONTACT_COLUMNS, CONTACT_ALWAYS_VISIBLE } from '../../config/contactCol
 import {
   ICP_FIT_DISPLAY,
   MESSAGE_STATUS_DISPLAY,
-  STATUS_DISPLAY,
   TIER_DISPLAY,
   INDUSTRY_DISPLAY,
   COMPANY_SIZE_DISPLAY,
@@ -242,14 +241,6 @@ export function ContactsPage() {
       {/* Advanced ICP filter row */}
       {showAdvanced && (
         <div className="flex flex-wrap items-center gap-2 mb-3 px-0.5">
-          <MultiSelectFilter
-            label="Co. Status"
-            options={buildMultiOptions(STATUS_DISPLAY, facets?.company_status)}
-            selected={getMulti('company_status').values}
-            exclude={getMulti('company_status').exclude}
-            onSelectionChange={(v) => setMultiFilter('company_status', v)}
-            onExcludeToggle={() => toggleExclude('company_status')}
-          />
           <MultiSelectFilter
             label="Co. Tier"
             options={buildMultiOptions(TIER_DISPLAY, facets?.company_tier)}

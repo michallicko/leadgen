@@ -17,7 +17,7 @@ import { TagPicker } from '../../components/ui/TagPicker'
 import { useToast } from '../../components/ui/Toast'
 import { COMPANY_COLUMNS, COMPANY_ALWAYS_VISIBLE } from '../../config/companyColumns'
 import {
-  STATUS_DISPLAY,
+  ENRICHMENT_STAGE_DISPLAY,
   TIER_DISPLAY,
   INDUSTRY_DISPLAY,
   COMPANY_SIZE_DISPLAY,
@@ -221,12 +221,12 @@ export function CompaniesPage() {
       {showAdvanced && (
         <div className="flex flex-wrap items-center gap-2 mb-3 px-0.5">
           <MultiSelectFilter
-            label="Status"
-            options={buildMultiOptions(STATUS_DISPLAY, facets?.status)}
-            selected={getMulti('status').values}
-            exclude={getMulti('status').exclude}
-            onSelectionChange={(v) => setMultiFilter('status', v)}
-            onExcludeToggle={() => toggleExclude('status')}
+            label="Stage"
+            options={buildMultiOptions(ENRICHMENT_STAGE_DISPLAY, facets?.enrichment_stage)}
+            selected={getMulti('enrichment_stage').values}
+            exclude={getMulti('enrichment_stage').exclude}
+            onSelectionChange={(v) => setMultiFilter('enrichment_stage', v)}
+            onExcludeToggle={() => toggleExclude('enrichment_stage')}
           />
           <MultiSelectFilter
             label="Tier"

@@ -2,6 +2,7 @@
 import { Badge } from '../components/ui/Badge'
 import type { ContactListItem } from '../api/queries/useContacts'
 import { defineColumns } from './columns'
+import { renderTagBadges } from './tagBadges'
 
 /** All available contact columns with visibility defaults. */
 export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
@@ -45,10 +46,10 @@ export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
       ),
   },
   {
-    key: 'contact_score',
-    label: 'Score',
-    sortKey: 'contact_score',
-    minWidth: '55px',
+    key: 'seniority_level',
+    label: 'Seniority',
+    sortKey: 'seniority_level',
+    minWidth: '90px',
     defaultVisible: true,
   },
   {
@@ -59,6 +60,28 @@ export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
     shrink: false,
     defaultVisible: true,
     render: (c) => <Badge variant="icp" value={c.icp_fit} />,
+  },
+  {
+    key: 'score',
+    label: 'Score',
+    sortKey: 'contact_score',
+    minWidth: '55px',
+    defaultVisible: true,
+    render: (c) => {
+      if (c.score == null) return <span className="text-text-dim">-</span>
+      const val = Math.round(c.score)
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs tabular-nums">
+          <span className="w-8 h-1.5 rounded-full bg-surface-alt overflow-hidden">
+            <span
+              className="block h-full rounded-full bg-accent-cyan"
+              style={{ width: `${Math.min(val, 100)}%` }}
+            />
+          </span>
+          {val}
+        </span>
+      )
+    },
   },
   {
     key: 'message_status',
@@ -75,31 +98,20 @@ export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
     minWidth: '70px',
     defaultVisible: true,
   },
+  // --- Hidden by default ---
+  {
+    key: 'contact_score',
+    label: 'Contact Score',
+    sortKey: 'contact_score',
+    minWidth: '55px',
+    defaultVisible: false,
+  },
   {
     key: 'tag_names',
     label: 'Tags',
     minWidth: '90px',
-    defaultVisible: true,
-    render: (c) => {
-      const names = (c as unknown as Record<string, unknown>).tag_names as
-        | string[]
-        | undefined
-      if (!names || names.length === 0)
-        return <span className="text-text-dim">-</span>
-      return (
-        <span className="text-xs" title={names.join(', ')}>
-          {names.join(', ')}
-        </span>
-      )
-    },
-  },
-  // --- Hidden by default ---
-  {
-    key: 'seniority_level',
-    label: 'Seniority',
-    sortKey: 'seniority_level',
-    minWidth: '90px',
     defaultVisible: false,
+    render: (c) => renderTagBadges((c as unknown as Record<string, unknown>).tag_names as string[] | undefined),
   },
   {
     key: 'department',

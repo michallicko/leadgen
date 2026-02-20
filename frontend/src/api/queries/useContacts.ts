@@ -11,6 +11,7 @@ export interface ContactListItem {
   company_name: string | null
   email_address: string | null
   contact_score: number | null
+  score: number | null
   icp_fit: string | null
   message_status: string | null
   owner_name: string | null
@@ -133,8 +134,6 @@ export interface ContactFilters {
   sort?: string
   sort_dir?: string
   // Multi-value ICP filters (comma-separated values)
-  company_status?: string
-  company_status_exclude?: string
   company_tier?: string
   company_tier_exclude?: string
   industry?: string
