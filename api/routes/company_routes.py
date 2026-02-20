@@ -185,8 +185,10 @@ def list_companies():
             # 5. qualified: status = 'triage_passed'
             # 6. researched: has_l1 but none of the above
             # 7. imported: everything else (no L1, no special status)
-            # c.status is a PG enum — LIKE requires a text cast
-            _FAILED_COND = "(CAST(c.status AS TEXT) LIKE '%failed%' OR CAST(c.status AS TEXT) LIKE '%error%')"
+            # c.status is a PG enum — LIKE requires a text cast.
+            # COALESCE handles NULL status (NULL LIKE x → NULL, which breaks NOT).
+            _STATUS_TEXT = "COALESCE(CAST(c.status AS TEXT), '')"
+            _FAILED_COND = f"({_STATUS_TEXT} LIKE '%failed%' OR {_STATUS_TEXT} LIKE '%error%')"
             _NOT_FAILED = f"NOT {_FAILED_COND}"
             _ES_STATUS_MAP = {
                 "failed": _FAILED_COND,
@@ -216,7 +218,9 @@ def list_companies():
                     " ))"
                 ),
                 "qualified": (
-                    f"({_NOT_FAILED} AND c.status = 'triage_passed')"
+                    f"({_NOT_FAILED} AND c.status = 'triage_passed'"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2q WHERE l2q.company_id = c.id)"
+                    ")"
                 ),
                 "researched": (
                     f"({_NOT_FAILED}"
