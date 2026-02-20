@@ -9,10 +9,26 @@ export interface CompanyListItem {
   tier: string | null
   owner_name: string | null
   tag_name: string | null
+  tag_names?: string[]
   industry: string | null
   hq_country: string | null
   triage_score: number | null
   contact_count: number
+  company_size: string | null
+  geo_region: string | null
+  revenue_range: string | null
+  business_model: string | null
+  ownership_type: string | null
+  buying_stage: string | null
+  engagement_status: string | null
+  ai_adoption: string | null
+  verified_employees: number | null
+  verified_revenue_eur_m: number | null
+  credibility_score: number | null
+  linkedin_url: string | null
+  website_url: string | null
+  data_quality_score: number | null
+  last_enriched_at: string | null
 }
 
 interface CompaniesPage {

@@ -1,16 +1,18 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { withRev } from '../../lib/revision'
-import { useCompanies, type CompanyListItem, type CompanyFilters } from '../../api/queries/useCompanies'
+import { useCompanies, type CompanyFilters } from '../../api/queries/useCompanies'
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useCompaniesMatchingCount } from '../../api/queries/useBulkActions'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { DataTable, type Column, type SelectionMode } from '../../components/ui/DataTable'
+import { useColumnVisibility } from '../../hooks/useColumnVisibility'
+import { DataTable, type SelectionMode } from '../../components/ui/DataTable'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
+import { ColumnPicker } from '../../components/ui/ColumnPicker'
 import { SelectionActionBar } from '../../components/ui/SelectionActionBar'
 import { TagPicker } from '../../components/ui/TagPicker'
-import { Badge } from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
+import { COMPANY_COLUMNS, COMPANY_ALWAYS_VISIBLE } from '../../config/companyColumns'
 import {
   STATUS_DISPLAY,
   TIER_DISPLAY,
@@ -30,6 +32,12 @@ export function CompaniesPage() {
   const [ownerName, setOwnerName] = useLocalStorage('co_filter_owner', '')
   const [sortField, setSortField] = useLocalStorage('co_sort_field', 'name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('co_sort_dir', 'asc')
+
+  // Column visibility
+  const [visibleKeys, setVisibleKeys, resetColumns] = useColumnVisibility(
+    'co_visible_cols',
+    COMPANY_COLUMNS,
+  )
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -131,24 +139,13 @@ export function CompaniesPage() {
     { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
   ], [tagsData])
 
-  const columns: Column<CompanyListItem>[] = useMemo(() => [
-    { key: 'name', label: 'Name', sortKey: 'name', minWidth: '140px' },
-    { key: 'domain', label: 'Domain', sortKey: 'domain', minWidth: '100px', render: (c) => c.domain ? (
-      <a href={`https://${c.domain}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-accent-cyan hover:underline truncate block">{c.domain}</a>
-    ) : '-' },
-    { key: 'status', label: 'Status', sortKey: 'status', minWidth: '110px', shrink: false, render: (c) => <Badge variant="status" value={c.status} /> },
-    { key: 'tier', label: 'Tier', sortKey: 'tier', minWidth: '110px', shrink: false, render: (c) => <Badge variant="tier" value={c.tier} /> },
-    { key: 'owner_name', label: 'Owner', minWidth: '70px' },
-    { key: 'tag_names', label: 'Tags', minWidth: '90px', render: (c) => {
-      const names = (c as unknown as Record<string, unknown>).tag_names as string[] | undefined
-      if (!names || names.length === 0) return <span className="text-text-dim">-</span>
-      return <span className="text-xs" title={names.join(', ')}>{names.join(', ')}</span>
-    }},
-    { key: 'industry', label: 'Industry', minWidth: '90px' },
-    { key: 'hq_country', label: 'HQ', sortKey: 'hq_country', minWidth: '40px' },
-    { key: 'triage_score', label: 'Score', sortKey: 'triage_score', minWidth: '55px', render: (c) => c.triage_score != null ? c.triage_score.toFixed(1) : '-' },
-    { key: 'contact_count', label: 'Contacts', sortKey: 'contact_count', minWidth: '55px' },
-  ], [])
+  // Filter columns by visibility
+  const visibleSet = new Set(visibleKeys)
+  const columns = useMemo(
+    () => COMPANY_COLUMNS.filter((c) => visibleSet.has(c.key)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleKeys],
+  )
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -158,14 +155,23 @@ export function CompaniesPage() {
         onChange={handleFilterChange}
         total={total}
         action={
-          namespace && (
-            <a
-              href={`/${namespace}/enrich`}
-              className="text-xs text-accent-cyan hover:underline ml-2"
-            >
-              Enrich Selection
-            </a>
-          )
+          <div className="flex items-center gap-2">
+            {namespace && (
+              <a
+                href={`/${namespace}/enrich`}
+                className="text-xs text-accent-cyan hover:underline"
+              >
+                Enrich Selection
+              </a>
+            )}
+            <ColumnPicker
+              allColumns={COMPANY_COLUMNS}
+              visibleKeys={visibleKeys}
+              onChange={setVisibleKeys}
+              onReset={resetColumns}
+              alwaysVisible={COMPANY_ALWAYS_VISIBLE}
+            />
+          </div>
         }
       />
 
