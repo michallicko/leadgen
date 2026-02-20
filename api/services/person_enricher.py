@@ -305,8 +305,8 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
         scores, profile_data, total_cost,
     )
 
-    # 8. Update contact fields
-    _update_contact(contact_id, scores, total_cost)
+    # 8. Update contact fields (pass signals_data for linkedin_activity_level)
+    _update_contact(contact_id, scores, total_cost, signals_data=signals_data)
 
     db.session.commit()
 
@@ -758,8 +758,19 @@ def _upsert_contact_enrichment(contact_id, person_summary, linkedin_summary,
         )
 
 
-def _update_contact(contact_id, scores, total_cost):
-    """Update contact fields with enrichment results."""
+def _update_contact(contact_id, scores, total_cost, signals_data=None):
+    """Update contact fields with enrichment results.
+
+    Fix #11: Maps recent_activity_level from person signals to
+    linkedin_activity_level on the contacts table.
+    """
+    # Map recent_activity_level to linkedin_activity_level
+    linkedin_activity = "unknown"
+    if signals_data:
+        activity = signals_data.get("recent_activity_level", "unknown")
+        if activity in ("active", "moderate", "quiet", "unknown"):
+            linkedin_activity = activity
+
     db.session.execute(
         text("""
             UPDATE contacts SET
@@ -770,6 +781,7 @@ def _update_contact(contact_id, scores, total_cost):
                 authority_score = :auth_score,
                 contact_score = :contact_score,
                 icp_fit = :icp_fit,
+                linkedin_activity_level = :linkedin_activity,
                 enrichment_cost_usd = :cost,
                 processed_enrich = :processed
             WHERE id = :cid
@@ -783,6 +795,7 @@ def _update_contact(contact_id, scores, total_cost):
             "auth_score": scores["authority_score"],
             "contact_score": scores["contact_score"],
             "icp_fit": scores["icp_fit"],
+            "linkedin_activity": linkedin_activity,
             "cost": total_cost,
             "processed": True,
         },

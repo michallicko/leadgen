@@ -1,0 +1,98 @@
+{
+  "c_level_strong_presence_1": {
+    "first_name": "Henrik",
+    "last_name": "Ehrnrooth",
+    "job_title": "President and CEO",
+    "company_name": "Kone Oyj",
+    "company_domain": "kone.com",
+    "email": null,
+    "linkedin_url": "https://www.linkedin.com/in/henrik-ehrnrooth/",
+    "city": "Espoo",
+    "country": "Finland",
+    "notes": "C-level at large Nordic enterprise. High public presence, frequent speaker."
+  },
+  "c_level_strong_presence_2": {
+    "first_name": "Martin",
+    "last_name": "van den Brink",
+    "job_title": "President and CTO",
+    "company_name": "ASML Holding",
+    "company_domain": "asml.com",
+    "email": null,
+    "linkedin_url": "https://www.linkedin.com/in/martin-van-den-brink-0542b1/",
+    "city": "Veldhoven",
+    "country": "Netherlands",
+    "notes": "CTO at world-leading semiconductor equipment maker. Very high public presence."
+  },
+  "mid_level_manager_1": {
+    "first_name": "Sophie",
+    "last_name": "Marchand",
+    "job_title": "VP Sales EMEA",
+    "company_name": "Devoteam",
+    "company_domain": "devoteam.com",
+    "email": null,
+    "linkedin_url": null,
+    "city": "Paris",
+    "country": "France",
+    "notes": "VP-level at mid-market IT consulting. May or may not have public presence."
+  },
+  "mid_level_manager_2": {
+    "first_name": "Tomas",
+    "last_name": "Novak",
+    "job_title": "Head of Engineering",
+    "company_name": "Productboard",
+    "company_domain": "productboard.com",
+    "email": null,
+    "linkedin_url": null,
+    "city": "Prague",
+    "country": "Czech Republic",
+    "notes": "Director-level at SaaS company. Moderate expected digital presence."
+  },
+  "minimal_footprint_1": {
+    "first_name": "Pieter",
+    "last_name": "Van Dijk",
+    "job_title": "Director",
+    "company_name": "Van Dijk Administratie",
+    "company_domain": null,
+    "email": null,
+    "linkedin_url": null,
+    "city": "Amersfoort",
+    "country": "Netherlands",
+    "notes": "Owner of micro accounting firm. No LinkedIn, no digital presence expected."
+  },
+  "minimal_footprint_2": {
+    "first_name": "Jan",
+    "last_name": "Kratochvil",
+    "job_title": "Plant Manager",
+    "company_name": "Strojirny Bohdalice",
+    "company_domain": null,
+    "email": null,
+    "linkedin_url": null,
+    "city": "Bohdalice",
+    "country": "Czech Republic",
+    "notes": "Manager at small Czech metal fabrication shop. No LinkedIn, no digital presence."
+  },
+  "pre_enriched_contact": {
+    "first_name": "Tomas",
+    "last_name": "Cupr",
+    "job_title": "CEO and Founder",
+    "company_name": "Rohlik Group",
+    "company_domain": "rohlik.group",
+    "email": null,
+    "linkedin_url": "https://www.linkedin.com/in/tomascupr/",
+    "city": "Prague",
+    "country": "Czech Republic",
+    "notes": "CEO of VC-backed e-grocery. Strong public presence. Previously enriched."
+  },
+  "finance_compliance": {
+    "first_name": "Frank",
+    "last_name": "Vang-Jensen",
+    "job_title": "President and Group CEO",
+    "company_name": "Nordea Bank",
+    "company_domain": "nordea.com",
+    "email": null,
+    "linkedin_url": "https://www.linkedin.com/in/frank-vang-jensen/",
+    "city": "Helsinki",
+    "country": "Finland",
+    "notes": "CEO of largest Nordic bank. Heavily regulated industry. High public presence."
+  }
+}

@@ -82,6 +82,18 @@ export interface L2Signals extends L2ModuleBase {
   job_posting_count: number | null
   hiring_departments: string | null
   news_confidence: string | null
+  // New fields
+  tech_stack_categories: string | Record<string, unknown> | null
+  fiscal_year_end: string | null
+  digital_maturity_score: number | null
+  it_spend_indicators: string | null
+  regulatory_pressure: string | null
+  employee_sentiment: string | null
+  leadership_changes: string | null
+  hiring_signals: string | null
+  ai_hiring: string | null
+  tech_partnerships: string | null
+  competitor_ai_moves: string | null
 }
 
 export interface L2Market extends L2ModuleBase {
@@ -91,6 +103,12 @@ export interface L2Market extends L2ModuleBase {
   media_sentiment: string | null
   press_releases: string | null
   thought_leadership: string | null
+  // New fields
+  expansion: string | null
+  ma_activity: string | null
+  revenue_trend: string | null
+  growth_signals: string | null
+  workflow_ai_evidence: string | null
 }
 
 export interface L2Opportunity extends L2ModuleBase {
@@ -101,6 +119,9 @@ export interface L2Opportunity extends L2ModuleBase {
   industry_pain_points: string | null
   cross_functional_pain: string | null
   adoption_barriers: string | null
+  // New fields
+  pitch_framing: string | null
+  executive_brief: string | null
 }
 
 export interface CompanyEnrichmentL2 {

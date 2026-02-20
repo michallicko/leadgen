@@ -58,16 +58,32 @@ db-reset:
 	docker exec leadgen-dev-pg psql -U leadgen -d postgres -c "CREATE DATABASE leadgen;"
 	@echo "Local DB reset (empty). Run 'make db-pull' to restore data."
 
-## Run Python unit tests
+## Run Python unit tests (testmon: only re-runs affected tests)
 test:
 	pytest tests/unit/ -v
+
+## Run all unit tests ignoring testmon cache (full run)
+test-full:
+	pytest tests/unit/ -v -p no:testmon
+
+## Run enrichment tests with live API calls (testmon-aware)
+test-enrich:
+	set -a && . .env.dev && set +a && pytest tests/enrichment/ -v
+
+## Run enrichment tests — full run, ignore cache
+test-enrich-full:
+	set -a && . .env.dev && set +a && pytest tests/enrichment/ -v -p no:testmon
+
+## Run enrichment triage tests only (free, no API calls)
+test-triage:
+	pytest tests/enrichment/test_l1_triage.py -v
 
 ## Run Playwright browser tests (requires make dev running)
 test-e2e:
 	cd frontend && VITE_PORT=$(VITE_PORT) FLASK_PORT=$(FLASK_PORT) npx playwright test
 
 ## Run all tests
-test-all: test test-e2e
+test-all: test test-enrich test-e2e
 
 ## Run linters
 lint:

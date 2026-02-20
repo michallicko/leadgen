@@ -50,6 +50,19 @@ export interface ContactEnrichment {
   github_username: string | null
   enriched_at: string | null
   enrichment_cost_usd: number | null
+  // New fields
+  education: string | null
+  certifications: string | null
+  expertise_areas: string | null
+  budget_signals: string | null
+  buying_signals: string | null
+  pain_indicators: string | null
+  technology_interests: string | null
+  personalization_angle: string | null
+  connection_points: string | unknown[] | null
+  conversation_starters: string | null
+  objection_prediction: string | null
+  raw_response: Record<string, unknown> | null
 }
 
 export interface StageCompletion {
