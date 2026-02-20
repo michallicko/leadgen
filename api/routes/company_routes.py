@@ -150,7 +150,9 @@ def list_companies():
     for param_key, param_val in request.args.items():
         if param_key.startswith("cf_") and param_val.strip():
             field_key = param_key[3:]
-            # Reject keys with non-alphanumeric chars to prevent injection
+            # SECURITY: field_key is interpolated into SQLite json_extract path below.
+            # This regex whitelist is the ONLY defense against SQL injection for custom field keys.
+            # Do NOT weaken this pattern without also parameterizing the SQLite path.
             if not re.match(r'^[a-zA-Z0-9_]+$', field_key):
                 continue
             dialect = db.engine.dialect.name

@@ -42,7 +42,14 @@ function loadState(storageKey: string, multiKeys: readonly string[]): AdvancedFi
     const saved = localStorage.getItem(storageKey)
     if (saved) {
       const parsed = JSON.parse(saved)
-      return { ...defaults, ...parsed }
+      const merged = { ...defaults, ...parsed }
+      // Ensure multi-keys have correct shape (handles stale localStorage from pre-upgrade)
+      for (const key of multiKeys) {
+        if (!isMultiFilter(merged[key])) {
+          merged[key] = { values: [], exclude: false }
+        }
+      }
+      return merged
     }
   } catch { /* ignore */ }
   return defaults

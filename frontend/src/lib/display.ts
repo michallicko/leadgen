@@ -249,7 +249,7 @@ export function reverseValue(map: Record<string, string>, v: string | null | und
   return map[v] ?? v
 }
 
-/** Build filter options from a display map: [{ value: displayVal, label: displayVal }] */
+/** Build filter options from a display map: [{ value: dbKey, label: displayVal }] */
 export function filterOptions(map: Record<string, string>): { value: string; label: string }[] {
-  return Object.values(map).map((v) => ({ value: v, label: v }))
+  return Object.entries(map).map(([dbVal, label]) => ({ value: dbVal, label }))
 }

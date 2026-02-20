@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useLocalStorage } from './useLocalStorage'
 import type { ColumnDef } from '../config/columns'
 
@@ -10,9 +10,10 @@ export function useColumnVisibility<T>(
   storageKey: string,
   allColumns: ColumnDef<T>[],
 ): [string[], (keys: string[]) => void, () => void] {
-  const defaultKeys = allColumns
-    .filter((c) => c.defaultVisible !== false)
-    .map((c) => c.key)
+  const defaultKeys = useMemo(
+    () => allColumns.filter((c) => c.defaultVisible !== false).map((c) => c.key),
+    [allColumns],
+  )
 
   const [visibleKeys, setVisibleKeys] = useLocalStorage<string[]>(
     storageKey,
