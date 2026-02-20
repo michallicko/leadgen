@@ -1,28 +1,27 @@
--- Migration 028: Extension activities table + contacts stub fields
--- Supports browser extension lead import and activity sync
+-- Migration 028: Extend activities table for browser extension support + contacts stub fields
+-- The activities table already exists (migration 001). This adds new columns needed
+-- by the extension feature and relaxes constraints for the new usage pattern.
 
--- New activities table
-CREATE TABLE IF NOT EXISTS activities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
-    contact_id UUID REFERENCES contacts(id),
-    owner_id UUID REFERENCES owners(id),
-    event_type TEXT NOT NULL,
-    activity_name TEXT,
-    activity_detail TEXT,
-    source TEXT NOT NULL DEFAULT 'linkedin_extension',
-    external_id TEXT,
-    timestamp TIMESTAMPTZ,
-    payload JSONB DEFAULT '{}',
-    processed BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+-- 1. Add new columns for extension activities
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS event_type TEXT;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}';
 
--- Dedup index: external_id unique per tenant
+-- 2. Backfill event_type from existing activity_type enum for old rows, then make NOT NULL
+UPDATE activities SET event_type = COALESCE(activity_type::text, 'event') WHERE event_type IS NULL;
+ALTER TABLE activities ALTER COLUMN event_type SET NOT NULL;
+ALTER TABLE activities ALTER COLUMN event_type SET DEFAULT 'event';
+
+-- 3. Change source from activity_source enum to TEXT (supports 'linkedin_extension' and future values)
+ALTER TABLE activities ALTER COLUMN source TYPE TEXT USING source::text;
+ALTER TABLE activities ALTER COLUMN source SET DEFAULT 'linkedin_extension';
+
+-- 4. Relax activity_name NOT NULL constraint (extension activities may not have one)
+ALTER TABLE activities ALTER COLUMN activity_name DROP NOT NULL;
+
+-- 5. New indexes for extension query patterns (skip if already exists)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_tenant_external_id
     ON activities(tenant_id, external_id) WHERE external_id IS NOT NULL;
-
--- Query indexes
 CREATE INDEX IF NOT EXISTS idx_activities_tenant_contact
     ON activities(tenant_id, contact_id);
 CREATE INDEX IF NOT EXISTS idx_activities_tenant_type_ts
@@ -30,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_activities_tenant_type_ts
 CREATE INDEX IF NOT EXISTS idx_activities_tenant_source
     ON activities(tenant_id, source);
 
--- Contact stub fields
+-- 6. Contact stub fields for extension lead import
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_stub BOOLEAN DEFAULT false;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS import_source TEXT;
 
