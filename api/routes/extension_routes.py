@@ -229,6 +229,7 @@ def extension_status():
         db.func.max(Activity.created_at),
     ).filter(
         Activity.tenant_id == str(tenant_id),
+        Activity.source == 'linkedin_extension',
     )
     if owner_id:
         activity_query = activity_query.filter(Activity.owner_id == owner_id)

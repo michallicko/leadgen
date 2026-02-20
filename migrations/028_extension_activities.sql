@@ -14,7 +14,6 @@ ALTER TABLE activities ALTER COLUMN event_type SET DEFAULT 'event';
 
 -- 3. Change source from activity_source enum to TEXT (supports 'linkedin_extension' and future values)
 ALTER TABLE activities ALTER COLUMN source TYPE TEXT USING source::text;
-ALTER TABLE activities ALTER COLUMN source SET DEFAULT 'linkedin_extension';
 
 -- 4. Relax activity_name NOT NULL constraint (extension activities may not have one)
 ALTER TABLE activities ALTER COLUMN activity_name DROP NOT NULL;
