@@ -312,7 +312,7 @@ export function ContactsPage() {
         data={allContacts}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={selectedIds.size === 0 ? (c) => navigate(withRev(`/${namespace}/contacts/${c.id}`), { state: { origin: withRev(`/${namespace}/contacts`) } }) : undefined}
+        onRowClick={(c) => navigate(withRev(`/${namespace}/contacts/${c.id}`), { state: { origin: withRev(`/${namespace}/contacts`) } })}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}

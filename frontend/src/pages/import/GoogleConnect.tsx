@@ -54,7 +54,7 @@ export function GoogleConnect({ batchName, onBatchNameChange, onComplete }: Goog
 
   const handleConnect = useCallback(async () => {
     try {
-      const returnUrl = window.location.origin + window.location.pathname
+      const returnUrl = window.location.origin + window.location.pathname + '?connected=true'
       const data = await getGoogleAuthUrl(returnUrl)
       window.location.href = data.auth_url
     } catch (err) {

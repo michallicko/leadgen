@@ -174,7 +174,7 @@ export function CompaniesPage() {
         data={allCompanies}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={selectedIds.size === 0 ? (c) => navigate(withRev(`/${namespace}/companies/${c.id}`), { state: { origin: withRev(`/${namespace}/companies`) } }) : undefined}
+        onRowClick={(c) => navigate(withRev(`/${namespace}/companies/${c.id}`), { state: { origin: withRev(`/${namespace}/companies`) } })}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}
