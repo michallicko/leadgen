@@ -99,6 +99,8 @@ export function AppNav() {
   const location = useLocation()
   const [gearOpen, setGearOpen] = useState(false)
   const gearRef = useRef<HTMLDivElement>(null)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Derive active pillar/page from URL
   const pathSegments = location.pathname.split('/').filter(Boolean)
@@ -114,6 +116,17 @@ export function AppNav() {
     function handleClick(e: MouseEvent) {
       if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
         setGearOpen(false)
+      }
+    }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
+
+  // Close user menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
       }
     }
     document.addEventListener('click', handleClick)
@@ -186,18 +199,6 @@ export function AppNav() {
           {/* Namespace switcher */}
           <NamespaceSwitcher />
 
-          {/* User name */}
-          {user && (
-            <span className="text-[0.82rem] text-text-muted">
-              {user.display_name || user.email}
-              {user.is_super_admin && (
-                <span className="ml-1.5 text-[0.65rem] font-semibold text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
-                  Super
-                </span>
-              )}
-            </span>
-          )}
-
           {/* Gear */}
           {hasRole('admin') && (
             <div ref={gearRef} className="relative">
@@ -238,13 +239,46 @@ export function AppNav() {
             </div>
           )}
 
-          {/* Logout */}
-          <button
-            onClick={logout}
-            className="bg-transparent border border-border text-text-muted text-[0.75rem] px-2.5 py-1 rounded cursor-pointer hover:border-error hover:text-error transition-colors"
-          >
-            Logout
-          </button>
+          {/* User menu dropdown */}
+          {user && (
+            <div ref={userMenuRef} className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setUserMenuOpen(!userMenuOpen) }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent border-none cursor-pointer"
+              >
+                <span className="text-[0.82rem]">
+                  {user.display_name || user.email}
+                </span>
+                {user.is_super_admin && (
+                  <span className="text-[0.65rem] font-semibold text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
+                    Super
+                  </span>
+                )}
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-surface border border-border-solid rounded-lg py-1 min-w-[180px] shadow-lg z-50">
+                  <Link
+                    to={makePath('preferences')}
+                    className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Preferences
+                  </Link>
+                  <div className="my-1 border-t border-border" />
+                  <button
+                    onClick={logout}
+                    className="block w-full text-left px-4 py-2 text-[0.82rem] text-text-muted bg-transparent border-none cursor-pointer hover:bg-surface-alt hover:text-error transition-colors"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
