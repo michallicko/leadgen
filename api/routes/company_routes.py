@@ -168,20 +168,70 @@ def list_companies():
     _add_multi_filter(where, params, "revenue_range", "c.revenue_range", request)
 
     # --- enrichment_stage filter (computed from status + enrichment tables) ---
+    # Must match _compute_enrichment_stage() logic exactly.
+    # The function checks conditions in priority order, so each SQL clause must
+    # replicate the same precedence: failed > disqualified > contacts_ready >
+    # enriched > qualified > researched > imported.
     es_raw = request.args.get("enrichment_stage", "").strip()
     if es_raw:
-        es_values = [v.strip() for v in es_raw.split(",") if v.strip()]
+        es_values = [v.strip().lower() for v in es_raw.split(",") if v.strip()]
         if es_values:
             es_exclude = request.args.get("enrichment_stage_exclude", "").strip().lower() == "true"
-            # Map each enrichment_stage value to SQL conditions on c.status and enrichment joins
+            # Each clause mirrors _compute_enrichment_stage() priority order:
+            # 1. failed: status contains 'failed' or 'error'
+            # 2. disqualified: status = 'triage_disqualified'
+            # 3. contacts_ready: status = 'enriched_l2' AND has person enrichment
+            # 4. enriched: status IN (...) OR has_l2, but NOT contacts_ready
+            # 5. qualified: status = 'triage_passed'
+            # 6. researched: has_l1 but none of the above
+            # 7. imported: everything else (no L1, no special status)
+            # c.status is a PG enum — LIKE requires a text cast
+            _FAILED_COND = "(CAST(c.status AS TEXT) LIKE '%failed%' OR CAST(c.status AS TEXT) LIKE '%error%')"
+            _NOT_FAILED = f"NOT {_FAILED_COND}"
             _ES_STATUS_MAP = {
-                "imported": "c.status = 'new'",
-                "researched": "c.status = 'new'",  # + has L1
-                "qualified": "c.status = 'triage_passed'",
-                "enriched": "c.status IN ('enriched_l2','enriched','synced','needs_review')",
-                "contacts_ready": "c.status = 'enriched_l2'",
-                "failed": "(c.status LIKE '%failed%' OR c.status LIKE '%error%')",
-                "disqualified": "c.status = 'triage_disqualified'",
+                "failed": _FAILED_COND,
+                "disqualified": f"({_NOT_FAILED} AND c.status = 'triage_disqualified')",
+                "contacts_ready": (
+                    f"({_NOT_FAILED} AND c.status = 'enriched_l2'"
+                    " AND EXISTS ("
+                    "  SELECT 1 FROM contacts ct3"
+                    "  JOIN contact_enrichment ce3 ON ce3.contact_id = ct3.id"
+                    "  WHERE ct3.company_id = c.id"
+                    "))"
+                ),
+                "enriched": (
+                    f"({_NOT_FAILED}"
+                    " AND c.status != 'triage_disqualified'"
+                    " AND ("
+                    "  c.status IN ('enriched_l2','enriched','synced','needs_review')"
+                    "  OR EXISTS (SELECT 1 FROM company_enrichment_profile l2f WHERE l2f.company_id = c.id)"
+                    " )"
+                    " AND NOT ("
+                    "  c.status = 'enriched_l2'"
+                    "  AND EXISTS ("
+                    "    SELECT 1 FROM contacts ct4"
+                    "    JOIN contact_enrichment ce4 ON ce4.contact_id = ct4.id"
+                    "    WHERE ct4.company_id = c.id"
+                    "  )"
+                    " ))"
+                ),
+                "qualified": (
+                    f"({_NOT_FAILED} AND c.status = 'triage_passed')"
+                ),
+                "researched": (
+                    f"({_NOT_FAILED}"
+                    " AND c.status NOT IN ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review')"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2r WHERE l2r.company_id = c.id)"
+                    " AND EXISTS (SELECT 1 FROM company_enrichment_l1 l1r WHERE l1r.company_id = c.id)"
+                    ")"
+                ),
+                "imported": (
+                    f"({_NOT_FAILED}"
+                    " AND c.status NOT IN ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review')"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2i WHERE l2i.company_id = c.id)"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_l1 l1i WHERE l1i.company_id = c.id)"
+                    ")"
+                ),
             }
             stage_clauses = []
             for sv in es_values:
