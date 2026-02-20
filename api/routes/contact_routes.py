@@ -21,6 +21,31 @@ from ..models import db
 contacts_bp = Blueprint("contacts", __name__)
 
 
+def _compute_contact_score(contact_score, ai_champion_score, authority_score):
+    """Compute a composite score from weighted average of non-null scores.
+
+    Weights: contact_score=0.4, ai_champion_score=0.3, authority_score=0.3.
+    All input scores are on 0-100 scale.
+    Returns integer 0-100, or None if all inputs are null.
+    """
+    weights = []
+    values = []
+    if contact_score is not None:
+        weights.append(0.4)
+        values.append(float(contact_score))
+    if ai_champion_score is not None:
+        weights.append(0.3)
+        values.append(float(ai_champion_score))
+    if authority_score is not None:
+        weights.append(0.3)
+        values.append(float(authority_score))
+    if not weights:
+        return None
+    total_weight = sum(weights)
+    weighted_sum = sum(w * v for w, v in zip(weights, values))
+    return round(weighted_sum / total_weight)
+
+
 def _add_multi_filter(where, params, param_name, column, request_obj):
     """Add a multi-value include/exclude filter to the WHERE clause."""
     raw = request_obj.args.get(param_name, "").strip()
@@ -249,6 +274,9 @@ def list_contacts():
         last = r[2] or ""
         full_name = (first + " " + last).strip() if last else first
         tag_names = tag_map.get(cid, [])
+        raw_contact_score = r[7]
+        raw_ai_champion = int(r[17]) if r[17] is not None else None
+        raw_authority = int(r[18]) if r[18] is not None else None
         contacts.append({
             "id": cid,
             "full_name": full_name,
@@ -258,7 +286,8 @@ def list_contacts():
             "company_id": str(r[4]) if r[4] else None,
             "company_name": r[5],
             "email_address": r[6],
-            "contact_score": r[7],
+            "contact_score": raw_contact_score,
+            "score": _compute_contact_score(raw_contact_score, raw_ai_champion, raw_authority),
             "icp_fit": display_icp_fit(r[8]),
             "message_status": r[9],
             "owner_name": r[10],
@@ -270,8 +299,8 @@ def list_contacts():
             "location_country": r[14],
             "linkedin_url": r[15],
             "phone_number": r[16],
-            "ai_champion_score": int(r[17]) if r[17] is not None else None,
-            "authority_score": int(r[18]) if r[18] is not None else None,
+            "ai_champion_score": raw_ai_champion,
+            "authority_score": raw_authority,
             "linkedin_activity_level": display_linkedin_activity(r[19]),
             "language": display_language(r[20]),
             "contact_source": display_contact_source(r[21]),
@@ -330,6 +359,9 @@ def get_contact(contact_id):
 
     first = row[1] or ""
     last = row[2] or ""
+    raw_contact_score_d = row[20]
+    raw_ai_champion_d = row[18]
+    raw_authority_d = row[19]
     contact = {
         "id": str(row[0]),
         "first_name": first,
@@ -350,9 +382,10 @@ def get_contact(contact_id):
         "language": display_language(row[15]),
         "message_status": row[16],
         "ai_champion": row[17],
-        "ai_champion_score": row[18],
-        "authority_score": row[19],
-        "contact_score": row[20],
+        "ai_champion_score": raw_ai_champion_d,
+        "authority_score": raw_authority_d,
+        "contact_score": raw_contact_score_d,
+        "score": _compute_contact_score(raw_contact_score_d, raw_ai_champion_d, raw_authority_d),
         "enrichment_cost_usd": float(row[21]) if row[21] is not None else None,
         "processed_enrich": row[22],
         "email_lookup": row[23],

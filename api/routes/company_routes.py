@@ -14,6 +14,7 @@ from ..display import (
     display_confidence,
     display_crm_status,
     display_engagement_status,
+    display_enrichment_stage,
     display_geo_region,
     display_icp_fit,
     display_industry,
@@ -92,11 +93,32 @@ def _derive_stage(completions, status=None):
     # Has completions but none in our stage order (e.g., all failed)
     return {"label": "New", "stage": None}
 
+def _compute_enrichment_stage(status, has_l1, has_l2, has_person_enrichment):
+    """Compute enrichment_stage from company status and enrichment data.
+
+    Returns the stage key (e.g. 'imported', 'researched', 'qualified', etc.).
+    """
+    if status and ("failed" in status or "error" in status):
+        return "failed"
+    if status == "triage_disqualified":
+        return "disqualified"
+    if status == "enriched_l2" and has_person_enrichment:
+        return "contacts_ready"
+    if status in ("enriched_l2", "enriched", "synced", "needs_review") or has_l2:
+        return "enriched"
+    if status == "triage_passed":
+        return "qualified"
+    if has_l1:
+        return "researched"
+    return "imported"
+
+
 ALLOWED_SORT = {
     "name", "domain", "status", "tier", "triage_score", "hq_country",
     "industry", "contact_count", "created_at", "company_size",
     "geo_region", "revenue_range", "data_quality_score",
     "verified_employees", "verified_revenue_eur_m", "credibility_score",
+    "enrichment_stage",
 }
 
 
@@ -145,6 +167,34 @@ def list_companies():
     _add_multi_filter(where, params, "geo_region", "c.geo_region", request)
     _add_multi_filter(where, params, "revenue_range", "c.revenue_range", request)
 
+    # --- enrichment_stage filter (computed from status + enrichment tables) ---
+    es_raw = request.args.get("enrichment_stage", "").strip()
+    if es_raw:
+        es_values = [v.strip() for v in es_raw.split(",") if v.strip()]
+        if es_values:
+            es_exclude = request.args.get("enrichment_stage_exclude", "").strip().lower() == "true"
+            # Map each enrichment_stage value to SQL conditions on c.status and enrichment joins
+            _ES_STATUS_MAP = {
+                "imported": "c.status = 'new'",
+                "researched": "c.status = 'new'",  # + has L1
+                "qualified": "c.status = 'triage_passed'",
+                "enriched": "c.status IN ('enriched_l2','enriched','synced','needs_review')",
+                "contacts_ready": "c.status = 'enriched_l2'",
+                "failed": "(c.status LIKE '%failed%' OR c.status LIKE '%error%')",
+                "disqualified": "c.status = 'triage_disqualified'",
+            }
+            stage_clauses = []
+            for sv in es_values:
+                clause = _ES_STATUS_MAP.get(sv)
+                if clause:
+                    stage_clauses.append(clause)
+            if stage_clauses:
+                combined = " OR ".join(f"({sc})" for sc in stage_clauses)
+                if es_exclude:
+                    where.append(f"NOT ({combined})")
+                else:
+                    where.append(f"({combined})")
+
     # Custom field filters: cf_{key}=value
     cf_idx = 0
     for param_key, param_val in request.args.items():
@@ -181,7 +231,24 @@ def list_companies():
     offset = (page - 1) * page_size
 
     # Sort mapping for computed columns
-    sort_col = "contact_count" if sort == "contact_count" else f"c.{sort}"
+    if sort == "contact_count":
+        sort_col = "contact_count"
+    elif sort == "enrichment_stage":
+        # Order stages by pipeline progression
+        sort_col = """CASE c.status
+            WHEN 'triage_disqualified' THEN 0
+            WHEN 'enrichment_failed' THEN 1
+            WHEN 'enrichment_l2_failed' THEN 1
+            WHEN 'error_pushing_lemlist' THEN 1
+            WHEN 'new' THEN 2
+            WHEN 'triage_passed' THEN 4
+            WHEN 'enriched_l2' THEN 5
+            WHEN 'enriched' THEN 5
+            WHEN 'synced' THEN 5
+            WHEN 'needs_review' THEN 5
+            ELSE 3 END"""
+    else:
+        sort_col = f"c.{sort}"
     order = f"{sort_col} {'ASC' if sort_dir == 'asc' else 'DESC'} NULLS LAST"
 
     rows = db.session.execute(
@@ -197,9 +264,18 @@ def list_companies():
                 c.engagement_status, c.ai_adoption,
                 c.verified_employees, c.verified_revenue_eur_m,
                 c.credibility_score, c.linkedin_url, c.website_url,
-                c.data_quality_score, c.last_enriched_at
+                c.data_quality_score, c.last_enriched_at,
+                CASE WHEN l1.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l1,
+                CASE WHEN l2p.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l2,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM contacts ct2
+                    JOIN contact_enrichment ce ON ce.contact_id = ct2.id
+                    WHERE ct2.company_id = c.id
+                ) THEN 1 ELSE 0 END AS has_person_enrichment
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
+            LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
+            LEFT JOIN company_enrichment_profile l2p ON l2p.company_id = c.id
             WHERE {where_clause}
             ORDER BY {order}
             LIMIT :limit OFFSET :offset
@@ -249,18 +325,26 @@ def list_companies():
         cid = str(r[0])
         completions = stage_map.get(cid, [])
         tag_names = tag_map.get(cid, [])
+        raw_status = r[3]
+        has_l1 = bool(r[26])
+        has_l2 = bool(r[27])
+        has_person = bool(r[28])
+        stage = _compute_enrichment_stage(raw_status, has_l1, has_l2, has_person)
+        triage_score = float(r[8]) if r[8] is not None else None
         companies.append({
             "id": cid,
             "name": r[1],
             "domain": r[2],
-            "status": display_status(r[3]),
+            "status": display_status(raw_status),
+            "enrichment_stage": display_enrichment_stage(stage),
             "tier": display_tier(r[4]),
             "owner_name": r[5],
             "tag_name": tag_names[0] if tag_names else None,
             "tag_names": tag_names,
             "industry": display_industry(r[6]),
             "hq_country": r[7],
-            "triage_score": float(r[8]) if r[8] is not None else None,
+            "score": triage_score,
+            "triage_score": triage_score,
             "contact_count": r[9] or 0,
             "derived_stage": _derive_stage(completions),
             "company_size": display_company_size(r[11]),
@@ -379,6 +463,37 @@ def company_filter_counts():
             params,
         ).fetchall()
         facets[field_key] = [{"value": r[0], "count": r[1]} for r in rows]
+
+    # enrichment_stage facet (computed, not a direct column)
+    es_params = {}
+    es_where = _build_base_where(es_params)
+    es_rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                c.status,
+                CASE WHEN l1.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l1,
+                CASE WHEN l2p.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l2,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM contacts ct2
+                    JOIN contact_enrichment ce ON ce.contact_id = ct2.id
+                    WHERE ct2.company_id = c.id
+                ) THEN 1 ELSE 0 END AS has_person
+            FROM companies c
+            {joins}
+            LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
+            LEFT JOIN company_enrichment_profile l2p ON l2p.company_id = c.id
+            WHERE {es_where}
+        """),
+        es_params,
+    ).fetchall()
+    stage_counts = {}
+    for r in es_rows:
+        stage = _compute_enrichment_stage(r[0], bool(r[1]), bool(r[2]), bool(r[3]))
+        stage_counts[stage] = stage_counts.get(stage, 0) + 1
+    facets["enrichment_stage"] = [
+        {"value": k, "count": v}
+        for k, v in sorted(stage_counts.items(), key=lambda x: -x[1])
+    ]
 
     # Total count with ALL filters applied
     total_params = {}
@@ -800,6 +915,20 @@ def get_company(company_id):
 
     company["stage_completions"] = completions
     company["derived_stage"] = _derive_stage(completions, company.get("status"))
+
+    # Compute enrichment_stage for detail endpoint
+    has_l1_detail = company.get("enrichment_l1") is not None
+    has_l2_detail = company.get("enrichment_l2") is not None
+    # Check if any contact for this company has person enrichment
+    has_person_detail = any(
+        ct.get("person_summary") is not None for ct in company.get("contacts", [])
+    )
+    raw_status_detail = row[3]
+    company["enrichment_stage"] = display_enrichment_stage(
+        _compute_enrichment_stage(raw_status_detail, has_l1_detail, has_l2_detail, has_person_detail)
+    )
+    # Score alias for triage_score
+    company["score"] = company.get("triage_score")
 
     return jsonify(company)
 
