@@ -1,0 +1,13 @@
+{
+  "name": "VisionVolve Leads [STAGING]",
+  "description": "Lead extraction and activity monitoring (STAGING)",
+  "icons": {
+    "16": "icons/staging/16.png",
+    "48": "icons/staging/48.png",
+    "128": "icons/staging/128.png"
+  },
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://leadgen-staging.visionvolve.com/*"
+  ]
+}

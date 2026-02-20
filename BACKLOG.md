@@ -237,10 +237,12 @@ Bi-directional sync with Notion databases via Notion API. User connects their No
 Two-tier check to determine whether a contact still works at their listed company. Tier 1 (fast/cheap): email deliverability probe via BL-013 — if work email bounces, flag as likely departed. Tier 2 (thorough): AI research via Perplexity/Claude for inconclusive cases — checks LinkedIn profile, company website, recent news. Returns confidence score + evidence summary. Runnable on-demand per contact or in batch via the pipeline engine. Updates contact record with verification status and last-verified date.
 
 ### BL-020: Personal LinkedIn Connections Import
-**Status**: Idea | **Effort**: S | **Spec**: —
+**Status**: In Progress | **Effort**: S | **Spec**: —
 **Depends on**: — | **Theme**: Contact Intelligence
 
 Import contacts from LinkedIn "Download your data" archive (connections.csv format). Maps LinkedIn-specific fields (Connected On, Position, Company) to contact/company schema. Dedup by LinkedIn profile URL. Enables users to import their personal network as a lead source.
+
+**Partial implementation via Browser Extension**: The Chrome extension (`feature/browser-extension`) now supports live lead extraction from Sales Navigator and LinkedIn activity monitoring. Extension imports use `POST /api/extension/leads` with LinkedIn URL dedup. The CSV archive import path remains to be built.
 
 ### BL-021: Data Normalization
 **Status**: Idea | **Effort**: M | **Spec**: —
