@@ -195,3 +195,57 @@ def upload_activities():
     db.session.commit()
 
     return jsonify({"created": created, "skipped_duplicates": skipped_duplicates})
+
+
+@extension_bp.route("/api/extension/status", methods=["GET"])
+@require_auth
+def extension_status():
+    """Get extension connection status and sync stats for current user."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user = g.current_user
+    owner_id = user.owner_id
+
+    # Count leads imported via extension (have import_source, not stubs)
+    lead_query = db.session.query(
+        db.func.count(Contact.id),
+        db.func.max(Contact.created_at),
+    ).filter(
+        Contact.tenant_id == str(tenant_id),
+        Contact.import_source.isnot(None),
+        Contact.is_stub.is_(False),
+    )
+    if owner_id:
+        lead_query = lead_query.filter(Contact.owner_id == owner_id)
+    lead_result = lead_query.first()
+    lead_count = lead_result[0] or 0
+    last_lead_sync = lead_result[1]
+
+    # Count activities synced
+    activity_query = db.session.query(
+        db.func.count(Activity.id),
+        db.func.max(Activity.created_at),
+    ).filter(
+        Activity.tenant_id == str(tenant_id),
+    )
+    if owner_id:
+        activity_query = activity_query.filter(Activity.owner_id == owner_id)
+    activity_result = activity_query.first()
+    activity_count = activity_result[0] or 0
+    last_activity_sync = activity_result[1]
+
+    connected = lead_count > 0 or activity_count > 0
+
+    return jsonify(
+        {
+            "connected": connected,
+            "last_lead_sync": last_lead_sync.isoformat() if last_lead_sync else None,
+            "last_activity_sync": (
+                last_activity_sync.isoformat() if last_activity_sync else None
+            ),
+            "total_leads_imported": lead_count,
+            "total_activities_synced": activity_count,
+        }
+    )

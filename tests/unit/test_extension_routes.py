@@ -269,3 +269,71 @@ class TestUploadActivities:
             headers=headers,
         )
         assert resp.status_code == 400
+
+
+class TestExtensionStatus:
+    """GET /api/extension/status"""
+
+    def test_returns_status_when_no_data(self, client, seed_companies_contacts):
+        """Given no extension data, returns zeroed status."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        resp = client.get("/api/extension/status", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["connected"] is False
+        assert data["total_leads_imported"] == 0
+        assert data["total_activities_synced"] == 0
+        assert data["last_lead_sync"] is None
+        assert data["last_activity_sync"] is None
+
+    def test_returns_stats_after_imports(self, client, seed_companies_contacts):
+        """Given prior imports, returns correct counts and timestamps."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        # Upload some leads
+        client.post(
+            "/api/extension/leads",
+            json={
+                "leads": [
+                    {
+                        "name": "Status Test",
+                        "linkedin_url": "https://linkedin.com/in/statustest",
+                        "company_name": "StatusCorp",
+                    }
+                ],
+                "source": "sales_navigator",
+                "tag": "status-test",
+            },
+            headers=headers,
+        )
+        # Upload some activities
+        client.post(
+            "/api/extension/activities",
+            json={
+                "events": [
+                    {
+                        "event_type": "message",
+                        "external_id": "status_ext_001",
+                        "timestamp": "2026-02-20T10:30:00Z",
+                        "contact_linkedin_url": "https://linkedin.com/in/statustest",
+                        "payload": {"contact_name": "Status Test", "message": "Hi"},
+                    }
+                ]
+            },
+            headers=headers,
+        )
+
+        resp = client.get("/api/extension/status", headers=headers)
+        data = resp.get_json()
+        assert data["connected"] is True
+        assert data["total_leads_imported"] == 1
+        assert data["total_activities_synced"] == 1
+        assert data["last_lead_sync"] is not None
+        assert data["last_activity_sync"] is not None
+
+    def test_requires_auth(self, client, db):
+        """Given no auth header, returns 401."""
+        resp = client.get("/api/extension/status")
+        assert resp.status_code == 401
