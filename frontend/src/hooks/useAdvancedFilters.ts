@@ -70,7 +70,7 @@ export const CONTACT_MULTI_KEYS = [
 
 /** Company-specific multi-keys */
 export const COMPANY_MULTI_KEYS = [
-  'status', 'tier',
+  'enrichment_stage', 'tier',
   'industry', 'company_size', 'geo_region', 'revenue_range',
 ] as const
 

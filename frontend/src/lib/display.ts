@@ -18,6 +18,16 @@ export const STATUS_DISPLAY: Record<string, string> = {
   error_pushing_lemlist: 'Error pushing to Lemlist',
 }
 
+export const ENRICHMENT_STAGE_DISPLAY: Record<string, string> = {
+  imported: 'Imported',
+  researched: 'Researched',
+  qualified: 'Qualified',
+  enriched: 'Enriched',
+  contacts_ready: 'Contacts Ready',
+  failed: 'Failed',
+  disqualified: 'Disqualified',
+}
+
 export const TIER_DISPLAY: Record<string, string> = {
   tier_1_platinum: 'Tier 1 - Platinum',
   tier_2_gold: 'Tier 2 - Gold',

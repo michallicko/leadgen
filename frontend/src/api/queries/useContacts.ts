@@ -11,6 +11,7 @@ export interface ContactListItem {
   company_name: string | null
   email_address: string | null
   contact_score: number | null
+  score: number | null
   icp_fit: string | null
   message_status: string | null
   owner_name: string | null
