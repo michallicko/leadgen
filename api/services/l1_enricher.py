@@ -1245,7 +1245,7 @@ def _upsert_enrichment_l1(
                         enriched_at, enrichment_cost_usd
                     ) VALUES (
                         :company_id, :triage_notes, :pre_score, :research_query,
-                        :raw_response::jsonb, :confidence, :quality_score, :qc_flags::jsonb,
+                        CAST(:raw_response AS jsonb), :confidence, :quality_score, CAST(:qc_flags AS jsonb),
                         CURRENT_TIMESTAMP, :cost
                     )
                     ON CONFLICT (company_id) DO UPDATE SET
@@ -1273,6 +1273,7 @@ def _upsert_enrichment_l1(
                 },
             )
     except Exception as e:
+        db.session.rollback()
         logger.warning(
             "Failed to upsert company_enrichment_l1 for %s: %s", company_id, e
         )

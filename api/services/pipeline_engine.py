@@ -800,7 +800,7 @@ def _update_pipeline_stages_json(pipeline_run_id, stage_run_map):
 
     stages_json = json.dumps({k: str(v) for k, v in stage_run_map.items()})
     db.session.execute(
-        text("UPDATE pipeline_runs SET stages = :stages::jsonb WHERE id = :id"),
+        text("UPDATE pipeline_runs SET stages = CAST(:stages AS jsonb) WHERE id = :id"),
         {"id": str(pipeline_run_id), "stages": stages_json},
     )
     db.session.commit()
