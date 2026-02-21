@@ -4,6 +4,8 @@ import { FilterBar, type FilterConfig } from '../../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../../api/queries/useMessages'
 import { useToast } from '../../../components/ui/Toast'
 import { ContactGroup } from '../../messages/ContactGroup'
+import { CampaignMessagesGrid } from '../../../components/campaign/CampaignMessagesGrid'
+import { MessageReviewQueue } from '../../../components/campaign/MessageReviewQueue'
 import { REVIEW_STATUS_DISPLAY, filterOptions } from '../../../lib/display'
 
 interface ContactMessages {
@@ -26,6 +28,10 @@ const CHANNEL_OPTIONS = [
   { value: 'call_script', label: 'Call Script' },
 ]
 
+type ViewMode = 'grid' | 'grouped'
+
+const VIEW_STORAGE_KEY = 'campaign-messages-view'
+
 interface Props {
   campaignId: string
   onNavigate: (type: 'company' | 'contact', id: string) => void
@@ -34,6 +40,23 @@ interface Props {
 export function MessagesTab({ campaignId, onNavigate }: Props) {
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  // Review queue overlay state
+  const [showReviewQueue, setShowReviewQueue] = useState(false)
+
+  // Persist view preference in localStorage
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const stored = localStorage.getItem(VIEW_STORAGE_KEY)
+      if (stored === 'grid' || stored === 'grouped') return stored
+    } catch { /* ignore */ }
+    return 'grouped'
+  })
+
+  const handleViewChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode)
+    try { localStorage.setItem(VIEW_STORAGE_KEY, mode) } catch { /* ignore */ }
+  }, [])
 
   const [status, setStatus] = useState('draft')
   const [channel, setChannel] = useState('')
@@ -50,7 +73,7 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
   // Auto-load on mount
   useEffect(() => { refetch() }, [refetch])
 
-  // Group messages by contact
+  // Group messages by contact (for grouped view)
   const groups: ContactMessages[] = useMemo(() => {
     if (!data?.messages) return []
     const map = new Map<string, ContactMessages>()
@@ -120,6 +143,49 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
     { key: 'channel', label: 'Channel', type: 'select' as const, options: CHANNEL_OPTIONS },
   ], [])
 
+  // ---- Grid view ----
+  if (viewMode === 'grid') {
+    return (
+      <div className="flex flex-col min-h-0 -mx-6 -mt-5">
+        {/* View toggle + action buttons */}
+        <div className="flex items-center gap-2 mb-3 px-6 pt-1">
+          <ViewToggle mode={viewMode} onChange={handleViewChange} />
+          <div className="flex items-center gap-2 ml-auto">
+            {draftCount > 0 && (
+              <>
+                <button
+                  onClick={() => setShowReviewQueue(true)}
+                  className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
+                >
+                  Review Queue ({draftCount})
+                </button>
+                <button
+                  onClick={() => navigate(`review?status=draft`)}
+                  className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt transition-colors font-medium"
+                >
+                  Review Page
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-4">
+          <CampaignMessagesGrid campaignId={campaignId} onNavigate={onNavigate} />
+        </div>
+
+        {showReviewQueue && (
+          <MessageReviewQueue
+            campaignId={campaignId}
+            initialFilter="draft"
+            onClose={() => setShowReviewQueue(false)}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ---- Grouped view (original) ----
   return (
     <div className="flex flex-col min-h-0 -mx-6 -mt-5">
       <FilterBar
@@ -128,13 +194,22 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
         onChange={handleFilterChange}
         action={
           <div className="flex items-center gap-2 ml-auto">
+            <ViewToggle mode={viewMode} onChange={handleViewChange} />
             {draftCount > 0 && (
-              <button
-                onClick={() => navigate(`review?status=draft`)}
-                className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
-              >
-                Start Review ({draftCount})
-              </button>
+              <>
+                <button
+                  onClick={() => setShowReviewQueue(true)}
+                  className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
+                >
+                  Review Queue ({draftCount})
+                </button>
+                <button
+                  onClick={() => navigate(`review?status=draft`)}
+                  className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt transition-colors font-medium"
+                >
+                  Review Page
+                </button>
+              </>
             )}
             <button
               onClick={() => refetch()}
@@ -171,7 +246,9 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           </div>
         ) : groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-dim">
-            <div className="text-4xl mb-2">{'\u{1F4ED}'}</div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-3 opacity-50">
+              <path d="M3 7h18M3 12h18M3 17h18" />
+            </svg>
             <div className="text-sm">
               {data ? 'No messages match your filters.' : 'Loading messages...'}
             </div>
@@ -194,6 +271,59 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           ))
         )}
       </div>
+
+      {showReviewQueue && (
+        <MessageReviewQueue
+          campaignId={campaignId}
+          initialFilter="draft"
+          onClose={() => setShowReviewQueue(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── View toggle component ──────────────────────────────
+
+function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
+  return (
+    <div className="flex items-center border border-border-solid rounded-md overflow-hidden">
+      <button
+        onClick={() => onChange('grid')}
+        className={`p-1.5 transition-colors border-none cursor-pointer ${
+          mode === 'grid'
+            ? 'bg-accent/15 text-accent-hover'
+            : 'bg-surface-alt text-text-muted hover:text-text'
+        }`}
+        title="Grid view"
+        aria-label="Grid view"
+        aria-pressed={mode === 'grid'}
+      >
+        {/* Table/grid icon */}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M2 4h12M2 8h12M2 12h12" />
+          <path d="M6 2v12" />
+        </svg>
+      </button>
+      <button
+        onClick={() => onChange('grouped')}
+        className={`p-1.5 transition-colors border-none cursor-pointer ${
+          mode === 'grouped'
+            ? 'bg-accent/15 text-accent-hover'
+            : 'bg-surface-alt text-text-muted hover:text-text'
+        }`}
+        title="Grouped view"
+        aria-label="Grouped view"
+        aria-pressed={mode === 'grouped'}
+      >
+        {/* Card/grouped icon */}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="2" y="2" width="5" height="5" rx="1" />
+          <rect x="9" y="2" width="5" height="5" rx="1" />
+          <rect x="2" y="9" width="5" height="5" rx="1" />
+          <rect x="9" y="9" width="5" height="5" rx="1" />
+        </svg>
+      </button>
     </div>
   )
 }

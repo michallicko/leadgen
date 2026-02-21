@@ -16,10 +16,21 @@ export interface Campaign {
   updated_at: string | null
 }
 
+export interface SenderConfig {
+  from_email?: string
+  from_name?: string
+  reply_to?: string
+  linkedin_daily_connections?: number
+  linkedin_daily_messages?: number
+  linkedin_active_hours?: { start: string; end: string }
+  linkedin_delay_range?: { min: number; max: number }
+}
+
 export interface CampaignDetail extends Campaign {
   owner_id: string | null
   generation_started_at: string | null
   generation_completed_at: string | null
+  sender_config: SenderConfig
   contact_status_counts: Record<string, number>
 }
 
@@ -178,6 +189,91 @@ export function useRemoveCampaignContacts() {
       qc.invalidateQueries({ queryKey: ['campaign-contacts', vars.campaignId] })
       qc.invalidateQueries({ queryKey: ['campaign', vars.campaignId] })
       qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
+// ── Campaign Analytics ─────────────────────────────────
+
+export interface CampaignAnalyticsData {
+  messages: {
+    total: number
+    by_status: Record<string, number>
+    by_channel: Record<string, number>
+    by_step: Record<string, number>
+  }
+  sending: {
+    email: { total: number; queued: number; sent: number; delivered: number; bounced: number; failed: number }
+    linkedin: { total: number; queued: number; sent: number; delivered: number; failed: number }
+  }
+  contacts: {
+    total: number
+    with_email: number
+    with_linkedin: number
+    both_channels: number
+  }
+  cost: {
+    generation_usd: number
+    email_sends: number
+  }
+  timeline: {
+    created_at: string | null
+    generation_started_at: string | null
+    generation_completed_at: string | null
+    first_send_at: string | null
+    last_send_at: string | null
+  }
+}
+
+export function useCampaignAnalytics(campaignId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['campaign-analytics', campaignId],
+    queryFn: () => apiFetch<CampaignAnalyticsData>(`/campaigns/${campaignId}/analytics`),
+    enabled: enabled && !!campaignId,
+    refetchInterval: 10_000,
+  })
+}
+
+// ── Send Emails ────────────────────────────────────────
+
+export interface SendEmailsResponse {
+  queued_count: number
+  sender: { from_email?: string; from_name?: string }
+}
+
+export function useSendEmails() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (campaignId: string) =>
+      apiFetch<SendEmailsResponse>(
+        `/campaigns/${campaignId}/send-emails`,
+        { method: 'POST', body: { confirm: true } },
+      ),
+    onSuccess: (_, campaignId) => {
+      qc.invalidateQueries({ queryKey: ['campaign-analytics', campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaign', campaignId] })
+    },
+  })
+}
+
+// ── Queue LinkedIn ─────────────────────────────────────
+
+export interface QueueLinkedInResponse {
+  queued_count: number
+  by_owner: Record<string, number>
+}
+
+export function useQueueLinkedIn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (campaignId: string) =>
+      apiFetch<QueueLinkedInResponse>(
+        `/campaigns/${campaignId}/queue-linkedin`,
+        { method: 'POST' },
+      ),
+    onSuccess: (_, campaignId) => {
+      qc.invalidateQueries({ queryKey: ['campaign-analytics', campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaign', campaignId] })
     },
   })
 }

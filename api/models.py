@@ -969,6 +969,8 @@ class Campaign(db.Model):
     generation_cost = db.Column(db.Numeric(10, 4), default=0)
     generation_started_at = db.Column(db.DateTime(timezone=True))
     generation_completed_at = db.Column(db.DateTime(timezone=True))
+    # Outreach sender configuration (migration 032)
+    sender_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     airtable_record_id = db.Column(db.Text)
@@ -1250,3 +1252,93 @@ class PlaybookLog(db.Model):
     event_type = db.Column(db.String(50), nullable=False)
     payload = db.Column(JSONB, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class EmailSendLog(db.Model):
+    __tablename__ = "email_send_log"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    message_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("messages.id"), nullable=False
+    )
+    resend_message_id = db.Column(db.Text)
+    status = db.Column(db.String(20), default="queued")
+    from_email = db.Column(db.Text)
+    to_email = db.Column(db.Text)
+    sent_at = db.Column(db.DateTime(timezone=True))
+    delivered_at = db.Column(db.DateTime(timezone=True))
+    error = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "message_id": str(self.message_id),
+            "resend_message_id": self.resend_message_id,
+            "status": self.status,
+            "from_email": self.from_email,
+            "to_email": self.to_email,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "delivered_at": self.delivered_at.isoformat()
+            if self.delivered_at
+            else None,
+            "error": self.error,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class LinkedInSendQueue(db.Model):
+    __tablename__ = "linkedin_send_queue"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    message_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("messages.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False
+    )
+    owner_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("owners.id"), nullable=False
+    )
+    action_type = db.Column(db.String(20), nullable=False)
+    linkedin_url = db.Column(db.Text)
+    body = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default="queued")
+    claimed_at = db.Column(db.DateTime(timezone=True))
+    sent_at = db.Column(db.DateTime(timezone=True))
+    error = db.Column(db.Text)
+    retry_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "message_id": str(self.message_id),
+            "contact_id": str(self.contact_id),
+            "owner_id": str(self.owner_id),
+            "action_type": self.action_type,
+            "linkedin_url": self.linkedin_url,
+            "body": self.body,
+            "status": self.status,
+            "claimed_at": self.claimed_at.isoformat() if self.claimed_at else None,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "error": self.error,
+            "retry_count": self.retry_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
