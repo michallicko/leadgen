@@ -1243,9 +1243,7 @@ class PlaybookLog(db.Model):
     tenant_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
     )
-    user_id = db.Column(
-        UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=False
-    )
+    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=False)
     doc_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"), nullable=True
     )

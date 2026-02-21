@@ -479,7 +479,10 @@ _INDUSTRY_PERSONAS = {
         ("CTO / VP Engineering", "Digital transformation, legacy modernization"),
     ],
     "retail": [
-        ("VP Digital / Head of E-Commerce", "Online conversion, omnichannel experience"),
+        (
+            "VP Digital / Head of E-Commerce",
+            "Online conversion, omnichannel experience",
+        ),
         ("Head of Supply Chain / VP Operations", "Inventory optimization, logistics"),
         ("CMO / VP Marketing", "Customer acquisition, brand engagement"),
     ],
@@ -579,7 +582,7 @@ def _parse_leadership_team(raw):
             paren_start = entry.index("(")
             paren_end = entry.index(")")
             name = entry[:paren_start].strip()
-            role = entry[paren_start + 1:paren_end].strip()
+            role = entry[paren_start + 1 : paren_end].strip()
         # Format: "Role: Name"
         elif ":" in entry:
             parts = entry.split(":", 1)
@@ -812,9 +815,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
         # Check if any known leader matches this persona role
         matched_leader = _match_leader_to_persona(title, leader_map)
         if matched_leader:
-            persona_parts.append(
-                "### {} — {}".format(title, matched_leader)
-            )
+            persona_parts.append("### {} — {}".format(title, matched_leader))
         else:
             persona_parts.append("### {}".format(title))
         persona_parts.append("**Focus Areas:** {}".format(focus))
@@ -845,21 +846,15 @@ def build_seeded_template(objective=None, enrichment_data=None):
         value_parts.append("")
         context_hints = []
         if industry:
-            context_hints.append(
-                "the {} industry".format(industry)
-            )
+            context_hints.append("the {} industry".format(industry))
         if key_products:
-            context_hints.append(
-                "their product lines ({})".format(key_products)
-            )
+            context_hints.append("their product lines ({})".format(key_products))
         if recent_news:
             context_hints.append("recent developments")
         if context_hints:
             value_parts.append(
                 "_Research needed: Identify AI/automation opportunities "
-                "specific to {} and {}._".format(
-                    company_name, ", ".join(context_hints)
-                )
+                "specific to {} and {}._".format(company_name, ", ".join(context_hints))
             )
         else:
             value_parts.append(
@@ -981,9 +976,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
     action_parts.append("- Build pipeline of qualified opportunities")
     if hiring_signals:
         action_parts.append(
-            "- Monitor hiring signals for timing outreach: {}".format(
-                hiring_signals
-            )
+            "- Monitor hiring signals for timing outreach: {}".format(hiring_signals)
         )
     action_parts.append("")
     action_parts.append("### Days 61-90: Optimize")
