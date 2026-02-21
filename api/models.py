@@ -1254,6 +1254,7 @@ class PlaybookLog(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+
 class EmailSendLog(db.Model):
     __tablename__ = "email_send_log"
 
