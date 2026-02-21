@@ -256,7 +256,10 @@ export function PlaybookPage() {
     return (
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
-        onComplete={() => docQuery.refetch()}
+        onComplete={() => {
+          docQuery.refetch()
+          setSkipped(true)
+        }}
       />
     )
   }
