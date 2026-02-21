@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { StrategyEditor } from '../../components/playbook/StrategyEditor'
 import { PlaybookChat, type ChatMessage } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
@@ -69,6 +70,7 @@ function ExtractIcon() {
 
 export function PlaybookPage() {
   const { toast } = useToast()
+  const queryClient = useQueryClient()
 
   // Server state
   const docQuery = usePlaybookDocument()
@@ -257,8 +259,10 @@ export function PlaybookPage() {
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
         onComplete={() => {
-          docQuery.refetch()
-          setSkipped(true)
+          // Invalidate the document query so it re-fetches with seeded content.
+          // Only invalidate ['playbook'] exactly — NOT ['playbook', 'research']
+          // which would cause the onboarding to skip prematurely (see 8ac309b).
+          queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
         }}
       />
     )
