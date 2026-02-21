@@ -655,14 +655,27 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
 # ---------------------------------------------------------------------------
 
 
+def _strip_code_fences(text):
+    """Strip markdown code fences from LLM response."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence (```json, ```JSON, or just ```)
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1 :]
+        else:
+            text = text[3:]
+    if text.rstrip().endswith("```"):
+        text = text.rstrip()[:-3]
+    return text.strip()
+
+
 def _parse_json(content):
     """Parse JSON from API response, handling markdown fences."""
     if not content:
         return {}
 
-    # Strip markdown code fences
-    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip())
-    cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = _strip_code_fences(content)
 
     try:
         return json.loads(cleaned)
