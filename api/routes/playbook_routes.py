@@ -343,6 +343,7 @@ def _run_self_research(app, company_id, tenant_id):
             logger.exception("Self-research failed for company %s", company_id)
             # Still try to seed template with whatever data we have
             try:
+                db.session.rollback()  # Clear poisoned transaction
                 doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
                 if doc and doc.version == 1:
                     enrichment_data = _load_enrichment_data(company_id)
