@@ -112,7 +112,7 @@ export function CampaignDetailPage() {
     { id: 'contacts', label: 'Contacts', badge: contactCount || undefined },
     { id: 'generation', label: 'Generation' },
     { id: 'review', label: 'Messages', badge: campaign?.generated_count || undefined },
-    { id: 'outreach', label: 'Outreach', disabled: true },
+    { id: 'outreach', label: 'Outreach' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'settings', label: 'Settings' },
   ], [contactCount, campaign?.generated_count])
@@ -233,7 +233,7 @@ export function CampaignDetailPage() {
         {activeTab === 'review' && (
           <MessagesTab campaignId={campaign.id} onNavigate={handleNavigate} />
         )}
-        {activeTab === 'outreach' && <OutreachTab />}
+        {activeTab === 'outreach' && <OutreachTab campaign={campaign} />}
         {activeTab === 'analytics' && <CampaignAnalytics campaignId={campaign.id} />}
         {activeTab === 'settings' && <SettingsTab campaign={campaign} isEditable={isEditable} />}
       </div>
