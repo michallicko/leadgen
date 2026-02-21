@@ -97,7 +97,6 @@ export function useTriggerResearch() {
     mutationFn: (data: { domain: string; objective: string }) =>
       apiFetch<ResearchStatus>('/playbook/research', { method: 'POST', body: data }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['playbook'] })
       qc.invalidateQueries({ queryKey: ['playbook', 'research'] })
     },
   })
