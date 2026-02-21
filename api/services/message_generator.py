@@ -48,21 +48,27 @@ def estimate_generation_cost(template_config: list, total_contacts: int) -> dict
     total_cost = per_message_cost * total_messages
     per_contact_cost = per_message_cost * len(enabled_steps)
 
+    step_breakdown = [
+        {
+            "step": s.get("step"),
+            "label": s.get("label"),
+            "channel": s.get("channel"),
+            "count": total_contacts,
+            "cost": float(per_message_cost * total_contacts),
+        }
+        for s in enabled_steps
+    ]
+
     return {
         "total_cost": float(total_cost),
+        "estimated_cost": float(total_cost),
         "per_contact_cost": float(per_contact_cost),
         "total_messages": total_messages,
         "enabled_steps": len(enabled_steps),
         "total_contacts": total_contacts,
         "model": GENERATION_MODEL,
-        "breakdown": [
-            {
-                "step": s.get("step"),
-                "label": s.get("label"),
-                "channel": s.get("channel"),
-            }
-            for s in enabled_steps
-        ],
+        "breakdown": step_breakdown,
+        "by_step": step_breakdown,
     }
 
 
@@ -207,6 +213,27 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
     total_cost = Decimal("0")
 
     for i, contact_row in enumerate(contacts):
+        # Check for cancellation before each contact
+        cancel_row = db.session.execute(
+            db.text(
+                "SELECT generation_config FROM campaigns WHERE id = :id"
+            ),
+            {"id": campaign_id},
+        ).fetchone()
+        if cancel_row:
+            cancel_config = (
+                json.loads(cancel_row[0])
+                if isinstance(cancel_row[0], str)
+                else (cancel_row[0] or {})
+            )
+            if cancel_config.get("cancelled"):
+                logger.info(
+                    "Generation cancelled for campaign %s after %d contacts",
+                    campaign_id,
+                    generated_count,
+                )
+                return
+
         cc_id = contact_row[0]
         contact_id = str(contact_row[1])
 
