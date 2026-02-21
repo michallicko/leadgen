@@ -110,8 +110,14 @@ class TestPlaybookChat:
         data = resp.get_json()
         assert data["messages"] == []
 
-    def test_post_message_creates_pair(self, client, seed_tenant, seed_super_admin):
-        """POST /api/playbook/chat creates user + assistant message pair."""
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_post_message_creates_pair(self, mock_get_client, client, seed_tenant, seed_super_admin):
+        """POST /api/playbook/chat creates user + assistant message pair (non-streaming)."""
+        # Mock the AnthropicClient.stream_query to yield text chunks
+        mock_client = MagicMock()
+        mock_client.stream_query.return_value = iter(["Your ICP ", "should focus on ", "enterprise SaaS."])
+        mock_get_client.return_value = mock_client
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         resp = client.post(
@@ -124,7 +130,74 @@ class TestPlaybookChat:
         assert data["user_message"]["role"] == "user"
         assert data["user_message"]["content"] == "What is our ICP?"
         assert data["assistant_message"]["role"] == "assistant"
-        assert "placeholder" in data["assistant_message"]["content"].lower()
+        assert data["assistant_message"]["content"] == "Your ICP should focus on enterprise SaaS."
+
+        # Verify stream_query was called with correct args
+        mock_client.stream_query.assert_called_once()
+        call_kwargs = mock_client.stream_query.call_args
+        assert call_kwargs.kwargs["max_tokens"] == 4096
+        # Messages should end with the user message
+        msgs = call_kwargs.kwargs["messages"]
+        assert msgs[-1] == {"role": "user", "content": "What is our ICP?"}
+
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_post_message_streaming(self, mock_get_client, client, seed_tenant, seed_super_admin):
+        """POST /api/playbook/chat with Accept: text/event-stream returns SSE."""
+        mock_client = MagicMock()
+        mock_client.stream_query.return_value = iter(["Hello ", "world!"])
+        mock_get_client.return_value = mock_client
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        headers["Accept"] = "text/event-stream"
+        resp = client.post(
+            "/api/playbook/chat",
+            json={"message": "Hello"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.content_type.startswith("text/event-stream")
+
+        # Parse SSE events from the response data
+        raw = resp.get_data(as_text=True)
+        events = [
+            line[len("data: "):]
+            for line in raw.strip().split("\n")
+            if line.startswith("data: ")
+        ]
+        assert len(events) == 3  # 2 chunks + 1 done
+
+        chunk1 = json.loads(events[0])
+        assert chunk1["type"] == "chunk"
+        assert chunk1["text"] == "Hello "
+
+        chunk2 = json.loads(events[1])
+        assert chunk2["type"] == "chunk"
+        assert chunk2["text"] == "world!"
+
+        done = json.loads(events[2])
+        assert done["type"] == "done"
+        assert "message_id" in done
+
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_post_message_llm_error_non_streaming(self, mock_get_client, client, seed_tenant, seed_super_admin):
+        """POST /api/playbook/chat handles LLM errors gracefully in non-streaming mode."""
+        mock_client = MagicMock()
+        mock_client.stream_query.side_effect = Exception("API rate limited")
+        mock_get_client.return_value = mock_client
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post(
+            "/api/playbook/chat",
+            json={"message": "What is our ICP?"},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["user_message"]["content"] == "What is our ICP?"
+        # Assistant message should be an error fallback
+        assert "error" in data["assistant_message"]["content"].lower()
 
     def test_chat_history_ordered(self, client, seed_tenant, seed_super_admin, db):
         """GET /api/playbook/chat returns messages in chronological order."""

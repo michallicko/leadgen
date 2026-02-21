@@ -1,8 +1,16 @@
 """Playbook (GTM Strategy) API routes."""
-from flask import Blueprint, jsonify, request
+import json
+import logging
+import os
+
+from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import StrategyDocument, StrategyChatMessage, db
+from ..models import StrategyDocument, StrategyChatMessage, Tenant, db
+from ..services.anthropic_client import AnthropicClient
+from ..services.playbook_service import build_messages, build_system_prompt
+
+logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
 
@@ -95,6 +103,22 @@ def get_chat_history():
     return jsonify({"messages": [m.to_dict() for m in messages]}), 200
 
 
+def _wants_streaming(req):
+    """Check if the client wants an SSE streaming response."""
+    accept = req.headers.get("Accept", "")
+    if "text/event-stream" in accept:
+        return True
+    if req.args.get("stream", "").lower() in ("true", "1", "yes"):
+        return True
+    return False
+
+
+def _get_anthropic_client():
+    """Create an AnthropicClient with the API key from environment."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    return AnthropicClient(api_key=api_key)
+
+
 @playbook_bp.route("/api/playbook/chat", methods=["POST"])
 @require_auth
 def post_chat_message():
@@ -108,8 +132,10 @@ def post_chat_message():
         return jsonify({"error": "message is required"}), 400
 
     doc = _get_or_create_document(tenant_id)
+    tenant = db.session.get(Tenant, tenant_id)
     user_id = getattr(request, "user_id", None)
 
+    # Save the user message before any LLM work
     user_msg = StrategyChatMessage(
         tenant_id=tenant_id,
         document_id=doc.id,
@@ -120,11 +146,117 @@ def post_chat_message():
     db.session.add(user_msg)
     db.session.flush()
 
+    # Load chat history for context
+    history = (
+        StrategyChatMessage.query
+        .filter_by(document_id=doc.id)
+        .filter(StrategyChatMessage.id != user_msg.id)
+        .order_by(StrategyChatMessage.created_at.asc())
+        .all()
+    )
+
+    # Build prompt and messages
+    system_prompt = build_system_prompt(tenant, doc)
+    messages = build_messages(history, message_text)
+
+    client = _get_anthropic_client()
+
+    if _wants_streaming(request):
+        return _stream_response(
+            client, system_prompt, messages,
+            tenant_id, doc.id, user_msg,
+        )
+    else:
+        return _sync_response(
+            client, system_prompt, messages,
+            tenant_id, doc.id, user_msg,
+        )
+
+
+def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_msg):
+    """Return an SSE streaming response with LLM chunks.
+
+    DB operations (saving the assistant message) happen inside the generator
+    using the app context, since the generator runs outside the request context.
+    """
+    # Capture the app for use inside the generator (runs outside request context)
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def generate():
+        full_text = []
+
+        try:
+            for chunk in client.stream_query(
+                messages=messages,
+                system_prompt=system_prompt,
+                max_tokens=4096,
+                temperature=0.4,
+            ):
+                full_text.append(chunk)
+                yield "data: {}\n\n".format(
+                    json.dumps({"type": "chunk", "text": chunk})
+                )
+        except Exception as e:
+            logger.exception("LLM streaming error: %s", e)
+            yield "data: {}\n\n".format(
+                json.dumps({"type": "error", "message": str(e)})
+            )
+            return
+
+        # Save the assistant message after streaming completes
+        assistant_content = "".join(full_text)
+        with app.app_context():
+            assistant_msg = StrategyChatMessage(
+                tenant_id=tenant_id,
+                document_id=doc_id,
+                role="assistant",
+                content=assistant_content,
+            )
+            db.session.add(assistant_msg)
+            db.session.commit()
+            msg_id = assistant_msg.id
+
+        yield "data: {}\n\n".format(
+            json.dumps({"type": "done", "message_id": msg_id})
+        )
+
+    # Commit the user message before entering the generator
+    db.session.commit()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg):
+    """Return a non-streaming JSON response with the full LLM reply."""
+    try:
+        full_text = []
+        for chunk in client.stream_query(
+            messages=messages,
+            system_prompt=system_prompt,
+            max_tokens=4096,
+            temperature=0.4,
+        ):
+            full_text.append(chunk)
+
+        assistant_content = "".join(full_text)
+    except Exception as e:
+        logger.exception("LLM query error: %s", e)
+        # Fall back to error message so the user message is still saved
+        assistant_content = "Sorry, I encountered an error generating a response. Please try again."
+
     assistant_msg = StrategyChatMessage(
         tenant_id=tenant_id,
-        document_id=doc.id,
+        document_id=doc_id,
         role="assistant",
-        content="I'm a placeholder. LLM integration coming in Task 7.",
+        content=assistant_content,
     )
     db.session.add(assistant_msg)
     db.session.commit()
