@@ -1187,3 +1187,119 @@ def review_queue(campaign_id):
             },
         }
     )
+
+
+# --- Batch message actions (approve/reject) ---
+
+
+@campaigns_bp.route(
+    "/api/campaigns/<campaign_id>/messages/batch-action", methods=["POST"]
+)
+@require_role("editor")
+def batch_message_action(campaign_id):
+    """Batch approve or reject messages belonging to a campaign.
+
+    Body: { message_ids: string[], action: "approve"|"reject", reason?: string }
+    Response: { updated: N, action: "approve"|"reject", errors: [] }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    message_ids = body.get("message_ids", [])
+    action = body.get("action")
+    reason = body.get("reason")
+
+    # Validate inputs
+    if not message_ids:
+        return jsonify({"error": "message_ids is required and cannot be empty"}), 400
+    if action not in ("approve", "reject"):
+        return jsonify(
+            {"error": "action must be 'approve' or 'reject'"}
+        ), 400
+
+    # Verify campaign exists and belongs to tenant
+    campaign = db.session.execute(
+        db.text("SELECT id FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    # Verify all message_ids belong to this campaign and tenant
+    id_placeholders = ", ".join(f":mid_{i}" for i in range(len(message_ids)))
+    id_params = {f"mid_{i}": v for i, v in enumerate(message_ids)}
+    id_params["cid"] = campaign_id
+    id_params["t"] = tenant_id
+
+    valid_rows = db.session.execute(
+        db.text(f"""
+            SELECT m.id FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND m.id IN ({id_placeholders})
+        """),
+        id_params,
+    ).fetchall()
+    valid_ids = {str(r[0]) for r in valid_rows}
+
+    # Collect errors for invalid IDs
+    errors = []
+    for mid in message_ids:
+        if mid not in valid_ids:
+            errors.append(
+                {"message_id": mid, "error": "Message not found in this campaign"}
+            )
+
+    if not valid_ids:
+        return (
+            jsonify(
+                {
+                    "updated": 0,
+                    "action": action,
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    # Build the update using individual placeholders (SQLite + PG compatible)
+    valid_list = list(valid_ids)
+    upd_placeholders = ", ".join(f":uid_{i}" for i in range(len(valid_list)))
+    update_params = {f"uid_{i}": v for i, v in enumerate(valid_list)}
+    update_params["t"] = tenant_id
+
+    if action == "approve":
+        db.session.execute(
+            db.text(f"""
+                UPDATE messages
+                SET status = 'approved',
+                    approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :t AND id IN ({upd_placeholders})
+            """),
+            update_params,
+        )
+    else:  # reject
+        update_params["reason"] = reason or ""
+        db.session.execute(
+            db.text(f"""
+                UPDATE messages
+                SET status = 'rejected',
+                    review_notes = :reason,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :t AND id IN ({upd_placeholders})
+            """),
+            update_params,
+        )
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "updated": len(valid_ids),
+            "action": action,
+            "errors": errors,
+        }
+    )
