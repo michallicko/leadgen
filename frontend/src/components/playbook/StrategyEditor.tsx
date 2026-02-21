@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useEditor, EditorContent, type JSONContent } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
 import { Table } from '@tiptap/extension-table'
@@ -7,6 +7,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Markdown } from 'tiptap-markdown'
 import { STRATEGY_TEMPLATE } from './strategy-template'
 import './strategy-editor.css'
 
@@ -15,8 +16,8 @@ import './strategy-editor.css'
 // ---------------------------------------------------------------------------
 
 interface StrategyEditorProps {
-  content: JSONContent | null
-  onUpdate: (content: JSONContent) => void
+  content: string | null
+  onUpdate: (content: string) => void
   editable?: boolean
 }
 
@@ -161,11 +162,12 @@ export function StrategyEditor({
       Placeholder.configure({
         placeholder: 'Start writing your strategy...',
       }),
+      Markdown,
     ],
     content: content ?? STRATEGY_TEMPLATE,
     editable,
     onUpdate({ editor: ed }) {
-      onUpdate(ed.getJSON())
+      onUpdate(ed.storage.markdown.getMarkdown())
     },
   })
 

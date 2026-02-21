@@ -4,14 +4,16 @@
  * Left panel (~60%): Tiptap rich-text editor (StrategyEditor)
  * Right panel (~40%): AI chat with SSE streaming (PlaybookChat)
  *
+ * Shows onboarding flow for first-time visitors (no enrichment data yet).
+ *
  * Wires together: usePlaybookDocument, useSavePlaybook, usePlaybookChat,
- * useExtractStrategy, useSSE, StrategyEditor, PlaybookChat.
+ * useExtractStrategy, useSSE, StrategyEditor, PlaybookChat, PlaybookOnboarding.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { type JSONContent } from '@tiptap/react'
 import { StrategyEditor } from '../../components/playbook/StrategyEditor'
 import { PlaybookChat, type ChatMessage } from '../../components/playbook/PlaybookChat'
+import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -77,12 +79,13 @@ export function PlaybookPage() {
   // SSE streaming
   const sse = useSSE()
 
-  // Local state — editedContent holds user edits; null until first edit
-  const [editedContent, setEditedContent] = useState<JSONContent | null>(null)
+  // Local state
+  const [editedContent, setEditedContent] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [savedIndicator, setSavedIndicator] = useState(false)
+  const [skipped, setSkipped] = useState(false)
 
   // Track document version for optimistic locking
   const versionRef = useRef(0)
@@ -97,13 +100,13 @@ export function PlaybookPage() {
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
     ? editedContent
-    : (docQuery.data?.content as JSONContent | null) ?? null
+    : (docQuery.data?.content ?? null)
 
   // ---------------------------------------------------------------------------
   // Editor handlers
   // ---------------------------------------------------------------------------
 
-  const handleEditorUpdate = useCallback((content: JSONContent) => {
+  const handleEditorUpdate = useCallback((content: string) => {
     setEditedContent(content)
     setIsDirty(true)
     setSavedIndicator(false)
@@ -114,7 +117,7 @@ export function PlaybookPage() {
 
     try {
       const result = await saveMutation.mutateAsync({
-        content: localContent as Record<string, unknown>,
+        content: localContent,
         version: versionRef.current,
       })
       versionRef.current = result.version
@@ -240,6 +243,21 @@ export function PlaybookPage() {
           </button>
         </div>
       </div>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Onboarding gate — show if no enrichment data and user hasn't skipped
+  // ---------------------------------------------------------------------------
+
+  const needsOnboarding = docQuery.data && !docQuery.data.enrichment_id
+
+  if (needsOnboarding && !skipped) {
+    return (
+      <PlaybookOnboarding
+        onSkip={() => setSkipped(true)}
+        onComplete={() => docQuery.refetch()}
+      />
     )
   }
 
