@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { useUpdateMessage, type Message } from '../../api/queries/useMessages'
 import { useToast } from '../../components/ui/Toast'
 
@@ -187,7 +188,9 @@ export function MessageCard({ message }: MessageCardProps) {
         </div>
       ) : mode === 'reject' ? (
         <div className="space-y-2">
-          <div className="text-sm text-text whitespace-pre-wrap">{message.body}</div>
+          <div className="text-sm text-text prose-sm-msg">
+            <ReactMarkdown>{message.body}</ReactMarkdown>
+          </div>
           <textarea
             value={rejectNotes}
             onChange={(e) => setRejectNotes(e.target.value)}
@@ -212,7 +215,9 @@ export function MessageCard({ message }: MessageCardProps) {
           </div>
         </div>
       ) : (
-        <div className="text-sm text-text whitespace-pre-wrap">{message.body}</div>
+        <div className="text-sm text-text prose-sm-msg">
+          <ReactMarkdown>{message.body}</ReactMarkdown>
+        </div>
       )}
 
       {/* Review notes (shown when approved/rejected) */}

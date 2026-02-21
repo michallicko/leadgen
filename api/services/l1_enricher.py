@@ -10,6 +10,8 @@ import logging
 import re
 import time
 
+import requests as http_requests
+from bs4 import BeautifulSoup
 from flask import current_app
 from sqlalchemy import text
 
@@ -52,6 +54,92 @@ FREE_MAIL_DOMAINS = {
     "fastmail.com",
     "tutanota.com",
 }
+
+WEBSITE_SCRAPE_TIMEOUT = 10  # seconds
+WEBSITE_MAX_CHARS = 4000  # truncate scraped text to this length
+WEBSITE_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+def scrape_website(domain):
+    """Fetch and extract text content from a company's homepage.
+
+    Args:
+        domain: Company domain (e.g. "unitedarts.cz")
+
+    Returns:
+        str with extracted text content, or None if scraping failed.
+    """
+    if not domain:
+        return None
+
+    url = f"https://{domain}/"
+    try:
+        resp = http_requests.get(
+            url,
+            timeout=WEBSITE_SCRAPE_TIMEOUT,
+            headers={"User-Agent": WEBSITE_USER_AGENT},
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        logger.debug("Website scrape failed for %s: %s", domain, e)
+        return None
+
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/html" not in content_type:
+        logger.debug("Non-HTML content type for %s: %s", domain, content_type)
+        return None
+
+    try:
+        soup = BeautifulSoup(resp.text, "html.parser")
+    except Exception as e:
+        logger.debug("HTML parse failed for %s: %s", domain, e)
+        return None
+
+    # Extract page title
+    title = ""
+    if soup.title and soup.title.string:
+        title = soup.title.string.strip()
+
+    # Extract meta description
+    meta_desc = ""
+    meta_tag = soup.find("meta", attrs={"name": "description"})
+    if meta_tag and meta_tag.get("content"):
+        meta_desc = meta_tag["content"].strip()
+
+    # Remove script, style, nav, footer, header elements
+    for tag in soup.find_all(["script", "style", "nav", "footer", "header",
+                               "noscript", "svg", "iframe"]):
+        tag.decompose()
+
+    # Extract visible text
+    body_text = soup.get_text(separator=" ", strip=True)
+    # Collapse multiple whitespace
+    body_text = re.sub(r'\s+', ' ', body_text).strip()
+
+    # Assemble output
+    parts = []
+    if title:
+        parts.append(f"Page title: {title}")
+    if meta_desc:
+        parts.append(f"Meta description: {meta_desc}")
+    if body_text:
+        parts.append(f"Page content: {body_text}")
+
+    if not parts:
+        return None
+
+    result = "\n".join(parts)
+
+    # Truncate to max chars
+    if len(result) > WEBSITE_MAX_CHARS:
+        result = result[:WEBSITE_MAX_CHARS] + "..."
+
+    return result
+
 
 SYSTEM_PROMPT = """You are a B2B sales qualification research assistant. Your task is to gather accurate, verifiable company information.
 
@@ -120,7 +208,7 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     row = db.session.execute(
         text("""
             SELECT c.id, c.tenant_id, c.name, c.domain, c.industry,
-                   c.company_size, c.verified_revenue_eur_m
+                   c.company_size, c.verified_revenue_eur_m, c.is_self
             FROM companies c
             WHERE c.id = :id
         """),
@@ -137,6 +225,12 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     existing_industry = row[4]
     existing_size = row[5]
     existing_revenue = float(row[6]) if row[6] else None
+    is_self = row[7]
+
+    # Skip tenant's own company — never enrich self
+    if is_self:
+        logger.info("Skipping self-company %s — is_self=True", company_name)
+        return {"enrichment_cost_usd": 0, "qc_flags": ["skipped_self_company"]}
 
     # 2. Resolve domain and gather contact context
     contact_linkedin_urls = _get_contact_linkedin_urls(company_id, limit=3)
@@ -147,19 +241,25 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     if previous_data is None:
         previous_data = _load_previous_enrichment(company_id)
 
+    # 2c. Scrape company website for context (best-effort)
+    website_content = None
+    if domain:
+        website_content = scrape_website(domain)
+        if website_content:
+            logger.info("Scraped %d chars from %s", len(website_content), domain)
+        else:
+            logger.debug("No website content obtained for %s", domain)
+
     # 3. Call Perplexity
     model = get_model_for_stage("l1", boost=boost)
     try:
-        pplx_response = _call_perplexity(
-            company_name,
-            domain,
-            existing_industry,
-            existing_size,
-            existing_revenue,
-            contact_linkedin_urls,
-            previous_data=previous_data,
-            model=model,
-        )
+        pplx_response = _call_perplexity(company_name, domain,
+                                          existing_industry, existing_size,
+                                          existing_revenue,
+                                          contact_linkedin_urls,
+                                          previous_data=previous_data,
+                                          model=model,
+                                          website_content=website_content)
         raw_response = pplx_response.content
         usage = {
             "input_tokens": pplx_response.input_tokens,
@@ -373,21 +473,14 @@ def _load_previous_enrichment(company_id):
 # Perplexity API call
 # ---------------------------------------------------------------------------
 
-
-def _call_perplexity(
-    company_name,
-    domain,
-    existing_industry,
-    existing_size,
-    existing_revenue,
-    contact_linkedin_urls=None,
-    previous_data=None,
-    model=None,
-):
+def _call_perplexity(company_name, domain, existing_industry, existing_size,
+                     existing_revenue, contact_linkedin_urls=None,
+                     previous_data=None, model=None, website_content=None):
     """Call Perplexity sonar API for company research.
 
     Args:
         model: Perplexity model name (default: PERPLEXITY_MODEL constant)
+        website_content: Scraped text from the company's website (optional)
 
     Returns:
         PerplexityResponse with .content, .input_tokens, .output_tokens, .cost_usd
@@ -428,6 +521,17 @@ def _call_perplexity(
         else ""
     )
 
+    # Build website content section
+    website_section = ""
+    if website_content:
+        website_section = (
+            f"\n\nThe following content was extracted from the company's website ({domain}):\n"
+            "---\n"
+            f"{website_content}\n"
+            "---\n"
+            "Use this as primary context about the company. Supplement with external research."
+        )
+
     # Build previous data section for re-enrichment
     previous_section = ""
     if previous_data:
@@ -442,15 +546,12 @@ def _call_perplexity(
                 + "\n".join(prev_lines)
             )
 
-    user_prompt = (
-        USER_PROMPT_TEMPLATE.format(
-            company_name=company_name,
-            domain_line=domain_line,
-            contacts_section=contacts_section,
-            claims_section=claims_section,
-        )
-        + previous_section
-    )
+    user_prompt = USER_PROMPT_TEMPLATE.format(
+        company_name=company_name,
+        domain_line=domain_line,
+        contacts_section=contacts_section,
+        claims_section=claims_section,
+    ) + website_section + previous_section
 
     client = PerplexityClient(
         api_key=api_key,
