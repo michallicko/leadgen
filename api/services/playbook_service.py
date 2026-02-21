@@ -40,12 +40,14 @@ def _format_enrichment_for_prompt(enrichment_data):
         ("Category", co.get("industry_category")),
         ("Size", co.get("company_size")),
         ("Revenue", co.get("revenue_range")),
-        ("HQ", "{}, {}".format(co.get("hq_city", ""), co.get("hq_country", ""))
-         if co.get("hq_city") else co.get("hq_country")),
+        (
+            "HQ",
+            "{}, {}".format(co.get("hq_city", ""), co.get("hq_country", ""))
+            if co.get("hq_city")
+            else co.get("hq_country"),
+        ),
     ]
-    profile_lines = [
-        "  {}: {}".format(k, v) for k, v in profile_fields if v
-    ]
+    profile_lines = ["  {}: {}".format(k, v) for k, v in profile_fields if v]
     if profile_lines:
         parts.append("COMPANY PROFILE:")
         parts.extend(profile_lines)
@@ -318,7 +320,14 @@ def build_extraction_prompt(document_content):
 
 def _get(data, key, default=""):
     """Safely extract a string value from a dict, returning default if missing."""
-    return data.get(key) or default
+    val = data.get(key) or default
+    if isinstance(val, list):
+        return "\n".join(f"- {item}" for item in val)
+    if isinstance(val, dict):
+        import json
+
+        return json.dumps(val, indent=2)
+    return str(val) if val else default
 
 
 def build_seeded_template(objective=None, enrichment_data=None):
@@ -374,12 +383,17 @@ def build_seeded_template(objective=None, enrichment_data=None):
     recent_news = _get(enrichment_data, "recent_news")
     funding_history = _get(enrichment_data, "funding_history")
 
-    header = "{} \u2014 GTM Strategy".format(company_name) if company_name else "GTM Strategy"
+    header = (
+        "{} \u2014 GTM Strategy".format(company_name)
+        if company_name
+        else "GTM Strategy"
+    )
 
     # --- Executive Summary ---
     exec_parts = []
-    exec_parts.append("**Objective:** {}".format(
-        objective or "Define your go-to-market objective"))
+    exec_parts.append(
+        "**Objective:** {}".format(objective or "Define your go-to-market objective")
+    )
     if company_name:
         exec_parts.append("**Company:** {}".format(company_name))
     if industry:
@@ -416,54 +430,53 @@ def build_seeded_template(objective=None, enrichment_data=None):
     if company_size:
         icp_parts.append(
             "**Company Profile:** {} employees, {} revenue".format(
-                company_size, revenue_range or "undisclosed"))
+                company_size, revenue_range or "undisclosed"
+            )
+        )
     if triage_notes:
         icp_parts.append("")
         icp_parts.append("**Triage Notes:** {}".format(triage_notes))
     if growth_indicators:
         icp_parts.append("")
-        icp_parts.append(
-            "**Growth Signals to Target:** {}".format(growth_indicators))
+        icp_parts.append("**Growth Signals to Target:** {}".format(growth_indicators))
     if hiring_signals:
         icp_parts.append("")
-        icp_parts.append(
-            "**Hiring Signals:** {}".format(hiring_signals))
+        icp_parts.append("**Hiring Signals:** {}".format(hiring_signals))
     if not icp_parts:
         icp_parts.append(
             "Define your target customer segments based on industry, "
-            "company size, and buying signals.")
+            "company size, and buying signals."
+        )
     icp_content = "\n".join(icp_parts)
 
     # --- Buyer Personas ---
     persona_parts = []
     if leadership_team:
-        persona_parts.append(
-            "**Key Decision-Makers:** {}".format(leadership_team))
+        persona_parts.append("**Key Decision-Makers:** {}".format(leadership_team))
         persona_parts.append("")
     if triage_notes:
-        persona_parts.append(
-            "**Buying Dynamics:** {}".format(triage_notes))
+        persona_parts.append("**Buying Dynamics:** {}".format(triage_notes))
         persona_parts.append("")
     if ai_adoption_level:
-        persona_parts.append(
-            "**AI Adoption Level:** {}".format(ai_adoption_level))
+        persona_parts.append("**AI Adoption Level:** {}".format(ai_adoption_level))
         persona_parts.append("")
     if leadership_team or triage_notes:
         persona_parts.append(
             "Based on the leadership and buying dynamics above, build 2-3 "
             "buyer persona profiles. For each, specify the title pattern, "
-            "key pain points, and primary goals.")
+            "key pain points, and primary goals."
+        )
     else:
         persona_parts.append(
             "Build 2-3 buyer persona profiles with title patterns, "
-            "pain points, and goals.")
+            "pain points, and goals."
+        )
     persona_content = "\n".join(persona_parts)
 
     # --- Value Proposition ---
     value_parts = []
     if key_products:
-        value_parts.append(
-            "**Products/Services:** {}".format(key_products))
+        value_parts.append("**Products/Services:** {}".format(key_products))
     if pain_hypothesis:
         value_parts.append("")
         value_parts.append("**Pain Points Identified:**")
@@ -476,7 +489,8 @@ def build_seeded_template(objective=None, enrichment_data=None):
         value_parts.append(ai_opportunities)
     if not value_parts:
         value_parts.append(
-            "Articulate your core value proposition and key messaging themes.")
+            "Articulate your core value proposition and key messaging themes."
+        )
     value_content = "\n".join(value_parts)
 
     # --- Competitive Positioning ---
@@ -491,27 +505,24 @@ def build_seeded_template(objective=None, enrichment_data=None):
         comp_parts.append("**Certifications:** {}".format(certifications))
     if digital_initiatives:
         comp_parts.append("")
-        comp_parts.append(
-            "**Digital Initiatives:** {}".format(digital_initiatives))
+        comp_parts.append("**Digital Initiatives:** {}".format(digital_initiatives))
     if not comp_parts:
-        comp_parts.append(
-            "Map your competitive landscape and differentiation.")
+        comp_parts.append("Map your competitive landscape and differentiation.")
     comp_content = "\n".join(comp_parts)
 
     # --- Channel Strategy ---
     channel_parts = []
     if customer_segments:
-        channel_parts.append(
-            "**Target Audience:** {}".format(customer_segments))
+        channel_parts.append("**Target Audience:** {}".format(customer_segments))
         channel_parts.append("")
     if hiring_signals:
-        channel_parts.append(
-            "**Leverage Hiring Signals:** {}".format(hiring_signals))
+        channel_parts.append("**Leverage Hiring Signals:** {}".format(hiring_signals))
         channel_parts.append("")
     channel_parts.append(
         "Prioritize channels based on where these buyer personas engage. "
         "Consider LinkedIn for B2B outreach, industry events, "
-        "and partnerships for warm introductions.")
+        "and partnerships for warm introductions."
+    )
     channel_content = "\n".join(channel_parts)
 
     # --- Messaging Framework ---
@@ -529,17 +540,16 @@ def build_seeded_template(objective=None, enrichment_data=None):
     msg_parts.append(
         "Build messaging pillars that connect the identified pain points "
         "to your solution, using proof points and case studies relevant "
-        "to the {} industry.".format(industry or "target"))
+        "to the {} industry.".format(industry or "target")
+    )
     msg_content = "\n".join(msg_parts)
 
     # --- Metrics ---
     metrics_parts = []
     if growth_indicators:
-        metrics_parts.append(
-            "**Company Growth Context:** {}".format(growth_indicators))
+        metrics_parts.append("**Company Growth Context:** {}".format(growth_indicators))
         metrics_parts.append("")
-    metrics_parts.append(
-        "Target metrics aligned with the company's growth trajectory:")
+    metrics_parts.append("Target metrics aligned with the company's growth trajectory:")
     metrics_parts.append("")
     metrics_parts.append("- **Reply rate target:** __%")
     metrics_parts.append("- **Meeting rate target:** __%")
@@ -556,8 +566,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
         action_parts.append("")
     action_parts.append("**Days 31-60:** Build on quick wins, expand outreach")
     action_parts.append("")
-    action_parts.append(
-        "**Days 61-90:** Optimize based on metrics, scale what works")
+    action_parts.append("**Days 61-90:** Optimize based on metrics, scale what works")
     action_content = "\n".join(action_parts)
 
     return """# {header}

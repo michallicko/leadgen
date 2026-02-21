@@ -632,16 +632,19 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
     try:
         log_llm_usage(
             tenant_id=tenant_id,
+            operation="l2_enrichment",
             provider="perplexity+anthropic",
             model=model,
             input_tokens=0,  # Aggregated — individual costs tracked per call
             output_tokens=0,
-            cost_usd=total_cost,
             duration_ms=duration_ms,
-            entity_type="company",
-            entity_id=company_id,
-            stage="l2",
-            metadata={"boost": boost},
+            metadata={
+                "boost": boost,
+                "cost_usd": total_cost,
+                "entity_type": "company",
+                "entity_id": company_id,
+                "stage": "l2",
+            },
         )
     except Exception as e:
         logger.warning("Failed to log L2 LLM usage: %s", e)
