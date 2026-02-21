@@ -13,3 +13,4 @@ google-auth==2.38.0
 google-auth-oauthlib==1.2.1
 cryptography==44.0.1
 croniter==6.0.0
+resend==2.22.0
