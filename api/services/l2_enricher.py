@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 PERPLEXITY_MAX_TOKENS = 1200
 PERPLEXITY_TEMPERATURE = 0.2
-ANTHROPIC_MAX_TOKENS = 2000
+ANTHROPIC_MAX_TOKENS = 4000
 ANTHROPIC_TEMPERATURE = 0.3
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
@@ -442,6 +442,10 @@ def _synthesize(company, l1_data, news_data, strategic_data):
     )
 
     data = _parse_json(resp.content)
+    if not data:
+        raise ValueError(
+            f"Failed to parse synthesis JSON response ({len(resp.content)} chars)"
+        )
     return data, resp.cost_usd
 
 
@@ -687,5 +691,11 @@ def _parse_json(content):
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-        logger.warning("Failed to parse JSON from L2 response: %s...", content[:200])
+        truncated = not content.rstrip().endswith(("}", "]"))
+        logger.warning(
+            "Failed to parse JSON from L2 response (%d chars%s): %s...",
+            len(content),
+            ", appears truncated" if truncated else "",
+            content[:200],
+        )
         return {}
