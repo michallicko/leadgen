@@ -72,6 +72,153 @@ FORMALITY_INSTRUCTIONS = {
 }
 
 
+def _build_strategy_section(strategy_data: dict) -> str:
+    """Format playbook extracted_data for the generation prompt.
+
+    Extracts ICP, value proposition, messaging framework, competitive
+    positioning, and buyer personas from the playbook's extracted_data
+    and formats them as a readable section for the LLM.
+    """
+    if not strategy_data:
+        return ""
+
+    lines = []
+
+    # ICP
+    icp = strategy_data.get("icp")
+    if icp:
+        if isinstance(icp, dict):
+            icp_parts = []
+            if icp.get("industries"):
+                icp_parts.append(f"Industries: {', '.join(icp['industries'])}")
+            if icp.get("company_size"):
+                size = icp["company_size"]
+                if isinstance(size, dict):
+                    icp_parts.append(
+                        f"Company Size: {size.get('min', '?')}-{size.get('max', '?')} employees"
+                    )
+                else:
+                    icp_parts.append(f"Company Size: {size}")
+            if icp.get("geographies"):
+                icp_parts.append(f"Geographies: {', '.join(icp['geographies'])}")
+            if icp.get("tech_signals"):
+                icp_parts.append(f"Tech Signals: {', '.join(icp['tech_signals'])}")
+            if icp.get("triggers"):
+                icp_parts.append(f"Triggers: {', '.join(icp['triggers'])}")
+            if icp_parts:
+                lines.append("ICP: " + "; ".join(icp_parts))
+        else:
+            lines.append(f"ICP: {icp}")
+
+    # Value proposition
+    vp = strategy_data.get("value_proposition")
+    if not vp:
+        # Also check messaging.themes as a fallback
+        messaging = strategy_data.get("messaging", {})
+        if isinstance(messaging, dict) and messaging.get("themes"):
+            vp = ", ".join(messaging["themes"])
+    if vp:
+        if isinstance(vp, dict):
+            lines.append(f"Value Proposition: {', '.join(str(v) for v in vp.values() if v)}")
+        else:
+            lines.append(f"Value Proposition: {vp}")
+
+    # Messaging framework
+    messaging = strategy_data.get("messaging")
+    if messaging and isinstance(messaging, dict):
+        msg_parts = []
+        if messaging.get("tone"):
+            msg_parts.append(f"Tone: {messaging['tone']}")
+        if messaging.get("themes"):
+            msg_parts.append(f"Themes: {', '.join(messaging['themes'])}")
+        if messaging.get("angles"):
+            msg_parts.append(f"Angles: {', '.join(messaging['angles'])}")
+        if messaging.get("proof_points"):
+            msg_parts.append(f"Proof Points: {', '.join(messaging['proof_points'])}")
+        if msg_parts:
+            lines.append("Messaging Framework: " + "; ".join(msg_parts))
+    elif messaging:
+        lines.append(f"Messaging Framework: {messaging}")
+
+    # Competitive positioning
+    comp = strategy_data.get("competitive_positioning")
+    if comp:
+        if isinstance(comp, list):
+            lines.append(f"Competitive Position: {', '.join(str(c) for c in comp)}")
+        else:
+            lines.append(f"Competitive Position: {comp}")
+
+    # Buyer personas
+    personas = strategy_data.get("personas")
+    if personas and isinstance(personas, list):
+        persona_parts = []
+        for p in personas[:3]:  # Limit to top 3
+            if isinstance(p, dict):
+                titles = p.get("title_patterns", [])
+                pains = p.get("pain_points", [])
+                title_str = ", ".join(titles) if titles else "Unknown"
+                pain_str = ", ".join(pains) if pains else ""
+                entry = title_str
+                if pain_str:
+                    entry += f" (pains: {pain_str})"
+                persona_parts.append(entry)
+        if persona_parts:
+            lines.append("Buyer Personas: " + " | ".join(persona_parts))
+
+    # Channels
+    channels = strategy_data.get("channels")
+    if channels and isinstance(channels, dict):
+        ch_parts = []
+        if channels.get("primary"):
+            ch_parts.append(f"Primary: {channels['primary']}")
+        if channels.get("cadence"):
+            ch_parts.append(f"Cadence: {channels['cadence']}")
+        if ch_parts:
+            lines.append("Channel Strategy: " + "; ".join(ch_parts))
+
+    return "\n".join(lines) if lines else ""
+
+
+def _build_enrichment_section(enrichment_data: dict) -> str:
+    """Format enrichment data (L1/L2/Person) as a comprehensive section.
+
+    Extends beyond the basic company_section by including tech stack,
+    pain points, and other deep research fields from L2 enrichment.
+    """
+    if not enrichment_data:
+        return ""
+
+    lines = []
+
+    # L2 deep research
+    l2 = enrichment_data.get("l2", {})
+    if l2.get("tech_stack"):
+        lines.append(f"Tech Stack: {l2['tech_stack']}")
+    if l2.get("pain_hypothesis"):
+        lines.append(f"Pain Points: {l2['pain_hypothesis']}")
+    if l2.get("key_products"):
+        lines.append(f"Products: {l2['key_products']}")
+    if l2.get("customer_segments"):
+        lines.append(f"Customer Segments: {l2['customer_segments']}")
+    if l2.get("competitors"):
+        lines.append(f"Competitors: {l2['competitors']}")
+    if l2.get("digital_initiatives"):
+        lines.append(f"Digital Initiatives: {l2['digital_initiatives']}")
+    if l2.get("hiring_signals"):
+        lines.append(f"Hiring Signals: {l2['hiring_signals']}")
+
+    # Person enrichment extras (beyond what _build_contact_section covers)
+    person = enrichment_data.get("person", {})
+    if person.get("career_trajectory"):
+        lines.append(f"Career Trajectory: {person['career_trajectory']}")
+    if person.get("speaking_engagements"):
+        lines.append(f"Speaking: {person['speaking_engagements']}")
+    if person.get("publications"):
+        lines.append(f"Publications: {person['publications']}")
+
+    return "\n".join(lines) if lines else ""
+
+
 def build_generation_prompt(
     *,
     channel: str,
@@ -82,10 +229,15 @@ def build_generation_prompt(
     generation_config: dict,
     step_number: int,
     total_steps: int,
+    strategy_data: dict | None = None,
     formality: str | None = None,
     per_message_instruction: str | None = None,
 ) -> str:
     """Build the user prompt for generating a single message step.
+
+    Args:
+        strategy_data: Optional playbook extracted_data (ICP, value props,
+            messaging framework, competitive positioning, buyer personas).
 
     Returns the prompt string to send to Claude.
     """
@@ -121,13 +273,41 @@ def build_generation_prompt(
         "",
         "--- COMPANY ---",
         company_section,
-        "",
-        "--- SEQUENCE CONTEXT ---",
-        f"This is step {step_number} of {total_steps}: {step_label}",
-        f"Channel: {channel.replace('_', ' ')}",
-        f"Tone: {tone}",
-        f"Language: {language}",
     ]
+
+    # Strategy section from playbook (between COMPANY and SEQUENCE CONTEXT)
+    if strategy_data:
+        strategy_section = _build_strategy_section(strategy_data)
+        if strategy_section:
+            parts.extend(
+                [
+                    "",
+                    "--- STRATEGY ---",
+                    strategy_section,
+                ]
+            )
+
+    # Enrichment deep-dive section (tech stack, pain points, etc.)
+    enrichment_section = _build_enrichment_section(enrichment_data)
+    if enrichment_section:
+        parts.extend(
+            [
+                "",
+                "--- ENRICHMENT ---",
+                enrichment_section,
+            ]
+        )
+
+    parts.extend(
+        [
+            "",
+            "--- SEQUENCE CONTEXT ---",
+            f"This is step {step_number} of {total_steps}: {step_label}",
+            f"Channel: {channel.replace('_', ' ')}",
+            f"Tone: {tone}",
+            f"Language: {language}",
+        ]
+    )
 
     # Formality instruction (language-specific address form)
     effective_formality = formality or generation_config.get("formality")
