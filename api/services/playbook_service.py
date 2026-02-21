@@ -553,6 +553,115 @@ def _match_industry_personas(industry_key: str) -> list:
     return _DEFAULT_PERSONAS
 
 
+def _parse_leadership_team(raw):
+    """Parse leadership_team string into a dict mapping role keywords to names.
+
+    Handles formats like:
+    - "Patrick Collison (CEO), John Collison (President)"
+    - "CEO: Patrick Collison, CTO: David Singleton"
+    - "Patrick Collison - CEO, John Collison - President"
+
+    Returns:
+        dict: Mapping of lowercase role keywords to full "Name (Role)" strings.
+        E.g. {"ceo": "Patrick Collison", "cto": "David Singleton"}
+    """
+    if not raw or not isinstance(raw, str):
+        return {}
+
+    leader_map = {}
+    # Split on comma or semicolon
+    entries = [e.strip() for e in raw.replace(";", ",").split(",") if e.strip()]
+    for entry in entries:
+        name = ""
+        role = ""
+        # Format: "Name (Role)"
+        if "(" in entry and ")" in entry:
+            paren_start = entry.index("(")
+            paren_end = entry.index(")")
+            name = entry[:paren_start].strip()
+            role = entry[paren_start + 1:paren_end].strip()
+        # Format: "Role: Name"
+        elif ":" in entry:
+            parts = entry.split(":", 1)
+            role = parts[0].strip()
+            name = parts[1].strip()
+        # Format: "Name - Role"
+        elif " - " in entry:
+            parts = entry.split(" - ", 1)
+            name = parts[0].strip()
+            role = parts[1].strip()
+        else:
+            continue
+
+        if name and role:
+            # Index by each word in the role for flexible matching
+            role_lower = role.lower()
+            for keyword in role_lower.split():
+                # Strip common noise words
+                if keyword not in ("of", "the", "and", "&", "for", "/"):
+                    leader_map[keyword] = name
+            # Also store the full role
+            leader_map[role_lower] = name
+
+    return leader_map
+
+
+# Role keywords that map persona title fragments to leadership role keywords
+_ROLE_KEYWORDS = {
+    "cto": ["cto", "chief technology"],
+    "ceo": ["ceo", "chief executive"],
+    "cfo": ["cfo", "chief financial"],
+    "coo": ["coo", "chief operating"],
+    "cmo": ["cmo", "chief marketing"],
+    "ciso": ["ciso", "chief information security"],
+    "vp engineering": ["vp engineering", "engineering"],
+    "vp product": ["vp product", "product"],
+    "vp operations": ["vp operations", "operations"],
+    "head of data": ["head of data", "data"],
+    "president": ["president"],
+}
+
+
+def _match_leader_to_persona(persona_title, leader_map):
+    """Match a persona title to a real leader from the leadership map.
+
+    Args:
+        persona_title: E.g. "CTO / VP Engineering"
+        leader_map: Dict from _parse_leadership_team
+
+    Returns:
+        str or None: Leader name if matched, e.g. "David Singleton (CTO)"
+    """
+    if not leader_map or not persona_title:
+        return None
+
+    title_lower = persona_title.lower()
+
+    # Extract role fragments from the persona title (split on " / " and ",")
+    fragments = []
+    for sep in [" / ", ", ", " or "]:
+        if sep in title_lower:
+            fragments.extend(title_lower.split(sep))
+    if not fragments:
+        fragments = [title_lower]
+
+    for fragment in fragments:
+        fragment = fragment.strip()
+        # Try direct keyword matches
+        for key, aliases in _ROLE_KEYWORDS.items():
+            if any(alias in fragment for alias in aliases):
+                # Check if this keyword exists in leader_map
+                if key in leader_map:
+                    return leader_map[key]
+                # Also try individual words
+                for alias in aliases:
+                    for word in alias.split():
+                        if word in leader_map:
+                            return leader_map[word]
+
+    return None
+
+
 def build_seeded_template(objective=None, enrichment_data=None):
     """Generate a markdown template for a new strategy document.
 
@@ -640,13 +749,15 @@ def build_seeded_template(objective=None, enrichment_data=None):
         exec_parts.append(line)
     if hq_city and hq_country:
         exec_parts.append("**HQ:** {}, {}".format(hq_city, hq_country))
-    description = summary or company_intel or ""
+    # Prefer richer L2 descriptions over basic L1 summary
+    description = company_overview or company_intel or summary or ""
     if description:
         exec_parts.append("")
         exec_parts.append(description)
-    if company_overview and company_overview != description:
+    # Include summary as supplemental context if it differs from the chosen description
+    if summary and summary != description:
         exec_parts.append("")
-        exec_parts.append(company_overview)
+        exec_parts.append(summary)
     if recent_news:
         exec_parts.append("")
         exec_parts.append("**Recent Developments:** {}".format(recent_news))
@@ -683,6 +794,10 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
     # --- Buyer Personas ---
     persona_parts = []
+
+    # Parse leadership_team to map real leaders to persona roles
+    leader_map = _parse_leadership_team(leadership_team)
+
     if leadership_team:
         persona_parts.append("**Key Decision-Makers:** {}".format(leadership_team))
         persona_parts.append("")
@@ -690,11 +805,18 @@ def build_seeded_template(objective=None, enrichment_data=None):
         persona_parts.append("**AI Adoption Level:** {}".format(ai_adoption_level))
         persona_parts.append("")
 
-    # Generate industry-specific persona templates
+    # Generate industry-specific persona templates, enriched with real leaders
     industry_key = industry_raw.lower() if industry_raw else ""
     personas = _match_industry_personas(industry_key)
     for title, focus in personas:
-        persona_parts.append("### {}".format(title))
+        # Check if any known leader matches this persona role
+        matched_leader = _match_leader_to_persona(title, leader_map)
+        if matched_leader:
+            persona_parts.append(
+                "### {} — {}".format(title, matched_leader)
+            )
+        else:
+            persona_parts.append("### {}".format(title))
         persona_parts.append("**Focus Areas:** {}".format(focus))
         persona_parts.append("**Pain Points:** _Fill based on discovery calls_")
         persona_parts.append("**Goals:** _Fill based on discovery calls_")
@@ -715,6 +837,35 @@ def build_seeded_template(objective=None, enrichment_data=None):
         value_parts.append("**AI/Tech Opportunities:**")
         value_parts.append("")
         value_parts.append(ai_opportunities_formatted)
+    elif company_name:
+        # Contextual placeholder when AI opportunities synthesis is missing
+        # Use available data to create a more specific prompt than generic text
+        value_parts.append("")
+        value_parts.append("**AI/Tech Opportunities:**")
+        value_parts.append("")
+        context_hints = []
+        if industry:
+            context_hints.append(
+                "the {} industry".format(industry)
+            )
+        if key_products:
+            context_hints.append(
+                "their product lines ({})".format(key_products)
+            )
+        if recent_news:
+            context_hints.append("recent developments")
+        if context_hints:
+            value_parts.append(
+                "_Research needed: Identify AI/automation opportunities "
+                "specific to {} and {}._".format(
+                    company_name, ", ".join(context_hints)
+                )
+            )
+        else:
+            value_parts.append(
+                "_Research needed: Identify AI/automation opportunities "
+                "specific to {}._".format(company_name)
+            )
     if not value_parts:
         value_parts.append(
             "Articulate your core value proposition and key messaging themes."
@@ -782,6 +933,14 @@ def build_seeded_template(objective=None, enrichment_data=None):
         msg_parts.append("")
         msg_parts.append(ai_opportunities_formatted)
         msg_parts.append("")
+    if tech_stack:
+        msg_parts.append("**Technical Context:**")
+        msg_parts.append("")
+        msg_parts.append(
+            "Tailor messaging to their stack ({}). Reference integration "
+            "points and technical compatibility.".format(tech_stack)
+        )
+        msg_parts.append("")
     msg_parts.append(
         "**Proof Points:** Reference case studies and quantified results "
         "from similar {} companies to build credibility.".format(industry or "industry")
@@ -820,6 +979,12 @@ def build_seeded_template(objective=None, enrichment_data=None):
     action_parts.append("- Expand outreach volume based on Day 1-30 learnings")
     action_parts.append("- A/B test messaging angles and subject lines")
     action_parts.append("- Build pipeline of qualified opportunities")
+    if hiring_signals:
+        action_parts.append(
+            "- Monitor hiring signals for timing outreach: {}".format(
+                hiring_signals
+            )
+        )
     action_parts.append("")
     action_parts.append("### Days 61-90: Optimize")
     action_parts.append("")
