@@ -5,6 +5,7 @@ import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters 
 import { useToast } from '../../../components/ui/Toast'
 import { ContactGroup } from '../../messages/ContactGroup'
 import { CampaignMessagesGrid } from '../../../components/campaign/CampaignMessagesGrid'
+import { MessageReviewQueue } from '../../../components/campaign/MessageReviewQueue'
 import { REVIEW_STATUS_DISPLAY, filterOptions } from '../../../lib/display'
 
 interface ContactMessages {
@@ -39,6 +40,9 @@ interface Props {
 export function MessagesTab({ campaignId, onNavigate }: Props) {
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  // Review queue overlay state
+  const [showReviewQueue, setShowReviewQueue] = useState(false)
 
   // Persist view preference in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -148,12 +152,20 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           <ViewToggle mode={viewMode} onChange={handleViewChange} />
           <div className="flex items-center gap-2 ml-auto">
             {draftCount > 0 && (
-              <button
-                onClick={() => navigate(`review?status=draft`)}
-                className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
-              >
-                Start Review ({draftCount})
-              </button>
+              <>
+                <button
+                  onClick={() => setShowReviewQueue(true)}
+                  className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
+                >
+                  Review Queue ({draftCount})
+                </button>
+                <button
+                  onClick={() => navigate(`review?status=draft`)}
+                  className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt transition-colors font-medium"
+                >
+                  Review Page
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -161,6 +173,14 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
         <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-4">
           <CampaignMessagesGrid campaignId={campaignId} onNavigate={onNavigate} />
         </div>
+
+        {showReviewQueue && (
+          <MessageReviewQueue
+            campaignId={campaignId}
+            initialFilter="draft"
+            onClose={() => setShowReviewQueue(false)}
+          />
+        )}
       </div>
     )
   }
@@ -176,12 +196,20 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           <div className="flex items-center gap-2 ml-auto">
             <ViewToggle mode={viewMode} onChange={handleViewChange} />
             {draftCount > 0 && (
-              <button
-                onClick={() => navigate(`review?status=draft`)}
-                className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
-              >
-                Start Review ({draftCount})
-              </button>
+              <>
+                <button
+                  onClick={() => setShowReviewQueue(true)}
+                  className="px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
+                >
+                  Review Queue ({draftCount})
+                </button>
+                <button
+                  onClick={() => navigate(`review?status=draft`)}
+                  className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt transition-colors font-medium"
+                >
+                  Review Page
+                </button>
+              </>
             )}
             <button
               onClick={() => refetch()}
@@ -243,6 +271,14 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           ))
         )}
       </div>
+
+      {showReviewQueue && (
+        <MessageReviewQueue
+          campaignId={campaignId}
+          initialFilter="draft"
+          onClose={() => setShowReviewQueue(false)}
+        />
+      )}
     </div>
   )
 }
