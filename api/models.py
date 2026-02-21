@@ -7,7 +7,11 @@ db = SQLAlchemy()
 class User(db.Model):
     __tablename__ = "users"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
     email = db.Column(db.Text, unique=True, nullable=False)
     password_hash = db.Column(db.Text, nullable=False)
     display_name = db.Column(db.Text, nullable=False)
@@ -18,8 +22,12 @@ class User(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
-    roles = db.relationship("UserTenantRole", back_populates="user", cascade="all, delete-orphan",
-                            foreign_keys="[UserTenantRole.user_id]")
+    roles = db.relationship(
+        "UserTenantRole",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="[UserTenantRole.user_id]",
+    )
 
     def to_dict(self, include_roles=False):
         d = {
@@ -29,7 +37,9 @@ class User(db.Model):
             "is_super_admin": self.is_super_admin,
             "is_active": self.is_active,
             "owner_id": str(self.owner_id) if self.owner_id else None,
-            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
+            "last_login_at": self.last_login_at.isoformat()
+            if self.last_login_at
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_roles:
@@ -40,12 +50,26 @@ class User(db.Model):
 class UserTenantRole(db.Model):
     __tablename__ = "user_tenant_roles"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    user_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     role = db.Column(db.Text, nullable=False, default="viewer")
     granted_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
-    granted_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=True)
+    granted_by = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=True
+    )
 
     user = db.relationship("User", back_populates="roles", foreign_keys=[user_id])
     tenant = db.relationship("Tenant", foreign_keys=[tenant_id])
@@ -54,7 +78,11 @@ class UserTenantRole(db.Model):
 class Tenant(db.Model):
     __tablename__ = "tenants"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
     name = db.Column(db.Text, nullable=False)
     slug = db.Column(db.Text, unique=True, nullable=False)
     domain = db.Column(db.Text)
@@ -79,8 +107,14 @@ class Tenant(db.Model):
 class Owner(db.Model):
     __tablename__ = "owners"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     name = db.Column(db.Text, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 
@@ -88,8 +122,14 @@ class Owner(db.Model):
 class Tag(db.Model):
     __tablename__ = "tags"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     name = db.Column(db.Text, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 
@@ -97,8 +137,14 @@ class Tag(db.Model):
 class Company(db.Model):
     __tablename__ = "companies"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     name = db.Column(db.Text, nullable=False)
     domain = db.Column(db.Text)
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
@@ -129,6 +175,9 @@ class Company(db.Model):
     enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     pre_score = db.Column(db.Numeric(4, 1))
     batch_number = db.Column(db.Numeric(4, 1))
+    is_self = db.Column(
+        db.Boolean, nullable=False, server_default=db.text("false"), default=False
+    )
     lemlist_synced = db.Column(db.Boolean, default=False)
     error_message = db.Column(db.Text)
     notes = db.Column(db.Text)
@@ -155,7 +204,9 @@ class Company(db.Model):
 class CompanyEnrichmentL2(db.Model):
     __tablename__ = "company_enrichment_l2"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     company_intel = db.Column(db.Text)
     recent_news = db.Column(db.Text)
     ai_opportunities = db.Column(db.Text)
@@ -188,7 +239,9 @@ class CompanyEnrichmentL2(db.Model):
 class CompanyEnrichmentL1(db.Model):
     __tablename__ = "company_enrichment_l1"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     triage_notes = db.Column(db.Text)
     pre_score = db.Column(db.Numeric(4, 1))
     research_query = db.Column(db.Text)
@@ -205,7 +258,9 @@ class CompanyEnrichmentL1(db.Model):
 class CompanyEnrichmentProfile(db.Model):
     __tablename__ = "company_enrichment_profile"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     company_intel = db.Column(db.Text)
     key_products = db.Column(db.Text)
     customer_segments = db.Column(db.Text)
@@ -222,7 +277,9 @@ class CompanyEnrichmentProfile(db.Model):
 class CompanyEnrichmentSignals(db.Model):
     __tablename__ = "company_enrichment_signals"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     digital_initiatives = db.Column(db.Text)
     leadership_changes = db.Column(db.Text)
     hiring_signals = db.Column(db.Text)
@@ -243,7 +300,9 @@ class CompanyEnrichmentSignals(db.Model):
 class CompanyEnrichmentMarket(db.Model):
     __tablename__ = "company_enrichment_market"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     recent_news = db.Column(db.Text)
     funding_history = db.Column(db.Text)
     eu_grants = db.Column(db.Text)
@@ -259,7 +318,9 @@ class CompanyEnrichmentMarket(db.Model):
 class CompanyEnrichmentOpportunity(db.Model):
     __tablename__ = "company_enrichment_opportunity"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     pain_hypothesis = db.Column(db.Text)
     relevant_case_study = db.Column(db.Text)
     ai_opportunities = db.Column(db.Text)
@@ -276,7 +337,9 @@ class CompanyEnrichmentOpportunity(db.Model):
 class CompanyRegistryData(db.Model):
     __tablename__ = "company_registry_data"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
     ico = db.Column(db.Text)
     dic = db.Column(db.Text)
     official_name = db.Column(db.Text)
@@ -309,9 +372,17 @@ class CompanyRegistryData(db.Model):
 class CompanyInsolvencyData(db.Model):
     __tablename__ = "company_insolvency_data"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), nullable=False)
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), nullable=False
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     ico = db.Column(db.Text)
     has_insolvency = db.Column(db.Boolean, default=False)
     proceedings = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
@@ -327,7 +398,11 @@ class CompanyInsolvencyData(db.Model):
 class CompanyLegalProfile(db.Model):
     __tablename__ = "company_legal_profile"
 
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
+    company_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("companies.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
     registration_id = db.Column(db.Text)
     registration_country = db.Column(db.Text, nullable=False)
     tax_id = db.Column(db.Text)
@@ -363,10 +438,24 @@ class CompanyLegalProfile(db.Model):
 class ContactTagAssignment(db.Model):
     __tablename__ = "contact_tag_assignments"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False)
-    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("contacts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tag_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tags.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     __table_args__ = (db.UniqueConstraint("contact_id", "tag_id"),)
@@ -375,10 +464,24 @@ class ContactTagAssignment(db.Model):
 class CompanyTagAssignment(db.Model):
     __tablename__ = "company_tag_assignments"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
-    tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    company_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tag_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tags.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     __table_args__ = (db.UniqueConstraint("company_id", "tag_id"),)
@@ -387,8 +490,14 @@ class CompanyTagAssignment(db.Model):
 class CompanyTag(db.Model):
     __tablename__ = "company_tags"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), nullable=False
+    )
     category = db.Column(db.Text, nullable=False)
     value = db.Column(db.Text, nullable=False)
 
@@ -396,7 +505,9 @@ class CompanyTag(db.Model):
 class ContactEnrichment(db.Model):
     __tablename__ = "contact_enrichment"
 
-    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id"), primary_key=True)
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), primary_key=True
+    )
     person_summary = db.Column(db.Text)
     linkedin_profile_summary = db.Column(db.Text)
     relationship_synthesis = db.Column(db.Text)
@@ -418,8 +529,14 @@ class ContactEnrichment(db.Model):
 class Contact(db.Model):
     __tablename__ = "contacts"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     company_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
@@ -432,6 +549,7 @@ class Contact(db.Model):
         if self.last_name:
             return self.first_name + " " + self.last_name
         return self.first_name
+
     email_address = db.Column(db.Text)
     linkedin_url = db.Column(db.Text)
     phone_number = db.Column(db.Text)
@@ -461,7 +579,7 @@ class Contact(db.Model):
     last_enriched_at = db.Column(db.DateTime(timezone=True))
     employment_verified_at = db.Column(db.DateTime(timezone=True))
     employment_status = db.Column(db.Text)
-    linkedin_activity_level = db.Column(db.Text, default='unknown')
+    linkedin_activity_level = db.Column(db.Text, default="unknown")
     import_job_id = db.Column(UUID(as_uuid=False), db.ForeignKey("import_jobs.id"))
     # Disqualification (migration 027)
     is_disqualified = db.Column(db.Boolean, default=False)
@@ -477,8 +595,14 @@ class Contact(db.Model):
 class ImportJob(db.Model):
     __tablename__ = "import_jobs"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=False)
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
@@ -499,7 +623,9 @@ class ImportJob(db.Model):
     estimated_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     actual_cost_usd = db.Column(db.Numeric(10, 4), default=0)
     source = db.Column(db.Text, default="csv")
-    oauth_connection_id = db.Column(UUID(as_uuid=False), db.ForeignKey("oauth_connections.id"))
+    oauth_connection_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("oauth_connections.id")
+    )
     scan_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     scan_progress = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     dedup_strategy = db.Column(db.Text, default="skip")
@@ -515,6 +641,7 @@ class ImportJob(db.Model):
             return v
         if isinstance(v, str):
             import json
+
             return json.loads(v) if v else None
         return v
 
@@ -524,7 +651,9 @@ class ImportJob(db.Model):
             "filename": self.filename,
             "total_rows": self.total_rows,
             "column_mapping": self._parse_jsonb(self.column_mapping),
-            "mapping_confidence": float(self.mapping_confidence) if self.mapping_confidence else None,
+            "mapping_confidence": float(self.mapping_confidence)
+            if self.mapping_confidence
+            else None,
             "contacts_created": self.contacts_created,
             "contacts_updated": self.contacts_updated,
             "contacts_skipped": self.contacts_skipped,
@@ -546,8 +675,14 @@ class ImportJob(db.Model):
 class StageRun(db.Model):
     __tablename__ = "stage_runs"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     stage = db.Column(db.Text, nullable=False)
@@ -566,8 +701,14 @@ class StageRun(db.Model):
 class PipelineRun(db.Model):
     __tablename__ = "pipeline_runs"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     execution_id = db.Column(db.Text)
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
@@ -591,8 +732,14 @@ class PipelineRun(db.Model):
 class CustomFieldDefinition(db.Model):
     __tablename__ = "custom_field_definitions"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     entity_type = db.Column(db.Text, nullable=False)
     field_key = db.Column(db.Text, nullable=False)
     field_label = db.Column(db.Text, nullable=False)
@@ -603,13 +750,16 @@ class CustomFieldDefinition(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     __table_args__ = (
-        db.UniqueConstraint("tenant_id", "entity_type", "field_key", name="uq_cfd_tenant_entity_key"),
+        db.UniqueConstraint(
+            "tenant_id", "entity_type", "field_key", name="uq_cfd_tenant_entity_key"
+        ),
     )
 
     def to_dict(self):
         opts = self.options or []
         if isinstance(opts, str):
             import json
+
             opts = json.loads(opts)
         return {
             "id": str(self.id),
@@ -627,8 +777,14 @@ class CustomFieldDefinition(db.Model):
 class LlmUsageLog(db.Model):
     __tablename__ = "llm_usage_log"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
     operation = db.Column(db.Text, nullable=False)
     provider = db.Column(db.Text, nullable=False, server_default=db.text("'anthropic'"))
@@ -660,9 +816,21 @@ class LlmUsageLog(db.Model):
 class OAuthConnection(db.Model):
     __tablename__ = "oauth_connections"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    user_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     provider = db.Column(db.Text, nullable=False)
     provider_account_id = db.Column(db.Text)
     provider_email = db.Column(db.Text)
@@ -675,8 +843,13 @@ class OAuthConnection(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     __table_args__ = (
-        db.UniqueConstraint("user_id", "tenant_id", "provider", "provider_account_id",
-                            name="uq_oauth_user_provider_account"),
+        db.UniqueConstraint(
+            "user_id",
+            "tenant_id",
+            "provider",
+            "provider_account_id",
+            name="uq_oauth_user_provider_account",
+        ),
     )
 
     def to_dict(self):
@@ -693,8 +866,14 @@ class OAuthConnection(db.Model):
 class ResearchAsset(db.Model):
     __tablename__ = "research_assets"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     entity_type = db.Column(db.Text, nullable=False)
     entity_id = db.Column(UUID(as_uuid=False), nullable=False)
     name = db.Column(db.Text, nullable=False)
@@ -709,9 +888,17 @@ class ResearchAsset(db.Model):
 class Message(db.Model):
     __tablename__ = "messages"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False
+    )
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"))
     label = db.Column(db.Text)
@@ -727,7 +914,9 @@ class Message(db.Model):
     approved_at = db.Column(db.DateTime(timezone=True))
     sent_at = db.Column(db.DateTime(timezone=True))
     review_notes = db.Column(db.Text)
-    campaign_contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("campaign_contacts.id"))
+    campaign_contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaign_contacts.id")
+    )
     # Version tracking + regeneration (migration 027)
     original_body = db.Column(db.Text)
     original_subject = db.Column(db.Text)
@@ -740,16 +929,30 @@ class Message(db.Model):
 
 
 EDIT_REASONS = [
-    "too_formal", "too_casual", "wrong_tone", "wrong_language",
-    "too_long", "too_short", "factually_wrong", "off_topic", "generic", "other",
+    "too_formal",
+    "too_casual",
+    "wrong_tone",
+    "wrong_language",
+    "too_long",
+    "too_short",
+    "factually_wrong",
+    "off_topic",
+    "generic",
+    "other",
 ]
 
 
 class Campaign(db.Model):
     __tablename__ = "campaigns"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"))
     name = db.Column(db.Text, nullable=False)
     lemlist_campaign_id = db.Column(db.Text)
@@ -774,10 +977,24 @@ class Campaign(db.Model):
 class CampaignContact(db.Model):
     __tablename__ = "campaign_contacts"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    campaign_id = db.Column(UUID(as_uuid=False), db.ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
-    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False)
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    campaign_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("contacts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     status = db.Column(db.Text, default="pending")
     enrichment_gaps = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
     generation_cost = db.Column(db.Numeric(10, 4), default=0)
@@ -791,7 +1008,11 @@ class CampaignContact(db.Model):
 class CampaignTemplate(db.Model):
     __tablename__ = "campaign_templates"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
     tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"))
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
@@ -805,8 +1026,14 @@ class CampaignTemplate(db.Model):
 class EntityStageCompletion(db.Model):
     __tablename__ = "entity_stage_completions"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     tag_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tags.id"), nullable=False)
     pipeline_run_id = db.Column(UUID(as_uuid=False), db.ForeignKey("pipeline_runs.id"))
     entity_type = db.Column(db.Text, nullable=False)
@@ -815,14 +1042,22 @@ class EntityStageCompletion(db.Model):
     status = db.Column(db.Text, nullable=False, default="completed")
     cost_usd = db.Column(db.Numeric(10, 4), default=0)
     error = db.Column(db.Text)
-    completed_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    completed_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
 
 
 class EnrichmentConfig(db.Model):
     __tablename__ = "enrichment_configs"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text, server_default=db.text("''"))
     config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
@@ -837,6 +1072,7 @@ class EnrichmentConfig(db.Model):
 
     def to_dict(self):
         import json as _json
+
         cfg = self.config
         if isinstance(cfg, str):
             cfg = _json.loads(cfg)
@@ -855,9 +1091,17 @@ class EnrichmentConfig(db.Model):
 class EnrichmentSchedule(db.Model):
     __tablename__ = "enrichment_schedules"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    config_id = db.Column(UUID(as_uuid=False), db.ForeignKey("enrichment_configs.id"), nullable=False)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    config_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("enrichment_configs.id"), nullable=False
+    )
     schedule_type = db.Column(db.Text, nullable=False)  # "cron", "on_new_entity"
     cron_expression = db.Column(db.Text)  # e.g. "0 2 1 */3 *"
     tag_filter = db.Column(db.Text)  # optional: only run for specific tag
@@ -885,9 +1129,17 @@ class EnrichmentSchedule(db.Model):
 class Activity(db.Model):
     __tablename__ = "activities"
 
-    id = db.Column(UUID(as_uuid=False), primary_key=True, server_default=db.text("uuid_generate_v4()"))
-    tenant_id = db.Column(UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False)
-    contact_id = db.Column(UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=True)
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=True
+    )
     owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"), nullable=True)
     # Original columns (migration 001)
     activity_name = db.Column(db.Text)
@@ -905,3 +1157,80 @@ class Activity(db.Model):
     timestamp = db.Column(db.DateTime(timezone=True))
     payload = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class StrategyDocument(db.Model):
+    __tablename__ = "strategy_documents"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False, unique=True
+    )
+    content = db.Column(
+        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
+    )
+    extracted_data = db.Column(
+        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
+    )
+    status = db.Column(db.String(20), nullable=False, default="draft")
+    version = db.Column(db.Integer, nullable=False, default=1)
+    enrichment_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "content": self.content or {},
+            "extracted_data": self.extracted_data or {},
+            "status": self.status,
+            "version": self.version,
+            "enrichment_id": self.enrichment_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by,
+        }
+
+
+class StrategyChatMessage(db.Model):
+    __tablename__ = "strategy_chat_messages"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    document_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"), nullable=False
+    )
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    extra = db.Column(
+        "metadata",
+        JSONB,
+        server_default=db.text("'{}'::jsonb"),
+        nullable=False,
+        default=dict,
+    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    created_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "document_id": self.document_id,
+            "role": self.role,
+            "content": self.content,
+            "metadata": self.extra or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by,
+        }

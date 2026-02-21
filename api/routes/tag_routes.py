@@ -1,7 +1,12 @@
 from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
-from ..display import display_message_status, display_status, display_tier, tier_db_values
+from ..display import (
+    display_message_status,
+    display_status,
+    display_tier,
+    tier_db_values,
+)
 from ..models import CustomFieldDefinition, Tag, db
 
 tag_bp = Blueprint("tags", __name__)
@@ -15,7 +20,9 @@ def list_tags():
         return jsonify({"error": "Tenant not found"}), 404
 
     tags = db.session.execute(
-        db.text("SELECT id, name FROM tags WHERE tenant_id = :t AND is_active = true ORDER BY name"),
+        db.text(
+            "SELECT id, name FROM tags WHERE tenant_id = :t AND is_active = true ORDER BY name"
+        ),
         {"t": tenant_id},
     ).fetchall()
 
@@ -30,15 +37,24 @@ def list_tags():
         {"t": tenant_id},
     ).fetchall()
 
-    custom_defs = CustomFieldDefinition.query.filter_by(
-        tenant_id=str(tenant_id), is_active=True,
-    ).order_by(CustomFieldDefinition.entity_type, CustomFieldDefinition.display_order).all()
+    custom_defs = (
+        CustomFieldDefinition.query.filter_by(
+            tenant_id=str(tenant_id),
+            is_active=True,
+        )
+        .order_by(
+            CustomFieldDefinition.entity_type, CustomFieldDefinition.display_order
+        )
+        .all()
+    )
 
-    return jsonify({
-        "tags": [{"id": str(r[0]), "name": r[1]} for r in tags],
-        "owners": [{"id": str(r[0]), "name": r[1]} for r in owners],
-        "custom_fields": [d.to_dict() for d in custom_defs],
-    })
+    return jsonify(
+        {
+            "tags": [{"id": str(r[0]), "name": r[1]} for r in tags],
+            "owners": [{"id": str(r[0]), "name": r[1]} for r in owners],
+            "custom_fields": [d.to_dict() for d in custom_defs],
+        }
+    )
 
 
 @tag_bp.route("/api/tags", methods=["POST"])
@@ -132,24 +148,37 @@ def tag_stats():
 
     # --- Pre-triage (unfiltered) ---
 
-    contacts_total = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {ct_where}"),
-        ct_params,
-    ).scalar() or 0
+    contacts_total = (
+        db.session.execute(
+            db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {ct_where}"),
+            ct_params,
+        ).scalar()
+        or 0
+    )
 
-    contacts_unprocessed = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {ct_where} AND NOT ct.processed_enrich"),
-        ct_params,
-    ).scalar() or 0
+    contacts_unprocessed = (
+        db.session.execute(
+            db.text(
+                f"SELECT COUNT(*) FROM contacts ct WHERE {ct_where} AND NOT ct.processed_enrich"
+            ),
+            ct_params,
+        ).scalar()
+        or 0
+    )
 
-    companies_total = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM companies c WHERE {co_where}"),
-        params,
-    ).scalar() or 0
+    companies_total = (
+        db.session.execute(
+            db.text(f"SELECT COUNT(*) FROM companies c WHERE {co_where}"),
+            params,
+        ).scalar()
+        or 0
+    )
 
     # Status counts (unfiltered — for pre-L1 statuses: New, Enrichment Failed)
     status_rows = db.session.execute(
-        db.text(f"SELECT c.status, COUNT(*) FROM companies c WHERE {co_where} GROUP BY c.status"),
+        db.text(
+            f"SELECT c.status, COUNT(*) FROM companies c WHERE {co_where} GROUP BY c.status"
+        ),
         params,
     ).fetchall()
     status_counts = {}
@@ -161,7 +190,9 @@ def tag_stats():
 
     # Status counts filtered by tier (for Triage: Passed, Disqualified, Enriched L2, etc.)
     status_filtered_rows = db.session.execute(
-        db.text(f"SELECT c.status, COUNT(*) FROM companies c WHERE {tier_co_where} GROUP BY c.status"),
+        db.text(
+            f"SELECT c.status, COUNT(*) FROM companies c WHERE {tier_co_where} GROUP BY c.status"
+        ),
         tier_params,
     ).fetchall()
     status_counts_filtered = {}
@@ -185,14 +216,20 @@ def tag_stats():
             l2_eligible_by_tier[display_tier(row[0])] = row[1]
 
     # Person eligible: companies with status = enriched_l2
-    person_eligible_cos = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM companies c WHERE {tier_co_where} AND c.status = 'enriched_l2'"),
-        tier_params,
-    ).scalar() or 0
+    person_eligible_cos = (
+        db.session.execute(
+            db.text(
+                f"SELECT COUNT(*) FROM companies c WHERE {tier_co_where} AND c.status = 'enriched_l2'"
+            ),
+            tier_params,
+        ).scalar()
+        or 0
+    )
 
     # Contacts in enriched L2 companies
-    contacts_in_enriched = db.session.execute(
-        db.text(f"""
+    contacts_in_enriched = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
@@ -200,12 +237,15 @@ def tag_stats():
             {tier_sql}
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
-        tier_ct_params,
-    ).scalar() or 0
+            tier_ct_params,
+        ).scalar()
+        or 0
+    )
 
     # Person enriched contacts (processed_enrich = true AND company enriched_l2)
-    person_enriched = db.session.execute(
-        db.text(f"""
+    person_enriched = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
             JOIN companies c ON ct.company_id = c.id
@@ -214,19 +254,24 @@ def tag_stats():
             AND ct.processed_enrich = true
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
-        tier_ct_params,
-    ).scalar() or 0
+            tier_ct_params,
+        ).scalar()
+        or 0
+    )
 
     # Person failed contacts
-    person_failed = db.session.execute(
-        db.text(f"""
+    person_failed = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
             WHERE ct.tenant_id = :t AND ct.tag_id = :b AND ct.error IS NOT NULL
             {"AND ct.owner_id = :o" if owner_id else ""}
         """),
-        ct_params,
-    ).scalar() or 0
+            ct_params,
+        ).scalar()
+        or 0
+    )
 
     # Message status counts
     msg_rows = db.session.execute(
@@ -245,17 +290,19 @@ def tag_stats():
         if row[0]:
             message_status_counts[display_message_status(row[0])] = row[1]
 
-    return jsonify({
-        "contacts_total": contacts_total,
-        "contacts_unprocessed": contacts_unprocessed,
-        "companies_total": companies_total,
-        "status_counts": status_counts,
-        "status_counts_filtered": status_counts_filtered,
-        "l2_eligible_by_tier": l2_eligible_by_tier,
-        "person_eligible_companies": person_eligible_cos,
-        "person_eligible_contacts": contacts_in_enriched,
-        "contacts_in_enriched_cos": contacts_in_enriched,
-        "person_enriched_contacts": person_enriched,
-        "person_failed_contacts": person_failed,
-        "message_status_counts": message_status_counts,
-    })
+    return jsonify(
+        {
+            "contacts_total": contacts_total,
+            "contacts_unprocessed": contacts_unprocessed,
+            "companies_total": companies_total,
+            "status_counts": status_counts,
+            "status_counts_filtered": status_counts_filtered,
+            "l2_eligible_by_tier": l2_eligible_by_tier,
+            "person_eligible_companies": person_eligible_cos,
+            "person_eligible_contacts": contacts_in_enriched,
+            "contacts_in_enriched_cos": contacts_in_enriched,
+            "person_enriched_contacts": person_enriched,
+            "person_failed_contacts": person_failed,
+            "message_status_counts": message_status_counts,
+        }
+    )

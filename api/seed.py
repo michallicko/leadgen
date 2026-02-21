@@ -6,6 +6,7 @@ Usage:
     # or from project root:
     FLASK_APP=api python -m api.seed
 """
+
 import getpass
 import sys
 
@@ -27,7 +28,9 @@ def main():
 
         existing = User.query.filter_by(email=email).first()
         if existing:
-            print(f"User {email} already exists (id={existing.id}, super_admin={existing.is_super_admin})")
+            print(
+                f"User {email} already exists (id={existing.id}, super_admin={existing.is_super_admin})"
+            )
             if input("Update to super-admin? [y/N] ").strip().lower() == "y":
                 existing.is_super_admin = True
                 existing.is_active = True
@@ -69,7 +72,9 @@ def main():
         db.session.commit()
         print(f"\nSuper-admin created: {email} (id={user.id})")
         if tenants:
-            print(f"Admin role granted for {len(tenants)} tenant(s): {', '.join(t.slug for t in tenants)}")
+            print(
+                f"Admin role granted for {len(tenants)} tenant(s): {', '.join(t.slug for t in tenants)}"
+            )
         else:
             print("No tenants found — role will be assigned when tenants are created.")
 

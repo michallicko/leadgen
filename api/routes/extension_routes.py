@@ -1,4 +1,5 @@
 """Browser extension API routes for lead import, activity sync, and status."""
+
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
@@ -229,7 +230,7 @@ def extension_status():
         db.func.max(Activity.created_at),
     ).filter(
         Activity.tenant_id == str(tenant_id),
-        Activity.source == 'linkedin_extension',
+        Activity.source == "linkedin_extension",
     )
     if owner_id:
         activity_query = activity_query.filter(Activity.owner_id == owner_id)

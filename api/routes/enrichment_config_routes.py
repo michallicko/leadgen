@@ -1,4 +1,5 @@
 """API routes for enrichment configuration templates and schedules."""
+
 import json
 
 from flask import Blueprint, jsonify, request
@@ -13,6 +14,7 @@ enrichment_config_bp = Blueprint("enrichment_configs", __name__)
 # Enrichment Config CRUD
 # ---------------------------------------------------------------------------
 
+
 @enrichment_config_bp.route("/api/enrichment-configs", methods=["POST"])
 @require_auth
 def create_config():
@@ -26,9 +28,9 @@ def create_config():
 
     # If setting as default, clear existing defaults
     if data.get("is_default"):
-        EnrichmentConfig.query.filter_by(
-            tenant_id=tenant_id, is_default=True
-        ).update({"is_default": False})
+        EnrichmentConfig.query.filter_by(tenant_id=tenant_id, is_default=True).update(
+            {"is_default": False}
+        )
 
     config_val = data.get("config", {})
     if isinstance(config_val, dict):
@@ -54,9 +56,11 @@ def list_configs():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    configs = EnrichmentConfig.query.filter_by(
-        tenant_id=tenant_id
-    ).order_by(EnrichmentConfig.created_at.desc()).all()
+    configs = (
+        EnrichmentConfig.query.filter_by(tenant_id=tenant_id)
+        .order_by(EnrichmentConfig.created_at.desc())
+        .all()
+    )
     return jsonify([c.to_dict() for c in configs]), 200
 
 
@@ -67,9 +71,7 @@ def get_config(config_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    ec = EnrichmentConfig.query.filter_by(
-        id=config_id, tenant_id=tenant_id
-    ).first()
+    ec = EnrichmentConfig.query.filter_by(id=config_id, tenant_id=tenant_id).first()
     if not ec:
         return jsonify({"error": "not found"}), 404
     return jsonify(ec.to_dict()), 200
@@ -82,9 +84,7 @@ def update_config(config_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    ec = EnrichmentConfig.query.filter_by(
-        id=config_id, tenant_id=tenant_id
-    ).first()
+    ec = EnrichmentConfig.query.filter_by(id=config_id, tenant_id=tenant_id).first()
     if not ec:
         return jsonify({"error": "not found"}), 404
 
@@ -120,9 +120,7 @@ def delete_config(config_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    ec = EnrichmentConfig.query.filter_by(
-        id=config_id, tenant_id=tenant_id
-    ).first()
+    ec = EnrichmentConfig.query.filter_by(id=config_id, tenant_id=tenant_id).first()
     if not ec:
         return jsonify({"error": "not found"}), 404
     db.session.delete(ec)
@@ -133,6 +131,7 @@ def delete_config(config_id):
 # ---------------------------------------------------------------------------
 # Enrichment Schedule CRUD
 # ---------------------------------------------------------------------------
+
 
 @enrichment_config_bp.route("/api/enrichment-schedules", methods=["POST"])
 @require_auth
@@ -177,13 +176,17 @@ def list_schedules():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    schedules = EnrichmentSchedule.query.filter_by(
-        tenant_id=tenant_id
-    ).order_by(EnrichmentSchedule.created_at.desc()).all()
+    schedules = (
+        EnrichmentSchedule.query.filter_by(tenant_id=tenant_id)
+        .order_by(EnrichmentSchedule.created_at.desc())
+        .all()
+    )
     return jsonify([s.to_dict() for s in schedules]), 200
 
 
-@enrichment_config_bp.route("/api/enrichment-schedules/<schedule_id>", methods=["PATCH"])
+@enrichment_config_bp.route(
+    "/api/enrichment-schedules/<schedule_id>", methods=["PATCH"]
+)
 @require_auth
 def update_schedule(schedule_id):
     tenant_id = resolve_tenant()
@@ -208,7 +211,9 @@ def update_schedule(schedule_id):
     return jsonify(sched.to_dict()), 200
 
 
-@enrichment_config_bp.route("/api/enrichment-schedules/<schedule_id>", methods=["DELETE"])
+@enrichment_config_bp.route(
+    "/api/enrichment-schedules/<schedule_id>", methods=["DELETE"]
+)
 @require_auth
 def delete_schedule(schedule_id):
     tenant_id = resolve_tenant()

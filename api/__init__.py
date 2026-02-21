@@ -21,17 +21,21 @@ def create_app():
         try:
             from sqlalchemy import text
 
-            db.session.execute(text("""
+            db.session.execute(
+                text("""
                 UPDATE stage_runs SET status = 'failed',
                     error = 'Orphaned by container restart',
                     completed_at = CURRENT_TIMESTAMP
                 WHERE status IN ('running', 'pending', 'stopping')
-            """))
-            db.session.execute(text("""
+            """)
+            )
+            db.session.execute(
+                text("""
                 UPDATE pipeline_runs SET status = 'failed',
                     completed_at = CURRENT_TIMESTAMP
                 WHERE status IN ('running', 'stopping')
-            """))
+            """)
+            )
             db.session.commit()
             app.logger.info("Cleaned up orphaned pipeline/stage runs")
         except Exception:

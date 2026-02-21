@@ -34,7 +34,11 @@ def list_tenants():
         tenants = Tenant.query.order_by(Tenant.created_at.desc()).all()
     else:
         tenant_ids = [r.tenant_id for r in user.roles]
-        tenants = Tenant.query.filter(Tenant.id.in_(tenant_ids)).order_by(Tenant.created_at.desc()).all()
+        tenants = (
+            Tenant.query.filter(Tenant.id.in_(tenant_ids))
+            .order_by(Tenant.created_at.desc())
+            .all()
+        )
 
     return jsonify([t.to_dict() for t in tenants])
 
@@ -59,12 +63,16 @@ def create_tenant():
         return jsonify({"error": "name and slug required"}), 400
 
     if len(slug) < 2 or not SLUG_RE.match(slug):
-        return jsonify({"error": "Slug must be 2+ chars, lowercase alphanumeric and hyphens only"}), 400
+        return jsonify(
+            {"error": "Slug must be 2+ chars, lowercase alphanumeric and hyphens only"}
+        ), 400
 
     if Tenant.query.filter_by(slug=slug).first():
         return jsonify({"error": "Slug already taken"}), 409
 
-    tenant = Tenant(name=name, slug=slug, domain=domain, settings=data.get("settings", {}))
+    tenant = Tenant(
+        name=name, slug=slug, domain=domain, settings=data.get("settings", {})
+    )
     db.session.add(tenant)
     db.session.flush()
 
@@ -172,8 +180,7 @@ def list_tenant_users(tenant_id):
         return jsonify({"error": "Insufficient permissions"}), 403
 
     roles = (
-        UserTenantRole.query
-        .filter_by(tenant_id=tenant_id)
+        UserTenantRole.query.filter_by(tenant_id=tenant_id)
         .join(User, UserTenantRole.user_id == User.id)
         .order_by(User.display_name)
         .all()
@@ -182,13 +189,15 @@ def list_tenant_users(tenant_id):
     result = []
     for r in roles:
         u = r.user
-        result.append({
-            "id": str(u.id),
-            "email": u.email,
-            "display_name": u.display_name,
-            "is_active": u.is_active,
-            "role": r.role,
-            "granted_at": r.granted_at.isoformat() if r.granted_at else None,
-        })
+        result.append(
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "display_name": u.display_name,
+                "is_active": u.is_active,
+                "role": r.role,
+                "granted_at": r.granted_at.isoformat() if r.granted_at else None,
+            }
+        )
 
     return jsonify(result)

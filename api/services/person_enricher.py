@@ -13,7 +13,6 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
@@ -241,6 +240,7 @@ interests to the company's needs."""
 # Core enrichment
 # ---------------------------------------------------------------------------
 
+
 def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
     """Enrich a contact with person-level intelligence.
 
@@ -258,7 +258,9 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
     try:
         # 2. Research: Profile
         profile_data, profile_cost = _research_profile(
-            contact_data, company_data, pplx_model,
+            contact_data,
+            company_data,
+            pplx_model,
         )
         total_cost += profile_cost
     except Exception as exc:
@@ -268,7 +270,10 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
     try:
         # 3. Research: Decision signals
         signals_data, signals_cost = _research_signals(
-            contact_data, company_data, l2_data, pplx_model,
+            contact_data,
+            company_data,
+            l2_data,
+            pplx_model,
         )
         total_cost += signals_cost
     except Exception as exc:
@@ -277,7 +282,11 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
 
     # 4. Validate & Score (deterministic)
     scores = _validate_and_score(
-        contact_data, company_data, l2_data, profile_data, signals_data,
+        contact_data,
+        company_data,
+        l2_data,
+        profile_data,
+        signals_data,
     )
 
     # 5. Synthesis (Anthropic)
@@ -285,24 +294,39 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
     synthesis_cost = 0.0
     try:
         synthesis_data, synthesis_cost = _synthesize(
-            contact_data, company_data, l2_data,
-            profile_data, signals_data, scores,
+            contact_data,
+            company_data,
+            l2_data,
+            profile_data,
+            signals_data,
+            scores,
         )
         total_cost += synthesis_cost
     except Exception as exc:
-        logger.warning("Person synthesis failed for %s: %s (saving research anyway)",
-                       contact_id, exc)
+        logger.warning(
+            "Person synthesis failed for %s: %s (saving research anyway)",
+            contact_id,
+            exc,
+        )
 
     # 6. Build relationship summary
     relationship_summary = _build_relationship_summary(
-        contact_data, company_data, scores, synthesis_data, profile_data,
+        contact_data,
+        company_data,
+        scores,
+        synthesis_data,
+        profile_data,
     )
     linkedin_summary = _build_linkedin_summary(profile_data)
 
     # 7. Upsert contact_enrichment
     _upsert_contact_enrichment(
-        contact_id, relationship_summary, linkedin_summary,
-        scores, profile_data, total_cost,
+        contact_id,
+        relationship_summary,
+        linkedin_summary,
+        scores,
+        profile_data,
+        total_cost,
     )
 
     # 8. Update contact fields
@@ -316,6 +340,7 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
+
 
 def _load_contact_and_company(contact_id):
     """Load contact + company + L2 enrichment data. Returns (contact, company, l2) or (None, None, None)."""
@@ -384,6 +409,7 @@ def _load_contact_and_company(contact_id):
 # ---------------------------------------------------------------------------
 # Research calls
 # ---------------------------------------------------------------------------
+
 
 def _research_profile(contact_data, company_data, model):
     """Call Perplexity for professional profile research."""
@@ -482,7 +508,9 @@ def _detect_department(title):
     return "Other"
 
 
-def _validate_and_score(contact_data, company_data, l2_data, profile_data, signals_data):
+def _validate_and_score(
+    contact_data, company_data, l2_data, profile_data, signals_data
+):
     """Run deterministic scoring on research results."""
     title = contact_data["job_title"]
     seniority = _detect_seniority(title)
@@ -537,7 +565,10 @@ def _validate_and_score(contact_data, company_data, l2_data, profile_data, signa
 
     # Authority Score (0-10)
     seniority_scores = {
-        "C-Level": 10, "VP": 8, "Director": 6, "Manager": 4,
+        "C-Level": 10,
+        "VP": 8,
+        "Director": 6,
+        "Manager": 4,
         "Individual Contributor": 2,
     }
     authority_score = seniority_scores.get(seniority, 2)
@@ -553,7 +584,10 @@ def _validate_and_score(contact_data, company_data, l2_data, profile_data, signa
     if not role_mismatch:
         contact_score += 5
     seniority_points = {
-        "C-Level": 25, "VP": 22, "Director": 18, "Manager": 12,
+        "C-Level": 25,
+        "VP": 22,
+        "Director": 18,
+        "Manager": 12,
         "Individual Contributor": 5,
     }
     contact_score += seniority_points.get(seniority, 5)
@@ -591,7 +625,10 @@ def _validate_and_score(contact_data, company_data, l2_data, profile_data, signa
 # Synthesis
 # ---------------------------------------------------------------------------
 
-def _synthesize(contact_data, company_data, l2_data, profile_data, signals_data, scores):
+
+def _synthesize(
+    contact_data, company_data, l2_data, profile_data, signals_data, scores
+):
     """Call Anthropic for personalization synthesis."""
     expertise = profile_data.get("expertise_areas", [])
     if isinstance(expertise, list):
@@ -641,38 +678,48 @@ def _synthesize(contact_data, company_data, l2_data, profile_data, signals_data,
 # Summary builders
 # ---------------------------------------------------------------------------
 
+
 def _build_relationship_summary(contact_data, company_data, scores, synthesis, profile):
     """Build markdown relationship summary."""
     lines = [
         "## {} @ {}".format(contact_data["full_name"], company_data["name"]),
         "",
         "**Role:** {} ({} | {})".format(
-            contact_data["job_title"], scores["seniority"], scores["department"],
+            contact_data["job_title"],
+            scores["seniority"],
+            scores["department"],
         ),
-        "**Score:** {}/100 | ICP Fit: {}".format(scores["contact_score"], scores["icp_fit"]),
+        "**Score:** {}/100 | ICP Fit: {}".format(
+            scores["contact_score"], scores["icp_fit"]
+        ),
         "**AI Champion:** {} ({}/10)".format(
-            "Yes" if scores["is_ai_champion"] else "No", scores["ai_champion_score"],
+            "Yes" if scores["is_ai_champion"] else "No",
+            scores["ai_champion_score"],
         ),
         "",
     ]
 
     if synthesis:
-        lines.extend([
-            "### Personalization Angle",
-            synthesis.get("personalization_angle", "No angle generated"),
-            "",
-            "### Connection Points",
-        ])
+        lines.extend(
+            [
+                "### Personalization Angle",
+                synthesis.get("personalization_angle", "No angle generated"),
+                "",
+                "### Connection Points",
+            ]
+        )
         for p in synthesis.get("connection_points", []):
             lines.append("- {}".format(p))
-        lines.extend([
-            "",
-            "### Pain Connection",
-            synthesis.get("pain_connection", "Not identified"),
-            "",
-            "### Conversation Starters",
-            synthesis.get("conversation_starters", "None generated"),
-        ])
+        lines.extend(
+            [
+                "",
+                "### Pain Connection",
+                synthesis.get("pain_connection", "Not identified"),
+                "",
+                "### Conversation Starters",
+                synthesis.get("conversation_starters", "None generated"),
+            ]
+        )
 
     return "\n".join(lines)
 
@@ -700,8 +747,10 @@ def _build_linkedin_summary(profile_data):
 # Database operations
 # ---------------------------------------------------------------------------
 
-def _upsert_contact_enrichment(contact_id, person_summary, linkedin_summary,
-                                scores, profile_data, cost):
+
+def _upsert_contact_enrichment(
+    contact_id, person_summary, linkedin_summary, scores, profile_data, cost
+):
     """Upsert into contact_enrichment table."""
     now_str = datetime.now(timezone.utc).isoformat()
     params = {
@@ -792,6 +841,7 @@ def _update_contact(contact_id, scores, total_cost):
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
+
 
 def _parse_json(raw_text):
     """Parse JSON from LLM response, handling markdown fences."""

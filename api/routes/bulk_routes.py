@@ -12,7 +12,9 @@ bulk_bp = Blueprint("bulk", __name__)
 MAX_BULK_RECORDS = 10000
 
 
-def _build_entity_query(entity_type: str, tenant_id: str, ids: list | None, filters: dict | None):
+def _build_entity_query(
+    entity_type: str, tenant_id: str, ids: list | None, filters: dict | None
+):
     """Build a SELECT of entity IDs from explicit IDs or filter criteria.
 
     Returns (sql_fragment, params) where sql_fragment selects id column.
@@ -67,7 +69,9 @@ def _build_entity_query(entity_type: str, tenant_id: str, ids: list | None, filt
                     " OR LOWER(ct.job_title) LIKE LOWER(:f_search))"
                 )
             else:
-                where.append("(LOWER(c.name) LIKE LOWER(:f_search) OR LOWER(c.domain) LIKE LOWER(:f_search))")
+                where.append(
+                    "(LOWER(c.name) LIKE LOWER(:f_search) OR LOWER(c.domain) LIKE LOWER(:f_search))"
+                )
             params["f_search"] = f"%{filters['search']}%"
 
         if entity_type == "contact":
@@ -126,7 +130,9 @@ def bulk_add_tags():
         return jsonify({"error": "No valid tags found"}), 400
 
     # Get entity IDs
-    entity_sql, entity_params = _build_entity_query(entity_type, str(tenant_id), ids, filters)
+    entity_sql, entity_params = _build_entity_query(
+        entity_type, str(tenant_id), ids, filters
+    )
     if not entity_sql:
         return jsonify({"error": "ids or filters required"}), 400
 
@@ -134,10 +140,16 @@ def bulk_add_tags():
     entity_ids = [str(r[0]) for r in entity_rows]
 
     if not entity_ids:
-        return jsonify({"affected": 0, "new_assignments": 0, "already_tagged": 0, "errors": []})
+        return jsonify(
+            {"affected": 0, "new_assignments": 0, "already_tagged": 0, "errors": []}
+        )
 
     # Insert into junction table
-    junction_table = "contact_tag_assignments" if entity_type == "contact" else "company_tag_assignments"
+    junction_table = (
+        "contact_tag_assignments"
+        if entity_type == "contact"
+        else "company_tag_assignments"
+    )
     fk_col = "contact_id" if entity_type == "contact" else "company_id"
 
     new_count = 0
@@ -150,7 +162,12 @@ def bulk_add_tags():
                         VALUES (:id, :tenant_id, :entity_id, :tag_id)
                         ON CONFLICT DO NOTHING
                     """),
-                    {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "entity_id": eid, "tag_id": tag_id},
+                    {
+                        "id": str(uuid.uuid4()),
+                        "tenant_id": str(tenant_id),
+                        "entity_id": eid,
+                        "tag_id": tag_id,
+                    },
                 )
                 new_count += 1
             except Exception:
@@ -158,12 +175,14 @@ def bulk_add_tags():
 
     db.session.commit()
     total = len(entity_ids) * len(valid_tag_ids)
-    return jsonify({
-        "affected": len(entity_ids),
-        "new_assignments": new_count,
-        "already_tagged": total - new_count,
-        "errors": [],
-    })
+    return jsonify(
+        {
+            "affected": len(entity_ids),
+            "new_assignments": new_count,
+            "already_tagged": total - new_count,
+            "errors": [],
+        }
+    )
 
 
 @bulk_bp.route("/api/bulk/remove-tags", methods=["POST"])
@@ -187,7 +206,9 @@ def bulk_remove_tags():
         return jsonify({"error": "ids or filters required"}), 400
 
     # Get entity IDs
-    entity_sql, entity_params = _build_entity_query(entity_type, str(tenant_id), ids, filters)
+    entity_sql, entity_params = _build_entity_query(
+        entity_type, str(tenant_id), ids, filters
+    )
     if not entity_sql:
         return jsonify({"error": "ids or filters required"}), 400
 
@@ -197,7 +218,11 @@ def bulk_remove_tags():
     if not entity_ids:
         return jsonify({"affected": 0, "removed": 0, "not_found": 0, "errors": []})
 
-    junction_table = "contact_tag_assignments" if entity_type == "contact" else "company_tag_assignments"
+    junction_table = (
+        "contact_tag_assignments"
+        if entity_type == "contact"
+        else "company_tag_assignments"
+    )
     fk_col = "contact_id" if entity_type == "contact" else "company_id"
 
     # Build DELETE with IN clauses
@@ -222,12 +247,14 @@ def bulk_remove_tags():
     db.session.commit()
 
     total = len(entity_ids) * len(tag_ids)
-    return jsonify({
-        "affected": len(entity_ids),
-        "removed": removed,
-        "not_found": total - removed,
-        "errors": [],
-    })
+    return jsonify(
+        {
+            "affected": len(entity_ids),
+            "removed": removed,
+            "not_found": total - removed,
+            "errors": [],
+        }
+    )
 
 
 @bulk_bp.route("/api/bulk/assign-campaign", methods=["POST"])
@@ -259,7 +286,9 @@ def bulk_assign_campaign():
         return jsonify({"error": "Campaign not found"}), 404
 
     # Get contact IDs
-    entity_sql, entity_params = _build_entity_query("contact", str(tenant_id), ids, filters)
+    entity_sql, entity_params = _build_entity_query(
+        "contact", str(tenant_id), ids, filters
+    )
     if not entity_sql:
         return jsonify({"error": "ids or filters required"}), 400
 
@@ -278,7 +307,12 @@ def bulk_assign_campaign():
                     VALUES (:id, :campaign_id, :contact_id, :tenant_id)
                     ON CONFLICT DO NOTHING
                 """),
-                {"id": str(uuid.uuid4()), "campaign_id": campaign_id, "contact_id": cid, "tenant_id": str(tenant_id)},
+                {
+                    "id": str(uuid.uuid4()),
+                    "campaign_id": campaign_id,
+                    "contact_id": cid,
+                    "tenant_id": str(tenant_id),
+                },
             )
             new_count += 1
         except Exception:
@@ -338,10 +372,13 @@ def contacts_matching_count():
         params["f_message_status"] = filters["message_status"]
 
     where_clause = " AND ".join(where)
-    count = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {where_clause}"),
-        params,
-    ).scalar() or 0
+    count = (
+        db.session.execute(
+            db.text(f"SELECT COUNT(*) FROM contacts ct WHERE {where_clause}"),
+            params,
+        ).scalar()
+        or 0
+    )
 
     return jsonify({"count": count})
 
@@ -372,7 +409,9 @@ def companies_matching_count():
         )""")
         params["f_owner_name"] = filters["owner_name"]
     if filters.get("search"):
-        where.append("(LOWER(c.name) LIKE LOWER(:f_search) OR LOWER(c.domain) LIKE LOWER(:f_search))")
+        where.append(
+            "(LOWER(c.name) LIKE LOWER(:f_search) OR LOWER(c.domain) LIKE LOWER(:f_search))"
+        )
         params["f_search"] = f"%{filters['search']}%"
     if filters.get("status"):
         where.append("c.status = :f_status")
@@ -382,9 +421,12 @@ def companies_matching_count():
         params["f_tier"] = filters["tier"]
 
     where_clause = " AND ".join(where)
-    count = db.session.execute(
-        db.text(f"SELECT COUNT(*) FROM companies c WHERE {where_clause}"),
-        params,
-    ).scalar() or 0
+    count = (
+        db.session.execute(
+            db.text(f"SELECT COUNT(*) FROM companies c WHERE {where_clause}"),
+            params,
+        ).scalar()
+        or 0
+    )
 
     return jsonify({"count": count})

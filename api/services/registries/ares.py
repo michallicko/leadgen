@@ -5,7 +5,6 @@ data extraction. All calls are direct HTTP — no n8n dependency.
 """
 
 import logging
-import re
 import time
 
 import requests
@@ -36,17 +35,30 @@ CZECH_SUFFIXES = [
 
 class AresAdapter(BaseRegistryAdapter):
     country_code = "CZ"
-    country_names = ["Czech Republic", "Czechia", "CZ",
-                     "Česká republika", "Ceska republika"]
+    country_names = [
+        "Czech Republic",
+        "Czechia",
+        "CZ",
+        "Česká republika",
+        "Ceska republika",
+    ]
     domain_tlds = [".cz"]
     legal_suffixes = CZECH_SUFFIXES
     request_delay = ARES_DELAY
     timeout = ARES_TIMEOUT
 
     provides_fields = [
-        "registration_id", "tax_id", "official_name", "legal_form",
-        "registration_status", "date_established", "registered_address",
-        "nace_codes", "directors", "registered_capital", "insolvency_flag",
+        "registration_id",
+        "tax_id",
+        "official_name",
+        "legal_form",
+        "registration_status",
+        "date_established",
+        "registered_address",
+        "nace_codes",
+        "directors",
+        "registered_capital",
+        "insolvency_flag",
         "registration_court",
     ]
     requires_inputs = ["name"]
@@ -76,7 +88,8 @@ class AresAdapter(BaseRegistryAdapter):
             for item in data.get("ekonomickeSubjekty", []):
                 parsed = _parse_basic_response(item)
                 parsed["similarity"] = self.name_similarity(
-                    name, parsed.get("official_name", ""))
+                    name, parsed.get("official_name", "")
+                )
                 candidates.append(parsed)
             candidates.sort(key=lambda c: c.get("similarity", 0), reverse=True)
             return candidates
@@ -84,13 +97,21 @@ class AresAdapter(BaseRegistryAdapter):
             logger.warning("ARES name search for '%s' failed: %s", name, e)
             return []
 
-    def enrich_company(self, company_id, tenant_id, name, reg_id=None,
-                       hq_country=None, domain=None, store=True):
+    def enrich_company(
+        self,
+        company_id,
+        tenant_id,
+        name,
+        reg_id=None,
+        hq_country=None,
+        domain=None,
+        store=True,
+    ):
         """ARES enrichment with VR (commercial register) follow-up."""
         # Use base class for initial lookup + store
         result = super().enrich_company(
-            company_id, tenant_id, name, reg_id, hq_country, domain,
-            store=store)
+            company_id, tenant_id, name, reg_id, hq_country, domain, store=store
+        )
 
         # If enriched, also fetch VR data
         if result.get("status") == "enriched" and result.get("ico"):
@@ -102,12 +123,14 @@ class AresAdapter(BaseRegistryAdapter):
                     self._update_vr_data(company_id, vr_data, raw_vr)
                 # Merge VR data into result for orchestrator
                 if result.get("data"):
-                    result["data"].update({
-                        "directors": vr_data.get("directors", []),
-                        "registered_capital": vr_data.get("registered_capital"),
-                        "registration_court": vr_data.get("registration_court"),
-                        "registration_number": vr_data.get("registration_number"),
-                    })
+                    result["data"].update(
+                        {
+                            "directors": vr_data.get("directors", []),
+                            "registered_capital": vr_data.get("registered_capital"),
+                            "registration_court": vr_data.get("registration_court"),
+                            "registration_number": vr_data.get("registration_number"),
+                        }
+                    )
                 result["raw_vr_response"] = raw_vr
 
         return result
@@ -157,6 +180,7 @@ class AresAdapter(BaseRegistryAdapter):
 
 # ---- Parsers (unchanged from original api/services/ares.py) ----
 
+
 def _parse_basic_response(data):
     """Extract fields from ARES basic response.
 
@@ -183,7 +207,9 @@ def _parse_basic_response(data):
         if isinstance(nace, str):
             nace_codes.append({"code": nace, "description": None})
         elif isinstance(nace, dict):
-            nace_codes.append({"code": nace.get("kod"), "description": nace.get("nazev")})
+            nace_codes.append(
+                {"code": nace.get("kod"), "description": nace.get("nazev")}
+            )
 
     pravni_forma = data.get("pravniForma")
     if isinstance(pravni_forma, dict):
@@ -321,6 +347,7 @@ def _build_person_name(osoba):
 # ---- Backward compatibility wrappers ----
 # These match the old api.services.ares function signatures exactly.
 
+
 def lookup_by_ico(ico):
     """Compat wrapper for AresAdapter.lookup_by_id."""
     return AresAdapter().lookup_by_id(ico)
@@ -341,8 +368,9 @@ def enrich_company(company_id, tenant_id, name, ico=None, hq_country=None, domai
     adapter = AresAdapter()
     if ico is None and not adapter.matches_company(hq_country, domain):
         return {"status": "skipped", "reason": "not_czech"}
-    return adapter.enrich_company(company_id, tenant_id, name, reg_id=ico,
-                                  hq_country=hq_country, domain=domain)
+    return adapter.enrich_company(
+        company_id, tenant_id, name, reg_id=ico, hq_country=hq_country, domain=domain
+    )
 
 
 def _is_czech_company(ico, hq_country, domain):

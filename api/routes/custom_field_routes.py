@@ -33,7 +33,8 @@ def list_custom_fields():
         return jsonify({"error": "Tenant not found"}), 404
 
     query = CustomFieldDefinition.query.filter_by(
-        tenant_id=str(tenant_id), is_active=True,
+        tenant_id=str(tenant_id),
+        is_active=True,
     )
     entity_type = request.args.get("entity_type", "").strip()
     if entity_type and entity_type in VALID_ENTITY_TYPES:
@@ -68,11 +69,15 @@ def create_custom_field():
     display_order = body.get("display_order", 0)
 
     if entity_type not in VALID_ENTITY_TYPES:
-        return jsonify({"error": f"entity_type must be one of: {', '.join(VALID_ENTITY_TYPES)}"}), 400
+        return jsonify(
+            {"error": f"entity_type must be one of: {', '.join(VALID_ENTITY_TYPES)}"}
+        ), 400
     if not field_label:
         return jsonify({"error": "field_label is required"}), 400
     if field_type not in VALID_FIELD_TYPES:
-        return jsonify({"error": f"field_type must be one of: {', '.join(VALID_FIELD_TYPES)}"}), 400
+        return jsonify(
+            {"error": f"field_type must be one of: {', '.join(VALID_FIELD_TYPES)}"}
+        ), 400
 
     field_key = body.get("field_key") or _slugify(field_label)
     if not field_key:
@@ -80,11 +85,15 @@ def create_custom_field():
 
     # Check for conflicts
     existing = CustomFieldDefinition.query.filter_by(
-        tenant_id=str(tenant_id), entity_type=entity_type, field_key=field_key,
+        tenant_id=str(tenant_id),
+        entity_type=entity_type,
+        field_key=field_key,
     ).first()
     if existing:
         if existing.is_active:
-            return jsonify({"error": f"Field key '{field_key}' already exists for {entity_type}"}), 409
+            return jsonify(
+                {"error": f"Field key '{field_key}' already exists for {entity_type}"}
+            ), 409
         # Re-activate soft-deleted field
         existing.field_label = field_label
         existing.field_type = field_type
@@ -118,7 +127,8 @@ def update_custom_field(field_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     cfd = CustomFieldDefinition.query.filter_by(
-        id=field_id, tenant_id=str(tenant_id),
+        id=field_id,
+        tenant_id=str(tenant_id),
     ).first()
     if not cfd:
         return jsonify({"error": "Custom field not found"}), 404
@@ -130,7 +140,9 @@ def update_custom_field(field_id):
     if "field_type" in body:
         ft = body["field_type"].strip()
         if ft not in VALID_FIELD_TYPES:
-            return jsonify({"error": f"field_type must be one of: {', '.join(VALID_FIELD_TYPES)}"}), 400
+            return jsonify(
+                {"error": f"field_type must be one of: {', '.join(VALID_FIELD_TYPES)}"}
+            ), 400
         cfd.field_type = ft
     if "options" in body:
         cfd.options = body["options"]
@@ -150,7 +162,8 @@ def delete_custom_field(field_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     cfd = CustomFieldDefinition.query.filter_by(
-        id=field_id, tenant_id=str(tenant_id),
+        id=field_id,
+        tenant_id=str(tenant_id),
     ).first()
     if not cfd:
         return jsonify({"error": "Custom field not found"}), 404

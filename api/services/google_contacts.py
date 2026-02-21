@@ -24,12 +24,17 @@ def fetch_google_contacts(oauth_connection):
     page_token = None
 
     while True:
-        results = service.people().connections().list(
-            resourceName="people/me",
-            pageSize=1000,
-            personFields="names,emailAddresses,organizations,phoneNumbers",
-            pageToken=page_token,
-        ).execute()
+        results = (
+            service.people()
+            .connections()
+            .list(
+                resourceName="people/me",
+                pageSize=1000,
+                personFields="names,emailAddresses,organizations,phoneNumbers",
+                pageToken=page_token,
+            )
+            .execute()
+        )
 
         connections = results.get("connections", [])
         all_contacts.extend(connections)
@@ -125,9 +130,11 @@ def parse_contacts_to_rows(raw_contacts):
         if domain:
             company_data["domain"] = domain
 
-        rows.append({
-            "contact": contact_data,
-            "company": company_data,
-        })
+        rows.append(
+            {
+                "contact": contact_data,
+                "company": company_data,
+            }
+        )
 
     return rows

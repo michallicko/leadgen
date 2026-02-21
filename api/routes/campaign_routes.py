@@ -67,20 +67,22 @@ def list_campaigns():
 
     campaigns = []
     for r in rows:
-        campaigns.append({
-            "id": str(r[0]),
-            "name": r[1],
-            "status": display_campaign_status(r[2] or "draft"),
-            "description": r[3],
-            "total_contacts": r[4] or 0,
-            "generated_count": r[5] or 0,
-            "generation_cost": float(r[6]) if r[6] else 0,
-            "template_config": _parse_jsonb(r[7]) or [],
-            "generation_config": _parse_jsonb(r[8]) or {},
-            "created_at": _format_ts(r[9]),
-            "updated_at": _format_ts(r[10]),
-            "owner_name": r[11],
-        })
+        campaigns.append(
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "status": display_campaign_status(r[2] or "draft"),
+                "description": r[3],
+                "total_contacts": r[4] or 0,
+                "generated_count": r[5] or 0,
+                "generation_cost": float(r[6]) if r[6] else 0,
+                "template_config": _parse_jsonb(r[7]) or [],
+                "generation_config": _parse_jsonb(r[8]) or {},
+                "created_at": _format_ts(r[9]),
+                "updated_at": _format_ts(r[10]),
+                "owner_name": r[11],
+            }
+        )
 
     return jsonify({"campaigns": campaigns})
 
@@ -124,18 +126,24 @@ def create_campaign():
         description=description,
         owner_id=owner_id,
         status="draft",
-        template_config=json.dumps(template_config) if isinstance(template_config, (dict, list)) else template_config,
-        generation_config=json.dumps(generation_config) if isinstance(generation_config, (dict, list)) else generation_config,
+        template_config=json.dumps(template_config)
+        if isinstance(template_config, (dict, list))
+        else template_config,
+        generation_config=json.dumps(generation_config)
+        if isinstance(generation_config, (dict, list))
+        else generation_config,
     )
     db.session.add(campaign)
     db.session.commit()
 
-    return jsonify({
-        "id": str(campaign.id),
-        "name": name,
-        "status": "Draft",
-        "created_at": _format_ts(campaign.created_at),
-    }), 201
+    return jsonify(
+        {
+            "id": str(campaign.id),
+            "name": name,
+            "status": "Draft",
+            "created_at": _format_ts(campaign.created_at),
+        }
+    ), 201
 
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>", methods=["GET"])
@@ -177,24 +185,26 @@ def get_campaign(campaign_id):
 
     status_counts = {r[0]: r[1] for r in contact_stats}
 
-    return jsonify({
-        "id": str(row[0]),
-        "name": row[1],
-        "status": display_campaign_status(row[2] or "draft"),
-        "description": row[3],
-        "total_contacts": row[4] or 0,
-        "generated_count": row[5] or 0,
-        "generation_cost": float(row[6]) if row[6] else 0,
-        "template_config": _parse_jsonb(row[7]) or [],
-        "generation_config": _parse_jsonb(row[8]) or {},
-        "generation_started_at": _format_ts(row[9]),
-        "generation_completed_at": _format_ts(row[10]),
-        "created_at": _format_ts(row[11]),
-        "updated_at": _format_ts(row[12]),
-        "owner_name": row[13],
-        "owner_id": str(row[14]) if row[14] else None,
-        "contact_status_counts": status_counts,
-    })
+    return jsonify(
+        {
+            "id": str(row[0]),
+            "name": row[1],
+            "status": display_campaign_status(row[2] or "draft"),
+            "description": row[3],
+            "total_contacts": row[4] or 0,
+            "generated_count": row[5] or 0,
+            "generation_cost": float(row[6]) if row[6] else 0,
+            "template_config": _parse_jsonb(row[7]) or [],
+            "generation_config": _parse_jsonb(row[8]) or {},
+            "generation_started_at": _format_ts(row[9]),
+            "generation_completed_at": _format_ts(row[10]),
+            "created_at": _format_ts(row[11]),
+            "updated_at": _format_ts(row[12]),
+            "owner_name": row[13],
+            "owner_id": str(row[14]) if row[14] else None,
+            "contact_status_counts": status_counts,
+        }
+    )
 
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>", methods=["PATCH"])
@@ -222,10 +232,12 @@ def update_campaign(campaign_id):
     if new_status:
         allowed = VALID_TRANSITIONS.get(current_status, set())
         if new_status not in allowed:
-            return jsonify({
-                "error": f"Cannot transition from '{current_status}' to '{new_status}'",
-                "allowed": sorted(allowed),
-            }), 400
+            return jsonify(
+                {
+                    "error": f"Cannot transition from '{current_status}' to '{new_status}'",
+                    "allowed": sorted(allowed),
+                }
+            ), 400
 
         # Approval gate: review → approved requires no draft messages
         if current_status == "review" and new_status == "approved":
@@ -239,14 +251,20 @@ def update_campaign(campaign_id):
                 {"cid": campaign_id, "t": tenant_id},
             ).scalar()
             if draft_count > 0:
-                return jsonify({
-                    "error": f"Cannot approve: {draft_count} messages still in draft status",
-                    "pending_count": draft_count,
-                }), 400
+                return jsonify(
+                    {
+                        "error": f"Cannot approve: {draft_count} messages still in draft status",
+                        "pending_count": draft_count,
+                    }
+                ), 400
 
     allowed_fields = {
-        "name", "description", "status", "owner_id",
-        "template_config", "generation_config",
+        "name",
+        "description",
+        "status",
+        "owner_id",
+        "template_config",
+        "generation_config",
     }
     fields = {k: v for k, v in body.items() if k in allowed_fields}
 
@@ -264,7 +282,9 @@ def update_campaign(campaign_id):
             params[k] = v
 
     db.session.execute(
-        db.text(f"UPDATE campaigns SET {', '.join(set_parts)} WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            f"UPDATE campaigns SET {', '.join(set_parts)} WHERE id = :id AND tenant_id = :t"
+        ),
         params,
     )
     db.session.commit()
@@ -327,15 +347,17 @@ def list_campaign_templates():
 
     templates = []
     for r in rows:
-        templates.append({
-            "id": str(r[0]),
-            "name": r[1],
-            "description": r[2],
-            "steps": _parse_jsonb(r[3]) or [],
-            "default_config": _parse_jsonb(r[4]) or {},
-            "is_system": bool(r[5]),
-            "created_at": _format_ts(r[6]),
-        })
+        templates.append(
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "description": r[2],
+                "steps": _parse_jsonb(r[3]) or [],
+                "default_config": _parse_jsonb(r[4]) or {},
+                "is_system": bool(r[5]),
+                "created_at": _format_ts(r[6]),
+            }
+        )
 
     return jsonify({"templates": templates})
 
@@ -377,28 +399,30 @@ def list_campaign_contacts(campaign_id):
 
     contacts = []
     for r in rows:
-        contacts.append({
-            "campaign_contact_id": str(r[0]),
-            "status": r[1],
-            "enrichment_gaps": _parse_jsonb(r[2]) or [],
-            "generation_cost": float(r[3]) if r[3] else 0,
-            "error": r[4],
-            "added_at": _format_ts(r[5]),
-            "generated_at": _format_ts(r[6]),
-            "contact_id": str(r[7]),
-            "first_name": r[8],
-            "last_name": r[9],
-            "full_name": ((r[8] or "") + " " + (r[9] or "")).strip(),
-            "job_title": r[10],
-            "email_address": r[11],
-            "linkedin_url": r[12],
-            "contact_score": r[13],
-            "icp_fit": r[14],
-            "company_id": str(r[15]) if r[15] else None,
-            "company_name": r[16],
-            "company_tier": r[17],
-            "company_status": r[18],
-        })
+        contacts.append(
+            {
+                "campaign_contact_id": str(r[0]),
+                "status": r[1],
+                "enrichment_gaps": _parse_jsonb(r[2]) or [],
+                "generation_cost": float(r[3]) if r[3] else 0,
+                "error": r[4],
+                "added_at": _format_ts(r[5]),
+                "generated_at": _format_ts(r[6]),
+                "contact_id": str(r[7]),
+                "first_name": r[8],
+                "last_name": r[9],
+                "full_name": ((r[8] or "") + " " + (r[9] or "")).strip(),
+                "job_title": r[10],
+                "email_address": r[11],
+                "linkedin_url": r[12],
+                "contact_score": r[13],
+                "icp_fit": r[14],
+                "company_id": str(r[15]) if r[15] else None,
+                "company_name": r[16],
+                "company_tier": r[17],
+                "company_status": r[18],
+            }
+        )
 
     return jsonify({"contacts": contacts, "total": len(contacts)})
 
@@ -418,7 +442,9 @@ def add_campaign_contacts(campaign_id):
     if not campaign:
         return jsonify({"error": "Campaign not found"}), 404
     if campaign[0] not in ("draft", "ready"):
-        return jsonify({"error": "Can only add contacts to draft or ready campaigns"}), 400
+        return jsonify(
+            {"error": "Can only add contacts to draft or ready campaigns"}
+        ), 400
 
     body = request.get_json(silent=True) or {}
     contact_ids = body.get("contact_ids", [])
@@ -502,7 +528,9 @@ def add_campaign_contacts(campaign_id):
 
     db.session.commit()
 
-    return jsonify({"added": added, "skipped": skipped, "total": added + len(existing_ids)})
+    return jsonify(
+        {"added": added, "skipped": skipped, "total": added + len(existing_ids)}
+    )
 
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>/contacts", methods=["DELETE"])
@@ -519,7 +547,9 @@ def remove_campaign_contacts(campaign_id):
     if not campaign:
         return jsonify({"error": "Campaign not found"}), 404
     if campaign[0] not in ("draft", "ready"):
-        return jsonify({"error": "Can only remove contacts from draft or ready campaigns"}), 400
+        return jsonify(
+            {"error": "Can only remove contacts from draft or ready campaigns"}
+        ), 400
 
     body = request.get_json(silent=True) or {}
     contact_ids = body.get("contact_ids", [])
@@ -531,7 +561,9 @@ def remove_campaign_contacts(campaign_id):
     del_params["cid"] = campaign_id
     del_params["t"] = tenant_id
     result = db.session.execute(
-        db.text(f"DELETE FROM campaign_contacts WHERE campaign_id = :cid AND tenant_id = :t AND contact_id IN ({id_placeholders})"),
+        db.text(
+            f"DELETE FROM campaign_contacts WHERE campaign_id = :cid AND tenant_id = :t AND contact_id IN ({id_placeholders})"
+        ),
         del_params,
     )
     removed = result.rowcount
@@ -591,10 +623,12 @@ def enrichment_check(campaign_id):
     ).fetchall()
 
     if not contacts:
-        return jsonify({
-            "contacts": [],
-            "summary": {"total": 0, "ready": 0, "needs_enrichment": 0},
-        })
+        return jsonify(
+            {
+                "contacts": [],
+                "summary": {"total": 0, "ready": 0, "needs_enrichment": 0},
+            }
+        )
 
     # Get all completed stages for relevant entities
     company_ids = list({str(r[3]) for r in contacts if r[3]})
@@ -625,9 +659,19 @@ def enrichment_check(campaign_id):
     needs_enrichment_count = 0
 
     for row in contacts:
-        cc_id, contact_id, cc_status, company_id, first_name, last_name, company_name = row
+        (
+            cc_id,
+            contact_id,
+            cc_status,
+            company_id,
+            first_name,
+            last_name,
+            company_name,
+        ) = row
         gaps = []
-        company_stages = completions.get(str(company_id), set()) if company_id else set()
+        company_stages = (
+            completions.get(str(company_id), set()) if company_id else set()
+        )
         contact_stages = completions.get(str(contact_id), set())
 
         if "l1_company" not in company_stages:
@@ -655,25 +699,29 @@ def enrichment_check(campaign_id):
                 {"s": new_status, "g": json.dumps(gaps), "id": cc_id},
             )
 
-        result_contacts.append({
-            "campaign_contact_id": str(cc_id),
-            "contact_id": str(contact_id),
-            "full_name": ((first_name or "") + " " + (last_name or "")).strip(),
-            "company_name": company_name,
-            "ready": is_ready,
-            "gaps": gaps,
-        })
+        result_contacts.append(
+            {
+                "campaign_contact_id": str(cc_id),
+                "contact_id": str(contact_id),
+                "full_name": ((first_name or "") + " " + (last_name or "")).strip(),
+                "company_name": company_name,
+                "ready": is_ready,
+                "gaps": gaps,
+            }
+        )
 
     db.session.commit()
 
-    return jsonify({
-        "contacts": result_contacts,
-        "summary": {
-            "total": len(contacts),
-            "ready": ready_count,
-            "needs_enrichment": needs_enrichment_count,
-        },
-    })
+    return jsonify(
+        {
+            "contacts": result_contacts,
+            "summary": {
+                "total": len(contacts),
+                "ready": ready_count,
+                "needs_enrichment": needs_enrichment_count,
+            },
+        }
+    )
 
 
 # ── Generation Pipeline ──────────────────────────────────
@@ -721,7 +769,9 @@ def start_campaign_generation(campaign_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     row = db.session.execute(
-        db.text("SELECT status, total_contacts, template_config FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT status, total_contacts, template_config FROM campaigns WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": campaign_id, "t": tenant_id},
     ).fetchone()
 
@@ -734,7 +784,11 @@ def start_campaign_generation(campaign_id):
 
     # Must be in ready status to start generation
     if current_status != "ready":
-        return jsonify({"error": f"Campaign must be in 'ready' status to generate (current: {current_status})"}), 400
+        return jsonify(
+            {
+                "error": f"Campaign must be in 'ready' status to generate (current: {current_status})"
+            }
+        ), 400
 
     if total_contacts == 0:
         return jsonify({"error": "No contacts in campaign"}), 400
@@ -757,6 +811,7 @@ def start_campaign_generation(campaign_id):
 
     # Get user_id from auth context
     from flask import g
+
     user_id = getattr(g, "user_id", None)
 
     # Start background generation
@@ -799,19 +854,22 @@ def generation_status(campaign_id):
     ).fetchall()
     status_counts = {r[0]: r[1] for r in contact_stats}
 
-    return jsonify({
-        "status": display_campaign_status(row[0] or "draft"),
-        "total_contacts": total,
-        "generated_count": generated,
-        "generation_cost": float(row[3]) if row[3] else 0,
-        "progress_pct": round(generated / total * 100) if total > 0 else 0,
-        "generation_started_at": _format_ts(row[4]),
-        "generation_completed_at": _format_ts(row[5]),
-        "contact_statuses": status_counts,
-    })
+    return jsonify(
+        {
+            "status": display_campaign_status(row[0] or "draft"),
+            "total_contacts": total,
+            "generated_count": generated,
+            "generation_cost": float(row[3]) if row[3] else 0,
+            "progress_pct": round(generated / total * 100) if total > 0 else 0,
+            "generation_started_at": _format_ts(row[4]),
+            "generation_completed_at": _format_ts(row[5]),
+            "contact_statuses": status_counts,
+        }
+    )
 
 
 # --- T6: Disqualify contact ---
+
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>/disqualify-contact", methods=["POST"])
 @require_role("editor")
@@ -846,7 +904,9 @@ def disqualify_contact(campaign_id):
 
     # Campaign exclusion: set campaign_contact to excluded, reject all messages
     db.session.execute(
-        db.text("UPDATE campaign_contacts SET status = 'excluded' WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "UPDATE campaign_contacts SET status = 'excluded' WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": cc_id, "t": tenant_id},
     )
     result = db.session.execute(
@@ -876,15 +936,18 @@ def disqualify_contact(campaign_id):
 
     db.session.commit()
 
-    return jsonify({
-        "ok": True,
-        "contact_id": contact_id,
-        "scope": scope,
-        "messages_rejected": messages_rejected,
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "contact_id": contact_id,
+            "scope": scope,
+            "messages_rejected": messages_rejected,
+        }
+    )
 
 
 # --- T7: Review summary + approval gate ---
+
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>/review-summary", methods=["GET"])
 @require_auth
@@ -957,20 +1020,23 @@ def review_summary(campaign_id):
     elif total == 0:
         pending_reason = "No messages generated"
 
-    return jsonify({
-        "total": total,
-        "approved": approved,
-        "rejected": rejected,
-        "draft": draft,
-        "excluded_contacts": excluded,
-        "active_contacts": active_contacts,
-        "by_channel": by_channel,
-        "can_approve_outreach": can_approve,
-        "pending_reason": pending_reason,
-    })
+    return jsonify(
+        {
+            "total": total,
+            "approved": approved,
+            "rejected": rejected,
+            "draft": draft,
+            "excluded_contacts": excluded,
+            "active_contacts": active_contacts,
+            "by_channel": by_channel,
+            "can_approve_outreach": can_approve,
+            "pending_reason": pending_reason,
+        }
+    )
 
 
 # --- T8: Review queue ---
+
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>/review-queue", methods=["GET"])
 @require_auth
@@ -1055,63 +1121,69 @@ def review_queue(campaign_id):
             except (json.JSONDecodeError, TypeError):
                 regen_config = None
 
-        messages.append({
-            "position": idx + 1,
-            "total": total_count,
-            "message": {
-                "id": str(r[0]),
-                "channel": r[1],
-                "sequence_step": r[2],
-                "variant": (r[3] or "a").upper(),
-                "subject": r[4],
-                "body": r[5],
-                "status": r[6],
-                "tone": r[7],
-                "language": r[8],
-                "generation_cost": float(r[9]) if r[9] else None,
-                "review_notes": r[10],
-                "approved_at": _format_ts(r[11]),
-                "original_body": r[12],
-                "original_subject": r[13],
-                "edit_reason": r[14],
-                "edit_reason_text": r[15],
-                "regen_count": r[16] or 0,
-                "regen_config": regen_config,
-                "label": r[37],
-                "campaign_contact_id": str(r[38]),
-            },
-            "contact": {
-                "id": str(r[18]),
-                "first_name": r[19],
-                "last_name": r[20],
-                "full_name": ((r[19] or "") + " " + (r[20] or "")).strip(),
-                "job_title": r[21],
-                "email_address": r[22],
-                "linkedin_url": r[23],
-                "contact_score": r[24],
-                "icp_fit": r[25],
-                "seniority_level": r[26],
-                "department": r[27],
-                "location_country": r[28],
-            },
-            "company": {
-                "id": str(r[29]) if r[29] else None,
-                "name": r[30],
-                "domain": r[31],
-                "tier": display_tier(r[32]),
-                "industry": r[33],
-                "hq_country": r[34],
-                "summary": r[35],
-                "status": display_status(r[36]),
-            } if r[29] else None,
-        })
+        messages.append(
+            {
+                "position": idx + 1,
+                "total": total_count,
+                "message": {
+                    "id": str(r[0]),
+                    "channel": r[1],
+                    "sequence_step": r[2],
+                    "variant": (r[3] or "a").upper(),
+                    "subject": r[4],
+                    "body": r[5],
+                    "status": r[6],
+                    "tone": r[7],
+                    "language": r[8],
+                    "generation_cost": float(r[9]) if r[9] else None,
+                    "review_notes": r[10],
+                    "approved_at": _format_ts(r[11]),
+                    "original_body": r[12],
+                    "original_subject": r[13],
+                    "edit_reason": r[14],
+                    "edit_reason_text": r[15],
+                    "regen_count": r[16] or 0,
+                    "regen_config": regen_config,
+                    "label": r[37],
+                    "campaign_contact_id": str(r[38]),
+                },
+                "contact": {
+                    "id": str(r[18]),
+                    "first_name": r[19],
+                    "last_name": r[20],
+                    "full_name": ((r[19] or "") + " " + (r[20] or "")).strip(),
+                    "job_title": r[21],
+                    "email_address": r[22],
+                    "linkedin_url": r[23],
+                    "contact_score": r[24],
+                    "icp_fit": r[25],
+                    "seniority_level": r[26],
+                    "department": r[27],
+                    "location_country": r[28],
+                },
+                "company": {
+                    "id": str(r[29]) if r[29] else None,
+                    "name": r[30],
+                    "domain": r[31],
+                    "tier": display_tier(r[32]),
+                    "industry": r[33],
+                    "hq_country": r[34],
+                    "summary": r[35],
+                    "status": display_status(r[36]),
+                }
+                if r[29]
+                else None,
+            }
+        )
 
-    return jsonify({
-        "queue": messages,
-        "stats": {
-            "total": sum(stat_counts.values()),
-            "approved": stat_counts.get("approved", 0),
-            "rejected": stat_counts.get("rejected", 0),
-            "draft": stat_counts.get("draft", 0),
-        },
-    })
+    return jsonify(
+        {
+            "queue": messages,
+            "stats": {
+                "total": sum(stat_counts.values()),
+                "approved": stat_counts.get("approved", 0),
+                "rejected": stat_counts.get("rejected", 0),
+                "draft": stat_counts.get("draft", 0),
+            },
+        }
+    )

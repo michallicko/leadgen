@@ -58,8 +58,9 @@ class RegistryOrchestrator:
 
         return adapters
 
-    def enrich_company(self, company_id, tenant_id, name,
-                       reg_id=None, hq_country=None, domain=None):
+    def enrich_company(
+        self, company_id, tenant_id, name, reg_id=None, hq_country=None, domain=None
+    ):
         """Run all applicable registers, aggregate, score, store.
 
         Args:
@@ -85,38 +86,48 @@ class RegistryOrchestrator:
         current_ico = reg_id
 
         for adapter_key, adapter, reason in applicable:
-            logger.info("Running %s for company %s (%s)",
-                        adapter_key, company_id, reason)
+            logger.info(
+                "Running %s for company %s (%s)", adapter_key, company_id, reason
+            )
 
             try:
                 if adapter.is_supplementary:
                     # Supplementary adapters use ICO as reg_id
                     if not current_ico:
-                        logger.info("Skipping %s — no ICO available",
-                                    adapter_key)
+                        logger.info("Skipping %s — no ICO available", adapter_key)
                         continue
                     result = adapter.enrich_company(
-                        company_id, tenant_id, name,
-                        reg_id=current_ico, store=False,
+                        company_id,
+                        tenant_id,
+                        name,
+                        reg_id=current_ico,
+                        store=False,
                     )
                 else:
                     result = adapter.enrich_company(
-                        company_id, tenant_id, name,
-                        reg_id=current_ico, hq_country=hq_country,
-                        domain=domain, store=False,
+                        company_id,
+                        tenant_id,
+                        name,
+                        reg_id=current_ico,
+                        hq_country=hq_country,
+                        domain=domain,
+                        store=False,
                     )
 
                 results[adapter_key] = result
 
                 # After main adapter: extract ICO for supplementary adapters
-                if (not adapter.is_supplementary
-                        and result.get("status") == "enriched"
-                        and result.get("ico")):
+                if (
+                    not adapter.is_supplementary
+                    and result.get("status") == "enriched"
+                    and result.get("ico")
+                ):
                     current_ico = result["ico"]
 
             except Exception as e:
-                logger.exception("Adapter %s failed for company %s: %s",
-                                 adapter_key, company_id, e)
+                logger.exception(
+                    "Adapter %s failed for company %s: %s", adapter_key, company_id, e
+                )
                 errors[adapter_key] = str(e)
 
         # Check if any adapter returned ambiguous — propagate
@@ -130,8 +141,7 @@ class RegistryOrchestrator:
         if not profile.get("registration_id") and not profile.get("insolvency_flag"):
             # Nothing useful found
             all_no_match = all(
-                r.get("status") in ("no_match", "skipped")
-                for r in results.values()
+                r.get("status") in ("no_match", "skipped") for r in results.values()
             )
             if all_no_match:
                 return {
@@ -199,32 +209,36 @@ class RegistryOrchestrator:
 
         if main_result and main_result.get("status") == "enriched":
             data = main_result.get("data", {})
-            profile.update({
-                "registration_id": data.get("ico"),
-                "tax_id": data.get("dic"),
-                "official_name": data.get("official_name"),
-                "legal_form": data.get("legal_form"),
-                "legal_form_name": data.get("legal_form_name"),
-                "registration_status": data.get("registration_status"),
-                "date_established": data.get("date_established"),
-                "date_dissolved": data.get("date_dissolved"),
-                "registered_address": data.get("registered_address"),
-                "address_city": data.get("address_city"),
-                "address_postal_code": data.get("address_postal_code"),
-                "nace_codes": data.get("nace_codes", []),
-                "directors": data.get("directors", []),
-                "registered_capital": data.get("registered_capital"),
-                "registration_court": data.get("registration_court"),
-                "registration_number": data.get("registration_number"),
-                "insolvency_flag": data.get("insolvency_flag", False),
-                "match_confidence": main_result.get("confidence"),
-                "match_method": main_result.get("method"),
-            })
+            profile.update(
+                {
+                    "registration_id": data.get("ico"),
+                    "tax_id": data.get("dic"),
+                    "official_name": data.get("official_name"),
+                    "legal_form": data.get("legal_form"),
+                    "legal_form_name": data.get("legal_form_name"),
+                    "registration_status": data.get("registration_status"),
+                    "date_established": data.get("date_established"),
+                    "date_dissolved": data.get("date_dissolved"),
+                    "registered_address": data.get("registered_address"),
+                    "address_city": data.get("address_city"),
+                    "address_postal_code": data.get("address_postal_code"),
+                    "nace_codes": data.get("nace_codes", []),
+                    "directors": data.get("directors", []),
+                    "registered_capital": data.get("registered_capital"),
+                    "registration_court": data.get("registration_court"),
+                    "registration_number": data.get("registration_number"),
+                    "insolvency_flag": data.get("insolvency_flag", False),
+                    "match_confidence": main_result.get("confidence"),
+                    "match_method": main_result.get("method"),
+                }
+            )
 
             # Store source data
             for key, result in results.items():
                 if result.get("status") == "enriched":
-                    raw = result.get("raw_response") or result.get("data", {}).get("raw")
+                    raw = result.get("raw_response") or result.get("data", {}).get(
+                        "raw"
+                    )
                     profile["source_data"][key] = raw or {}
 
         # Merge supplementary adapter data (ISIR)
@@ -271,22 +285,23 @@ class RegistryOrchestrator:
             "registration_number": profile.get("registration_number"),
             "insolvency_flag": profile.get("insolvency_flag", False),
             "insolvency_details": json.dumps(
-                profile.get("insolvency_details", []), default=str),
+                profile.get("insolvency_details", []), default=str
+            ),
             "active_insolvency_count": profile.get("active_insolvency_count", 0),
             "match_confidence": profile.get("match_confidence"),
             "match_method": profile.get("match_method"),
             "credibility_score": profile.get("credibility_score"),
-            "credibility_factors": json.dumps(
-                profile.get("credibility_factors", {})),
-            "source_data": json.dumps(
-                profile.get("source_data", {}), default=str),
+            "credibility_factors": json.dumps(profile.get("credibility_factors", {})),
+            "source_data": json.dumps(profile.get("source_data", {}), default=str),
             "enriched_at": now.isoformat(),
             "updated_at": now.isoformat(),
         }
 
         existing = db.session.execute(
-            text("SELECT company_id FROM company_legal_profile "
-                 "WHERE company_id = :company_id"),
+            text(
+                "SELECT company_id FROM company_legal_profile "
+                "WHERE company_id = :company_id"
+            ),
             {"company_id": str(company_id)},
         ).fetchone()
 
@@ -387,7 +402,8 @@ class RegistryOrchestrator:
                 "has_insolvency": profile.get("insolvency_flag", False),
                 "credibility_score": profile.get("credibility_score"),
                 "credibility_factors": json.dumps(
-                    profile.get("credibility_factors", {})),
+                    profile.get("credibility_factors", {})
+                ),
             },
         )
         db.session.commit()

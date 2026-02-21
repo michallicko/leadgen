@@ -54,7 +54,9 @@ def _add_multi_filter(where, params, param_name, column, request_obj):
     values = [v.strip() for v in raw.split(",") if v.strip()]
     if not values:
         return
-    exclude = request_obj.args.get(f"{param_name}_exclude", "").strip().lower() == "true"
+    exclude = (
+        request_obj.args.get(f"{param_name}_exclude", "").strip().lower() == "true"
+    )
     placeholders = ", ".join(f":{param_name}_{i}" for i in range(len(values)))
     for i, v in enumerate(values):
         params[f"{param_name}_{i}"] = v
@@ -79,10 +81,20 @@ def _parse_jsonb(v):
         return json.loads(v) if v else {}
     return v
 
+
 ALLOWED_SORT = {
-    "last_name", "first_name", "job_title", "email_address", "contact_score",
-    "icp_fit", "message_status", "created_at", "seniority_level",
-    "department", "ai_champion_score", "authority_score",
+    "last_name",
+    "first_name",
+    "job_title",
+    "email_address",
+    "contact_score",
+    "icp_fit",
+    "message_status",
+    "created_at",
+    "seniority_level",
+    "department",
+    "ai_champion_score",
+    "authority_score",
     "linkedin_activity_level",
 }
 
@@ -148,14 +160,18 @@ def list_contacts():
             # SECURITY: field_key is interpolated into SQLite json_extract path below.
             # This regex whitelist is the ONLY defense against SQL injection for custom field keys.
             # Do NOT weaken this pattern without also parameterizing the SQLite path.
-            if not re.match(r'^[a-zA-Z0-9_]+$', field_key):
+            if not re.match(r"^[a-zA-Z0-9_]+$", field_key):
                 continue
             # Use json_extract for SQLite compat, ->> for Postgres
             dialect = db.engine.dialect.name
             if dialect == "sqlite":
-                where.append(f"json_extract(ct.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}")
+                where.append(
+                    f"json_extract(ct.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}"
+                )
             else:
-                where.append(f"ct.custom_fields ->> :cf_key_{cf_idx} = :cf_val_{cf_idx}")
+                where.append(
+                    f"ct.custom_fields ->> :cf_key_{cf_idx} = :cf_val_{cf_idx}"
+                )
                 params[f"cf_key_{cf_idx}"] = field_key
             params[f"cf_val_{cf_idx}"] = param_val.strip()
             cf_idx += 1
@@ -169,14 +185,18 @@ def list_contacts():
     _add_multi_filter(where, params, "revenue_range", "co.revenue_range", request)
     _add_multi_filter(where, params, "seniority_level", "ct.seniority_level", request)
     _add_multi_filter(where, params, "department", "ct.department", request)
-    _add_multi_filter(where, params, "linkedin_activity", "ct.linkedin_activity_level", request)
+    _add_multi_filter(
+        where, params, "linkedin_activity", "ct.linkedin_activity_level", request
+    )
 
     # Job titles filter (ILIKE match)
     job_titles_raw = request.args.get("job_titles", "").strip()
     if job_titles_raw:
         titles = [t.strip() for t in job_titles_raw.split(",") if t.strip()]
         if titles:
-            job_exclude = request.args.get("job_titles_exclude", "").strip().lower() == "true"
+            job_exclude = (
+                request.args.get("job_titles_exclude", "").strip().lower() == "true"
+            )
             title_clauses = []
             for i, t in enumerate(titles):
                 params[f"jt_{i}"] = f"%{t}%"
@@ -209,15 +229,18 @@ def list_contacts():
         where_clause = " AND ".join(where)
 
     # Count
-    total = db.session.execute(
-        db.text(f"""
+    total = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
             {joins}
             WHERE {where_clause}
         """),
-        params,
-    ).scalar() or 0
+            params,
+        ).scalar()
+        or 0
+    )
 
     pages = max(1, math.ceil(total / page_size))
     offset = (page - 1) * page_size
@@ -277,42 +300,48 @@ def list_contacts():
         raw_contact_score = r[7]
         raw_ai_champion = int(r[17]) if r[17] is not None else None
         raw_authority = int(r[18]) if r[18] is not None else None
-        contacts.append({
-            "id": cid,
-            "full_name": full_name,
-            "first_name": first,
-            "last_name": last,
-            "job_title": r[3],
-            "company_id": str(r[4]) if r[4] else None,
-            "company_name": r[5],
-            "email_address": r[6],
-            "contact_score": raw_contact_score,
-            "score": _compute_contact_score(raw_contact_score, raw_ai_champion, raw_authority),
-            "icp_fit": display_icp_fit(r[8]),
-            "message_status": r[9],
-            "owner_name": r[10],
-            "tag_name": tag_names[0] if tag_names else None,
-            "tag_names": tag_names,
-            "seniority_level": display_seniority(r[11]),
-            "department": display_department(r[12]),
-            "location_city": r[13],
-            "location_country": r[14],
-            "linkedin_url": r[15],
-            "phone_number": r[16],
-            "ai_champion_score": raw_ai_champion,
-            "authority_score": raw_authority,
-            "linkedin_activity_level": display_linkedin_activity(r[19]),
-            "language": display_language(r[20]),
-            "contact_source": display_contact_source(r[21]),
-        })
+        contacts.append(
+            {
+                "id": cid,
+                "full_name": full_name,
+                "first_name": first,
+                "last_name": last,
+                "job_title": r[3],
+                "company_id": str(r[4]) if r[4] else None,
+                "company_name": r[5],
+                "email_address": r[6],
+                "contact_score": raw_contact_score,
+                "score": _compute_contact_score(
+                    raw_contact_score, raw_ai_champion, raw_authority
+                ),
+                "icp_fit": display_icp_fit(r[8]),
+                "message_status": r[9],
+                "owner_name": r[10],
+                "tag_name": tag_names[0] if tag_names else None,
+                "tag_names": tag_names,
+                "seniority_level": display_seniority(r[11]),
+                "department": display_department(r[12]),
+                "location_city": r[13],
+                "location_country": r[14],
+                "linkedin_url": r[15],
+                "phone_number": r[16],
+                "ai_champion_score": raw_ai_champion,
+                "authority_score": raw_authority,
+                "linkedin_activity_level": display_linkedin_activity(r[19]),
+                "language": display_language(r[20]),
+                "contact_source": display_contact_source(r[21]),
+            }
+        )
 
-    return jsonify({
-        "contacts": contacts,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": pages,
-    })
+    return jsonify(
+        {
+            "contacts": contacts,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+    )
 
 
 @contacts_bp.route("/api/contacts/<contact_id>", methods=["GET"])
@@ -385,7 +414,9 @@ def get_contact(contact_id):
         "ai_champion_score": raw_ai_champion_d,
         "authority_score": raw_authority_d,
         "contact_score": raw_contact_score_d,
-        "score": _compute_contact_score(raw_contact_score_d, raw_ai_champion_d, raw_authority_d),
+        "score": _compute_contact_score(
+            raw_contact_score_d, raw_ai_champion_d, raw_authority_d
+        ),
         "enrichment_cost_usd": float(row[21]) if row[21] is not None else None,
         "processed_enrich": row[22],
         "email_lookup": row[23],
@@ -406,7 +437,9 @@ def get_contact(contact_id):
             "domain": row[37],
             "status": display_status(row[38]),
             "tier": display_tier(row[39]),
-        } if row[35] else None,
+        }
+        if row[35]
+        else None,
         "owner_name": row[40],
         "tag_name": row[41],
     }
@@ -421,13 +454,16 @@ def get_contact(contact_id):
         """),
         {"id": contact_id},
     ).fetchall()
-    contact["stage_completions"] = [{
-        "stage": r[0],
-        "status": r[1],
-        "completed_at": _iso(r[2]),
-        "cost_usd": float(r[3]) if r[3] is not None else None,
-        "error": r[4],
-    } for r in sc_rows]
+    contact["stage_completions"] = [
+        {
+            "stage": r[0],
+            "status": r[1],
+            "completed_at": _iso(r[2]),
+            "cost_usd": float(r[3]) if r[3] is not None else None,
+            "error": r[4],
+        }
+        for r in sc_rows
+    ]
 
     # Contact enrichment
     enrich_row = db.session.execute(
@@ -460,7 +496,9 @@ def get_contact(contact_id):
             "twitter_handle": enrich_row[10],
             "github_username": enrich_row[11],
             "enriched_at": _iso(enrich_row[12]),
-            "enrichment_cost_usd": float(enrich_row[13]) if enrich_row[13] is not None else None,
+            "enrichment_cost_usd": float(enrich_row[13])
+            if enrich_row[13] is not None
+            else None,
         }
     else:
         contact["enrichment"] = None
@@ -476,15 +514,18 @@ def get_contact(contact_id):
         """),
         {"id": contact_id},
     ).fetchall()
-    contact["messages"] = [{
-        "id": str(r[0]),
-        "channel": r[1],
-        "sequence_step": r[2],
-        "variant": (r[3] or "a").upper(),
-        "subject": r[4],
-        "status": r[5],
-        "tone": r[6],
-    } for r in msg_rows]
+    contact["messages"] = [
+        {
+            "id": str(r[0]),
+            "channel": r[1],
+            "sequence_step": r[2],
+            "variant": (r[3] or "a").upper(),
+            "subject": r[4],
+            "status": r[5],
+            "tone": r[6],
+        }
+        for r in msg_rows
+    ]
 
     return jsonify(contact)
 
@@ -498,8 +539,14 @@ def update_contact(contact_id):
 
     body = request.get_json(silent=True) or {}
     allowed = {
-        "notes", "icp_fit", "message_status", "relationship_status",
-        "seniority_level", "department", "contact_source", "language",
+        "notes",
+        "icp_fit",
+        "message_status",
+        "relationship_status",
+        "seniority_level",
+        "department",
+        "contact_source",
+        "language",
     }
     fields = {k: v for k, v in body.items() if k in allowed}
     custom_fields_update = body.get("custom_fields")
@@ -508,7 +555,9 @@ def update_contact(contact_id):
         return jsonify({"error": "No valid fields to update"}), 400
 
     row = db.session.execute(
-        db.text("SELECT id, custom_fields FROM contacts WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT id, custom_fields FROM contacts WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": contact_id, "t": tenant_id},
     ).fetchone()
     if not row:
@@ -552,7 +601,11 @@ def filter_counts():
     search = body.get("search", "").strip()
     tag_name = body.get("tag_name", "").strip()
     owner_name = body.get("owner_name", "").strip()
-    exclude_campaign_id = body.get("exclude_campaign_id", "").strip() if body.get("exclude_campaign_id") else ""
+    exclude_campaign_id = (
+        body.get("exclude_campaign_id", "").strip()
+        if body.get("exclude_campaign_id")
+        else ""
+    )
 
     # Define all facet fields with their column references
     FACET_FIELDS = {
@@ -652,15 +705,18 @@ def filter_counts():
     else:
         extra_where = ""
 
-    total = db.session.execute(
-        db.text(f"""
+    total = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM contacts ct
             {joins}
             WHERE {total_where}{extra_where}
         """),
-        total_params,
-    ).scalar() or 0
+            total_params,
+        ).scalar()
+        or 0
+    )
 
     return jsonify({"total": total, "facets": facets})
 
@@ -693,6 +749,4 @@ def job_title_suggestions():
         {"tenant_id": tenant_id, "q": f"%{q}%", "limit": limit},
     ).fetchall()
 
-    return jsonify({
-        "titles": [{"title": r[0], "count": r[1]} for r in rows]
-    })
+    return jsonify({"titles": [{"title": r[0], "count": r[1]} for r in rows]})

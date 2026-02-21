@@ -3,7 +3,7 @@
 .env.*
 
 # n8n workflow exports (contain credentials)
-workflows/
+/workflows/
 
 # Python
 __pycache__/

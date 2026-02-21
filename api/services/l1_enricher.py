@@ -9,7 +9,6 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
 
 from flask import current_app
 from sqlalchemy import text
@@ -35,10 +34,23 @@ PERPLEXITY_TEMPERATURE = 0.1
 
 # Free-mail domains to skip during domain resolution
 FREE_MAIL_DOMAINS = {
-    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com",
-    "aol.com", "icloud.com", "mail.com", "protonmail.com", "proton.me",
-    "zoho.com", "yandex.com", "gmx.com", "gmx.de", "web.de",
-    "fastmail.com", "tutanota.com",
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "aol.com",
+    "icloud.com",
+    "mail.com",
+    "protonmail.com",
+    "proton.me",
+    "zoho.com",
+    "yandex.com",
+    "gmx.com",
+    "gmx.de",
+    "web.de",
+    "fastmail.com",
+    "tutanota.com",
 }
 
 SYSTEM_PROMPT = """You are a B2B sales qualification research assistant. Your task is to gather accurate, verifiable company information.
@@ -88,6 +100,7 @@ Return this exact JSON structure (use ONLY the listed enum values — no free te
 # Main entry point
 # ---------------------------------------------------------------------------
 
+
 def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     """Run L1 enrichment for a single company.
 
@@ -136,12 +149,16 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     # 3. Call Perplexity
     model = get_model_for_stage("l1", boost=boost)
     try:
-        pplx_response = _call_perplexity(company_name, domain,
-                                          existing_industry, existing_size,
-                                          existing_revenue,
-                                          contact_linkedin_urls,
-                                          previous_data=previous_data,
-                                          model=model)
+        pplx_response = _call_perplexity(
+            company_name,
+            domain,
+            existing_industry,
+            existing_size,
+            existing_revenue,
+            contact_linkedin_urls,
+            previous_data=previous_data,
+            model=model,
+        )
         raw_response = pplx_response.content
         usage = {
             "input_tokens": pplx_response.input_tokens,
@@ -149,16 +166,18 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
         }
     except Exception as e:
         logger.error("Perplexity API error for company %s: %s", company_id, e)
-        _set_company_status(company_id, "enrichment_failed",
-                            error_message=str(e)[:500])
+        _set_company_status(company_id, "enrichment_failed", error_message=str(e)[:500])
         return {"enrichment_cost_usd": 0, "qc_flags": ["api_error"]}
 
     # 4. Parse response
     research = _parse_research_json(raw_response)
     if research is None:
         logger.warning("Failed to parse Perplexity response for company %s", company_id)
-        _set_company_status(company_id, "enrichment_failed",
-                            error_message="Failed to parse research response")
+        _set_company_status(
+            company_id,
+            "enrichment_failed",
+            error_message="Failed to parse research response",
+        )
         return {"enrichment_cost_usd": 0, "qc_flags": ["parse_error"]}
 
     # 5. Map fields
@@ -190,14 +209,24 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
 
     # 9b. UPSERT company_enrichment_l1
     _upsert_enrichment_l1(
-        company_id, mapped, research, cost_float,
-        confidence_score, quality_score, qc_flags,
+        company_id,
+        mapped,
+        research,
+        cost_float,
+        confidence_score,
+        quality_score,
+        qc_flags,
     )
 
     # 10. INSERT research_asset (raw SQL — table may not exist in tests)
     _insert_research_asset(
-        tenant_id, company_id, model, cost_float,
-        research, confidence_score, quality_score,
+        tenant_id,
+        company_id,
+        model,
+        cost_float,
+        research,
+        confidence_score,
+        quality_score,
     )
 
     # 11. Log LLM usage
@@ -210,8 +239,11 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
             output_tokens=output_tokens,
             provider="perplexity",
             duration_ms=duration_ms,
-            metadata={"company_id": company_id, "company_name": company_name,
-                       "boost": boost},
+            metadata={
+                "company_id": company_id,
+                "company_name": company_name,
+                "boost": boost,
+            },
         )
 
     db.session.commit()
@@ -222,6 +254,7 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
 # ---------------------------------------------------------------------------
 # Domain resolution
 # ---------------------------------------------------------------------------
+
 
 def _resolve_domain(company_id):
     """Try to resolve a company domain from contact email addresses.
@@ -282,6 +315,7 @@ def _get_contact_linkedin_urls(company_id, limit=3):
 # Previous enrichment loader
 # ---------------------------------------------------------------------------
 
+
 def _load_previous_enrichment(company_id):
     """Load prior L1 enrichment data for re-enrichment context.
 
@@ -338,9 +372,17 @@ def _load_previous_enrichment(company_id):
 # Perplexity API call
 # ---------------------------------------------------------------------------
 
-def _call_perplexity(company_name, domain, existing_industry, existing_size,
-                     existing_revenue, contact_linkedin_urls=None,
-                     previous_data=None, model=None):
+
+def _call_perplexity(
+    company_name,
+    domain,
+    existing_industry,
+    existing_size,
+    existing_revenue,
+    contact_linkedin_urls=None,
+    previous_data=None,
+    model=None,
+):
     """Call Perplexity sonar API for company research.
 
     Args:
@@ -350,7 +392,9 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
         PerplexityResponse with .content, .input_tokens, .output_tokens, .cost_usd
     """
     api_key = current_app.config.get("PERPLEXITY_API_KEY", "")
-    base_url = current_app.config.get("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
+    base_url = current_app.config.get(
+        "PERPLEXITY_BASE_URL", "https://api.perplexity.ai"
+    )
 
     if not api_key:
         raise ValueError("PERPLEXITY_API_KEY not configured")
@@ -377,7 +421,11 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
     if existing_revenue:
         claims.append(f"Claimed revenue: EUR {existing_revenue}M")
 
-    claims_section = "Existing claims to verify:\n" + "\n".join(f"- {c}" for c in claims) if claims else ""
+    claims_section = (
+        "Existing claims to verify:\n" + "\n".join(f"- {c}" for c in claims)
+        if claims
+        else ""
+    )
 
     # Build previous data section for re-enrichment
     previous_section = ""
@@ -393,12 +441,15 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
                 + "\n".join(prev_lines)
             )
 
-    user_prompt = USER_PROMPT_TEMPLATE.format(
-        company_name=company_name,
-        domain_line=domain_line,
-        contacts_section=contacts_section,
-        claims_section=claims_section,
-    ) + previous_section
+    user_prompt = (
+        USER_PROMPT_TEMPLATE.format(
+            company_name=company_name,
+            domain_line=domain_line,
+            contacts_section=contacts_section,
+            claims_section=claims_section,
+        )
+        + previous_section
+    )
 
     client = PerplexityClient(
         api_key=api_key,
@@ -418,6 +469,7 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
 # ---------------------------------------------------------------------------
 # Response parsing
 # ---------------------------------------------------------------------------
+
 
 def _parse_research_json(content):
     """Parse the JSON response from Perplexity, stripping markdown fences if present.
@@ -443,7 +495,7 @@ def _parse_research_json(content):
         return json.loads(text_content)
     except (json.JSONDecodeError, ValueError):
         # Try to find JSON object in the text
-        match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text_content, re.DOTALL)
+        match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text_content, re.DOTALL)
         if match:
             try:
                 return json.loads(match.group())
@@ -455,6 +507,7 @@ def _parse_research_json(content):
 # ---------------------------------------------------------------------------
 # Field mapping
 # ---------------------------------------------------------------------------
+
 
 def _map_fields(research):
     """Map Perplexity research JSON fields to company column values.
@@ -490,6 +543,7 @@ def _map_fields(research):
         mapped["industry"] = mapped_industry
         if mapped_industry:
             from api.services.field_schema import industry_to_category
+
             cat = industry_to_category(mapped_industry)
             if cat:
                 mapped["industry_category"] = cat
@@ -525,6 +579,7 @@ def _map_fields(research):
 # Helper functions (ported from n8n JS triage code)
 # ---------------------------------------------------------------------------
 
+
 def _parse_revenue(raw):
     """Parse revenue value from various formats.
 
@@ -540,22 +595,22 @@ def _parse_revenue(raw):
         return None
 
     # Remove currency symbols and "eur"
-    s = re.sub(r'[€$£]', '', s)
-    s = re.sub(r'\beur\b', '', s, flags=re.IGNORECASE).strip()
+    s = re.sub(r"[€$£]", "", s)
+    s = re.sub(r"\beur\b", "", s, flags=re.IGNORECASE).strip()
 
     # Handle "billion"
     if "billion" in s:
-        num = re.search(r'[\d,.]+', s)
+        num = re.search(r"[\d,.]+", s)
         if num:
             return float(num.group().replace(",", "")) * 1000
         return None
 
     # Handle "million" or "m"
     if "million" in s or s.endswith("m"):
-        s = re.sub(r'million|m$', '', s).strip()
+        s = re.sub(r"million|m$", "", s).strip()
 
     # Extract number
-    num = re.search(r'[\d,.]+', s)
+    num = re.search(r"[\d,.]+", s)
     if num:
         try:
             return float(num.group().replace(",", ""))
@@ -580,20 +635,20 @@ def _parse_employees(raw):
         return None
 
     # Handle ranges like "200-300" — take midpoint
-    range_match = re.match(r'([\d,]+)\s*[-–]\s*([\d,]+)', s)
+    range_match = re.match(r"([\d,]+)\s*[-–]\s*([\d,]+)", s)
     if range_match:
         low = int(range_match.group(1).replace(",", ""))
         high = int(range_match.group(2).replace(",", ""))
         return (low + high) // 2
 
     # Handle "~500", "approx 500", "about 500"
-    s = re.sub(r'^[~≈]|^(approx\.?|about|around|roughly)\s*', '', s).strip()
+    s = re.sub(r"^[~≈]|^(approx\.?|about|around|roughly)\s*", "", s).strip()
 
     # Handle "1,000+" or "500+"
-    s = re.sub(r'\+$', '', s).strip()
+    s = re.sub(r"\+$", "", s).strip()
 
     # Extract number
-    num = re.search(r'[\d,]+', s)
+    num = re.search(r"[\d,]+", s)
     if num:
         try:
             return int(num.group().replace(",", ""))
@@ -667,28 +722,148 @@ def _map_industry(raw):
     # Keyword substring matching for complex descriptions
     s = str(raw).strip().lower()
     keywords = {
-        "creative_services": ["arts", "event", "culture", "performing", "music",
-                              "film", "design", "creative", "pr ", "public relation"],
-        "pharma_biotech": ["pharma", "biotech", "life science", "drug", "clinical trial"],
-        "aerospace_defense": ["aerospace", "defense", "defence", "military", "space", "satellite", "avionics"],
-        "automotive": ["automotive", "car ", "vehicle", "motor", "auto parts", "ev charging"],
+        "creative_services": [
+            "arts",
+            "event",
+            "culture",
+            "performing",
+            "music",
+            "film",
+            "design",
+            "creative",
+            "pr ",
+            "public relation",
+        ],
+        "pharma_biotech": [
+            "pharma",
+            "biotech",
+            "life science",
+            "drug",
+            "clinical trial",
+        ],
+        "aerospace_defense": [
+            "aerospace",
+            "defense",
+            "defence",
+            "military",
+            "space",
+            "satellite",
+            "avionics",
+        ],
+        "automotive": [
+            "automotive",
+            "car ",
+            "vehicle",
+            "motor",
+            "auto parts",
+            "ev charging",
+        ],
         "software_saas": ["software", "saas", "cloud", "app", "digital platform"],
         "it": ["it ", "information tech", "cyber", "data center", "hosting", "tech"],
-        "professional_services": ["consult", "advisory", "legal", "accounting", "audit", "staffing", "recruitment"],
-        "financial_services": ["financ", "bank", "insur", "invest", "fintech", "payment"],
+        "professional_services": [
+            "consult",
+            "advisory",
+            "legal",
+            "accounting",
+            "audit",
+            "staffing",
+            "recruitment",
+        ],
+        "financial_services": [
+            "financ",
+            "bank",
+            "insur",
+            "invest",
+            "fintech",
+            "payment",
+        ],
         "healthcare": ["health", "medical", "hospital", "clinic", "dental", "care"],
-        "real_estate": ["real estate", "property", "reit", "commercial space", "office space"],
-        "manufacturing": ["manufactur", "industrial", "machinery", "production", "factory", "automation"],
-        "retail": ["retail", "e-commerce", "ecommerce", "shop", "consumer goods", "fashion"],
-        "hospitality": ["hotel", "restaurant", "hospitality", "tourism", "travel", "food service", "catering"],
-        "media": ["media", "entertainment", "broadcast", "publishing", "gaming", "advertising"],
-        "energy": ["energy", "oil", "gas", "solar", "wind", "renewable", "power", "utility", "waste-to-energy"],
-        "agriculture": ["agricult", "farming", "agri", "food production", "crop", "livestock", "agtech"],
+        "real_estate": [
+            "real estate",
+            "property",
+            "reit",
+            "commercial space",
+            "office space",
+        ],
+        "manufacturing": [
+            "manufactur",
+            "industrial",
+            "machinery",
+            "production",
+            "factory",
+            "automation",
+        ],
+        "retail": [
+            "retail",
+            "e-commerce",
+            "ecommerce",
+            "shop",
+            "consumer goods",
+            "fashion",
+        ],
+        "hospitality": [
+            "hotel",
+            "restaurant",
+            "hospitality",
+            "tourism",
+            "travel",
+            "food service",
+            "catering",
+        ],
+        "media": [
+            "media",
+            "entertainment",
+            "broadcast",
+            "publishing",
+            "gaming",
+            "advertising",
+        ],
+        "energy": [
+            "energy",
+            "oil",
+            "gas",
+            "solar",
+            "wind",
+            "renewable",
+            "power",
+            "utility",
+            "waste-to-energy",
+        ],
+        "agriculture": [
+            "agricult",
+            "farming",
+            "agri",
+            "food production",
+            "crop",
+            "livestock",
+            "agtech",
+        ],
         "telecom": ["telecom", "mobile", "wireless", "network operator"],
-        "transport": ["transport", "logistics", "shipping", "freight", "aviation", "rail", "maritime"],
+        "transport": [
+            "transport",
+            "logistics",
+            "shipping",
+            "freight",
+            "aviation",
+            "rail",
+            "maritime",
+        ],
         "construction": ["construct", "building", "architect", "civil engineer"],
-        "education": ["education", "university", "school", "training", "e-learning", "edtech"],
-        "public_sector": ["government", "public sector", "ngo", "non-profit", "municipal"],
+        "education": [
+            "education",
+            "university",
+            "school",
+            "training",
+            "e-learning",
+            "edtech",
+        ],
+        "public_sector": [
+            "government",
+            "public sector",
+            "ngo",
+            "non-profit",
+            "municipal",
+        ],
     }
     for enum_val, kws in keywords.items():
         for kw in kws:
@@ -737,12 +912,14 @@ def _map_business_type(raw):
 def _revenue_to_bucket(rev_m):
     """Map revenue in EUR millions to a bucket."""
     from api.services.field_schema import revenue_to_range
+
     return revenue_to_range(rev_m)
 
 
 def _employees_to_bucket(emp):
     """Map employee count to a size bucket."""
     from api.services.field_schema import employees_to_size
+
     return employees_to_size(emp)
 
 
@@ -806,9 +983,13 @@ def _validate_research(research, original_name, qc_config=None):
 
     # Missing critical fields
     critical_fields = ["summary", "hq", "industry", "employees", "revenue_eur_m"]
-    populated = sum(1 for f in critical_fields
-                    if research.get(f) and str(research.get(f)).lower()
-                    not in ("unverified", "unknown", "null", "none", "n/a"))
+    populated = sum(
+        1
+        for f in critical_fields
+        if research.get(f)
+        and str(research.get(f)).lower()
+        not in ("unverified", "unknown", "null", "none", "n/a")
+    )
     if populated < cfg["min_critical_fields"]:
         flags.append("incomplete_research")
 
@@ -848,10 +1029,18 @@ def _validate_research(research, original_name, qc_config=None):
     if isinstance(pplx_flags, list):
         for pf in pplx_flags:
             pf_lower = str(pf).lower()
-            if any(kw in pf_lower for kw in (
-                "not found", "no matching", "non-existent", "defunct",
-                "discrepancy", "mismatch", "conflicting",
-            )):
+            if any(
+                kw in pf_lower
+                for kw in (
+                    "not found",
+                    "no matching",
+                    "non-existent",
+                    "defunct",
+                    "discrepancy",
+                    "mismatch",
+                    "conflicting",
+                )
+            ):
                 flags.append("source_warning")
                 break  # One flag is enough
 
@@ -871,12 +1060,36 @@ def _name_similarity(name_a, name_b):
 
     # Strip common suffixes
     for suffix in (
-        " inc", " inc.", " incorporated", " llc", " ltd", " ltd.",
-        " limited", " gmbh", " ag", " sa", " se", " plc",
-        " corp", " corp.", " corporation", " company",
-        " co.", " s.r.o.", " a.s.", " a/s", " oy", " ab",
-        " sp. z o.o.", " spol. s r.o.", " s.a.", " s.p.a.",
-        " b.v.", " n.v.", " pty", " pty.",
+        " inc",
+        " inc.",
+        " incorporated",
+        " llc",
+        " ltd",
+        " ltd.",
+        " limited",
+        " gmbh",
+        " ag",
+        " sa",
+        " se",
+        " plc",
+        " corp",
+        " corp.",
+        " corporation",
+        " company",
+        " co.",
+        " s.r.o.",
+        " a.s.",
+        " a/s",
+        " oy",
+        " ab",
+        " sp. z o.o.",
+        " spol. s r.o.",
+        " s.a.",
+        " s.p.a.",
+        " b.v.",
+        " n.v.",
+        " pty",
+        " pty.",
     ):
         a = a.removesuffix(suffix)
         b = b.removesuffix(suffix)
@@ -890,8 +1103,8 @@ def _name_similarity(name_a, name_b):
     if not a or not b:
         return 0.0
 
-    a_bigrams = set(a[i:i+2] for i in range(len(a) - 1))
-    b_bigrams = set(b[i:i+2] for i in range(len(b) - 1))
+    a_bigrams = set(a[i : i + 2] for i in range(len(a) - 1))
+    b_bigrams = set(b[i : i + 2] for i in range(len(b) - 1))
 
     if not a_bigrams or not b_bigrams:
         return 0.0
@@ -904,8 +1117,10 @@ def _name_similarity(name_a, name_b):
 # DB writes
 # ---------------------------------------------------------------------------
 
-def _insert_research_asset(tenant_id, company_id, model, cost_float,
-                           research, confidence_score, quality_score):
+
+def _insert_research_asset(
+    tenant_id, company_id, model, cost_float, research, confidence_score, quality_score
+):
     """Insert research_asset row via raw SQL (avoids model import)."""
     try:
         research_json = json.dumps(research) if isinstance(research, dict) else "{}"
@@ -940,12 +1155,16 @@ def _set_company_status(company_id, status, error_message=None):
     params = {"id": str(company_id), "status": status}
     if error_message:
         db.session.execute(
-            text("UPDATE companies SET status = :status, error_message = :err, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
+            text(
+                "UPDATE companies SET status = :status, error_message = :err, updated_at = CURRENT_TIMESTAMP WHERE id = :id"
+            ),
             {**params, "err": error_message},
         )
     else:
         db.session.execute(
-            text("UPDATE companies SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
+            text(
+                "UPDATE companies SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id"
+            ),
             params,
         )
     db.session.commit()
@@ -953,8 +1172,11 @@ def _set_company_status(company_id, status, error_message=None):
 
 def _update_company(company_id, status, mapped, cost, error_message):
     """Update company with enrichment results."""
-    set_clauses = ["status = :status", "enrichment_cost_usd = enrichment_cost_usd + :cost",
-                   "updated_at = CURRENT_TIMESTAMP"]
+    set_clauses = [
+        "status = :status",
+        "enrichment_cost_usd = enrichment_cost_usd + :cost",
+        "updated_at = CURRENT_TIMESTAMP",
+    ]
     params = {"id": str(company_id), "status": status, "cost": cost}
 
     if error_message:
@@ -973,8 +1195,9 @@ def _update_company(company_id, status, mapped, cost, error_message):
     db.session.execute(text(sql), params)
 
 
-def _upsert_enrichment_l1(company_id, mapped, research, cost_float,
-                           confidence_score, quality_score, qc_flags):
+def _upsert_enrichment_l1(
+    company_id, mapped, research, cost_float, confidence_score, quality_score, qc_flags
+):
     """Upsert enrichment detail into company_enrichment_l1 table."""
     try:
         # Build the raw_response JSON
@@ -1050,4 +1273,6 @@ def _upsert_enrichment_l1(company_id, mapped, research, cost_float,
                 },
             )
     except Exception as e:
-        logger.warning("Failed to upsert company_enrichment_l1 for %s: %s", company_id, e)
+        logger.warning(
+            "Failed to upsert company_enrichment_l1 for %s: %s", company_id, e
+        )

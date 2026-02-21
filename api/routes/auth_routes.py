@@ -36,11 +36,13 @@ def login():
     user.last_login_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    return jsonify({
-        "access_token": create_access_token(user),
-        "refresh_token": create_refresh_token(user),
-        "user": user.to_dict(include_roles=True),
-    })
+    return jsonify(
+        {
+            "access_token": create_access_token(user),
+            "refresh_token": create_refresh_token(user),
+            "user": user.to_dict(include_roles=True),
+        }
+    )
 
 
 @auth_bp.route("/refresh", methods=["POST"])
@@ -61,9 +63,11 @@ def refresh():
     if not user or not user.is_active:
         return jsonify({"error": "User not found or inactive"}), 401
 
-    return jsonify({
-        "access_token": create_access_token(user),
-    })
+    return jsonify(
+        {
+            "access_token": create_access_token(user),
+        }
+    )
 
 
 @auth_bp.route("/me")

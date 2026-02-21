@@ -14,7 +14,6 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from flask import current_app
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -25,8 +24,15 @@ logger = logging.getLogger(__name__)
 
 # Domains to always exclude (service emails, mailing lists)
 DEFAULT_EXCLUDE_DOMAINS = {
-    "noreply", "no-reply", "donotreply", "notifications", "mailer-daemon",
-    "postmaster", "bounce", "automated", "system",
+    "noreply",
+    "no-reply",
+    "donotreply",
+    "notifications",
+    "mailer-daemon",
+    "postmaster",
+    "bounce",
+    "automated",
+    "system",
 }
 
 # Patterns that indicate a service email (skip these)
@@ -42,17 +48,19 @@ SIGNATURE_DELIMITERS = [
     re.compile(r"^--\s*$", re.MULTILINE),
     re.compile(r"^_{3,}$", re.MULTILINE),
     re.compile(r"^-{3,}$", re.MULTILINE),
-    re.compile(r"^(Best|Kind|Warm)?\s*(Regards|regards|Wishes|wishes),?\s*$", re.MULTILINE),
+    re.compile(
+        r"^(Best|Kind|Warm)?\s*(Regards|regards|Wishes|wishes),?\s*$", re.MULTILINE
+    ),
     re.compile(r"^(Thanks|Cheers|Sincerely|Yours),?\s*$", re.MULTILINE),
     re.compile(r"^Sent from my (iPhone|iPad|Android|Galaxy)", re.MULTILINE),
 ]
 
 # Patterns suggesting a line is part of a signature
 SIG_LINE_PATTERNS = [
-    re.compile(r"\+?\d[\d\s\-().]{7,}"),           # phone number
+    re.compile(r"\+?\d[\d\s\-().]{7,}"),  # phone number
     re.compile(r"linkedin\.com/in/", re.IGNORECASE),  # LinkedIn URL
-    re.compile(r"https?://\S+", re.IGNORECASE),      # Any URL
-    re.compile(r"\|"),                                 # pipe separator (common in sigs)
+    re.compile(r"https?://\S+", re.IGNORECASE),  # Any URL
+    re.compile(r"\|"),  # pipe separator (common in sigs)
 ]
 
 
@@ -79,8 +87,12 @@ class GmailScanner:
                 self._aggregate_contacts()
                 self._save_extracted()
                 self._update_status("extracted")
-                logger.info("Gmail scan %s complete: %d contacts from %d messages",
-                            self.job_id, len(self.contacts), self.messages_scanned)
+                logger.info(
+                    "Gmail scan %s complete: %d contacts from %d messages",
+                    self.job_id,
+                    len(self.contacts),
+                    self.messages_scanned,
+                )
             except Exception as e:
                 logger.error("Gmail scan %s failed: %s", self.job_id, e)
                 self._update_status("error", error=str(e))
@@ -125,7 +137,9 @@ class GmailScanner:
     def _scan_messages(self):
         """Scan Gmail messages and extract contacts from headers."""
         service = self._get_gmail_service()
-        exclude_domains = set(d.lower().strip() for d in self.config.get("exclude_domains", []))
+        exclude_domains = set(
+            d.lower().strip() for d in self.config.get("exclude_domains", [])
+        )
         max_messages = self.config.get("max_messages", 5000)
         date_range = self.config.get("date_range")
 
@@ -133,6 +147,7 @@ class GmailScanner:
         query_parts = []
         if date_range and date_range > 0:
             from datetime import timedelta
+
             after_date = datetime.now(timezone.utc) - timedelta(days=date_range)
             query_parts.append(f"after:{after_date.strftime('%Y/%m/%d')}")
 
@@ -143,7 +158,10 @@ class GmailScanner:
         while self.messages_scanned < max_messages:
             try:
                 # List messages first, then get headers
-                list_kwargs = {"userId": "me", "maxResults": min(100, max_messages - self.messages_scanned)}
+                list_kwargs = {
+                    "userId": "me",
+                    "maxResults": min(100, max_messages - self.messages_scanned),
+                }
                 if query:
                     list_kwargs["q"] = query
                 if page_token:
@@ -161,12 +179,23 @@ class GmailScanner:
                     if self.messages_scanned >= max_messages:
                         break
                     try:
-                        msg = service.users().messages().get(
-                            userId="me",
-                            id=msg_stub["id"],
-                            format="metadata",
-                            metadataHeaders=["From", "To", "Cc", "Reply-To", "Date"],
-                        ).execute()
+                        msg = (
+                            service.users()
+                            .messages()
+                            .get(
+                                userId="me",
+                                id=msg_stub["id"],
+                                format="metadata",
+                                metadataHeaders=[
+                                    "From",
+                                    "To",
+                                    "Cc",
+                                    "Reply-To",
+                                    "Date",
+                                ],
+                            )
+                            .execute()
+                        )
                         self._process_message_headers(msg, exclude_domains)
                         self.messages_scanned += 1
                     except Exception as e:
@@ -191,7 +220,9 @@ class GmailScanner:
 
     def _process_message_headers(self, message, exclude_domains):
         """Extract contacts from a single message's headers."""
-        headers = {h["name"]: h["value"] for h in message.get("payload", {}).get("headers", [])}
+        headers = {
+            h["name"]: h["value"] for h in message.get("payload", {}).get("headers", [])
+        }
 
         # Parse date for recency tracking
         date_str = headers.get("Date", "")
@@ -240,7 +271,10 @@ class GmailScanner:
                 contact["message_count"] += 1
 
                 # Update with most recent data
-                if msg_date and (not contact["last_message_date"] or msg_date > contact["last_message_date"]):
+                if msg_date and (
+                    not contact["last_message_date"]
+                    or msg_date > contact["last_message_date"]
+                ):
                     contact["last_message_date"] = msg_date
                     contact["message_id_for_sig"] = message.get("id")
                     # Update name if we got a better one
@@ -267,9 +301,16 @@ class GmailScanner:
         signatures = {}  # email -> signature text
         for msg_id, addr in msg_ids_to_fetch.items():
             try:
-                msg = service.users().messages().get(
-                    userId="me", id=msg_id, format="full",
-                ).execute()
+                msg = (
+                    service.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=msg_id,
+                        format="full",
+                    )
+                    .execute()
+                )
                 body = self._extract_text_body(msg)
                 if body:
                     sig = self._extract_signature_block(body)
@@ -290,9 +331,12 @@ class GmailScanner:
 
         try:
             import anthropic
+
             client = anthropic.Anthropic()
         except Exception:
-            logger.warning("Anthropic client not available, skipping signature extraction")
+            logger.warning(
+                "Anthropic client not available, skipping signature extraction"
+            )
             return
 
         sig_items = list(signatures.items())
@@ -300,7 +344,7 @@ class GmailScanner:
         job = db.session.get(ImportJob, self.job_id)
 
         for i in range(0, len(sig_items), batch_size):
-            batch = sig_items[i:i + batch_size]
+            batch = sig_items[i : i + batch_size]
 
             # Build prompt
             prompt_parts = []
@@ -312,8 +356,7 @@ class GmailScanner:
                 "For each numbered entry, return a JSON array with objects containing: "
                 "index, name, job_title, company, phone, linkedin_url. "
                 "Only include fields you can confidently extract. "
-                "Return ONLY valid JSON, no other text.\n\n"
-                + "\n".join(prompt_parts)
+                "Return ONLY valid JSON, no other text.\n\n" + "\n".join(prompt_parts)
             )
 
             try:
@@ -348,7 +391,7 @@ class GmailScanner:
                     extracted = json.loads(text_content)
                 except json.JSONDecodeError:
                     # Try to find JSON array in response
-                    match = re.search(r'\[.*\]', text_content, re.DOTALL)
+                    match = re.search(r"\[.*\]", text_content, re.DOTALL)
                     if match:
                         extracted = json.loads(match.group())
                     else:
@@ -410,10 +453,12 @@ class GmailScanner:
             if c.get("domain"):
                 company_data["domain"] = c["domain"]
 
-            rows.append({
-                "contact": contact_data,
-                "company": company_data,
-            })
+            rows.append(
+                {
+                    "contact": contact_data,
+                    "company": company_data,
+                }
+            )
 
         job = db.session.get(ImportJob, self.job_id)
         if job:
@@ -474,13 +519,17 @@ class GmailScanner:
             if part.get("mimeType") == "text/plain":
                 data = part.get("body", {}).get("data", "")
                 if data:
-                    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+                    return base64.urlsafe_b64decode(data).decode(
+                        "utf-8", errors="replace"
+                    )
             # Nested multipart
             for sub in part.get("parts", []):
                 if sub.get("mimeType") == "text/plain":
                     data = sub.get("body", {}).get("data", "")
                     if data:
-                        return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+                        return base64.urlsafe_b64decode(data).decode(
+                            "utf-8", errors="replace"
+                        )
 
         return None
 
@@ -551,6 +600,7 @@ def quick_scan(oauth_connection, config):
     query_parts = []
     if date_range and date_range > 0:
         from datetime import timedelta
+
         after_date = datetime.now(timezone.utc) - timedelta(days=date_range)
         query_parts.append(f"after:{after_date.strftime('%Y/%m/%d')}")
     query = " ".join(query_parts) if query_parts else None
@@ -559,7 +609,10 @@ def quick_scan(oauth_connection, config):
     msg_ids = []
     page_token = None
     while len(msg_ids) < max_messages:
-        list_kwargs = {"userId": "me", "maxResults": min(100, max_messages - len(msg_ids))}
+        list_kwargs = {
+            "userId": "me",
+            "maxResults": min(100, max_messages - len(msg_ids)),
+        }
         if query:
             list_kwargs["q"] = query
         if page_token:
@@ -580,7 +633,10 @@ def quick_scan(oauth_connection, config):
         messages_scanned += 1
         if exception:
             return
-        headers = {h["name"]: h["value"] for h in response.get("payload", {}).get("headers", [])}
+        headers = {
+            h["name"]: h["value"]
+            for h in response.get("payload", {}).get("headers", [])
+        }
         for field in ["From", "To", "Cc", "Reply-To"]:
             value = headers.get(field, "")
             if not value:
@@ -612,11 +668,17 @@ def quick_scan(oauth_connection, config):
     # Execute in batches of 100
     for i in range(0, len(msg_ids), 100):
         batch = service.new_batch_http_request(callback=_batch_callback)
-        for mid in msg_ids[i:i + 100]:
-            batch.add(service.users().messages().get(
-                userId="me", id=mid, format="metadata",
-                metadataHeaders=["From", "To", "Cc", "Reply-To"],
-            ))
+        for mid in msg_ids[i : i + 100]:
+            batch.add(
+                service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=mid,
+                    format="metadata",
+                    metadataHeaders=["From", "To", "Cc", "Reply-To"],
+                )
+            )
         batch.execute()
 
     return contacts, messages_scanned

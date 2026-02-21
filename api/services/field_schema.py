@@ -13,11 +13,11 @@ Usage:
 # ---------------------------------------------------------------------------
 
 COMPANY_SIZE_VALUES = {
-    "micro":       {"label": "Micro",       "min": 1,    "max": 10},
-    "small":       {"label": "Small",       "min": 11,   "max": 50},
-    "medium":      {"label": "Medium",      "min": 51,   "max": 200},
-    "mid_market":  {"label": "Mid-Market",  "min": 201,  "max": 1000},
-    "enterprise":  {"label": "Enterprise",  "min": 1001, "max": None},
+    "micro": {"label": "Micro", "min": 1, "max": 10},
+    "small": {"label": "Small", "min": 11, "max": 50},
+    "medium": {"label": "Medium", "min": 51, "max": 200},
+    "mid_market": {"label": "Mid-Market", "min": 201, "max": 1000},
+    "enterprise": {"label": "Enterprise", "min": 1001, "max": None},
 }
 
 # Legacy values that still exist in older data
@@ -54,11 +54,11 @@ def employees_to_size(emp):
 # ---------------------------------------------------------------------------
 
 REVENUE_RANGE_VALUES = {
-    "micro":       {"label": "Micro",       "max_eur_m": 1},
-    "small":       {"label": "Small",       "max_eur_m": 10},
-    "medium":      {"label": "Medium",      "max_eur_m": 50},
-    "mid_market":  {"label": "Mid-Market",  "max_eur_m": 200},
-    "enterprise":  {"label": "Enterprise",  "max_eur_m": None},
+    "micro": {"label": "Micro", "max_eur_m": 1},
+    "small": {"label": "Small", "max_eur_m": 10},
+    "medium": {"label": "Medium", "max_eur_m": 50},
+    "mid_market": {"label": "Mid-Market", "max_eur_m": 200},
+    "enterprise": {"label": "Enterprise", "max_eur_m": None},
 }
 
 
@@ -89,8 +89,13 @@ def revenue_to_range(rev_m):
 # ---------------------------------------------------------------------------
 
 BUSINESS_TYPE_VALUES = {
-    "product_company", "saas", "service_company",
-    "manufacturer", "distributor", "platform", "hybrid",
+    "product_company",
+    "saas",
+    "service_company",
+    "manufacturer",
+    "distributor",
+    "platform",
+    "hybrid",
 }
 
 # Legacy values preserved for backward compat
@@ -105,16 +110,22 @@ BUSINESS_TYPE_LEGACY = {
 # ---------------------------------------------------------------------------
 
 INDUSTRY_CATEGORY_VALUES = {
-    "technology":         {"industries": {"software_saas", "it"}},
-    "services":           {"industries": {"professional_services", "creative_services"}},
-    "finance":            {"industries": {"financial_services"}},
+    "technology": {"industries": {"software_saas", "it"}},
+    "services": {"industries": {"professional_services", "creative_services"}},
+    "finance": {"industries": {"financial_services"}},
     "healthcare_life_sci": {"industries": {"healthcare", "pharma_biotech"}},
-    "industrial":         {"industries": {"manufacturing", "automotive",
-                                          "aerospace_defense", "construction"}},
-    "consumer":           {"industries": {"retail", "hospitality", "media"}},
-    "infrastructure":     {"industries": {"telecom", "transport", "real_estate"}},
-    "primary_sector":     {"industries": {"agriculture", "energy"}},
-    "public_education":   {"industries": {"education", "public_sector"}},
+    "industrial": {
+        "industries": {
+            "manufacturing",
+            "automotive",
+            "aerospace_defense",
+            "construction",
+        }
+    },
+    "consumer": {"industries": {"retail", "hospitality", "media"}},
+    "infrastructure": {"industries": {"telecom", "transport", "real_estate"}},
+    "primary_sector": {"industries": {"agriculture", "energy"}},
+    "public_education": {"industries": {"education", "public_sector"}},
 }
 
 # Reverse lookup: industry → category

@@ -16,17 +16,17 @@ BRREG_BASE_URL = "https://data.brreg.no/enhetsregisteret/api"
 
 # Norwegian legal form suffixes to strip for name matching
 NORWEGIAN_SUFFIXES = [
-    r"\bASA?\s*$",          # AS, ASA
-    r"\bENK\s*$",           # Enkeltpersonforetak
-    r"\bANS\s*$",           # Ansvarlig selskap
-    r"\bDA\s*$",            # Selskap med delt ansvar
-    r"\bNUF\s*$",           # Norskregistrert utenlandsk foretak
-    r"\bBA\s*$",            # Selskap med begrenset ansvar
-    r"\bSA\s*$",            # Samvirkeforetak
-    r"\bSTI\s*$",           # Stiftelse
-    r"\bKF\s*$",            # Kommunalt foretak
-    r"\bIKS\s*$",           # Interkommunalt selskap
-    r"\bSF\s*$",            # Statsforetak
+    r"\bASA?\s*$",  # AS, ASA
+    r"\bENK\s*$",  # Enkeltpersonforetak
+    r"\bANS\s*$",  # Ansvarlig selskap
+    r"\bDA\s*$",  # Selskap med delt ansvar
+    r"\bNUF\s*$",  # Norskregistrert utenlandsk foretak
+    r"\bBA\s*$",  # Selskap med begrenset ansvar
+    r"\bSA\s*$",  # Samvirkeforetak
+    r"\bSTI\s*$",  # Stiftelse
+    r"\bKF\s*$",  # Kommunalt foretak
+    r"\bIKS\s*$",  # Interkommunalt selskap
+    r"\bSF\s*$",  # Statsforetak
 ]
 
 
@@ -39,9 +39,15 @@ class BrregAdapter(BaseRegistryAdapter):
     timeout = 10
 
     provides_fields = [
-        "registration_id", "official_name", "legal_form",
-        "registration_status", "date_established", "registered_address",
-        "nace_codes", "registered_capital", "insolvency_flag",
+        "registration_id",
+        "official_name",
+        "legal_form",
+        "registration_status",
+        "date_established",
+        "registered_address",
+        "nace_codes",
+        "registered_capital",
+        "insolvency_flag",
     ]
     requires_inputs = ["name"]
 
@@ -73,7 +79,8 @@ class BrregAdapter(BaseRegistryAdapter):
             for item in enheter:
                 parsed = _parse_brreg_response(item)
                 parsed["similarity"] = self.name_similarity(
-                    name, parsed.get("official_name", ""))
+                    name, parsed.get("official_name", "")
+                )
                 candidates.append(parsed)
 
             candidates.sort(key=lambda c: c.get("similarity", 0), reverse=True)
@@ -109,17 +116,21 @@ def _parse_brreg_response(data):
     city = addr.get("poststed", "")
     full_address = ", ".join(address_lines) if address_lines else ""
     if postal and city:
-        full_address = f"{full_address}, {postal} {city}" if full_address else f"{postal} {city}"
+        full_address = (
+            f"{full_address}, {postal} {city}" if full_address else f"{postal} {city}"
+        )
 
     # NACE codes
     nace_codes = []
     for key in ("naeringskode1", "naeringskode2", "naeringskode3"):
         nace = data.get(key)
         if nace and isinstance(nace, dict):
-            nace_codes.append({
-                "code": nace.get("kode"),
-                "description": nace.get("beskrivelse"),
-            })
+            nace_codes.append(
+                {
+                    "code": nace.get("kode"),
+                    "description": nace.get("beskrivelse"),
+                }
+            )
 
     # Insolvency / bankruptcy
     insolvency = bool(
