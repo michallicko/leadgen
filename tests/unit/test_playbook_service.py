@@ -167,3 +167,62 @@ class TestBuildMessages:
 
         assert len(result) == 1
         assert result[0] == {"role": "user", "content": "Hello!"}
+
+
+class TestBuildExtractionPrompt:
+    def test_returns_system_and_user(self):
+        """build_extraction_prompt returns a tuple of (system_prompt, user_message)."""
+        from api.services.playbook_service import build_extraction_prompt
+
+        system, user = build_extraction_prompt({"type": "doc", "content": []})
+
+        assert isinstance(system, str)
+        assert isinstance(user, str)
+        assert len(system) > 50
+        assert len(user) > 10
+
+    def test_includes_schema_fields(self):
+        """The system prompt contains all expected JSON schema fields."""
+        from api.services.playbook_service import build_extraction_prompt
+
+        system, _user = build_extraction_prompt({"type": "doc"})
+
+        # Top-level keys
+        for key in ["icp", "personas", "messaging", "channels", "metrics"]:
+            assert key in system, f"Missing schema key: {key}"
+
+        # Nested fields
+        for field in [
+            "industries", "company_size", "geographies", "tech_signals",
+            "triggers", "disqualifiers", "title_patterns", "pain_points",
+            "goals", "tone", "themes", "angles", "proof_points",
+            "primary", "secondary", "cadence", "reply_rate_target",
+            "meeting_rate_target", "pipeline_goal_eur", "timeline_months",
+        ]:
+            assert field in system, f"Missing schema field: {field}"
+
+    def test_includes_document_content(self):
+        """The user message includes the serialized document content."""
+        from api.services.playbook_service import build_extraction_prompt
+
+        content = {
+            "executive_summary": "We sell AI tools to enterprise SaaS companies.",
+            "icp": {"industries": ["SaaS", "FinTech"]},
+        }
+
+        _system, user = build_extraction_prompt(content)
+
+        assert "We sell AI tools to enterprise SaaS companies" in user
+        assert "SaaS" in user
+        assert "FinTech" in user
+
+    def test_instructs_json_only_output(self):
+        """The system prompt instructs the LLM to output only valid JSON."""
+        from api.services.playbook_service import build_extraction_prompt
+
+        system, _user = build_extraction_prompt({})
+
+        lower = system.lower()
+        assert "json" in lower
+        # Should instruct no markdown, no explanation
+        assert "no" in lower or "only" in lower

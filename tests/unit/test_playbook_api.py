@@ -260,3 +260,162 @@ class TestPlaybookChat:
         assert resp.status_code == 400
         data = resp.get_json()
         assert "message" in data["error"].lower()
+
+
+class TestPlaybookExtract:
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_extract_returns_structured_data(self, mock_get_client, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/extract calls LLM and saves extracted_data."""
+        from api.models import StrategyDocument
+
+        # Create a document with some content
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content={"executive_summary": "We sell AI to enterprise SaaS."},
+            status="active",
+            version=2,
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        # Mock the AnthropicClient.query to return valid JSON
+        extracted = {
+            "icp": {
+                "industries": ["SaaS", "FinTech"],
+                "company_size": {"min": 50, "max": 500},
+                "geographies": ["DACH", "UK"],
+                "tech_signals": ["AI adoption"],
+                "triggers": ["Series B"],
+                "disqualifiers": ["No budget"],
+            },
+            "personas": [
+                {
+                    "title_patterns": ["CTO", "VP Engineering"],
+                    "pain_points": ["Scaling AI"],
+                    "goals": ["Reduce costs"],
+                }
+            ],
+            "messaging": {
+                "tone": "consultative",
+                "themes": ["AI transformation"],
+                "angles": ["ROI-driven"],
+                "proof_points": ["3x revenue increase"],
+            },
+            "channels": {
+                "primary": "LinkedIn",
+                "secondary": ["Email"],
+                "cadence": "3 touches per week",
+            },
+            "metrics": {
+                "reply_rate_target": 0.15,
+                "meeting_rate_target": 0.05,
+                "pipeline_goal_eur": 500000,
+                "timeline_months": 6,
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(extracted)
+        mock_client.query.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post("/api/playbook/extract", headers=headers)
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "extracted_data" in data
+        assert data["extracted_data"]["icp"]["industries"] == ["SaaS", "FinTech"]
+        assert data["extracted_data"]["channels"]["primary"] == "LinkedIn"
+        assert "version" in data
+
+        # Verify it was saved to the database
+        db.session.expire_all()
+        saved_doc = StrategyDocument.query.filter_by(tenant_id=seed_tenant.id).first()
+        saved_extracted = saved_doc.extracted_data
+        if isinstance(saved_extracted, str):
+            saved_extracted = json.loads(saved_extracted)
+        assert saved_extracted["icp"]["industries"] == ["SaaS", "FinTech"]
+
+    def test_extract_requires_auth(self, client, seed_tenant):
+        """POST /api/playbook/extract returns 401 without token."""
+        headers = {"X-Namespace": seed_tenant.slug}
+        resp = client.post("/api/playbook/extract", headers=headers)
+        assert resp.status_code == 401
+
+    def test_extract_404_when_no_document(self, client, seed_tenant, seed_super_admin):
+        """POST /api/playbook/extract returns 404 when no strategy document exists."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post("/api/playbook/extract", headers=headers)
+        assert resp.status_code == 404
+
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_extract_handles_invalid_json(self, mock_get_client, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/extract returns 422 when LLM returns invalid JSON."""
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content={"icp": "some data"},
+            status="active",
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "This is not valid JSON at all!"
+        mock_client.query.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post("/api/playbook/extract", headers=headers)
+
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert "error" in data
+
+    @patch("api.routes.playbook_routes._get_anthropic_client")
+    def test_extract_strips_markdown_fences(self, mock_get_client, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/extract handles LLM wrapping JSON in markdown fences."""
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content={"executive_summary": "We do things."},
+            status="active",
+            version=1,
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        extracted = {
+            "icp": {"industries": ["SaaS"], "company_size": {"min": 0, "max": 0},
+                     "geographies": [], "tech_signals": [], "triggers": [], "disqualifiers": []},
+            "personas": [],
+            "messaging": {"tone": "", "themes": [], "angles": [], "proof_points": []},
+            "channels": {"primary": "", "secondary": [], "cadence": ""},
+            "metrics": {"reply_rate_target": 0.0, "meeting_rate_target": 0.0,
+                        "pipeline_goal_eur": 0, "timeline_months": 0},
+        }
+
+        # LLM wraps the JSON in markdown code fences
+        fenced_json = "```json\n{}\n```".format(json.dumps(extracted))
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = fenced_json
+        mock_client.query.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post("/api/playbook/extract", headers=headers)
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["extracted_data"]["icp"]["industries"] == ["SaaS"]

@@ -2,13 +2,14 @@
 import json
 import logging
 import os
+import re
 
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
 from ..models import StrategyDocument, StrategyChatMessage, Tenant, db
 from ..services.anthropic_client import AnthropicClient
-from ..services.playbook_service import build_messages, build_system_prompt
+from ..services.playbook_service import build_extraction_prompt, build_messages, build_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,55 @@ def update_playbook():
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
+
+
+@playbook_bp.route("/api/playbook/extract", methods=["POST"])
+@require_auth
+def extract_strategy():
+    """Extract structured data from the strategy document using an LLM."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    system_prompt, user_prompt = build_extraction_prompt(doc.content or {})
+
+    client = _get_anthropic_client()
+
+    try:
+        result = client.query(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=4096,
+            temperature=0.1,
+        )
+        raw_text = result.content
+    except Exception as e:
+        logger.exception("LLM extraction error: %s", e)
+        return jsonify({"error": "LLM extraction failed: {}".format(str(e))}), 502
+
+    # Strip markdown code fences if the LLM wraps the JSON
+    stripped = re.sub(r'```(?:json)?\s*(.*?)\s*```', r'\1', raw_text, flags=re.DOTALL)
+
+    try:
+        extracted_data = json.loads(stripped)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("LLM returned invalid JSON: %s", raw_text[:200])
+        return jsonify({
+            "error": "Failed to parse extraction result as JSON",
+            "detail": str(e),
+        }), 422
+
+    doc.extracted_data = extracted_data
+    db.session.commit()
+
+    return jsonify({
+        "extracted_data": extracted_data,
+        "version": doc.version,
+    }), 200
 
 
 def _get_or_create_document(tenant_id):

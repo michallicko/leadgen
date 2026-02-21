@@ -98,6 +98,76 @@ def build_system_prompt(tenant, document, enrichment_data=None):
     return "\n".join(parts)
 
 
+EXTRACTION_SCHEMA = """\
+{
+  "icp": {
+    "industries": ["string"],
+    "company_size": {"min": 0, "max": 0},
+    "geographies": ["string"],
+    "tech_signals": ["string"],
+    "triggers": ["string"],
+    "disqualifiers": ["string"]
+  },
+  "personas": [
+    {
+      "title_patterns": ["string"],
+      "pain_points": ["string"],
+      "goals": ["string"]
+    }
+  ],
+  "messaging": {
+    "tone": "string",
+    "themes": ["string"],
+    "angles": ["string"],
+    "proof_points": ["string"]
+  },
+  "channels": {
+    "primary": "string",
+    "secondary": ["string"],
+    "cadence": "string"
+  },
+  "metrics": {
+    "reply_rate_target": 0.0,
+    "meeting_rate_target": 0.0,
+    "pipeline_goal_eur": 0,
+    "timeline_months": 0
+  }
+}"""
+
+
+def build_extraction_prompt(document_content):
+    """Build the system + user prompt pair for structured data extraction.
+
+    Instructs the LLM to extract ICP, personas, messaging, channels, and
+    metrics from a GTM strategy document into a fixed JSON schema.
+
+    Args:
+        document_content: The strategy document's ``content`` dict (rich doc).
+
+    Returns:
+        tuple[str, str]: (system_prompt, user_message) ready for
+        ``AnthropicClient.query()``.
+    """
+    system_prompt = (
+        "You are a data extraction assistant. Your task is to extract "
+        "structured data from a GTM (go-to-market) strategy document.\n\n"
+        "Output ONLY valid JSON matching this exact schema. No markdown "
+        "fences, no explanation, no commentary -- just the JSON object.\n\n"
+        "If a field cannot be determined from the document, use empty "
+        "arrays for list fields, empty strings for string fields, and "
+        "zero for numeric fields.\n\n"
+        "Required JSON schema:\n" + EXTRACTION_SCHEMA
+    )
+
+    content_str = json.dumps(document_content, indent=2, default=str)
+    user_message = (
+        "Extract structured data from this GTM strategy document:\n\n"
+        + content_str
+    )
+
+    return system_prompt, user_message
+
+
 def build_messages(chat_history, user_message):
     """Convert DB chat history into Anthropic API message format.
 
