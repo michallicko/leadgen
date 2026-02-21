@@ -452,8 +452,17 @@ def get_research_status():
     if not company:
         return jsonify({"status": "not_started"}), 200
 
+    status = _research_status_from_company(company)
+
+    # Guard against race condition: enrichment may set company status to
+    # "enriched_l2" before the template is seeded into the document.
+    # Keep reporting "in_progress" until the document actually has content.
+    if status == "completed":
+        if not doc.content or len(doc.content.strip()) == 0:
+            status = "in_progress"
+
     result = {
-        "status": _research_status_from_company(company),
+        "status": status,
         "company": {
             "id": company.id,
             "name": company.name,

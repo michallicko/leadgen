@@ -588,10 +588,11 @@ class TestPlaybookResearch:
         db.session.add(company)
         db.session.flush()
 
-        # Create strategy document linked to company
+        # Create strategy document linked to company with seeded content
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
             enrichment_id=company.id,
+            content="# Strategy\nSeeded template content",
             status="draft",
         )
         db.session.add(doc)
@@ -607,6 +608,38 @@ class TestPlaybookResearch:
         assert data["company"]["name"] == "Test Corp"
         assert data["company"]["domain"] == "testcorp.com"
         assert data["company"]["tier"] == "tier_1_platinum"
+
+    def test_get_research_in_progress_when_no_content(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        """Race condition guard: enriched_l2 but empty doc content stays in_progress."""
+        from api.models import Company, StrategyDocument
+
+        company = Company(
+            tenant_id=seed_tenant.id,
+            name="Test Corp",
+            domain="testcorp.com",
+            status="enriched_l2",
+            is_self=True,
+        )
+        db.session.add(company)
+        db.session.flush()
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            enrichment_id=company.id,
+            status="draft",
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp = client.get("/api/playbook/research", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "in_progress"
 
     def test_research_requires_auth(self, client, seed_tenant):
         """GET and POST /api/playbook/research return 401 without token."""

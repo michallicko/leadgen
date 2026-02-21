@@ -99,6 +99,20 @@ export function PlaybookPage() {
     }
   }, [docQuery.data])
 
+  // Poll for content when document has enrichment_id but empty content
+  // (race condition: research completed before template was seeded)
+  useEffect(() => {
+    if (!docQuery.data) return
+    const hasEnrichment = !!docQuery.data.enrichment_id
+    const hasContent = !!(docQuery.data.content && docQuery.data.content.trim().length > 0)
+    if (hasEnrichment && !hasContent && !isDirty) {
+      const interval = setInterval(() => {
+        docQuery.refetch()
+      }, 2000)
+      return () => clearInterval(interval)
+    }
+  }, [docQuery.data?.enrichment_id, docQuery.data?.content, isDirty])
+
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
     ? editedContent
