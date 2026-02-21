@@ -267,8 +267,13 @@ def _run_self_research(app, company_id, tenant_id):
                 l1 = db.session.get(CompanyEnrichmentL1, company_id)
                 if l1 and l1.raw_response:
                     import json as _json
+
                     try:
-                        raw = _json.loads(l1.raw_response) if isinstance(l1.raw_response, str) else l1.raw_response
+                        raw = (
+                            _json.loads(l1.raw_response)
+                            if isinstance(l1.raw_response, str)
+                            else l1.raw_response
+                        )
                         l1_name = raw.get("company_name") or raw.get("name")
                         if l1_name and l1_name != company.name:
                             company.name = l1_name
@@ -302,9 +307,7 @@ def _run_self_research(app, company_id, tenant_id):
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
             if doc and doc.version == 1:
                 enrichment_data = _load_enrichment_data(company_id)
-                doc.content = build_seeded_template(
-                    doc.objective, enrichment_data
-                )
+                doc.content = build_seeded_template(doc.objective, enrichment_data)
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
@@ -325,17 +328,19 @@ def _run_self_research(app, company_id, tenant_id):
                     tenant_id=tenant_id,
                     user_id=doc.updated_by,
                     doc_id=doc.id,
-                    event_type="research_complete" if not l2_failed else "research_partial",
+                    event_type="research_complete"
+                    if not l2_failed
+                    else "research_partial",
                     payload={
                         "company_id": str(company_id),
-                        "enrichment_keys": list(enrichment_data.keys()) if enrichment_data else [],
+                        "enrichment_keys": list(enrichment_data.keys())
+                        if enrichment_data
+                        else [],
                         "l2_failed": l2_failed,
                     },
                 )
         except Exception:
-            logger.exception(
-                "Self-research failed for company %s", company_id
-            )
+            logger.exception("Self-research failed for company %s", company_id)
             # Still try to seed template with whatever data we have
             try:
                 doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
@@ -376,20 +381,23 @@ def trigger_research():
             {"error": "Domain is required (provide in body or set on tenant)"}
         ), 400
 
+    # Derive company name from domain (strip TLD, capitalize)
+    # e.g., "notion.so" → "Notion", "stripe.com" → "Stripe"
+    domain_parts = domain.split(".")
+    company_name = domain_parts[0].capitalize() if domain_parts else domain
+
     # Find or create the self-company for this tenant
     company = Company.query.filter_by(tenant_id=tenant_id, is_self=True).first()
 
     if company:
-        # Update domain if it changed
-        if company.domain != domain:
-            company.domain = domain
+        company.domain = domain
+        company.name = company_name
         # Reset status for re-research
         company.status = "new"
     else:
-        tenant = db.session.get(Tenant, tenant_id)
         company = Company(
             tenant_id=tenant_id,
-            name=tenant.name if tenant else domain,
+            name=company_name,
             domain=domain,
             is_self=True,
             status="new",
@@ -412,7 +420,11 @@ def trigger_research():
             user_id=user_id,
             doc_id=doc.id,
             event_type="research_trigger",
-            payload={"domain": domain, "objective": objective, "company_id": str(company.id)},
+            payload={
+                "domain": domain,
+                "objective": objective,
+                "company_id": str(company.id),
+            },
         )
 
     # Launch enrichment in background thread
@@ -598,7 +610,9 @@ def post_chat_message():
         )
 
 
-def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None):
+def _stream_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+):
     """Return an SSE streaming response with LLM chunks.
 
     DB operations (saving the assistant message) happen inside the generator
@@ -668,7 +682,9 @@ def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_ms
     )
 
 
-def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None):
+def _sync_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+):
     """Return a non-streaming JSON response with the full LLM reply."""
     try:
         full_text = []
