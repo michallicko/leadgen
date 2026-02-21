@@ -81,7 +81,7 @@ class TestBuildSystemPrompt:
         doc.objective = None
 
         enrichment = {
-            "industry": "SaaS",
+            "company": {"name": "Acme", "industry": "SaaS"},
             "company_intel": "Series B funded, 50 employees",
         }
 
