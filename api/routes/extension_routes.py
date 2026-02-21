@@ -1,4 +1,4 @@
-"""Browser extension API routes for lead import, activity sync, and status."""
+"""Browser extension API routes for lead import, activity sync, LinkedIn queue, and status."""
 
 from datetime import datetime, timezone
 
@@ -249,5 +249,230 @@ def extension_status():
             ),
             "total_leads_imported": lead_count,
             "total_activities_synced": activity_count,
+        }
+    )
+
+
+# --- LinkedIn Send Queue (consumed by Chrome extension) ---
+
+
+@extension_bp.route("/api/extension/linkedin-queue", methods=["GET"])
+@require_auth
+def get_linkedin_queue():
+    """Pull next batch of queued LinkedIn actions for the authenticated user.
+
+    The extension calls this to get items to process. Returned items are
+    marked as 'claimed' with a claimed_at timestamp so they are not returned
+    again on the next poll.
+
+    Query params:
+        limit: max items to return (default 5, max 20)
+
+    Returns: list of queue items with contact/company context.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user = g.current_user
+    owner_id = user.owner_id
+    if not owner_id:
+        return jsonify({"error": "User has no owner_id linked"}), 400
+
+    limit = min(int(request.args.get("limit", 5)), 20)
+
+    # Get oldest queued items for this owner
+    rows = db.session.execute(
+        db.text("""
+            SELECT lsq.id, lsq.action_type, lsq.linkedin_url, lsq.body,
+                   ct.first_name, ct.last_name, co.name AS company_name
+            FROM linkedin_send_queue lsq
+            JOIN contacts ct ON lsq.contact_id = ct.id
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE lsq.tenant_id = :t AND lsq.owner_id = :oid
+                AND lsq.status = 'queued'
+            ORDER BY lsq.created_at ASC
+            LIMIT :lim
+        """),
+        {"t": tenant_id, "oid": owner_id, "lim": limit},
+    ).fetchall()
+
+    if not rows:
+        return jsonify([])
+
+    items = []
+    claimed_ids = []
+    for r in rows:
+        queue_id = r[0]
+        contact_name = ((r[4] or "") + " " + (r[5] or "")).strip()
+        items.append(
+            {
+                "id": str(queue_id),
+                "action_type": r[1],
+                "linkedin_url": r[2],
+                "body": r[3],
+                "contact_name": contact_name,
+                "company_name": r[6],
+            }
+        )
+        claimed_ids.append(str(queue_id))
+
+    # Mark as claimed
+    cid_placeholders = ", ".join(f":cid_{i}" for i in range(len(claimed_ids)))
+    cid_params = {f"cid_{i}": v for i, v in enumerate(claimed_ids)}
+    cid_params["t"] = tenant_id
+    db.session.execute(
+        db.text(f"""
+            UPDATE linkedin_send_queue
+            SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = :t AND id IN ({cid_placeholders})
+        """),
+        cid_params,
+    )
+    db.session.commit()
+
+    return jsonify(items)
+
+
+@extension_bp.route("/api/extension/linkedin-queue/<queue_id>", methods=["PATCH"])
+@require_auth
+def update_linkedin_queue_item(queue_id):
+    """Report the result of a LinkedIn action.
+
+    Body: { status: "sent"|"failed"|"skipped", error?: string }
+    Response: { ok: true }
+
+    On "sent": sets sent_at, also updates the source message's sent_at.
+    On "failed": increments retry_count, stores error.
+    On "skipped": marks as skipped (no retry).
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user = g.current_user
+    owner_id = user.owner_id
+    if not owner_id:
+        return jsonify({"error": "User has no owner_id linked"}), 400
+
+    body = request.get_json(silent=True) or {}
+    new_status = body.get("status")
+    error_msg = body.get("error")
+
+    if new_status not in ("sent", "failed", "skipped"):
+        return jsonify({"error": "status must be 'sent', 'failed', or 'skipped'"}), 400
+
+    # Verify ownership
+    entry = db.session.execute(
+        db.text("""
+            SELECT id, message_id, owner_id, status
+            FROM linkedin_send_queue
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": queue_id, "t": tenant_id},
+    ).fetchone()
+
+    if not entry:
+        return jsonify({"error": "Queue item not found"}), 404
+
+    if str(entry[2]) != str(owner_id):
+        return jsonify({"error": "Not authorized to update this queue item"}), 403
+
+    message_id = entry[1]
+
+    if new_status == "sent":
+        db.session.execute(
+            db.text("""
+                UPDATE linkedin_send_queue
+                SET status = 'sent', sent_at = CURRENT_TIMESTAMP, error = NULL
+                WHERE id = :id AND tenant_id = :t
+            """),
+            {"id": queue_id, "t": tenant_id},
+        )
+        # Also update the source message's sent_at
+        db.session.execute(
+            db.text("""
+                UPDATE messages
+                SET sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE id = :mid AND tenant_id = :t
+            """),
+            {"mid": message_id, "t": tenant_id},
+        )
+    elif new_status == "failed":
+        db.session.execute(
+            db.text("""
+                UPDATE linkedin_send_queue
+                SET status = 'failed',
+                    error = :error,
+                    retry_count = retry_count + 1
+                WHERE id = :id AND tenant_id = :t
+            """),
+            {"id": queue_id, "t": tenant_id, "error": error_msg or "Unknown error"},
+        )
+    elif new_status == "skipped":
+        db.session.execute(
+            db.text("""
+                UPDATE linkedin_send_queue
+                SET status = 'skipped', error = :error
+                WHERE id = :id AND tenant_id = :t
+            """),
+            {"id": queue_id, "t": tenant_id, "error": error_msg},
+        )
+
+    db.session.commit()
+
+    return jsonify({"ok": True})
+
+
+@extension_bp.route("/api/extension/linkedin-queue/stats", methods=["GET"])
+@require_auth
+def linkedin_queue_stats():
+    """Get daily LinkedIn usage stats for the authenticated user.
+
+    Returns: {
+        today: { sent, failed, remaining, skipped },
+        limits: { connections_per_day, messages_per_day }
+    }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user = g.current_user
+    owner_id = user.owner_id
+    if not owner_id:
+        return jsonify({"error": "User has no owner_id linked"}), 400
+
+    # Count items by status, scoped to today (sent_at for sent, created_at for others)
+    today_stats = db.session.execute(
+        db.text("""
+            SELECT status, COUNT(*) AS cnt
+            FROM linkedin_send_queue
+            WHERE tenant_id = :t AND owner_id = :oid
+                AND (
+                    (status = 'sent' AND date(sent_at) = date('now'))
+                    OR (status = 'failed' AND date(created_at) = date('now'))
+                    OR (status = 'skipped' AND date(created_at) = date('now'))
+                    OR status IN ('queued', 'claimed')
+                )
+            GROUP BY status
+        """),
+        {"t": tenant_id, "oid": owner_id},
+    ).fetchall()
+
+    counts = {r[0]: r[1] for r in today_stats}
+
+    return jsonify(
+        {
+            "today": {
+                "sent": counts.get("sent", 0),
+                "failed": counts.get("failed", 0),
+                "skipped": counts.get("skipped", 0),
+                "remaining": counts.get("queued", 0) + counts.get("claimed", 0),
+            },
+            "limits": {
+                "connections_per_day": 15,
+                "messages_per_day": 40,
+            },
         }
     )
