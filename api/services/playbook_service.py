@@ -319,19 +319,178 @@ def build_extraction_prompt(document_content):
 
 
 def _get(data, key, default=""):
-    """Safely extract a string value from a dict, returning default if missing."""
+    """Safely extract a value from a dict, returning default if missing."""
     val = data.get(key) or default
-    if isinstance(val, list):
-        return "\n".join(f"- {item}" for item in val)
-    if isinstance(val, dict):
-        import json
+    return val if val else default
 
-        return json.dumps(val, indent=2)
-    return str(val) if val else default
+
+def _clean_industry(raw):
+    """Convert snake_case industry names to title case.
+
+    E.g. 'financial_services' -> 'Financial Services', 'technology' -> 'Technology'.
+    Leaves already-formatted names unchanged.
+    """
+    if not raw:
+        return ""
+    return raw.replace("_", " ").title() if "_" in raw else raw
+
+
+def _parse_structured(val):
+    """Parse a value that might be a JSON string, list, dict, or plain string.
+
+    Returns the parsed Python object (list/dict) or the original string.
+    """
+    if isinstance(val, (list, dict)):
+        return val
+    if isinstance(val, str):
+        stripped = val.strip()
+        if stripped.startswith(("[", "{")):
+            try:
+                return json.loads(stripped)
+            except (json.JSONDecodeError, ValueError):
+                pass
+    return val
+
+
+def _format_opportunities(raw):
+    """Format ai_opportunities into structured markdown subsections.
+
+    Handles: JSON string, list of dicts, list of strings, or plain string.
+    Each opportunity gets a heading with priority/timeline badges.
+    """
+    parsed = _parse_structured(raw)
+    if not parsed:
+        return ""
+
+    if isinstance(parsed, str):
+        return parsed
+
+    if isinstance(parsed, list):
+        parts = []
+        for item in parsed:
+            if isinstance(item, dict):
+                name = item.get("use_case") or item.get("name") or "Opportunity"
+                priority = item.get("priority", "")
+                timeline = item.get("timeline", "")
+                evidence = item.get("evidence", "")
+                impact = item.get("business_impact") or item.get("impact", "")
+
+                parts.append("### {}".format(name))
+                badges = []
+                if priority:
+                    badges.append("**Priority:** {}".format(priority.capitalize()))
+                if timeline:
+                    badges.append("**Timeline:** {}".format(timeline))
+                if badges:
+                    parts.append(" | ".join(badges))
+                if evidence:
+                    parts.append("**Evidence:** {}".format(evidence))
+                if impact:
+                    parts.append("**Business Impact:** {}".format(impact))
+                parts.append("")
+            elif isinstance(item, str):
+                parts.append("- {}".format(item))
+        return "\n".join(parts).rstrip()
+
+    return str(parsed)
+
+
+def _format_quick_wins(raw):
+    """Format quick_wins into structured markdown subsections.
+
+    Each quick win gets a heading with complexity/timeline/ROI badges
+    and impact/evidence as bullet points.
+    """
+    parsed = _parse_structured(raw)
+    if not parsed:
+        return ""
+
+    if isinstance(parsed, str):
+        return parsed
+
+    if isinstance(parsed, list):
+        parts = []
+        for item in parsed:
+            if isinstance(item, dict):
+                name = (
+                    item.get("use_case")
+                    or item.get("name")
+                    or item.get("action")
+                    or "Quick Win"
+                )
+                complexity = item.get("complexity", "")
+                timeline = item.get("timeline", "")
+                roi = item.get("roi_estimate") or item.get("roi", "")
+                impact = item.get("impact", "")
+                evidence = item.get("evidence", "")
+
+                parts.append("### {}".format(name))
+                badges = []
+                if complexity:
+                    badges.append("**Complexity:** {}".format(complexity.capitalize()))
+                if timeline:
+                    badges.append("**Timeline:** {}".format(timeline))
+                if roi:
+                    badges.append("**ROI:** {}/year".format(roi))
+                if badges:
+                    parts.append(" | ".join(badges))
+                if impact:
+                    parts.append("- **Impact:** {}".format(impact))
+                if evidence:
+                    parts.append("- **Evidence:** {}".format(evidence))
+                parts.append("")
+            elif isinstance(item, str):
+                parts.append("- {}".format(item))
+        return "\n".join(parts).rstrip()
+
+    return str(parsed)
+
+
+# Industry-specific persona templates keyed by common industry slugs
+_INDUSTRY_PERSONAS = {
+    "financial_services": [
+        ("CTO / VP Engineering", "Legacy system modernization, regulatory compliance"),
+        ("Head of Payments / VP Product", "Transaction speed, fraud prevention"),
+        ("CISO / Head of Compliance", "Data security, audit readiness"),
+    ],
+    "finance": [
+        ("CTO / VP Engineering", "Legacy system modernization, regulatory compliance"),
+        ("Head of Payments / VP Product", "Transaction speed, fraud prevention"),
+        ("CISO / Head of Compliance", "Data security, audit readiness"),
+    ],
+    "technology": [
+        ("VP Engineering / CTO", "Developer productivity, platform scalability"),
+        ("VP Product", "Feature velocity, competitive differentiation"),
+        ("Head of Data / ML", "Data infrastructure, model deployment"),
+    ],
+    "saas": [
+        ("VP Engineering / CTO", "Developer productivity, platform scalability"),
+        ("VP Product", "Feature velocity, customer retention"),
+        ("Head of Growth / CMO", "Acquisition cost, conversion optimization"),
+    ],
+    "healthcare": [
+        ("CTO / VP Engineering", "Interoperability, HIPAA compliance"),
+        ("CMO / VP Clinical", "Clinical workflow efficiency, patient outcomes"),
+        ("VP Operations", "Cost reduction, process automation"),
+    ],
+}
+
+_DEFAULT_PERSONAS = [
+    ("CTO / VP Engineering", "Technical infrastructure, team productivity"),
+    ("VP Product / Head of Product", "Feature roadmap, competitive positioning"),
+    ("VP Operations / COO", "Process efficiency, cost optimization"),
+]
 
 
 def build_seeded_template(objective=None, enrichment_data=None):
     """Generate a markdown template for a new strategy document.
+
+    Produces a professional strategy document with structured formatting:
+    - Complex enrichment fields (ai_opportunities, quick_wins) are parsed
+      from JSON and formatted as subsections with badges
+    - Industry names are cleaned from snake_case to Title Case
+    - Each section uses distinct enrichment fields (no duplication)
+    - Placeholder instructions are replaced with actionable content
 
     Args:
         objective: Optional user-stated objective to embed in the summary.
@@ -347,8 +506,9 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
     co = enrichment_data.get("company") or {}
     company_name = _get(co, "name")
-    industry = _get(co, "industry")
-    industry_category = _get(co, "industry_category")
+    industry_raw = _get(co, "industry")
+    industry = _clean_industry(industry_raw)
+    industry_category = _clean_industry(_get(co, "industry_category"))
     summary = _get(co, "summary")
     company_size = _get(co, "company_size")
     revenue_range = _get(co, "revenue_range")
@@ -364,14 +524,11 @@ def build_seeded_template(objective=None, enrichment_data=None):
     leadership_team = _get(enrichment_data, "leadership_team")
     certifications = _get(enrichment_data, "certifications")
 
-    # L1 fields
-    triage_notes = _get(enrichment_data, "triage_notes")
-
     # L2 fields
     company_overview = _get(enrichment_data, "company_overview")
-    ai_opportunities = _get(enrichment_data, "ai_opportunities")
+    ai_opportunities_raw = enrichment_data.get("ai_opportunities") or ""
     pain_hypothesis = _get(enrichment_data, "pain_hypothesis")
-    quick_wins = _get(enrichment_data, "quick_wins")
+    quick_wins_raw = enrichment_data.get("quick_wins") or ""
 
     # Signals fields
     digital_initiatives = _get(enrichment_data, "digital_initiatives")
@@ -382,6 +539,10 @@ def build_seeded_template(objective=None, enrichment_data=None):
     # Market fields
     recent_news = _get(enrichment_data, "recent_news")
     funding_history = _get(enrichment_data, "funding_history")
+
+    # Pre-format complex fields
+    ai_opportunities_formatted = _format_opportunities(ai_opportunities_raw)
+    quick_wins_formatted = _format_quick_wins(quick_wins_raw)
 
     header = (
         "{} \u2014 GTM Strategy".format(company_name)
@@ -398,7 +559,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
         exec_parts.append("**Company:** {}".format(company_name))
     if industry:
         line = "**Industry:** {}".format(industry)
-        if industry_category:
+        if industry_category and industry_category.lower() != industry.lower():
             line += " ({})".format(industry_category)
         exec_parts.append(line)
     if company_size:
@@ -425,17 +586,17 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
     # --- ICP ---
     icp_parts = []
-    if customer_segments:
-        icp_parts.append("**Target Segments:** {}".format(customer_segments))
+    if industry:
+        icp_parts.append("**Industry:** {}".format(industry))
     if company_size:
-        icp_parts.append(
-            "**Company Profile:** {} employees, {} revenue".format(
-                company_size, revenue_range or "undisclosed"
-            )
-        )
-    if triage_notes:
+        icp_parts.append("**Company Size:** {} employees".format(company_size))
+    if revenue_range:
+        icp_parts.append("**Revenue Range:** {}".format(revenue_range))
+    if hq_city and hq_country:
+        icp_parts.append("**Geography:** {}, {}".format(hq_city, hq_country))
+    if customer_segments:
         icp_parts.append("")
-        icp_parts.append("**Triage Notes:** {}".format(triage_notes))
+        icp_parts.append("**Target Segments:** {}".format(customer_segments))
     if growth_indicators:
         icp_parts.append("")
         icp_parts.append("**Growth Signals to Target:** {}".format(growth_indicators))
@@ -454,24 +615,20 @@ def build_seeded_template(objective=None, enrichment_data=None):
     if leadership_team:
         persona_parts.append("**Key Decision-Makers:** {}".format(leadership_team))
         persona_parts.append("")
-    if triage_notes:
-        persona_parts.append("**Buying Dynamics:** {}".format(triage_notes))
-        persona_parts.append("")
     if ai_adoption_level:
         persona_parts.append("**AI Adoption Level:** {}".format(ai_adoption_level))
         persona_parts.append("")
-    if leadership_team or triage_notes:
-        persona_parts.append(
-            "Based on the leadership and buying dynamics above, build 2-3 "
-            "buyer persona profiles. For each, specify the title pattern, "
-            "key pain points, and primary goals."
-        )
-    else:
-        persona_parts.append(
-            "Build 2-3 buyer persona profiles with title patterns, "
-            "pain points, and goals."
-        )
-    persona_content = "\n".join(persona_parts)
+
+    # Generate industry-specific persona templates
+    industry_key = industry_raw.lower() if industry_raw else ""
+    personas = _INDUSTRY_PERSONAS.get(industry_key, _DEFAULT_PERSONAS)
+    for title, focus in personas:
+        persona_parts.append("### {}".format(title))
+        persona_parts.append("**Focus Areas:** {}".format(focus))
+        persona_parts.append("**Pain Points:** _Fill based on discovery calls_")
+        persona_parts.append("**Goals:** _Fill based on discovery calls_")
+        persona_parts.append("")
+    persona_content = "\n".join(persona_parts).rstrip()
 
     # --- Value Proposition ---
     value_parts = []
@@ -482,11 +639,11 @@ def build_seeded_template(objective=None, enrichment_data=None):
         value_parts.append("**Pain Points Identified:**")
         value_parts.append("")
         value_parts.append(pain_hypothesis)
-    if ai_opportunities:
+    if ai_opportunities_formatted:
         value_parts.append("")
         value_parts.append("**AI/Tech Opportunities:**")
         value_parts.append("")
-        value_parts.append(ai_opportunities)
+        value_parts.append(ai_opportunities_formatted)
     if not value_parts:
         value_parts.append(
             "Articulate your core value proposition and key messaging themes."
@@ -507,7 +664,10 @@ def build_seeded_template(objective=None, enrichment_data=None):
         comp_parts.append("")
         comp_parts.append("**Digital Initiatives:** {}".format(digital_initiatives))
     if not comp_parts:
-        comp_parts.append("Map your competitive landscape and differentiation.")
+        comp_parts.append(
+            "Identify key competitors, their strengths and weaknesses, "
+            "and your differentiation strategy."
+        )
     comp_content = "\n".join(comp_parts)
 
     # --- Channel Strategy ---
@@ -515,14 +675,28 @@ def build_seeded_template(objective=None, enrichment_data=None):
     if customer_segments:
         channel_parts.append("**Target Audience:** {}".format(customer_segments))
         channel_parts.append("")
-    if hiring_signals:
-        channel_parts.append("**Leverage Hiring Signals:** {}".format(hiring_signals))
-        channel_parts.append("")
+    channel_parts.append("**Recommended Channels:**")
+    channel_parts.append("")
     channel_parts.append(
-        "Prioritize channels based on where these buyer personas engage. "
-        "Consider LinkedIn for B2B outreach, industry events, "
-        "and partnerships for warm introductions."
+        "- **LinkedIn** \u2014 Direct outreach to decision-makers, "
+        "thought leadership content"
     )
+    channel_parts.append(
+        "- **Industry Events** \u2014 Conferences, meetups, "
+        "and roundtables in the {} space".format(industry or "target")
+    )
+    channel_parts.append(
+        "- **Partnerships** \u2014 Warm introductions through "
+        "ecosystem partners and advisors"
+    )
+    if hiring_signals:
+        channel_parts.append("")
+        channel_parts.append(
+            "**Timing Signal:** Companies actively hiring for "
+            "the following roles may be in a buying window:"
+        )
+        channel_parts.append("")
+        channel_parts.append(hiring_signals)
     channel_content = "\n".join(channel_parts)
 
     # --- Messaging Framework ---
@@ -532,15 +706,14 @@ def build_seeded_template(objective=None, enrichment_data=None):
         msg_parts.append("")
         msg_parts.append(pain_hypothesis)
         msg_parts.append("")
-    if ai_opportunities:
-        msg_parts.append("**Offer AI-Powered Solutions:**")
+    if ai_opportunities_formatted:
+        msg_parts.append("**Position AI-Powered Solutions:**")
         msg_parts.append("")
-        msg_parts.append(ai_opportunities)
+        msg_parts.append(ai_opportunities_formatted)
         msg_parts.append("")
     msg_parts.append(
-        "Build messaging pillars that connect the identified pain points "
-        "to your solution, using proof points and case studies relevant "
-        "to the {} industry.".format(industry or "target")
+        "**Proof Points:** Reference case studies and quantified results "
+        "from similar {} companies to build credibility.".format(industry or "industry")
     )
     msg_content = "\n".join(msg_parts)
 
@@ -559,14 +732,29 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
     # --- 90-Day Action Plan ---
     action_parts = []
-    if quick_wins:
-        action_parts.append("**Quick Wins (First 30 Days):**")
+    if quick_wins_formatted:
+        action_parts.append("### Days 1-30: Quick Wins")
         action_parts.append("")
-        action_parts.append(quick_wins)
+        action_parts.append(quick_wins_formatted)
         action_parts.append("")
-    action_parts.append("**Days 31-60:** Build on quick wins, expand outreach")
+    else:
+        action_parts.append("### Days 1-30: Foundation")
+        action_parts.append("")
+        action_parts.append("- Validate ICP assumptions with 5-10 discovery calls")
+        action_parts.append("- Set up outreach infrastructure and sequences")
+        action_parts.append("- Launch initial LinkedIn campaigns")
+        action_parts.append("")
+    action_parts.append("### Days 31-60: Scale")
     action_parts.append("")
-    action_parts.append("**Days 61-90:** Optimize based on metrics, scale what works")
+    action_parts.append("- Expand outreach volume based on Day 1-30 learnings")
+    action_parts.append("- A/B test messaging angles and subject lines")
+    action_parts.append("- Build pipeline of qualified opportunities")
+    action_parts.append("")
+    action_parts.append("### Days 61-90: Optimize")
+    action_parts.append("")
+    action_parts.append("- Analyze conversion metrics and double down on top channels")
+    action_parts.append("- Refine personas based on actual buyer conversations")
+    action_parts.append("- Set targets for next quarter based on results")
     action_content = "\n".join(action_parts)
 
     return """# {header}
