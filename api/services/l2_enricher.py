@@ -152,6 +152,20 @@ RULES:
 - Quick wins MUST be achievable in 4-8 weeks with clear ROI
 - Pain hypothesis = what keeps a senior leader awake, based on evidence
 
+TONE RULES (CRITICAL — this output is shown to business owners):
+- NEVER use the word "DISQUALIFY" or similar harsh labels in any field
+- NEVER say a company "shows no verifiable business presence" or imply a company may not be real
+- When data is limited, frame it constructively: "Limited public information available" not \
+"No company information found"
+- Frame gaps as "we could not find X" or "X could not be confirmed" — never "X doesn't exist"
+- The executive_brief is read by business owners about their own prospects. Keep it professional \
+and respectful at all times
+- If research yields very little, focus on what IS known and suggest areas for further research
+- Example good tone: "A company in [industry] with limited public presence. \
+Additional research recommended to confirm company scale and identify specific AI opportunities."
+- Example bad tone: "DISQUALIFY: shows no verifiable business presence. \
+Recommend data validation before sales investment."
+
 PITCH FRAMING:
 - growth_acceleration: expansion, funding, hiring
 - efficiency_protection: cost pressure, layoffs, flat revenue
@@ -161,15 +175,19 @@ PITCH FRAMING:
 OUTPUT FORMAT: Return ONLY valid JSON. Start with {.
 
 {
-  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact",
-  "pain_hypothesis": "1-2 sentences based on evidence",
+  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact. If data is limited, \
+suggest general industry-relevant opportunities and note that further research may refine these.",
+  "pain_hypothesis": "1-2 sentences based on evidence. If evidence is thin, frame as \
+'Based on industry patterns, likely challenges include...'",
   "quick_wins": [{"use_case": "...", "evidence": "...", "impact": "...", "complexity": "low|medium"}],
   "industry_pain_points": "Top 3 industry-specific pain points",
   "cross_functional_pain": "Cross-department pain points",
   "adoption_barriers": "Likely objections or blockers",
   "competitor_ai_moves": "Competitor AI activity or null",
   "pitch_framing": "growth_acceleration|efficiency_protection|competitive_catch_up|compliance_driven",
-  "executive_brief": "3-4 sentence summary for a sales rep"
+  "executive_brief": "3-4 sentence professional summary for a sales rep. Always lead with what \
+IS known about the company. If information is limited, note this neutrally and suggest next steps \
+like manual research or direct outreach. Never use dismissive or disqualifying language."
 }"""
 
 SYNTHESIS_USER_TEMPLATE = """Generate AI opportunity analysis for {company_name} ({domain}):
@@ -231,6 +249,12 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         company, l1_data = _load_company_and_l1(company_id)
         if not company:
             return {"error": "Company not found", "enrichment_cost_usd": 0}
+
+        # Skip tenant's own company — never enrich self
+        if company.get("is_self"):
+            logger.info("Skipping self-company %s — is_self=True",
+                        company["name"])
+            return {"enrichment_cost_usd": 0, "skipped": "is_self"}
 
         if not tenant_id:
             tenant_id = company["tenant_id"]
@@ -313,7 +337,8 @@ def _load_company_and_l1(company_id):
             SELECT c.id, c.tenant_id, c.name, c.domain, c.industry,
                    c.verified_revenue_eur_m, c.verified_employees,
                    c.geo_region, c.tier, c.hq_city, c.hq_country,
-                   l1.raw_response, l1.confidence, l1.qc_flags
+                   l1.raw_response, l1.confidence, l1.qc_flags,
+                   c.is_self
             FROM companies c
             LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
             WHERE c.id = :cid
@@ -336,6 +361,7 @@ def _load_company_and_l1(company_id):
         "tier": row[8] or "",
         "hq_city": row[9] or "",
         "hq_country": row[10] or "",
+        "is_self": row[14],
     }
 
     l1_raw = row[11]

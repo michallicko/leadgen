@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router'
+import ReactMarkdown from 'react-markdown'
 import {
   useReviewQueue, useUpdateMessage,
   type ReviewQueueItem,
@@ -328,8 +329,8 @@ export function MessageReviewPage() {
                 </div>
               )}
 
-              <div className="whitespace-pre-wrap text-sm text-text leading-relaxed mb-4">
-                {msg.body}
+              <div className="text-sm text-text leading-relaxed mb-4 prose-sm-msg">
+                <ReactMarkdown>{msg.body}</ReactMarkdown>
               </div>
 
               {msg.original_body && msg.original_body !== msg.body && (

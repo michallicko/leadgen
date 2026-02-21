@@ -7,6 +7,169 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
+# Website scraping tests (no DB / no Flask app needed)
+# ---------------------------------------------------------------------------
+
+class TestScrapeWebsite:
+    def setup_method(self):
+        from api.services.l1_enricher import scrape_website
+        self.scrape = scrape_website
+
+    def test_none_domain(self):
+        assert self.scrape(None) is None
+
+    def test_empty_domain(self):
+        assert self.scrape("") is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_successful_scrape(self, mock_get):
+        """Successful homepage scrape returns title + meta + body text."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Type": "text/html; charset=utf-8"}
+        mock_resp.text = """
+        <html>
+        <head>
+            <title>Acme Corp - Enterprise Solutions</title>
+            <meta name="description" content="Leading B2B software company">
+        </head>
+        <body>
+            <nav>Skip this nav</nav>
+            <main>
+                <h1>Welcome to Acme</h1>
+                <p>We build enterprise automation tools for the modern workplace.</p>
+            </main>
+            <footer>Copyright 2024</footer>
+            <script>var x = 1;</script>
+        </body>
+        </html>
+        """
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = self.scrape("acme.com")
+        assert result is not None
+        assert "Acme Corp - Enterprise Solutions" in result
+        assert "Leading B2B software company" in result
+        assert "enterprise automation tools" in result
+        # Nav, footer, script content should be stripped
+        assert "Skip this nav" not in result
+        assert "Copyright 2024" not in result
+        assert "var x = 1" not in result
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_request_timeout(self, mock_get):
+        """Timeout returns None gracefully."""
+        import requests
+        mock_get.side_effect = requests.Timeout("Connection timed out")
+        result = self.scrape("slow-site.com")
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_http_error(self, mock_get):
+        """HTTP 404 returns None gracefully."""
+        import requests
+        mock_get.side_effect = requests.HTTPError("404 Not Found")
+        result = self.scrape("missing.com")
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_ssl_error(self, mock_get):
+        """SSL error returns None gracefully."""
+        import requests
+        mock_get.side_effect = requests.exceptions.SSLError("SSL certificate error")
+        result = self.scrape("bad-ssl.com")
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_connection_error(self, mock_get):
+        """Connection error returns None gracefully."""
+        import requests
+        mock_get.side_effect = requests.ConnectionError("DNS resolution failed")
+        result = self.scrape("nonexistent.com")
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_non_html_content_type(self, mock_get):
+        """Non-HTML content type returns None."""
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Type": "application/pdf"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = self.scrape("pdf-only.com")
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_truncation(self, mock_get):
+        """Long page content is truncated to WEBSITE_MAX_CHARS."""
+        from api.services.l1_enricher import WEBSITE_MAX_CHARS
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Type": "text/html"}
+        # Create a page with lots of text
+        long_text = "word " * 2000  # ~10000 chars
+        mock_resp.text = f"<html><body><p>{long_text}</p></body></html>"
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = self.scrape("verbose.com")
+        assert result is not None
+        assert len(result) <= WEBSITE_MAX_CHARS + 3  # +3 for "..."
+        assert result.endswith("...")
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_empty_page(self, mock_get):
+        """Page with no useful text returns None."""
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Type": "text/html"}
+        mock_resp.text = "<html><head></head><body><script>var x=1;</script></body></html>"
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = self.scrape("empty.com")
+        # After removing script, no visible text remains
+        assert result is None
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_uses_correct_url(self, mock_get):
+        """Scraper fetches https://{domain}/."""
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Type": "text/html"}
+        mock_resp.text = "<html><body><p>Hello</p></body></html>"
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        self.scrape("example.cz")
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args
+        assert call_args[0][0] == "https://example.cz/"
+        assert call_args[1]["timeout"] == 10
+        assert "User-Agent" in call_args[1]["headers"]
+
+    @patch("api.services.l1_enricher.http_requests.get")
+    def test_meta_only_page(self, mock_get):
+        """Page with title and meta but no body text still returns useful content."""
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Type": "text/html"}
+        mock_resp.text = """
+        <html>
+        <head>
+            <title>Company X</title>
+            <meta name="description" content="We do great things">
+        </head>
+        <body><script>alert(1)</script></body>
+        </html>
+        """
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = self.scrape("compx.com")
+        assert result is not None
+        assert "Company X" in result
+        assert "We do great things" in result
+
+
+# ---------------------------------------------------------------------------
 # Helper parser tests (no DB / no Flask app needed)
 # ---------------------------------------------------------------------------
 
@@ -858,6 +1021,56 @@ class TestEnrichL1Integration:
                 user_prompt = query_call[1]["user_prompt"]
                 assert "linkedin.com/in/" in user_prompt
                 assert "Known employees" in user_prompt
+
+    def test_website_content_included_in_prompt(self, app, db, seed_companies_contacts):
+        """Scraped website content is passed to the Perplexity prompt."""
+        data = seed_companies_contacts
+        company = data["companies"][0]  # Acme Corp, has domain
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            fake_website = "Page title: Acme Corp\nMeta description: Enterprise solutions\nPage content: We build automation tools."
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient, \
+                 patch("api.services.l1_enricher.scrape_website", return_value=fake_website):
+                instance = MockClient.return_value
+                instance.query.return_value = _mock_perplexity_success_response()
+
+                from api.services.l1_enricher import enrich_l1
+                enrich_l1(str(company.id), str(data["tenant"].id))
+
+                # Check the user_prompt contains website content
+                query_call = instance.query.call_args
+                user_prompt = query_call[1]["user_prompt"]
+                assert "extracted from the company's website" in user_prompt
+                assert "We build automation tools" in user_prompt
+                assert "Use this as primary context" in user_prompt
+
+    def test_enrichment_proceeds_without_website_content(self, app, db, seed_companies_contacts):
+        """When scraping fails, enrichment still succeeds."""
+        data = seed_companies_contacts
+        company = data["companies"][0]
+
+        with app.app_context():
+            app.config["PERPLEXITY_API_KEY"] = "test-key"
+
+            with patch("api.services.l1_enricher.PerplexityClient") as MockClient, \
+                 patch("api.services.l1_enricher.scrape_website", return_value=None):
+                instance = MockClient.return_value
+                instance.query.return_value = _mock_perplexity_success_response()
+
+                from api.services.l1_enricher import enrich_l1
+                result = enrich_l1(str(company.id), str(data["tenant"].id))
+
+                # Should still succeed
+                assert result["qc_flags"] == []
+                assert result["enrichment_cost_usd"] > 0
+
+                # Prompt should NOT contain website section
+                query_call = instance.query.call_args
+                user_prompt = query_call[1]["user_prompt"]
+                assert "extracted from the company's website" not in user_prompt
 
 
 class TestPerplexityClientIntegration:
