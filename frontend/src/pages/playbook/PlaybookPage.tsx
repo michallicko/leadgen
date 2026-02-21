@@ -77,8 +77,8 @@ export function PlaybookPage() {
   // SSE streaming
   const sse = useSSE()
 
-  // Local state
-  const [localContent, setLocalContent] = useState<JSONContent | null>(null)
+  // Local state — editedContent holds user edits; null until first edit
+  const [editedContent, setEditedContent] = useState<JSONContent | null>(null)
   const [streamingText, setStreamingText] = useState('')
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isDirty, setIsDirty] = useState(false)
@@ -87,23 +87,24 @@ export function PlaybookPage() {
   // Track document version for optimistic locking
   const versionRef = useRef(0)
 
-  // Sync server document into local state on first load / refetch
+  // Keep version ref in sync with server data
   useEffect(() => {
     if (docQuery.data) {
       versionRef.current = docQuery.data.version
-      // Only set local content if we haven't started editing yet
-      if (!isDirty) {
-        setLocalContent(docQuery.data.content as JSONContent | null)
-      }
     }
-  }, [docQuery.data, isDirty])
+  }, [docQuery.data])
+
+  // Derive localContent: user edits take priority over server data
+  const localContent = isDirty
+    ? editedContent
+    : (docQuery.data?.content as JSONContent | null) ?? null
 
   // ---------------------------------------------------------------------------
   // Editor handlers
   // ---------------------------------------------------------------------------
 
   const handleEditorUpdate = useCallback((content: JSONContent) => {
-    setLocalContent(content)
+    setEditedContent(content)
     setIsDirty(true)
     setSavedIndicator(false)
   }, [])

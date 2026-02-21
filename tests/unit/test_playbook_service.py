@@ -1,5 +1,4 @@
 """Tests for playbook service (system prompt builder and message formatting)."""
-import pytest
 
 
 class TestBuildSystemPrompt:

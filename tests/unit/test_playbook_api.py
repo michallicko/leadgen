@@ -1,6 +1,5 @@
 """Tests for Playbook API endpoints."""
 import json
-import pytest
 from unittest.mock import patch, MagicMock
 
 
