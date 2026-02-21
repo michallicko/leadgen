@@ -1,5 +1,4 @@
 """Tests for StrategyDocument and StrategyChatMessage models."""
-import json
 import pytest
 
 
@@ -8,7 +7,7 @@ class TestStrategyDocumentModel:
         from api.models import StrategyDocument
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"type": "doc", "content": []},
+            content="# My Strategy\n\nSome content here.",
             status="draft",
         )
         db.session.add(doc)
@@ -18,11 +17,20 @@ class TestStrategyDocumentModel:
         assert fetched.tenant_id == seed_tenant.id
         assert fetched.status == "draft"
         assert fetched.version == 1
-        # JSONB stored as TEXT in SQLite; parse if needed
-        content = fetched.content
-        if isinstance(content, str):
-            content = json.loads(content)
-        assert content == {"type": "doc", "content": []}
+        assert fetched.content == "# My Strategy\n\nSome content here."
+
+    def test_create_document_with_objective(self, app, db, seed_tenant):
+        from api.models import StrategyDocument
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content="",
+            objective="Grow enterprise pipeline by 3x",
+            status="draft",
+        )
+        db.session.add(doc)
+        db.session.commit()
+        fetched = db.session.get(StrategyDocument, doc.id)
+        assert fetched.objective == "Grow enterprise pipeline by 3x"
 
     def test_one_document_per_tenant(self, app, db, seed_tenant):
         from api.models import StrategyDocument
@@ -39,9 +47,10 @@ class TestStrategyDocumentModel:
         from api.models import StrategyDocument
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"sections": []},
+            content="# Strategy\n\nContent here.",
             extracted_data={"icp": {"industries": ["SaaS"]}},
             status="active",
+            objective="Win more deals",
         )
         db.session.add(doc)
         db.session.commit()
@@ -49,8 +58,9 @@ class TestStrategyDocumentModel:
         assert d["status"] == "active"
         assert d["version"] == 1
         assert "id" in d
-        assert "content" in d
+        assert d["content"] == "# Strategy\n\nContent here."
         assert "extracted_data" in d
+        assert d["objective"] == "Win more deals"
 
 
 class TestStrategyChatMessageModel:

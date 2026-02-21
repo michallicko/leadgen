@@ -32,7 +32,8 @@ def build_system_prompt(tenant, document, enrichment_data=None):
 
     Args:
         tenant: Tenant model instance (has .name, .slug).
-        document: StrategyDocument model instance (has .content dict).
+        document: StrategyDocument model instance (has .content str/dict,
+            .objective str).
         enrichment_data: Optional dict of company enrichment data (industry,
             company_intel, etc.) to include as research context.
 
@@ -54,19 +55,31 @@ def build_system_prompt(tenant, document, enrichment_data=None):
         "",
         "When the user asks about strategy, always ground your answers in this "
         "structure. Reference specific sections when relevant. If the user asks "
-        "you to draft or revise a section, produce clear, concise content that "
-        "can be directly pasted into the playbook.",
+        "you to draft or revise a section, produce clear, concise markdown content "
+        "that can be directly pasted into the playbook.",
     ]
 
-    # Include existing strategy document content as context
-    content = document.content if document.content else {}
-    if content:
-        content_str = json.dumps(content, indent=2, default=str)
+    # Include the user's stated objective
+    objective = getattr(document, "objective", None)
+    if objective:
         parts.extend(
             [
                 "",
-                "--- Current Strategy Document ---",
-                content_str,
+                "The user's stated objective: {}".format(objective),
+            ]
+        )
+
+    # Include existing strategy document content as context
+    content = document.content if document.content else ""
+    if isinstance(content, dict):
+        # Legacy JSONB content — serialize for prompt
+        content = json.dumps(content, indent=2, default=str)
+    if content and content.strip():
+        parts.extend(
+            [
+                "",
+                "--- Current Strategy Document (Markdown) ---",
+                content,
                 "--- End of Current Strategy ---",
             ]
         )
@@ -97,9 +110,10 @@ def build_system_prompt(tenant, document, enrichment_data=None):
     parts.extend(
         [
             "",
-            "Keep responses focused and actionable. Use bullet points and headers "
-            "for readability. When suggesting changes to the playbook, be specific "
-            "about which section and what content to add or modify.",
+            "Keep responses focused and actionable. Use markdown formatting "
+            "(headers, bullet points, bold) for readability. When suggesting "
+            "changes to the playbook, be specific about which section and what "
+            "content to add or modify.",
         ]
     )
 
@@ -150,7 +164,8 @@ def build_extraction_prompt(document_content):
     metrics from a GTM strategy document into a fixed JSON schema.
 
     Args:
-        document_content: The strategy document's ``content`` dict (rich doc).
+        document_content: The strategy document's ``content`` (markdown string
+            or legacy dict).
 
     Returns:
         tuple[str, str]: (system_prompt, user_message) ready for
@@ -167,12 +182,117 @@ def build_extraction_prompt(document_content):
         "Required JSON schema:\n" + EXTRACTION_SCHEMA
     )
 
-    content_str = json.dumps(document_content, indent=2, default=str)
+    if isinstance(document_content, dict):
+        content_str = json.dumps(document_content, indent=2, default=str)
+    else:
+        content_str = str(document_content) if document_content else ""
     user_message = (
         "Extract structured data from this GTM strategy document:\n\n" + content_str
     )
 
     return system_prompt, user_message
+
+
+def build_seeded_template(objective=None, enrichment_data=None):
+    """Generate a markdown template for a new strategy document.
+
+    Args:
+        objective: Optional user-stated objective to embed in the summary.
+        enrichment_data: Optional dict from _load_enrichment_data with
+            company profile, signals, and market data.
+
+    Returns:
+        str: Markdown string with 8 sections pre-populated with guidance.
+    """
+    # Extract useful fields from enrichment data if available
+    company_name = ""
+    industry = ""
+    description = ""
+    company_intel = ""
+    key_products = ""
+    customer_segments = ""
+    competitors = ""
+    if enrichment_data:
+        # Company-level data (from Company model fields)
+        co = enrichment_data.get("company") or {}
+        company_name = co.get("name") or ""
+        industry = co.get("industry") or ""
+        description = co.get("summary") or ""
+        # Profile enrichment data (flat keys from CompanyEnrichmentProfile)
+        company_intel = enrichment_data.get("company_intel") or ""
+        key_products = enrichment_data.get("key_products") or ""
+        customer_segments = enrichment_data.get("customer_segments") or ""
+        competitors = enrichment_data.get("competitors") or ""
+        if not description and company_intel:
+            description = company_intel
+
+    header = "{} \u2014 GTM Strategy".format(company_name) if company_name else "GTM Strategy"
+
+    summary_parts = ["**Objective:** {}".format(objective or "Define your go-to-market objective")]
+    if company_name:
+        summary_parts.append("**Company:** {}".format(company_name))
+    if industry:
+        summary_parts.append("**Industry:** {}".format(industry))
+    if description:
+        summary_parts.append(description)
+    summary = "\n\n".join(summary_parts)
+
+    icp_hint = "Define your target customer segments based on industry, company size, and buying signals."
+    if customer_segments:
+        icp_hint += "\n\n**Known Segments:** " + customer_segments
+
+    value_hint = "Articulate your core value proposition and key messaging themes."
+    if key_products:
+        value_hint += "\n\n**Key Products/Services:** " + key_products
+
+    competitive_hint = "Map your competitive landscape and differentiation."
+    if competitors:
+        competitive_hint += "\n\n**Known Competitors:** " + competitors
+
+    return """# {header}
+
+## Executive Summary
+
+{summary}
+
+## Ideal Customer Profile (ICP)
+
+{icp_hint}
+
+## Buyer Personas
+
+Identify 2-3 key buyer personas with their titles, pain points, and goals.
+
+## Value Proposition & Messaging
+
+{value_hint}
+
+## Competitive Positioning
+
+{competitive_hint}
+
+## Channel Strategy
+
+Outline your primary and secondary outreach channels, cadence, and sequencing.
+
+## Messaging Framework
+
+Define core messaging pillars aligned with your value proposition and personas.
+
+## Metrics & KPIs
+
+Set measurable targets: reply rates, meeting rates, pipeline goals, and timeline.
+
+## 90-Day Action Plan
+
+Break your strategy into concrete weekly/monthly milestones for the first 90 days.
+""".format(
+        header=header,
+        summary=summary,
+        icp_hint=icp_hint,
+        value_hint=value_hint,
+        competitive_hint=competitive_hint,
+    ).strip()
 
 
 def build_messages(chat_history, user_message):

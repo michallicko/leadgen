@@ -1170,15 +1170,14 @@ class StrategyDocument(db.Model):
     tenant_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False, unique=True
     )
-    content = db.Column(
-        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
-    )
+    content = db.Column(db.Text, nullable=False, default="")
     extracted_data = db.Column(
         JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
     )
     status = db.Column(db.String(20), nullable=False, default="draft")
     version = db.Column(db.Integer, nullable=False, default=1)
     enrichment_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
+    objective = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
@@ -1187,11 +1186,12 @@ class StrategyDocument(db.Model):
         return {
             "id": self.id,
             "tenant_id": self.tenant_id,
-            "content": self.content or {},
+            "content": self.content or "",
             "extracted_data": self.extracted_data or {},
             "status": self.status,
             "version": self.version,
             "enrichment_id": self.enrichment_id,
+            "objective": self.objective,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "updated_by": self.updated_by,
@@ -1234,3 +1234,21 @@ class StrategyChatMessage(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "created_by": self.created_by,
         }
+
+
+class PlaybookLog(db.Model):
+    __tablename__ = "playbook_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    user_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("users.id"), nullable=False
+    )
+    doc_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"), nullable=True
+    )
+    event_type = db.Column(db.String(50), nullable=False)
+    payload = db.Column(JSONB, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
