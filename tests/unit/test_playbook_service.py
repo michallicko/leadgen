@@ -10,7 +10,8 @@ class TestBuildSystemPrompt:
         tenant = MagicMock()
         tenant.name = "Acme Corp"
         doc = MagicMock()
-        doc.content = {}
+        doc.content = ""
+        doc.objective = None
 
         prompt = build_system_prompt(tenant, doc)
 
@@ -34,23 +35,39 @@ class TestBuildSystemPrompt:
         tenant = MagicMock()
         tenant.name = "VisionVolve"
         doc = MagicMock()
-        doc.content = {}
+        doc.content = ""
+        doc.objective = None
 
         prompt = build_system_prompt(tenant, doc)
         assert "VisionVolve" in prompt
 
     def test_includes_document_content_when_present(self):
-        """System prompt includes existing strategy document content."""
+        """System prompt includes existing strategy document content (markdown)."""
         from api.services.playbook_service import build_system_prompt
         from unittest.mock import MagicMock
 
         tenant = MagicMock()
         tenant.name = "Acme"
         doc = MagicMock()
-        doc.content = {"executive_summary": "We sell AI tools to SMBs."}
+        doc.content = "# Executive Summary\n\nWe sell AI tools to SMBs."
+        doc.objective = None
 
         prompt = build_system_prompt(tenant, doc)
         assert "We sell AI tools to SMBs" in prompt
+
+    def test_includes_objective_when_present(self):
+        """System prompt includes the user's stated objective."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = "Grow enterprise pipeline by 3x"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "Grow enterprise pipeline by 3x" in prompt
 
     def test_includes_enrichment_data_when_provided(self):
         """System prompt includes company enrichment data as research context."""
@@ -60,10 +77,11 @@ class TestBuildSystemPrompt:
         tenant = MagicMock()
         tenant.name = "Acme"
         doc = MagicMock()
-        doc.content = {}
+        doc.content = ""
+        doc.objective = None
 
         enrichment = {
-            "industry": "SaaS",
+            "company": {"name": "Acme", "industry": "SaaS"},
             "company_intel": "Series B funded, 50 employees",
         }
 
@@ -80,6 +98,7 @@ class TestBuildSystemPrompt:
         tenant.name = "Test"
         doc = MagicMock()
         doc.content = None
+        doc.objective = None
 
         prompt = build_system_prompt(tenant, doc)
         assert isinstance(prompt, str)
@@ -93,7 +112,8 @@ class TestBuildSystemPrompt:
         tenant = MagicMock()
         tenant.name = "Test"
         doc = MagicMock()
-        doc.content = {}
+        doc.content = ""
+        doc.objective = None
 
         prompt = build_system_prompt(tenant, doc)
         # Should mention strategy/consultant/GTM role
@@ -225,3 +245,72 @@ class TestBuildExtractionPrompt:
         assert "json" in lower
         # Should instruct no markdown, no explanation
         assert "no" in lower or "only" in lower
+
+
+class TestBuildSeededTemplate:
+    def test_returns_markdown_string(self):
+        """build_seeded_template returns a non-empty markdown string."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template()
+        assert isinstance(result, str)
+        assert len(result) > 100
+        assert "Executive Summary" in result
+
+    def test_includes_all_sections(self):
+        """Template contains all strategy sections."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template()
+        for section in [
+            "Executive Summary",
+            "Ideal Customer Profile",
+            "Buyer Personas",
+            "Value Proposition",
+            "Competitive Positioning",
+            "Channel Strategy",
+            "Messaging Framework",
+            "Metrics & KPIs",
+            "90-Day Action Plan",
+        ]:
+            assert section in result, "Missing section: {}".format(section)
+
+    def test_includes_objective(self):
+        """Template includes the user's stated objective."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template(objective="Grow enterprise pipeline by 3x")
+        assert "Grow enterprise pipeline by 3x" in result
+
+    def test_includes_enrichment_data(self):
+        """Template incorporates enrichment data into relevant sections."""
+        from api.services.playbook_service import build_seeded_template
+
+        enrichment = {
+            "company": {
+                "name": "HR Corp",
+                "industry": "SaaS",
+                "summary": "SaaS platform for HR",
+            },
+            "company_intel": "SaaS platform for HR",
+            "key_products": "Payroll, Benefits, Time Tracking",
+            "customer_segments": "Mid-market HR departments",
+            "competitors": "Workday, BambooHR, Rippling",
+        }
+
+        result = build_seeded_template(
+            objective="Win mid-market HR",
+            enrichment_data=enrichment,
+        )
+        assert "SaaS platform for HR" in result
+        assert "Payroll" in result
+        assert "Mid-market HR departments" in result
+        assert "Workday" in result
+
+    def test_works_without_enrichment(self):
+        """Template works with objective only (no enrichment data)."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template(objective="Scale outbound")
+        assert "Scale outbound" in result
+        assert "Executive Summary" in result

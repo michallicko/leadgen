@@ -4,15 +4,29 @@ import json
 import logging
 import os
 import re
+import threading
 
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Company, StrategyDocument, StrategyChatMessage, Tenant, db
+from ..models import (
+    Company,
+    CompanyEnrichmentL1,
+    CompanyEnrichmentL2,
+    CompanyEnrichmentProfile,
+    CompanyEnrichmentSignals,
+    CompanyEnrichmentMarket,
+    PlaybookLog,
+    StrategyDocument,
+    StrategyChatMessage,
+    Tenant,
+    db,
+)
 from ..services.anthropic_client import AnthropicClient
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
+    build_seeded_template,
     build_system_prompt,
 )
 
@@ -49,7 +63,7 @@ def update_playbook():
     if "version" not in data:
         return jsonify({"error": "version is required"}), 400
 
-    content = data.get("content", {})
+    content = data.get("content", "")
     version = data["version"]
     status = data.get("status")
 
@@ -89,7 +103,7 @@ def extract_strategy():
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
-    system_prompt, user_prompt = build_extraction_prompt(doc.content or {})
+    system_prompt, user_prompt = build_extraction_prompt(doc.content or "")
 
     client = _get_anthropic_client()
 
@@ -142,6 +156,7 @@ def _get_or_create_document(tenant_id):
 
 # --- Company status mapping for research status ---
 _COMPLETED_STATUSES = {"enriched_l2", "triage_passed", "triage_disqualified"}
+_FAILED_STATUSES = {"enrichment_l2_failed", "enrichment_failed", "disqualified"}
 _IN_PROGRESS_STATUSES = {"new", "enrichment_l1", "enrichment_l2"}
 
 
@@ -152,9 +167,193 @@ def _research_status_from_company(company):
     status = company.status.lower().replace(" ", "_")
     if status in _COMPLETED_STATUSES:
         return "completed"
+    if status in _FAILED_STATUSES:
+        return "failed"
     if status in _IN_PROGRESS_STATUSES:
         return "in_progress"
     return "in_progress"
+
+
+def _load_enrichment_data(company_id):
+    """Load L1 and L2 enrichment records for a company.
+
+    Returns a dict with company, profile, signals, market, and L1 data merged,
+    or None if no enrichment data exists.
+    """
+    result = {}
+
+    # Company-level fields populated by L1
+    company = db.session.get(Company, company_id)
+    if company:
+        result["company"] = {
+            "name": company.name,
+            "domain": company.domain,
+            "industry": company.industry,
+            "industry_category": company.industry_category,
+            "summary": company.summary,
+            "company_size": company.company_size,
+            "revenue_range": company.revenue_range,
+            "hq_country": company.hq_country,
+            "hq_city": company.hq_city,
+            "tier": company.tier,
+            "status": company.status,
+        }
+
+    l1 = db.session.get(CompanyEnrichmentL1, company_id)
+    if l1:
+        result["triage_notes"] = l1.triage_notes
+        result["pre_score"] = float(l1.pre_score) if l1.pre_score else None
+        result["confidence"] = float(l1.confidence) if l1.confidence else None
+
+    l2 = db.session.get(CompanyEnrichmentL2, company_id)
+    if l2:
+        result["company_overview"] = l2.company_intel
+        result["ai_opportunities"] = l2.ai_opportunities
+        result["pain_hypothesis"] = l2.pain_hypothesis
+        result["quick_wins"] = l2.quick_wins
+
+    profile = db.session.get(CompanyEnrichmentProfile, company_id)
+    if profile:
+        result["company_intel"] = profile.company_intel
+        result["key_products"] = profile.key_products
+        result["customer_segments"] = profile.customer_segments
+        result["competitors"] = profile.competitors
+        result["tech_stack"] = profile.tech_stack
+        result["leadership_team"] = profile.leadership_team
+        result["certifications"] = profile.certifications
+
+    signals = db.session.get(CompanyEnrichmentSignals, company_id)
+    if signals:
+        result["digital_initiatives"] = signals.digital_initiatives
+        result["hiring_signals"] = signals.hiring_signals
+        result["ai_adoption_level"] = signals.ai_adoption_level
+        result["growth_indicators"] = signals.growth_indicators
+
+    market = db.session.get(CompanyEnrichmentMarket, company_id)
+    if market:
+        result["recent_news"] = market.recent_news
+        result["funding_history"] = market.funding_history
+
+    return result if result else None
+
+
+def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
+    """Write a PlaybookLog entry."""
+    log = PlaybookLog(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        doc_id=doc_id,
+        event_type=event_type,
+        payload=payload,
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+def _run_self_research(app, company_id, tenant_id):
+    """Run L1 + L2 enrichment in a background thread for self-company research."""
+    with app.app_context():
+        try:
+            from api.services.l1_enricher import enrich_l1
+            from api.services.l2_enricher import enrich_l2
+
+            logger.info("Starting self-research for company %s", company_id)
+
+            enrich_l1(company_id, tenant_id)
+
+            # Update company name from L1 enrichment results
+            company = db.session.get(Company, company_id)
+            if company and company.is_self:
+                l1 = db.session.get(CompanyEnrichmentL1, company_id)
+                if l1 and l1.raw_response:
+                    import json as _json
+
+                    try:
+                        raw = (
+                            _json.loads(l1.raw_response)
+                            if isinstance(l1.raw_response, str)
+                            else l1.raw_response
+                        )
+                        l1_name = raw.get("company_name") or raw.get("name")
+                        if l1_name and l1_name != company.name:
+                            company.name = l1_name
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+
+            # After L1, auto-advance to triage_passed if still in early status
+            _SKIP_STATUSES = {"triage_passed", "enriched_l2", "enrichment_l2_failed"}
+            if company and company.status not in _SKIP_STATUSES:
+                company.status = "triage_passed"
+                db.session.commit()
+
+            l2_result = enrich_l2(company_id, tenant_id)
+            l2_failed = "error" in l2_result
+
+            if l2_failed:
+                logger.warning(
+                    "Self-research L2 failed for company %s: %s",
+                    company_id,
+                    l2_result.get("error"),
+                )
+
+            # Seed the strategy document with whatever data we have
+            # (L1 data if L2 failed, full data if L2 succeeded).
+            # Start a clean session state since L2 failure may have
+            # left the session dirty from rollbacks.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+            if doc and doc.version == 1:
+                enrichment_data = _load_enrichment_data(company_id)
+                doc.content = build_seeded_template(doc.objective, enrichment_data)
+                doc.enrichment_id = company_id
+                db.session.commit()
+                logger.info(
+                    "Seeded template for company %s (content length: %d, l2_failed: %s)",
+                    company_id,
+                    len(doc.content or ""),
+                    l2_failed,
+                )
+
+            if not l2_failed:
+                logger.info("Self-research completed for company %s", company_id)
+
+            # Log research completion (skip if no valid user_id to avoid UUID error)
+            doc = StrategyDocument.query.filter_by(enrichment_id=company_id).first()
+            if doc and doc.updated_by:
+                enrichment_data = _load_enrichment_data(company_id)
+                _log_event(
+                    tenant_id=tenant_id,
+                    user_id=doc.updated_by,
+                    doc_id=doc.id,
+                    event_type="research_complete"
+                    if not l2_failed
+                    else "research_partial",
+                    payload={
+                        "company_id": str(company_id),
+                        "enrichment_keys": list(enrichment_data.keys())
+                        if enrichment_data
+                        else [],
+                        "l2_failed": l2_failed,
+                    },
+                )
+        except Exception:
+            logger.exception("Self-research failed for company %s", company_id)
+            # Still try to seed template with whatever data we have
+            try:
+                db.session.rollback()  # Clear poisoned transaction
+                doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+                if doc and doc.version == 1:
+                    enrichment_data = _load_enrichment_data(company_id)
+                    if enrichment_data:
+                        doc.content = build_seeded_template(
+                            doc.objective, enrichment_data
+                        )
+                        db.session.commit()
+            except Exception:
+                logger.exception("Failed to seed template after research error")
 
 
 @playbook_bp.route("/api/playbook/research", methods=["POST"])
@@ -162,8 +361,8 @@ def _research_status_from_company(company):
 def trigger_research():
     """Trigger research on the tenant's own company.
 
-    Creates or finds a company record with is_self=True and links it
-    to the strategy document via enrichment_id.
+    Creates or finds a company record with is_self=True, saves the
+    objective, and launches L1+L2 enrichment in a background thread.
     """
     tenant_id = resolve_tenant()
     if not tenant_id:
@@ -171,6 +370,7 @@ def trigger_research():
 
     data = request.get_json(silent=True) or {}
     domain = data.get("domain")
+    objective = data.get("objective")
 
     # Fall back to tenant's domain if none provided
     if not domain:
@@ -182,18 +382,23 @@ def trigger_research():
             {"error": "Domain is required (provide in body or set on tenant)"}
         ), 400
 
+    # Derive company name from domain (strip TLD, capitalize)
+    # e.g., "notion.so" → "Notion", "stripe.com" → "Stripe"
+    domain_parts = domain.split(".")
+    company_name = domain_parts[0].capitalize() if domain_parts else domain
+
     # Find or create the self-company for this tenant
     company = Company.query.filter_by(tenant_id=tenant_id, is_self=True).first()
 
     if company:
-        # Update domain if it changed
-        if company.domain != domain:
-            company.domain = domain
+        company.domain = domain
+        company.name = company_name
+        # Reset status for re-research
+        company.status = "new"
     else:
-        tenant = db.session.get(Tenant, tenant_id)
         company = Company(
             tenant_id=tenant_id,
-            name=tenant.name if tenant else domain,
+            name=company_name,
             domain=domain,
             is_self=True,
             status="new",
@@ -201,14 +406,39 @@ def trigger_research():
         db.session.add(company)
         db.session.flush()
 
-    # Link the strategy document to this company
+    # Link the strategy document to this company and save objective
     doc = _get_or_create_document(tenant_id)
     doc.enrichment_id = company.id
+    if objective:
+        doc.objective = objective
     db.session.commit()
 
-    # TODO: Trigger the n8n enrichment pipeline for self-company research.
-    # This will POST to the enrich-pipeline-v2 webhook with the company's
-    # batch/tag and owner info. For now, just set up the data model.
+    # Log research trigger
+    user_id = getattr(request, "user_id", None)
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc.id,
+            event_type="research_trigger",
+            payload={
+                "domain": domain,
+                "objective": objective,
+                "company_id": str(company.id),
+            },
+        )
+
+    # Launch enrichment in background thread
+    from flask import current_app
+
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_run_self_research,
+        args=(app, company.id, tenant_id),
+        daemon=True,
+        name="self-research-{}".format(company.id),
+    )
+    t.start()
 
     return jsonify(
         {
@@ -235,18 +465,33 @@ def get_research_status():
     if not company:
         return jsonify({"status": "not_started"}), 200
 
-    return jsonify(
-        {
-            "status": _research_status_from_company(company),
-            "company": {
-                "id": company.id,
-                "name": company.name,
-                "domain": company.domain,
-                "status": company.status,
-                "tier": company.tier,
-            },
-        }
-    ), 200
+    status = _research_status_from_company(company)
+
+    # Guard against race condition: enrichment may set company status to
+    # "enriched_l2" before the template is seeded into the document.
+    # Keep reporting "in_progress" until the document actually has content.
+    if status == "completed":
+        if not doc.content or len(doc.content.strip()) == 0:
+            status = "in_progress"
+
+    result = {
+        "status": status,
+        "company": {
+            "id": company.id,
+            "name": company.name,
+            "domain": company.domain,
+            "status": company.status,
+            "tier": company.tier,
+        },
+    }
+
+    # Include enrichment data when research is completed or failed (partial data)
+    if result["status"] in ("completed", "failed"):
+        enrichment_data = _load_enrichment_data(company.id)
+        if enrichment_data:
+            result["enrichment_data"] = enrichment_data
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook/chat", methods=["GET"])
@@ -315,6 +560,16 @@ def post_chat_message():
     db.session.add(user_msg)
     db.session.flush()
 
+    # Log user chat event
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc.id,
+            event_type="chat_user",
+            payload={"message": message_text},
+        )
+
     # Load chat history for context
     history = (
         StrategyChatMessage.query.filter_by(document_id=doc.id)
@@ -323,8 +578,13 @@ def post_chat_message():
         .all()
     )
 
+    # Load enrichment data if research has been done
+    enrichment_data = None
+    if doc.enrichment_id:
+        enrichment_data = _load_enrichment_data(doc.enrichment_id)
+
     # Build prompt and messages
-    system_prompt = build_system_prompt(tenant, doc)
+    system_prompt = build_system_prompt(tenant, doc, enrichment_data=enrichment_data)
     messages = build_messages(history, message_text)
 
     client = _get_anthropic_client()
@@ -337,6 +597,7 @@ def post_chat_message():
             tenant_id,
             doc.id,
             user_msg,
+            user_id,
         )
     else:
         return _sync_response(
@@ -346,10 +607,13 @@ def post_chat_message():
             tenant_id,
             doc.id,
             user_msg,
+            user_id,
         )
 
 
-def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_msg):
+def _stream_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+):
     """Return an SSE streaming response with LLM chunks.
 
     DB operations (saving the assistant message) happen inside the generator
@@ -394,6 +658,16 @@ def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_ms
             db.session.commit()
             msg_id = assistant_msg.id
 
+            # Log assistant chat event
+            if user_id:
+                _log_event(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    doc_id=doc_id,
+                    event_type="chat_assistant",
+                    payload={"message": assistant_content[:500]},
+                )
+
         yield "data: {}\n\n".format(json.dumps({"type": "done", "message_id": msg_id}))
 
     # Commit the user message before entering the generator
@@ -409,7 +683,9 @@ def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_ms
     )
 
 
-def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg):
+def _sync_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+):
     """Return a non-streaming JSON response with the full LLM reply."""
     try:
         full_text = []
@@ -437,6 +713,16 @@ def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg)
     )
     db.session.add(assistant_msg)
     db.session.commit()
+
+    # Log assistant chat event
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc_id,
+            event_type="chat_assistant",
+            payload={"message": assistant_content[:500]},
+        )
 
     return jsonify(
         {

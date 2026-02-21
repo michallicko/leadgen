@@ -3,7 +3,9 @@ import { apiFetch } from '../client'
 
 export interface StrategyDocument {
   id: string
-  content: Record<string, unknown>
+  content: string | null
+  objective: string | null
+  enrichment_id: string | null
   extracted_data: Record<string, unknown>
   status: string
   version: number
@@ -23,6 +25,12 @@ interface ChatResponse {
   messages: ChatMessage[]
 }
 
+export interface ResearchStatus {
+  status: 'not_started' | 'in_progress' | 'completed'
+  company?: { id: string; name: string; domain: string; status: string }
+  enrichment_data?: Record<string, unknown>
+}
+
 export function usePlaybookDocument() {
   return useQuery({
     queryKey: ['playbook'],
@@ -33,7 +41,7 @@ export function usePlaybookDocument() {
 export function useSavePlaybook() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { content: Record<string, unknown>; version: number }) =>
+    mutationFn: (data: { content: string; version: number }) =>
       apiFetch<StrategyDocument>('/playbook', { method: 'PUT', body: data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook'] })
@@ -66,6 +74,30 @@ export function useExtractStrategy() {
       apiFetch<Record<string, unknown>>('/playbook/extract', { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+export function useResearchStatus(enabled: boolean) {
+  return useQuery({
+    queryKey: ['playbook', 'research'],
+    queryFn: () => apiFetch<ResearchStatus>('/playbook/research'),
+    enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (data && data.status === 'in_progress') return 10_000
+      return false
+    },
+  })
+}
+
+export function useTriggerResearch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { domain: string; objective: string }) =>
+      apiFetch<ResearchStatus>('/playbook/research', { method: 'POST', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'research'] })
     },
   })
 }

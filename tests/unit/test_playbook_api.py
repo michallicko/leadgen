@@ -26,7 +26,7 @@ class TestGetPlaybook:
         headers["X-Namespace"] = seed_tenant.slug
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"type": "doc"},
+            content="# Strategy\n\nExisting content.",
             status="active",
             version=3,
         )
@@ -44,13 +44,13 @@ class TestGetPlaybook:
         other = Tenant(name="Other", slug="other-corp", is_active=True)
         db.session.add(other)
         db.session.commit()
-        doc = StrategyDocument(tenant_id=other.id, content={"secret": True})
+        doc = StrategyDocument(tenant_id=other.id, content="secret content")
         db.session.add(doc)
         db.session.commit()
         headers["X-Namespace"] = seed_tenant.slug
         resp = client.get("/api/playbook", headers=headers)
         data = resp.get_json()
-        assert data.get("content") != {"secret": True}
+        assert data.get("content") != "secret content"
 
     def test_requires_auth(self, client, seed_tenant):
         resp = client.get("/api/playbook", headers={"X-Namespace": seed_tenant.slug})
@@ -66,7 +66,7 @@ class TestUpdatePlaybook:
         db.session.add(doc)
         db.session.commit()
         resp = client.put("/api/playbook", json={
-            "content": {"type": "doc", "content": [{"type": "paragraph"}]},
+            "content": "# Updated Strategy\n\nNew content here.",
             "version": 1,
         }, headers=headers)
         assert resp.status_code == 200
@@ -81,7 +81,7 @@ class TestUpdatePlaybook:
         db.session.add(doc)
         db.session.commit()
         resp = client.put("/api/playbook", json={
-            "content": {"type": "doc"},
+            "content": "# Strategy",
             "version": 1,
         }, headers=headers)
         assert resp.status_code == 409
@@ -95,7 +95,7 @@ class TestUpdatePlaybook:
         doc = StrategyDocument(tenant_id=seed_tenant.id)
         db.session.add(doc)
         db.session.commit()
-        resp = client.put("/api/playbook", json={"content": {"type": "doc"}}, headers=headers)
+        resp = client.put("/api/playbook", json={"content": "# Strategy"}, headers=headers)
         assert resp.status_code == 400
 
 
@@ -270,7 +270,7 @@ class TestPlaybookExtract:
         # Create a document with some content
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"executive_summary": "We sell AI to enterprise SaaS."},
+            content="# Executive Summary\n\nWe sell AI to enterprise SaaS.",
             status="active",
             version=2,
         )
@@ -358,7 +358,7 @@ class TestPlaybookExtract:
 
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"icp": "some data"},
+            content="## ICP\n\nsome data",
             status="active",
         )
         db.session.add(doc)
@@ -385,7 +385,7 @@ class TestPlaybookExtract:
 
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            content={"executive_summary": "We do things."},
+            content="# Executive Summary\n\nWe do things.",
             status="active",
             version=1,
         )
@@ -423,7 +423,8 @@ class TestPlaybookExtract:
 class TestPlaybookResearch:
     """Tests for POST/GET /api/playbook/research endpoints."""
 
-    def test_trigger_research_creates_self_company(self, client, seed_tenant, seed_super_admin, db):
+    @patch("api.routes.playbook_routes.threading")
+    def test_trigger_research_creates_self_company(self, mock_threading, client, seed_tenant, seed_super_admin, db):
         """POST /api/playbook/research creates a company with is_self=True."""
         from api.models import Company
 
@@ -447,7 +448,30 @@ class TestPlaybookResearch:
         assert company.domain == "testcorp.com"
         assert company.tenant_id == seed_tenant.id
 
-    def test_trigger_research_links_to_document(self, client, seed_tenant, seed_super_admin, db):
+        # Verify background thread was started
+        mock_threading.Thread.assert_called_once()
+        mock_threading.Thread.return_value.start.assert_called_once()
+
+    @patch("api.routes.playbook_routes.threading")
+    def test_trigger_research_saves_objective(self, mock_threading, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/research saves the objective to the document."""
+        from api.models import StrategyDocument
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post(
+            "/api/playbook/research",
+            json={"domain": "testcorp.com", "objective": "Grow pipeline 3x"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        doc = StrategyDocument.query.filter_by(tenant_id=seed_tenant.id).first()
+        assert doc is not None
+        assert doc.objective == "Grow pipeline 3x"
+
+    @patch("api.routes.playbook_routes.threading")
+    def test_trigger_research_links_to_document(self, mock_threading, client, seed_tenant, seed_super_admin, db):
         """POST /api/playbook/research sets the document's enrichment_id."""
         from api.models import StrategyDocument
 
@@ -466,7 +490,8 @@ class TestPlaybookResearch:
         assert doc is not None
         assert doc.enrichment_id == data["company_id"]
 
-    def test_trigger_research_reuses_existing(self, client, seed_tenant, seed_super_admin, db):
+    @patch("api.routes.playbook_routes.threading")
+    def test_trigger_research_reuses_existing(self, mock_threading, client, seed_tenant, seed_super_admin, db):
         """POST /api/playbook/research twice doesn't create duplicate companies."""
         from api.models import Company
 
@@ -498,7 +523,8 @@ class TestPlaybookResearch:
         ).count()
         assert count == 1
 
-    def test_trigger_research_uses_tenant_domain_as_fallback(self, client, seed_super_admin, db):
+    @patch("api.routes.playbook_routes.threading")
+    def test_trigger_research_uses_tenant_domain_as_fallback(self, mock_threading, client, seed_super_admin, db):
         """POST /api/playbook/research without domain uses tenant's domain."""
         from api.models import Tenant, Company
 
@@ -562,10 +588,11 @@ class TestPlaybookResearch:
         db.session.add(company)
         db.session.flush()
 
-        # Create strategy document linked to company
+        # Create strategy document linked to company with seeded content
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
             enrichment_id=company.id,
+            content="# Strategy\nSeeded template content",
             status="draft",
         )
         db.session.add(doc)
@@ -581,6 +608,38 @@ class TestPlaybookResearch:
         assert data["company"]["name"] == "Test Corp"
         assert data["company"]["domain"] == "testcorp.com"
         assert data["company"]["tier"] == "tier_1_platinum"
+
+    def test_get_research_in_progress_when_no_content(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        """Race condition guard: enriched_l2 but empty doc content stays in_progress."""
+        from api.models import Company, StrategyDocument
+
+        company = Company(
+            tenant_id=seed_tenant.id,
+            name="Test Corp",
+            domain="testcorp.com",
+            status="enriched_l2",
+            is_self=True,
+        )
+        db.session.add(company)
+        db.session.flush()
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            enrichment_id=company.id,
+            status="draft",
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp = client.get("/api/playbook/research", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "in_progress"
 
     def test_research_requires_auth(self, client, seed_tenant):
         """GET and POST /api/playbook/research return 401 without token."""

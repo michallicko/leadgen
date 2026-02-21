@@ -17,6 +17,7 @@ Usage:
 """
 
 import logging
+import os
 import time
 
 import requests
@@ -52,14 +53,14 @@ class PerplexityClient:
 
     def __init__(
         self,
-        api_key,
+        api_key=None,
         base_url="https://api.perplexity.ai",
         default_model="sonar",
         timeout=60,
         max_retries=2,
         retry_delay=1.0,
     ):
-        self.api_key = api_key
+        self.api_key = api_key or os.environ.get("PERPLEXITY_API_KEY", "")
         self.base_url = base_url
         self.default_model = default_model
         self.timeout = timeout

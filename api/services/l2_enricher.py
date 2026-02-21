@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 PERPLEXITY_MAX_TOKENS = 1200
 PERPLEXITY_TEMPERATURE = 0.2
-ANTHROPIC_MAX_TOKENS = 2000
+ANTHROPIC_MAX_TOKENS = 4000
 ANTHROPIC_TEMPERATURE = 0.3
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
@@ -442,6 +442,10 @@ def _synthesize(company, l1_data, news_data, strategic_data):
     )
 
     data = _parse_json(resp.content)
+    if not data:
+        raise ValueError(
+            f"Failed to parse synthesis JSON response ({len(resp.content)} chars)"
+        )
     return data, resp.cost_usd
 
 
@@ -518,38 +522,60 @@ def _upsert_l2_enrichment(
         )
     except Exception:
         db.session.rollback()
-        # SQLite fallback
-        db.session.execute(
-            text("""
-                INSERT OR REPLACE INTO company_enrichment_l2 (
-                    company_id, company_intel, recent_news, ai_opportunities,
-                    pain_hypothesis, relevant_case_study, digital_initiatives,
-                    leadership_changes, hiring_signals, key_products,
-                    customer_segments, competitors, tech_stack,
-                    funding_history, eu_grants, leadership_team,
-                    ai_hiring, tech_partnerships, certifications,
-                    quick_wins, industry_pain_points, cross_functional_pain,
-                    adoption_barriers, enriched_at, enrichment_cost_usd
-                ) VALUES (
-                    :cid, :company_intel, :recent_news, :ai_opportunities,
-                    :pain_hypothesis, :relevant_case_study, :digital_initiatives,
-                    :leadership_changes, :hiring_signals, :key_products,
-                    :customer_segments, :competitors, :tech_stack,
-                    :funding_history, :eu_grants, :leadership_team,
-                    :ai_hiring, :tech_partnerships, :certifications,
-                    :quick_wins, :industry_pain_points, :cross_functional_pain,
-                    :adoption_barriers, :enriched_at, :cost
-                )
-            """),
-            _build_l2_params(
+        # SQLite fallback (INSERT OR REPLACE is SQLite-only; PG uses ON CONFLICT above)
+        try:
+            db.session.execute(
+                text("""
+                    INSERT OR REPLACE INTO company_enrichment_l2 (
+                        company_id, company_intel, recent_news, ai_opportunities,
+                        pain_hypothesis, relevant_case_study, digital_initiatives,
+                        leadership_changes, hiring_signals, key_products,
+                        customer_segments, competitors, tech_stack,
+                        funding_history, eu_grants, leadership_team,
+                        ai_hiring, tech_partnerships, certifications,
+                        quick_wins, industry_pain_points, cross_functional_pain,
+                        adoption_barriers, enriched_at, enrichment_cost_usd
+                    ) VALUES (
+                        :cid, :company_intel, :recent_news, :ai_opportunities,
+                        :pain_hypothesis, :relevant_case_study, :digital_initiatives,
+                        :leadership_changes, :hiring_signals, :key_products,
+                        :customer_segments, :competitors, :tech_stack,
+                        :funding_history, :eu_grants, :leadership_team,
+                        :ai_hiring, :tech_partnerships, :certifications,
+                        :quick_wins, :industry_pain_points, :cross_functional_pain,
+                        :adoption_barriers, :enriched_at, :cost
+                    )
+                """),
+                _build_l2_params(
+                    company_id,
+                    news_data,
+                    strategic_data,
+                    synthesis_data,
+                    quick_wins,
+                    total_cost,
+                ),
+            )
+        except Exception:
+            db.session.rollback()
+            logger.warning(
+                "L2 upsert failed for %s on both PG and SQLite paths",
                 company_id,
-                news_data,
-                strategic_data,
-                synthesis_data,
-                quick_wins,
-                total_cost,
-            ),
-        )
+            )
+
+
+def _to_text(value):
+    """Convert a value to a text string suitable for a TEXT column.
+
+    Lists and dicts are JSON-serialized; None passes through; everything
+    else is str().
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, default=str)
+    return str(value)
 
 
 def _build_l2_params(
@@ -558,28 +584,28 @@ def _build_l2_params(
     """Build parameter dict for L2 upsert."""
     return {
         "cid": company_id,
-        "company_intel": synthesis_data.get("executive_brief"),
-        "recent_news": news_data.get("recent_news"),
-        "ai_opportunities": synthesis_data.get("ai_opportunities"),
-        "pain_hypothesis": synthesis_data.get("pain_hypothesis"),
+        "company_intel": _to_text(synthesis_data.get("executive_brief")),
+        "recent_news": _to_text(news_data.get("recent_news")),
+        "ai_opportunities": _to_text(synthesis_data.get("ai_opportunities")),
+        "pain_hypothesis": _to_text(synthesis_data.get("pain_hypothesis")),
         "relevant_case_study": None,
-        "digital_initiatives": news_data.get("digital_initiatives"),
-        "leadership_changes": news_data.get("leadership_changes"),
-        "hiring_signals": strategic_data.get("other_hiring_signals"),
+        "digital_initiatives": _to_text(news_data.get("digital_initiatives")),
+        "leadership_changes": _to_text(news_data.get("leadership_changes")),
+        "hiring_signals": _to_text(strategic_data.get("other_hiring_signals")),
         "key_products": None,
         "customer_segments": None,
-        "competitors": synthesis_data.get("competitor_ai_moves"),
-        "tech_stack": strategic_data.get("vendor_partnerships"),
-        "funding_history": news_data.get("funding"),
-        "eu_grants": strategic_data.get("eu_grants"),
-        "leadership_team": strategic_data.get("leadership_team"),
-        "ai_hiring": strategic_data.get("ai_transformation_roles"),
-        "tech_partnerships": strategic_data.get("vendor_partnerships"),
-        "certifications": strategic_data.get("certifications"),
+        "competitors": _to_text(synthesis_data.get("competitor_ai_moves")),
+        "tech_stack": _to_text(strategic_data.get("vendor_partnerships")),
+        "funding_history": _to_text(news_data.get("funding")),
+        "eu_grants": _to_text(strategic_data.get("eu_grants")),
+        "leadership_team": _to_text(strategic_data.get("leadership_team")),
+        "ai_hiring": _to_text(strategic_data.get("ai_transformation_roles")),
+        "tech_partnerships": _to_text(strategic_data.get("vendor_partnerships")),
+        "certifications": _to_text(strategic_data.get("certifications")),
         "quick_wins": quick_wins,
-        "industry_pain_points": synthesis_data.get("industry_pain_points"),
-        "cross_functional_pain": synthesis_data.get("cross_functional_pain"),
-        "adoption_barriers": synthesis_data.get("adoption_barriers"),
+        "industry_pain_points": _to_text(synthesis_data.get("industry_pain_points")),
+        "cross_functional_pain": _to_text(synthesis_data.get("cross_functional_pain")),
+        "adoption_barriers": _to_text(synthesis_data.get("adoption_barriers")),
         "enriched_at": datetime.now(timezone.utc),
         "cost": total_cost,
     }
@@ -610,16 +636,19 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
     try:
         log_llm_usage(
             tenant_id=tenant_id,
+            operation="l2_enrichment",
             provider="perplexity+anthropic",
             model=model,
             input_tokens=0,  # Aggregated — individual costs tracked per call
             output_tokens=0,
-            cost_usd=total_cost,
             duration_ms=duration_ms,
-            entity_type="company",
-            entity_id=company_id,
-            stage="l2",
-            metadata={"boost": boost},
+            metadata={
+                "boost": boost,
+                "cost_usd": total_cost,
+                "entity_type": "company",
+                "entity_id": company_id,
+                "stage": "l2",
+            },
         )
     except Exception as e:
         logger.warning("Failed to log L2 LLM usage: %s", e)
@@ -630,14 +659,27 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
 # ---------------------------------------------------------------------------
 
 
+def _strip_code_fences(text):
+    """Strip markdown code fences from LLM response."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence (```json, ```JSON, or just ```)
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1 :]
+        else:
+            text = text[3:]
+    if text.rstrip().endswith("```"):
+        text = text.rstrip()[:-3]
+    return text.strip()
+
+
 def _parse_json(content):
     """Parse JSON from API response, handling markdown fences."""
     if not content:
         return {}
 
-    # Strip markdown code fences
-    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip())
-    cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = _strip_code_fences(content)
 
     try:
         return json.loads(cleaned)
@@ -649,5 +691,11 @@ def _parse_json(content):
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-        logger.warning("Failed to parse JSON from L2 response: %s...", content[:200])
+        truncated = not content.rstrip().endswith(("}", "]"))
+        logger.warning(
+            "Failed to parse JSON from L2 response (%d chars%s): %s...",
+            len(content),
+            ", appears truncated" if truncated else "",
+            content[:200],
+        )
         return {}

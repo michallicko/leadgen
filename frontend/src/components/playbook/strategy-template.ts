@@ -1,70 +1,45 @@
 /**
- * Default Tiptap JSON content for a new GTM Strategy document.
+ * Default markdown template for a new GTM Strategy document.
  *
- * Contains 8 strategic sections as H2 headings, each with a placeholder
- * paragraph providing guidance on what to write.
+ * Contains 9 strategic sections as H2 headings, each with placeholder
+ * guidance text.
  */
 
-import type { JSONContent } from '@tiptap/react'
+export const STRATEGY_TEMPLATE = `# GTM Strategy
 
-function heading(level: 1 | 2 | 3, text: string): JSONContent {
-  return {
-    type: 'heading',
-    attrs: { level },
-    content: [{ type: 'text', text }],
-  }
-}
+## Executive Summary
 
-function paragraph(text: string): JSONContent {
-  return {
-    type: 'paragraph',
-    content: [{ type: 'text', text }],
-  }
-}
+Define your go-to-market objective and high-level strategy...
 
-export const STRATEGY_TEMPLATE: JSONContent = {
-  type: 'doc',
-  content: [
-    heading(1, 'GTM Strategy'),
+## Ideal Customer Profile (ICP)
 
-    heading(2, 'Executive Summary'),
-    paragraph(
-      'A brief overview of your go-to-market approach, key objectives, and expected outcomes.',
-    ),
+Describe your target customer segments, firmographics, and buying personas...
 
-    heading(2, 'Ideal Customer Profile (ICP)'),
-    paragraph(
-      'Define your target market segments, company characteristics (size, industry, geography), and the signals that indicate a good fit.',
-    ),
+## Value Proposition
 
-    heading(2, 'Buyer Personas'),
-    paragraph(
-      'Describe the key decision-makers and influencers you target. Include their titles, responsibilities, goals, and pain points.',
-    ),
+What unique value do you deliver to your target customers...
 
-    heading(2, 'Value Proposition'),
-    paragraph(
-      'Articulate why your solution matters. What problem does it solve? What makes it unique compared to alternatives?',
-    ),
+## Competitive Landscape
 
-    heading(2, 'Competitive Positioning'),
-    paragraph(
-      'Map out your competitive landscape. Where do you win, where do you lose, and how do you differentiate?',
-    ),
+Key competitors, market positioning, and your differentiation...
 
-    heading(2, 'Channel Strategy'),
-    paragraph(
-      'Outline your outreach channels (LinkedIn, email, events, partnerships) and the role each plays in your pipeline.',
-    ),
+## Channel Strategy
 
-    heading(2, 'Messaging Framework'),
-    paragraph(
-      'Define core messaging themes, tone of voice, and key talking points for each persona and channel.',
-    ),
+Primary go-to-market channels and distribution approach...
 
-    heading(2, 'Success Metrics'),
-    paragraph(
-      'List the KPIs that measure strategy effectiveness: conversion rates, pipeline velocity, deal sizes, and engagement benchmarks.',
-    ),
-  ],
-}
+## Messaging Framework
+
+Core messaging pillars and positioning statements...
+
+## Sales Process
+
+Sales motion, methodology, and conversion approach...
+
+## Metrics & KPIs
+
+Key performance indicators and success metrics...
+
+## Action Plan
+
+90-day execution roadmap with key milestones...
+`

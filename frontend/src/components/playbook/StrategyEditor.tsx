@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useEditor, EditorContent, type JSONContent } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
 import { Table } from '@tiptap/extension-table'
@@ -7,6 +7,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Markdown } from 'tiptap-markdown'
 import { STRATEGY_TEMPLATE } from './strategy-template'
 import './strategy-editor.css'
 
@@ -15,8 +16,8 @@ import './strategy-editor.css'
 // ---------------------------------------------------------------------------
 
 interface StrategyEditorProps {
-  content: JSONContent | null
-  onUpdate: (content: JSONContent) => void
+  content: string | null
+  onUpdate: (content: string) => void
   editable?: boolean
 }
 
@@ -161,11 +162,13 @@ export function StrategyEditor({
       Placeholder.configure({
         placeholder: 'Start writing your strategy...',
       }),
+      Markdown,
     ],
     content: content ?? STRATEGY_TEMPLATE,
     editable,
     onUpdate({ editor: ed }) {
-      onUpdate(ed.getJSON())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onUpdate((ed.storage as any).markdown.getMarkdown())
     },
   })
 
@@ -175,6 +178,19 @@ export function StrategyEditor({
       editor.setEditable(editable)
     }
   }, [editor, editable])
+
+  // Sync content prop when it changes (e.g. after research seeds template)
+  // Tiptap only uses `content` during initialization, so we must push updates manually.
+  useEffect(() => {
+    if (editor && content && content.length > 0) {
+      // Only update if editor is empty/placeholder — don't overwrite user edits
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentMd = (editor.storage as any).markdown?.getMarkdown() || ''
+      if (!currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')) {
+        editor.commands.setContent(content)
+      }
+    }
+  }, [editor, content])
 
   return (
     <div className="strategy-editor rounded-lg border border-border-solid overflow-hidden bg-surface">
