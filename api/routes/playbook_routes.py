@@ -7,7 +7,7 @@ import re
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import StrategyDocument, StrategyChatMessage, Tenant, db
+from ..models import Company, StrategyDocument, StrategyChatMessage, Tenant, db
 from ..services.anthropic_client import AnthropicClient
 from ..services.playbook_service import build_extraction_prompt, build_messages, build_system_prompt
 
@@ -127,6 +127,111 @@ def _get_or_create_document(tenant_id):
         db.session.add(doc)
         db.session.flush()
     return doc
+
+
+# --- Company status mapping for research status ---
+_COMPLETED_STATUSES = {"enriched_l2", "triage_passed", "triage_disqualified"}
+_IN_PROGRESS_STATUSES = {"new", "enrichment_l1", "enrichment_l2"}
+
+
+def _research_status_from_company(company):
+    """Map a company's status to a research status string."""
+    if not company or not company.status:
+        return "not_started"
+    status = company.status.lower().replace(" ", "_")
+    if status in _COMPLETED_STATUSES:
+        return "completed"
+    if status in _IN_PROGRESS_STATUSES:
+        return "in_progress"
+    return "in_progress"
+
+
+@playbook_bp.route("/api/playbook/research", methods=["POST"])
+@require_auth
+def trigger_research():
+    """Trigger research on the tenant's own company.
+
+    Creates or finds a company record with is_self=True and links it
+    to the strategy document via enrichment_id.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    domain = data.get("domain")
+
+    # Fall back to tenant's domain if none provided
+    if not domain:
+        tenant = db.session.get(Tenant, tenant_id)
+        domain = tenant.domain if tenant else None
+
+    if not domain:
+        return jsonify({"error": "Domain is required (provide in body or set on tenant)"}), 400
+
+    # Find or create the self-company for this tenant
+    company = Company.query.filter_by(
+        tenant_id=tenant_id, is_self=True
+    ).first()
+
+    if company:
+        # Update domain if it changed
+        if company.domain != domain:
+            company.domain = domain
+    else:
+        tenant = db.session.get(Tenant, tenant_id)
+        company = Company(
+            tenant_id=tenant_id,
+            name=tenant.name if tenant else domain,
+            domain=domain,
+            is_self=True,
+            status="new",
+        )
+        db.session.add(company)
+        db.session.flush()
+
+    # Link the strategy document to this company
+    doc = _get_or_create_document(tenant_id)
+    doc.enrichment_id = company.id
+    db.session.commit()
+
+    # TODO: Trigger the n8n enrichment pipeline for self-company research.
+    # This will POST to the enrich-pipeline-v2 webhook with the company's
+    # batch/tag and owner info. For now, just set up the data model.
+
+    return jsonify({
+        "status": "triggered",
+        "company_id": company.id,
+        "domain": company.domain,
+    }), 200
+
+
+@playbook_bp.route("/api/playbook/research", methods=["GET"])
+@require_auth
+def get_research_status():
+    """Return the research/enrichment status for the tenant's strategy document."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc or not doc.enrichment_id:
+        return jsonify({"status": "not_started"}), 200
+
+    company = db.session.get(Company, doc.enrichment_id)
+    if not company:
+        return jsonify({"status": "not_started"}), 200
+
+    return jsonify({
+        "status": _research_status_from_company(company),
+        "company": {
+            "id": company.id,
+            "name": company.name,
+            "domain": company.domain,
+            "status": company.status,
+            "tier": company.tier,
+        },
+    }), 200
 
 
 @playbook_bp.route("/api/playbook/chat", methods=["GET"])

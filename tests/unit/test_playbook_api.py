@@ -419,3 +419,178 @@ class TestPlaybookExtract:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["extracted_data"]["icp"]["industries"] == ["SaaS"]
+
+
+class TestPlaybookResearch:
+    """Tests for POST/GET /api/playbook/research endpoints."""
+
+    def test_trigger_research_creates_self_company(self, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/research creates a company with is_self=True."""
+        from api.models import Company
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post(
+            "/api/playbook/research",
+            json={"domain": "testcorp.com"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "triggered"
+        assert data["domain"] == "testcorp.com"
+        assert "company_id" in data
+
+        # Verify the company was created with is_self=True
+        company = db.session.get(Company, data["company_id"])
+        assert company is not None
+        assert company.is_self is True
+        assert company.domain == "testcorp.com"
+        assert company.tenant_id == seed_tenant.id
+
+    def test_trigger_research_links_to_document(self, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/research sets the document's enrichment_id."""
+        from api.models import StrategyDocument
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.post(
+            "/api/playbook/research",
+            json={"domain": "testcorp.com"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        # Verify the strategy document's enrichment_id is set
+        doc = StrategyDocument.query.filter_by(tenant_id=seed_tenant.id).first()
+        assert doc is not None
+        assert doc.enrichment_id == data["company_id"]
+
+    def test_trigger_research_reuses_existing(self, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/research twice doesn't create duplicate companies."""
+        from api.models import Company
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp1 = client.post(
+            "/api/playbook/research",
+            json={"domain": "testcorp.com"},
+            headers=headers,
+        )
+        assert resp1.status_code == 200
+        company_id_1 = resp1.get_json()["company_id"]
+
+        resp2 = client.post(
+            "/api/playbook/research",
+            json={"domain": "testcorp.com"},
+            headers=headers,
+        )
+        assert resp2.status_code == 200
+        company_id_2 = resp2.get_json()["company_id"]
+
+        # Same company should be returned
+        assert company_id_1 == company_id_2
+
+        # Only one is_self company for this tenant
+        count = Company.query.filter_by(
+            tenant_id=seed_tenant.id, is_self=True
+        ).count()
+        assert count == 1
+
+    def test_trigger_research_uses_tenant_domain_as_fallback(self, client, seed_super_admin, db):
+        """POST /api/playbook/research without domain uses tenant's domain."""
+        from api.models import Tenant, Company
+
+        # Create tenant with a domain
+        tenant = Tenant(name="Domain Corp", slug="domain-corp", domain="domaincorp.com", is_active=True)
+        db.session.add(tenant)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = tenant.slug
+
+        resp = client.post(
+            "/api/playbook/research",
+            json={},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["domain"] == "domaincorp.com"
+
+        company = db.session.get(Company, data["company_id"])
+        assert company.domain == "domaincorp.com"
+
+    def test_trigger_research_requires_domain(self, client, seed_tenant, seed_super_admin, db):
+        """POST /api/playbook/research returns 400 when no domain and tenant has no domain."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp = client.post(
+            "/api/playbook/research",
+            json={},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "domain" in data["error"].lower()
+
+    def test_get_research_not_started(self, client, seed_tenant, seed_super_admin, db):
+        """GET /api/playbook/research returns not_started when no enrichment linked."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp = client.get("/api/playbook/research", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "not_started"
+
+    def test_get_research_with_company(self, client, seed_tenant, seed_super_admin, db):
+        """GET /api/playbook/research returns company info when linked."""
+        from api.models import Company, StrategyDocument
+
+        # Create a self-company with enriched status
+        company = Company(
+            tenant_id=seed_tenant.id,
+            name="Test Corp",
+            domain="testcorp.com",
+            status="enriched_l2",
+            tier="tier_1_platinum",
+            is_self=True,
+        )
+        db.session.add(company)
+        db.session.flush()
+
+        # Create strategy document linked to company
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            enrichment_id=company.id,
+            status="draft",
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+
+        resp = client.get("/api/playbook/research", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "completed"
+        assert data["company"]["name"] == "Test Corp"
+        assert data["company"]["domain"] == "testcorp.com"
+        assert data["company"]["tier"] == "tier_1_platinum"
+
+    def test_research_requires_auth(self, client, seed_tenant):
+        """GET and POST /api/playbook/research return 401 without token."""
+        headers = {"X-Namespace": seed_tenant.slug}
+        resp_get = client.get("/api/playbook/research", headers=headers)
+        assert resp_get.status_code == 401
+        resp_post = client.post(
+            "/api/playbook/research",
+            json={"domain": "test.com"},
+            headers=headers,
+        )
+        assert resp_post.status_code == 401
