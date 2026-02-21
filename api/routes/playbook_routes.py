@@ -284,23 +284,37 @@ def _run_self_research(app, company_id, tenant_id):
             l2_result = enrich_l2(company_id, tenant_id)
             l2_failed = "error" in l2_result
 
+            if l2_failed:
+                logger.warning(
+                    "Self-research L2 failed for company %s: %s",
+                    company_id,
+                    l2_result.get("error"),
+                )
+
             # Seed the strategy document with whatever data we have
-            # (L1 data if L2 failed, full data if L2 succeeded)
+            # (L1 data if L2 failed, full data if L2 succeeded).
+            # Start a clean session state since L2 failure may have
+            # left the session dirty from rollbacks.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
             if doc and doc.version == 1:
                 enrichment_data = _load_enrichment_data(company_id)
                 doc.content = build_seeded_template(
                     doc.objective, enrichment_data
                 )
+                doc.enrichment_id = company_id
                 db.session.commit()
-
-            if l2_failed:
-                logger.warning(
-                    "Self-research L2 failed for company %s: %s — seeded with L1 data",
+                logger.info(
+                    "Seeded template for company %s (content length: %d, l2_failed: %s)",
                     company_id,
-                    l2_result.get("error"),
+                    len(doc.content or ""),
+                    l2_failed,
                 )
-            else:
+
+            if not l2_failed:
                 logger.info("Self-research completed for company %s", company_id)
 
             # Log research completion (skip if no valid user_id to avoid UUID error)

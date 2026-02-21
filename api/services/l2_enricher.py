@@ -518,38 +518,60 @@ def _upsert_l2_enrichment(
         )
     except Exception:
         db.session.rollback()
-        # SQLite fallback
-        db.session.execute(
-            text("""
-                INSERT OR REPLACE INTO company_enrichment_l2 (
-                    company_id, company_intel, recent_news, ai_opportunities,
-                    pain_hypothesis, relevant_case_study, digital_initiatives,
-                    leadership_changes, hiring_signals, key_products,
-                    customer_segments, competitors, tech_stack,
-                    funding_history, eu_grants, leadership_team,
-                    ai_hiring, tech_partnerships, certifications,
-                    quick_wins, industry_pain_points, cross_functional_pain,
-                    adoption_barriers, enriched_at, enrichment_cost_usd
-                ) VALUES (
-                    :cid, :company_intel, :recent_news, :ai_opportunities,
-                    :pain_hypothesis, :relevant_case_study, :digital_initiatives,
-                    :leadership_changes, :hiring_signals, :key_products,
-                    :customer_segments, :competitors, :tech_stack,
-                    :funding_history, :eu_grants, :leadership_team,
-                    :ai_hiring, :tech_partnerships, :certifications,
-                    :quick_wins, :industry_pain_points, :cross_functional_pain,
-                    :adoption_barriers, :enriched_at, :cost
-                )
-            """),
-            _build_l2_params(
+        # SQLite fallback (INSERT OR REPLACE is SQLite-only; PG uses ON CONFLICT above)
+        try:
+            db.session.execute(
+                text("""
+                    INSERT OR REPLACE INTO company_enrichment_l2 (
+                        company_id, company_intel, recent_news, ai_opportunities,
+                        pain_hypothesis, relevant_case_study, digital_initiatives,
+                        leadership_changes, hiring_signals, key_products,
+                        customer_segments, competitors, tech_stack,
+                        funding_history, eu_grants, leadership_team,
+                        ai_hiring, tech_partnerships, certifications,
+                        quick_wins, industry_pain_points, cross_functional_pain,
+                        adoption_barriers, enriched_at, enrichment_cost_usd
+                    ) VALUES (
+                        :cid, :company_intel, :recent_news, :ai_opportunities,
+                        :pain_hypothesis, :relevant_case_study, :digital_initiatives,
+                        :leadership_changes, :hiring_signals, :key_products,
+                        :customer_segments, :competitors, :tech_stack,
+                        :funding_history, :eu_grants, :leadership_team,
+                        :ai_hiring, :tech_partnerships, :certifications,
+                        :quick_wins, :industry_pain_points, :cross_functional_pain,
+                        :adoption_barriers, :enriched_at, :cost
+                    )
+                """),
+                _build_l2_params(
+                    company_id,
+                    news_data,
+                    strategic_data,
+                    synthesis_data,
+                    quick_wins,
+                    total_cost,
+                ),
+            )
+        except Exception:
+            db.session.rollback()
+            logger.warning(
+                "L2 upsert failed for %s on both PG and SQLite paths",
                 company_id,
-                news_data,
-                strategic_data,
-                synthesis_data,
-                quick_wins,
-                total_cost,
-            ),
-        )
+            )
+
+
+def _to_text(value):
+    """Convert a value to a text string suitable for a TEXT column.
+
+    Lists and dicts are JSON-serialized; None passes through; everything
+    else is str().
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, default=str)
+    return str(value)
 
 
 def _build_l2_params(
@@ -558,28 +580,28 @@ def _build_l2_params(
     """Build parameter dict for L2 upsert."""
     return {
         "cid": company_id,
-        "company_intel": synthesis_data.get("executive_brief"),
-        "recent_news": news_data.get("recent_news"),
-        "ai_opportunities": synthesis_data.get("ai_opportunities"),
-        "pain_hypothesis": synthesis_data.get("pain_hypothesis"),
+        "company_intel": _to_text(synthesis_data.get("executive_brief")),
+        "recent_news": _to_text(news_data.get("recent_news")),
+        "ai_opportunities": _to_text(synthesis_data.get("ai_opportunities")),
+        "pain_hypothesis": _to_text(synthesis_data.get("pain_hypothesis")),
         "relevant_case_study": None,
-        "digital_initiatives": news_data.get("digital_initiatives"),
-        "leadership_changes": news_data.get("leadership_changes"),
-        "hiring_signals": strategic_data.get("other_hiring_signals"),
+        "digital_initiatives": _to_text(news_data.get("digital_initiatives")),
+        "leadership_changes": _to_text(news_data.get("leadership_changes")),
+        "hiring_signals": _to_text(strategic_data.get("other_hiring_signals")),
         "key_products": None,
         "customer_segments": None,
-        "competitors": synthesis_data.get("competitor_ai_moves"),
-        "tech_stack": strategic_data.get("vendor_partnerships"),
-        "funding_history": news_data.get("funding"),
-        "eu_grants": strategic_data.get("eu_grants"),
-        "leadership_team": strategic_data.get("leadership_team"),
-        "ai_hiring": strategic_data.get("ai_transformation_roles"),
-        "tech_partnerships": strategic_data.get("vendor_partnerships"),
-        "certifications": strategic_data.get("certifications"),
+        "competitors": _to_text(synthesis_data.get("competitor_ai_moves")),
+        "tech_stack": _to_text(strategic_data.get("vendor_partnerships")),
+        "funding_history": _to_text(news_data.get("funding")),
+        "eu_grants": _to_text(strategic_data.get("eu_grants")),
+        "leadership_team": _to_text(strategic_data.get("leadership_team")),
+        "ai_hiring": _to_text(strategic_data.get("ai_transformation_roles")),
+        "tech_partnerships": _to_text(strategic_data.get("vendor_partnerships")),
+        "certifications": _to_text(strategic_data.get("certifications")),
         "quick_wins": quick_wins,
-        "industry_pain_points": synthesis_data.get("industry_pain_points"),
-        "cross_functional_pain": synthesis_data.get("cross_functional_pain"),
-        "adoption_barriers": synthesis_data.get("adoption_barriers"),
+        "industry_pain_points": _to_text(synthesis_data.get("industry_pain_points")),
+        "cross_functional_pain": _to_text(synthesis_data.get("cross_functional_pain")),
+        "adoption_barriers": _to_text(synthesis_data.get("adoption_barriers")),
         "enriched_at": datetime.now(timezone.utc),
         "cost": total_cost,
     }
