@@ -2,12 +2,11 @@
 
 import json
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
 from ..models import Tag, ImportJob, OAuthConnection, Owner, db
 from ..services.dedup import dedup_preview, execute_import
-from ..services.gmail_scanner import start_gmail_scan
 from ..services.google_contacts import fetch_google_contacts, parse_contacts_to_rows
 
 gmail_bp = Blueprint("gmail", __name__)
@@ -51,7 +50,16 @@ def fetch_contacts():
         user_id=g.current_user.id,
         filename=f"google-contacts-{conn.provider_email}",
         total_rows=len(parsed_rows),
-        headers=json.dumps(["first_name", "last_name", "email_address", "job_title", "phone_number", "company_name"]),
+        headers=json.dumps(
+            [
+                "first_name",
+                "last_name",
+                "email_address",
+                "job_title",
+                "phone_number",
+                "company_name",
+            ]
+        ),
         sample_rows=json.dumps(parsed_rows[:5]),
         raw_csv=json.dumps(parsed_rows),
         source="google_contacts",
@@ -61,11 +69,13 @@ def fetch_contacts():
     db.session.add(job)
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "total_contacts": len(parsed_rows),
-        "sample": parsed_rows[:10],
-    }), 201
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "total_contacts": len(parsed_rows),
+            "sample": parsed_rows[:10],
+        }
+    ), 201
 
 
 @gmail_bp.route("/api/gmail/contacts/<job_id>/preview", methods=["POST"])
@@ -77,7 +87,8 @@ def preview_contacts(job_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     job = ImportJob.query.filter_by(
-        id=job_id, tenant_id=str(tenant_id),
+        id=job_id,
+        tenant_id=str(tenant_id),
     ).first()
     if not job:
         return jsonify({"error": "Import job not found"}), 404
@@ -85,18 +96,20 @@ def preview_contacts(job_id):
     raw = job.raw_csv
     parsed_rows = json.loads(raw) if isinstance(raw, str) else raw
     if not parsed_rows:
-        return jsonify({
-            "job_id": str(job.id),
-            "preview_rows": [],
-            "total_rows": 0,
-            "preview_count": 0,
-            "summary": {
-                "new_contacts": 0,
-                "duplicate_contacts": 0,
-                "new_companies": 0,
-                "existing_companies": 0,
-            },
-        })
+        return jsonify(
+            {
+                "job_id": str(job.id),
+                "preview_rows": [],
+                "total_rows": 0,
+                "preview_count": 0,
+                "summary": {
+                    "new_contacts": 0,
+                    "duplicate_contacts": 0,
+                    "new_companies": 0,
+                    "existing_companies": 0,
+                },
+            }
+        )
 
     preview_rows = parsed_rows[:25]
     dedup_results = dedup_preview(str(tenant_id), preview_rows)
@@ -104,23 +117,27 @@ def preview_contacts(job_id):
     new_contacts = sum(1 for r in dedup_results if r["contact_status"] == "new")
     dup_contacts = sum(1 for r in dedup_results if r["contact_status"] == "duplicate")
     new_companies = sum(1 for r in dedup_results if r["company_status"] == "new")
-    existing_companies = sum(1 for r in dedup_results if r["company_status"] == "existing")
+    existing_companies = sum(
+        1 for r in dedup_results if r["company_status"] == "existing"
+    )
 
     job.status = "previewed"
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "preview_rows": dedup_results,
-        "total_rows": job.total_rows,
-        "preview_count": len(dedup_results),
-        "summary": {
-            "new_contacts": new_contacts,
-            "duplicate_contacts": dup_contacts,
-            "new_companies": new_companies,
-            "existing_companies": existing_companies,
-        },
-    })
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "preview_rows": dedup_results,
+            "total_rows": job.total_rows,
+            "preview_count": len(dedup_results),
+            "summary": {
+                "new_contacts": new_contacts,
+                "duplicate_contacts": dup_contacts,
+                "new_companies": new_companies,
+                "existing_companies": existing_companies,
+            },
+        }
+    )
 
 
 @gmail_bp.route("/api/gmail/contacts/<job_id>/execute", methods=["POST"])
@@ -135,7 +152,8 @@ def execute_contacts_import(job_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     job = ImportJob.query.filter_by(
-        id=job_id, tenant_id=str(tenant_id),
+        id=job_id,
+        tenant_id=str(tenant_id),
     ).first()
     if not job:
         return jsonify({"error": "Import job not found"}), 404
@@ -144,7 +162,7 @@ def execute_contacts_import(job_id):
         return jsonify({"error": "Import already executed"}), 400
 
     body = request.get_json(silent=True) or {}
-    tag_name = body.get("tag_name", f"google-contacts-import")
+    tag_name = body.get("tag_name", "google-contacts-import")
     owner_id = body.get("owner_id")
     strategy = body.get("dedup_strategy", "skip")
 
@@ -190,23 +208,27 @@ def execute_contacts_import(job_id):
         job.contacts_skipped = counts["contacts_skipped"]
         job.companies_created = counts["companies_created"]
         job.companies_linked = counts["companies_linked"]
-        job.dedup_results = json.dumps({
-            "summary": {
-                "contacts_created": counts["contacts_created"],
-                "contacts_skipped": counts["contacts_skipped"],
-                "contacts_updated": counts["contacts_updated"],
-            },
-            "rows": dedup_rows,
-        })
+        job.dedup_results = json.dumps(
+            {
+                "summary": {
+                    "contacts_created": counts["contacts_created"],
+                    "contacts_skipped": counts["contacts_skipped"],
+                    "contacts_updated": counts["contacts_updated"],
+                },
+                "rows": dedup_rows,
+            }
+        )
         job.status = "completed"
         db.session.commit()
 
-        return jsonify({
-            "job_id": str(job.id),
-            "status": "completed",
-            "tag_name": tag_name,
-            "counts": counts,
-        })
+        return jsonify(
+            {
+                "job_id": str(job.id),
+                "status": "completed",
+                "tag_name": tag_name,
+                "counts": counts,
+            }
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -259,6 +281,7 @@ def start_scan():
 
     try:
         from ..services.gmail_scanner import quick_scan
+
         contacts, messages_scanned = quick_scan(conn, config)
     except Exception as e:
         return jsonify({"error": f"Gmail scan failed: {e}"}), 500
@@ -293,12 +316,14 @@ def start_scan():
     db.session.add(job)
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "status": "extracted",
-        "total_contacts": len(rows),
-        "messages_scanned": messages_scanned,
-    }), 201
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "status": "extracted",
+            "total_contacts": len(rows),
+            "messages_scanned": messages_scanned,
+        }
+    ), 201
 
 
 @gmail_bp.route("/api/gmail/scan/<job_id>/status", methods=["GET"])
@@ -312,7 +337,8 @@ def scan_status(job_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     job = ImportJob.query.filter_by(
-        id=job_id, tenant_id=str(tenant_id),
+        id=job_id,
+        tenant_id=str(tenant_id),
     ).first()
     if not job:
         return jsonify({"error": "Import job not found"}), 404
@@ -321,18 +347,28 @@ def scan_status(job_id):
     if job.status == "scanning":
         check_time = job.updated_at or job.created_at
         if check_time:
-            age = (datetime.now(timezone.utc) - check_time.replace(tzinfo=timezone.utc)).total_seconds()
+            age = (
+                datetime.now(timezone.utc) - check_time.replace(tzinfo=timezone.utc)
+            ).total_seconds()
             if age > 300:  # 5 minutes with no progress update
                 job.status = "error"
-                job.error = "Scan timed out (server may have restarted). Please try again."
+                job.error = (
+                    "Scan timed out (server may have restarted). Please try again."
+                )
                 db.session.commit()
 
     progress_raw = job.scan_progress
-    progress = json.loads(progress_raw) if isinstance(progress_raw, str) else (progress_raw or {})
+    progress = (
+        json.loads(progress_raw)
+        if isinstance(progress_raw, str)
+        else (progress_raw or {})
+    )
 
-    return jsonify({
-        "job_id": str(job.id),
-        "status": job.status,
-        "scan_progress": progress,
-        "error": job.error,
-    })
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "status": job.status,
+            "scan_progress": progress,
+            "error": job.error,
+        }
+    )

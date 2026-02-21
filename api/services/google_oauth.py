@@ -66,20 +66,28 @@ def exchange_code(code):
     Returns:
         dict with access_token, refresh_token, expires_in, email, sub
     """
-    resp = requests.post(GOOGLE_TOKEN_URL, data={
-        "code": code,
-        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
-        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
-        "redirect_uri": current_app.config["GOOGLE_REDIRECT_URI"],
-        "grant_type": "authorization_code",
-    }, timeout=15)
+    resp = requests.post(
+        GOOGLE_TOKEN_URL,
+        data={
+            "code": code,
+            "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+            "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri": current_app.config["GOOGLE_REDIRECT_URI"],
+            "grant_type": "authorization_code",
+        },
+        timeout=15,
+    )
     resp.raise_for_status()
     token_data = resp.json()
 
     # Fetch user info to get email + sub
-    userinfo_resp = requests.get(GOOGLE_USERINFO_URL, headers={
-        "Authorization": f"Bearer {token_data['access_token']}",
-    }, timeout=10)
+    userinfo_resp = requests.get(
+        GOOGLE_USERINFO_URL,
+        headers={
+            "Authorization": f"Bearer {token_data['access_token']}",
+        },
+        timeout=10,
+    )
     userinfo_resp.raise_for_status()
     userinfo = userinfo_resp.json()
 
@@ -102,12 +110,16 @@ def refresh_access_token(refresh_token_enc):
         dict with new access_token and expires_in
     """
     refresh_token = decrypt_token(refresh_token_enc)
-    resp = requests.post(GOOGLE_TOKEN_URL, data={
-        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
-        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }, timeout=15)
+    resp = requests.post(
+        GOOGLE_TOKEN_URL,
+        data={
+            "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+            "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=15,
+    )
     resp.raise_for_status()
     data = resp.json()
     return {
@@ -131,7 +143,8 @@ def get_valid_token(oauth_connection):
     result = refresh_access_token(oauth_connection.refresh_token_enc)
     oauth_connection.access_token_enc = encrypt_token(result["access_token"])
     oauth_connection.token_expiry = datetime.fromtimestamp(
-        time.time() + result["expires_in"], tz=timezone.utc,
+        time.time() + result["expires_in"],
+        tz=timezone.utc,
     )
     oauth_connection.updated_at = now
     db.session.flush()

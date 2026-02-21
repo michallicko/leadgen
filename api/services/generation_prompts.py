@@ -37,14 +37,38 @@ specific details about the recipient and their company to show genuine research.
 
 
 FORMALITY_INSTRUCTIONS = {
-    "cs": {"formal": "Use formal address (vykání – Vy).", "informal": "Use informal address (tykání – ty)."},
-    "de": {"formal": "Use formal address (Sie).", "informal": "Use informal address (du)."},
-    "fr": {"formal": "Use formal address (vous).", "informal": "Use informal address (tu)."},
-    "es": {"formal": "Use formal address (usted).", "informal": "Use informal address (tú)."},
-    "it": {"formal": "Use formal address (Lei).", "informal": "Use informal address (tu)."},
-    "pt": {"formal": "Use formal address (o senhor/a senhora).", "informal": "Use informal address (você/tu)."},
-    "pl": {"formal": "Use formal address (Pan/Pani).", "informal": "Use informal address (ty)."},
-    "nl": {"formal": "Use formal address (u).", "informal": "Use informal address (je/jij)."},
+    "cs": {
+        "formal": "Use formal address (vykání – Vy).",
+        "informal": "Use informal address (tykání – ty).",
+    },
+    "de": {
+        "formal": "Use formal address (Sie).",
+        "informal": "Use informal address (du).",
+    },
+    "fr": {
+        "formal": "Use formal address (vous).",
+        "informal": "Use informal address (tu).",
+    },
+    "es": {
+        "formal": "Use formal address (usted).",
+        "informal": "Use informal address (tú).",
+    },
+    "it": {
+        "formal": "Use formal address (Lei).",
+        "informal": "Use informal address (tu).",
+    },
+    "pt": {
+        "formal": "Use formal address (o senhor/a senhora).",
+        "informal": "Use informal address (você/tu).",
+    },
+    "pl": {
+        "formal": "Use formal address (Pan/Pani).",
+        "informal": "Use informal address (ty).",
+    },
+    "nl": {
+        "formal": "Use formal address (u).",
+        "informal": "Use informal address (je/jij).",
+    },
 }
 
 
@@ -92,13 +116,13 @@ def build_generation_prompt(
     parts = [
         f"Generate a {constraints['description']} for the following contact.",
         "",
-        f"--- CONTACT ---",
+        "--- CONTACT ---",
         contact_section,
         "",
-        f"--- COMPANY ---",
+        "--- COMPANY ---",
         company_section,
         "",
-        f"--- SEQUENCE CONTEXT ---",
+        "--- SEQUENCE CONTEXT ---",
         f"This is step {step_number} of {total_steps}: {step_label}",
         f"Channel: {channel.replace('_', ' ')}",
         f"Tone: {tone}",
@@ -112,26 +136,32 @@ def build_generation_prompt(
         if fi:
             parts.append(f"Formality: {fi}")
 
-    parts.extend([
-        "",
-        f"--- OUTPUT FORMAT ---",
-        format_instructions,
-        "Return ONLY the JSON object, no markdown fencing or explanation.",
-    ])
+    parts.extend(
+        [
+            "",
+            "--- OUTPUT FORMAT ---",
+            format_instructions,
+            "Return ONLY the JSON object, no markdown fencing or explanation.",
+        ]
+    )
 
     if custom_instructions:
-        parts.extend([
-            "",
-            f"--- ADDITIONAL INSTRUCTIONS ---",
-            custom_instructions[:2000],
-        ])
+        parts.extend(
+            [
+                "",
+                "--- ADDITIONAL INSTRUCTIONS ---",
+                custom_instructions[:2000],
+            ]
+        )
 
     if per_message_instruction:
-        parts.extend([
-            "",
-            f"--- PER-MESSAGE INSTRUCTION ---",
-            per_message_instruction[:200],
-        ])
+        parts.extend(
+            [
+                "",
+                "--- PER-MESSAGE INSTRUCTION ---",
+                per_message_instruction[:200],
+            ]
+        )
 
     return "\n".join(parts)
 

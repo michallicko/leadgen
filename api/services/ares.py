@@ -1,4 +1,5 @@
 """Backward-compatibility shim — real implementation in registries.ares."""
+
 # ruff: noqa: F401, F403
 from .registries.ares import (  # noqa: F401
     AresAdapter,

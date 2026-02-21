@@ -1,6 +1,6 @@
 """Registry adapter pattern for multi-country company register lookups."""
 
-from .base import BaseRegistryAdapter
+from .base import BaseRegistryAdapter as BaseRegistryAdapter
 
 # Lazy-loaded adapter instances (one per country code)
 _adapters = {}
@@ -48,18 +48,23 @@ def _load_adapter(code):
     try:
         if code == "CZ":
             from .ares import AresAdapter
+
             return AresAdapter()
         elif code == "NO":
             from .brreg import BrregAdapter
+
             return BrregAdapter()
         elif code == "FI":
             from .prh import PrhAdapter
+
             return PrhAdapter()
         elif code == "FR":
             from .recherche import RechercheAdapter
+
             return RechercheAdapter()
         elif code == "CZ_ISIR":
             from .isir import IsirAdapter
+
             return IsirAdapter()
     except ImportError:
         pass

@@ -7,7 +7,6 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import text
 
 from ..auth import require_auth, resolve_tenant
-from ..display import display_status, display_tier
 from ..models import PipelineRun, StageRun, db
 from ..services.pipeline_engine import (
     AVAILABLE_STAGES,
@@ -18,12 +17,10 @@ from ..services.pipeline_engine import (
     start_stage_thread,
 )
 from ..services.dag_executor import (
-    count_dag_eligible,
     start_dag_pipeline,
 )
 from ..services.stage_registry import (
     STAGE_REGISTRY,
-    get_all_stages,
     topo_sort,
 )
 
@@ -103,7 +100,9 @@ def pipeline_start():
         {"t": str(tenant_id), "b": str(tag_id), "s": stage},
     ).fetchone()
     if existing:
-        return jsonify({"error": f"Stage '{stage}' is already running for this tag"}), 409
+        return jsonify(
+            {"error": f"Stage '{stage}' is already running for this tag"}
+        ), 409
 
     # Get eligible entities
     entity_ids = get_eligible_ids(tenant_id, tag_id, stage, owner_id, tier_filter)
@@ -131,7 +130,13 @@ def pipeline_start():
     run_id = str(run.id)
 
     # Spawn background thread
-    start_stage_thread(current_app._get_current_object(), run_id, stage, entity_ids, tenant_id=tenant_id)
+    start_stage_thread(
+        current_app._get_current_object(),
+        run_id,
+        stage,
+        entity_ids,
+        tenant_id=tenant_id,
+    )
 
     return jsonify({"run_id": run_id, "total": len(entity_ids)}), 201
 
@@ -224,7 +229,11 @@ def pipeline_status():
             config_raw = row[10]
             if config_raw:
                 try:
-                    config = json.loads(config_raw) if isinstance(config_raw, str) else config_raw
+                    config = (
+                        json.loads(config_raw)
+                        if isinstance(config_raw, str)
+                        else config_raw
+                    )
                     if config.get("current_item"):
                         stage_data["current_item"] = config["current_item"]
                     if config.get("recent_items"):
@@ -272,6 +281,7 @@ def pipeline_status():
 # ---------------------------------------------------------------------------
 # Run-all / Stop-all (reactive parallel pipeline)
 # ---------------------------------------------------------------------------
+
 
 @pipeline_bp.route("/api/pipeline/run-all", methods=["POST"])
 @require_auth
@@ -360,10 +370,12 @@ def pipeline_run_all():
         stage_run_ids=stage_run_ids,
     )
 
-    return jsonify({
-        "pipeline_run_id": pipeline_run_id,
-        "stage_run_ids": stage_run_ids,
-    }), 201
+    return jsonify(
+        {
+            "pipeline_run_id": pipeline_run_id,
+            "stage_run_ids": stage_run_ids,
+        }
+    ), 201
 
 
 @pipeline_bp.route("/api/pipeline/stop-all", methods=["POST"])
@@ -391,7 +403,9 @@ def pipeline_stop_all():
     if not row:
         return jsonify({"error": "Pipeline run not found"}), 404
     if row[0] in ("completed", "failed", "stopped"):
-        return jsonify({"error": f"Pipeline already finished with status '{row[0]}'"}), 400
+        return jsonify(
+            {"error": f"Pipeline already finished with status '{row[0]}'"}
+        ), 400
 
     # Force-kill: set pipeline + all its stages to stopped immediately
     # Works even if threads are dead (e.g., after container restart)
@@ -421,6 +435,7 @@ def pipeline_stop_all():
 # ---------------------------------------------------------------------------
 # DAG-based pipeline endpoints
 # ---------------------------------------------------------------------------
+
 
 @pipeline_bp.route("/api/pipeline/dag-run", methods=["POST"])
 @require_auth
@@ -555,11 +570,13 @@ def pipeline_dag_run():
         re_enrich_horizons=re_enrich_horizons or None,
     )
 
-    return jsonify({
-        "pipeline_run_id": pipeline_run_id,
-        "stage_run_ids": stage_run_ids,
-        "stage_order": sorted_stages,
-    }), 201
+    return jsonify(
+        {
+            "pipeline_run_id": pipeline_run_id,
+            "stage_run_ids": stage_run_ids,
+            "stage_order": sorted_stages,
+        }
+    ), 201
 
 
 @pipeline_bp.route("/api/pipeline/dag-status", methods=["GET"])
@@ -637,7 +654,11 @@ def pipeline_dag_status():
             sr_config = row[9]
             if sr_config:
                 try:
-                    sr_config = json.loads(sr_config) if isinstance(sr_config, str) else sr_config
+                    sr_config = (
+                        json.loads(sr_config)
+                        if isinstance(sr_config, str)
+                        else sr_config
+                    )
                     if sr_config.get("current_item"):
                         stage_data["current_item"] = sr_config["current_item"]
                     if sr_config.get("recent_items"):
@@ -667,32 +688,36 @@ def pipeline_dag_status():
 
     # Build DAG structure for UI
     dag_structure = []
-    for stage_code in (stages_json or {}):
+    for stage_code in stages_json or {}:
         reg = STAGE_REGISTRY.get(stage_code, {})
-        dag_structure.append({
-            "code": stage_code,
-            "display_name": reg.get("display_name", stage_code),
-            "entity_type": reg.get("entity_type", "company"),
-            "hard_deps": reg.get("hard_deps", []),
-            "soft_deps": reg.get("soft_deps", []),
-            "country_gate": reg.get("country_gate"),
-            "is_terminal": reg.get("is_terminal", False),
-        })
+        dag_structure.append(
+            {
+                "code": stage_code,
+                "display_name": reg.get("display_name", stage_code),
+                "entity_type": reg.get("entity_type", "company"),
+                "hard_deps": reg.get("hard_deps", []),
+                "soft_deps": reg.get("soft_deps", []),
+                "country_gate": reg.get("country_gate"),
+                "is_terminal": reg.get("is_terminal", False),
+            }
+        )
 
-    return jsonify({
-        "pipeline": {
-            "run_id": pipeline_run_id,
-            "status": prow[1],
-            "cost": float(prow[2] or 0),
-            "config": config_raw,
-            "started_at": _fmt_dt(prow[5]),
-            "completed_at": _fmt_dt(prow[6]),
-            "updated_at": _fmt_dt(prow[7]),
-        },
-        "stages": stage_statuses,
-        "completions": completion_counts,
-        "dag": dag_structure,
-    })
+    return jsonify(
+        {
+            "pipeline": {
+                "run_id": pipeline_run_id,
+                "status": prow[1],
+                "cost": float(prow[2] or 0),
+                "config": config_raw,
+                "started_at": _fmt_dt(prow[5]),
+                "completed_at": _fmt_dt(prow[6]),
+                "updated_at": _fmt_dt(prow[7]),
+            },
+            "stages": stage_statuses,
+            "completions": completion_counts,
+            "dag": dag_structure,
+        }
+    )
 
 
 @pipeline_bp.route("/api/pipeline/dag-stop", methods=["POST"])
@@ -721,7 +746,9 @@ def pipeline_dag_stop():
     if not row:
         return jsonify({"error": "Pipeline run not found"}), 404
     if row[0] in ("completed", "failed", "stopped"):
-        return jsonify({"error": f"Pipeline already finished with status '{row[0]}'"}), 400
+        return jsonify(
+            {"error": f"Pipeline already finished with status '{row[0]}'"}
+        ), 400
 
     db.session.execute(
         text("""

@@ -8,7 +8,6 @@ from sqlalchemy import text
 from ..auth import require_auth, resolve_tenant
 from ..models import PipelineRun, StageRun, db
 from ..services.pipeline_engine import (
-    AVAILABLE_STAGES,
     _LEGACY_STAGE_ALIASES,
     count_eligible,
     start_pipeline_threads,
@@ -20,8 +19,16 @@ from ..services.stage_registry import get_stage_labels
 enrich_bp = Blueprint("enrich", __name__)
 
 ENRICHMENT_STAGES = [
-    "l1", "l2", "signals", "registry", "news",
-    "person", "social", "career", "contact_details", "qc",
+    "l1",
+    "l2",
+    "signals",
+    "registry",
+    "news",
+    "person",
+    "social",
+    "career",
+    "contact_details",
+    "qc",
 ]
 
 # Static cost defaults (USD per item) — used when no historical data exists
@@ -148,8 +155,13 @@ def enrich_estimate():
         # otherwise use the original count_eligible with status-based filters
         if entity_ids or re_enrich_horizon:
             eligible = count_eligible_for_estimate(
-                stage, tenant_id, tag_id, owner_id, tier_filter,
-                entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
+                stage,
+                tenant_id,
+                tag_id,
+                owner_id,
+                tier_filter,
+                entity_ids=entity_ids,
+                re_enrich_horizon=re_enrich_horizon,
             )
         else:
             eligible = count_eligible(tenant_id, tag_id, stage, owner_id, tier_filter)
@@ -165,10 +177,12 @@ def enrich_estimate():
             "fields": get_stage_labels(stage),
         }
 
-    return jsonify({
-        "stages": result,
-        "total_estimated_cost": round(total_cost, 2),
-    })
+    return jsonify(
+        {
+            "stages": result,
+            "total_estimated_cost": round(total_cost, 2),
+        }
+    )
 
 
 @enrich_bp.route("/api/enrich/start", methods=["POST"])
@@ -275,10 +289,12 @@ def enrich_start():
         sample_size=int(sample_size) if sample_size else None,
     )
 
-    return jsonify({
-        "pipeline_run_id": pipeline_run_id,
-        "stage_run_ids": stage_run_ids,
-    }), 201
+    return jsonify(
+        {
+            "pipeline_run_id": pipeline_run_id,
+            "stage_run_ids": stage_run_ids,
+        }
+    ), 201
 
 
 @enrich_bp.route("/api/enrich/review", methods=["GET"])
@@ -290,7 +306,6 @@ def enrich_review():
         return jsonify({"error": "Tenant not found"}), 404
 
     tag_name = request.args.get("tag_name", "")
-    stage = request.args.get("stage", "l1")
 
     if not tag_name:
         return jsonify({"error": "tag_name is required"}), 400
@@ -321,14 +336,16 @@ def enrich_review():
             except (json.JSONDecodeError, TypeError):
                 flags = [row[4]]
 
-        items.append({
-            "id": str(row[0]),
-            "name": row[1],
-            "domain": row[2],
-            "status": row[3],
-            "flags": flags,
-            "enrichment_cost_usd": float(row[5]) if row[5] else 0,
-        })
+        items.append(
+            {
+                "id": str(row[0]),
+                "name": row[1],
+                "domain": row[2],
+                "status": row[3],
+                "flags": flags,
+                "enrichment_cost_usd": float(row[5]) if row[5] else 0,
+            }
+        )
 
     return jsonify({"items": items, "total": len(items)})
 
@@ -397,11 +414,13 @@ def enrich_resolve():
                 text("SELECT status FROM companies WHERE id = :id"),
                 {"id": str(company_id)},
             ).fetchone()
-            return jsonify({
-                "success": True,
-                "new_status": new_status_row[0] if new_status_row else "unknown",
-                "result": result,
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "new_status": new_status_row[0] if new_status_row else "unknown",
+                    "result": result,
+                }
+            )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)[:500]}), 500
 

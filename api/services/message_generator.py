@@ -13,7 +13,11 @@ import time
 from decimal import Decimal
 
 from ..models import Message, db
-from .generation_prompts import SYSTEM_PROMPT, build_generation_prompt, CHANNEL_CONSTRAINTS
+from .generation_prompts import (
+    SYSTEM_PROMPT,
+    build_generation_prompt,
+    CHANNEL_CONSTRAINTS,
+)
 from .llm_logger import log_llm_usage, compute_cost
 
 logger = logging.getLogger(__name__)
@@ -36,8 +40,10 @@ def estimate_generation_cost(template_config: list, total_contacts: int) -> dict
     total_messages = len(enabled_steps) * total_contacts
 
     per_message_cost = compute_cost(
-        GENERATION_PROVIDER, GENERATION_MODEL,
-        EST_INPUT_TOKENS, EST_OUTPUT_TOKENS,
+        GENERATION_PROVIDER,
+        GENERATION_MODEL,
+        EST_INPUT_TOKENS,
+        EST_OUTPUT_TOKENS,
     )
     total_cost = per_message_cost * total_messages
     per_contact_cost = per_message_cost * len(enabled_steps)
@@ -50,7 +56,11 @@ def estimate_generation_cost(template_config: list, total_contacts: int) -> dict
         "total_contacts": total_contacts,
         "model": GENERATION_MODEL,
         "breakdown": [
-            {"step": s.get("step"), "label": s.get("label"), "channel": s.get("channel")}
+            {
+                "step": s.get("step"),
+                "label": s.get("label"),
+                "channel": s.get("channel"),
+            }
             for s in enabled_steps
         ],
     }
@@ -107,8 +117,12 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
         logger.error("Campaign %s not found", campaign_id)
         return
 
-    template_config = json.loads(campaign[0]) if isinstance(campaign[0], str) else (campaign[0] or [])
-    generation_config = json.loads(campaign[1]) if isinstance(campaign[1], str) else (campaign[1] or {})
+    template_config = (
+        json.loads(campaign[0]) if isinstance(campaign[0], str) else (campaign[0] or [])
+    )
+    generation_config = (
+        json.loads(campaign[1]) if isinstance(campaign[1], str) else (campaign[1] or {})
+    )
     owner_id = campaign[2]
 
     enabled_steps = [s for s in template_config if s.get("enabled")]
@@ -152,7 +166,9 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
         try:
             # Mark contact as generating
             db.session.execute(
-                db.text("UPDATE campaign_contacts SET status = 'generating' WHERE id = :id"),
+                db.text(
+                    "UPDATE campaign_contacts SET status = 'generating' WHERE id = :id"
+                ),
                 {"id": cc_id},
             )
             db.session.commit()
@@ -168,7 +184,9 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
                 "department": contact_row[8],
             }
             company_id = str(contact_row[9]) if contact_row[9] else None
-            company_data, enrichment_data = _load_enrichment_context(contact_id, company_id)
+            company_data, enrichment_data = _load_enrichment_context(
+                contact_id, company_id
+            )
 
             # Generate each enabled step
             contact_cost = Decimal("0")
@@ -202,7 +220,11 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
             total_cost += contact_cost
 
         except Exception:
-            logger.exception("Generation failed for contact %s in campaign %s", contact_id, campaign_id)
+            logger.exception(
+                "Generation failed for contact %s in campaign %s",
+                contact_id,
+                campaign_id,
+            )
             db.session.rollback()
             db.session.execute(
                 db.text("""
@@ -241,7 +263,10 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
 
     logger.info(
         "Generation complete: campaign=%s contacts=%d messages=%d cost=$%.4f",
-        campaign_id, generated_count, generated_count * total_steps, float(total_cost),
+        campaign_id,
+        generated_count,
+        generated_count * total_steps,
+        float(total_cost),
     )
 
 
@@ -260,8 +285,11 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
         ).fetchone()
         if row:
             company_data = {
-                "name": row[0], "domain": row[1], "industry": row[2],
-                "hq_country": row[3], "summary": row[4],
+                "name": row[0],
+                "domain": row[1],
+                "industry": row[2],
+                "hq_country": row[3],
+                "summary": row[4],
             }
 
         l2_row = db.session.execute(
@@ -329,6 +357,7 @@ def _generate_single_message(
 
     # Call Claude API
     import anthropic
+
     client = anthropic.Anthropic()
     response = client.messages.create(
         model=GENERATION_MODEL,
@@ -346,7 +375,8 @@ def _generate_single_message(
     except json.JSONDecodeError:
         # Try to extract JSON from response
         import re
-        match = re.search(r'\{[^}]+\}', raw_text, re.DOTALL)
+
+        match = re.search(r"\{[^}]+\}", raw_text, re.DOTALL)
         if match:
             parsed = json.loads(match.group())
         else:
@@ -364,7 +394,9 @@ def _generate_single_message(
     # Log cost
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
-    cost = compute_cost(GENERATION_PROVIDER, GENERATION_MODEL, input_tokens, output_tokens)
+    cost = compute_cost(
+        GENERATION_PROVIDER, GENERATION_MODEL, input_tokens, output_tokens
+    )
 
     log_llm_usage(
         tenant_id=tenant_id,
@@ -539,8 +571,16 @@ def regenerate_message(
             {"cc_id": cc_id},
         ).fetchone()
         if camp_row:
-            campaign_config = json.loads(camp_row[0]) if isinstance(camp_row[0], str) else (camp_row[0] or {})
-            template_config = json.loads(camp_row[1]) if isinstance(camp_row[1], str) else (camp_row[1] or [])
+            campaign_config = (
+                json.loads(camp_row[0])
+                if isinstance(camp_row[0], str)
+                else (camp_row[0] or {})
+            )
+            template_config = (
+                json.loads(camp_row[1])
+                if isinstance(camp_row[1], str)
+                else (camp_row[1] or [])
+            )
             total_steps = len([s for s in template_config if s.get("enabled")])
         else:
             total_steps = 1
@@ -548,7 +588,9 @@ def regenerate_message(
         total_steps = 1
 
     # Apply overrides
-    effective_language = language or current_language or campaign_config.get("language", "en")
+    effective_language = (
+        language or current_language or campaign_config.get("language", "en")
+    )
     effective_tone = tone or current_tone or campaign_config.get("tone", "professional")
 
     gen_config = dict(campaign_config)
@@ -571,6 +613,7 @@ def regenerate_message(
     start_time = time.time()
 
     import anthropic
+
     client = anthropic.Anthropic()
     response = client.messages.create(
         model=GENERATION_MODEL,
@@ -587,7 +630,8 @@ def regenerate_message(
         parsed = json.loads(raw_text)
     except json.JSONDecodeError:
         import re
-        match = re.search(r'\{[^}]+\}', raw_text, re.DOTALL)
+
+        match = re.search(r"\{[^}]+\}", raw_text, re.DOTALL)
         if match:
             parsed = json.loads(match.group())
         else:
@@ -604,7 +648,9 @@ def regenerate_message(
     # Log cost
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
-    cost = compute_cost(GENERATION_PROVIDER, GENERATION_MODEL, input_tokens, output_tokens)
+    cost = compute_cost(
+        GENERATION_PROVIDER, GENERATION_MODEL, input_tokens, output_tokens
+    )
 
     log_llm_usage(
         tenant_id=tenant_id,

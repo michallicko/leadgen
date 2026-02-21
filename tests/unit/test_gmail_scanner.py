@@ -478,7 +478,7 @@ class TestScanRoutes:
         assert resp.status_code == 400
         assert "connection_id" in resp.get_json()["error"]
 
-    @patch("api.routes.gmail_routes.start_gmail_scan")
+    @patch("api.services.gmail_scanner.quick_scan")
     def test_start_scan_creates_job(self, mock_scan, client, seed_super_admin, seed_tenant):
         from tests.conftest import auth_header
         from api.models import OAuthConnection, UserTenantRole, db as _db
@@ -497,6 +497,9 @@ class TestScanRoutes:
         _db.session.add(conn)
         _db.session.commit()
 
+        # quick_scan returns (contacts_dict, messages_scanned)
+        mock_scan.return_value = ({}, 0)
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         headers["Content-Type"] = "application/json"
@@ -509,11 +512,11 @@ class TestScanRoutes:
 
         assert resp.status_code == 201
         data = resp.get_json()
-        assert data["status"] == "scanning"
+        assert data["status"] == "extracted"
         assert "job_id" in data
         mock_scan.assert_called_once()
 
-    @patch("api.routes.gmail_routes.start_gmail_scan")
+    @patch("api.services.gmail_scanner.quick_scan")
     def test_scan_status(self, mock_scan, client, seed_super_admin, seed_tenant):
         from tests.conftest import auth_header
         from api.models import ImportJob, OAuthConnection, UserTenantRole, db as _db

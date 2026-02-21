@@ -27,6 +27,7 @@ def compute_next_run(cron_expression):
 
     try:
         from croniter import croniter
+
         now = datetime.now(timezone.utc)
         cron = croniter(cron_expression, now)
         return cron.get_next(datetime).replace(tzinfo=timezone.utc)
@@ -56,9 +57,12 @@ def check_due_schedules():
         try:
             config = sched.config_id
             from ..models import EnrichmentConfig
+
             ec = db.session.get(EnrichmentConfig, config)
             if not ec:
-                logger.warning("Schedule %s references missing config %s", sched.id, config)
+                logger.warning(
+                    "Schedule %s references missing config %s", sched.id, config
+                )
                 continue
 
             success = _trigger_pipeline(sched.tenant_id, ec)
@@ -70,7 +74,9 @@ def check_due_schedules():
                     sched.next_run_at = next_run
                 else:
                     sched.is_active = False
-                    logger.warning("Disabling schedule %s: invalid cron expression", sched.id)
+                    logger.warning(
+                        "Disabling schedule %s: invalid cron expression", sched.id
+                    )
                 triggered += 1
         except Exception:
             logger.exception("Error triggering schedule %s", sched.id)
@@ -95,6 +101,7 @@ def check_new_entity_triggers(tenant_id):
     for sched in triggers:
         try:
             from ..models import EnrichmentConfig
+
             ec = db.session.get(EnrichmentConfig, sched.config_id)
             if not ec:
                 continue
@@ -126,7 +133,9 @@ def _trigger_pipeline(tenant_id, enrichment_config):
 
     logger.info(
         "Triggering pipeline from config '%s' for tenant %s with stages %s",
-        enrichment_config.name, tenant_id, stages,
+        enrichment_config.name,
+        tenant_id,
+        stages,
     )
     # The actual pipeline trigger would call into dag_executor or pipeline_engine
     # For now, this is a hook point — the integration with the pipeline engine
@@ -165,9 +174,12 @@ def start_scheduler(app):
                 if not _scheduler_running:
                     break
                 import time
+
                 time.sleep(1)
 
-    _scheduler_thread = threading.Thread(target=_loop, daemon=True, name="enrichment-scheduler")
+    _scheduler_thread = threading.Thread(
+        target=_loop, daemon=True, name="enrichment-scheduler"
+    )
     _scheduler_thread.start()
     logger.info("Enrichment scheduler started (interval=%ds)", CHECK_INTERVAL)
 

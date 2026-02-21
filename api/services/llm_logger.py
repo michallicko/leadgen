@@ -67,12 +67,23 @@ def compute_cost(provider, model, input_tokens, output_tokens):
 
     input_cost = pricing["input"] * Decimal(str(input_tokens)) / _ONE_MILLION
     output_cost = pricing["output"] * Decimal(str(output_tokens)) / _ONE_MILLION
-    total = (input_cost + output_cost).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    total = (input_cost + output_cost).quantize(
+        Decimal("0.000001"), rounding=ROUND_HALF_UP
+    )
     return total
 
 
-def log_llm_usage(tenant_id, operation, model, input_tokens, output_tokens,
-                  provider="anthropic", user_id=None, duration_ms=None, metadata=None):
+def log_llm_usage(
+    tenant_id,
+    operation,
+    model,
+    input_tokens,
+    output_tokens,
+    provider="anthropic",
+    user_id=None,
+    duration_ms=None,
+    metadata=None,
+):
     """Create an LlmUsageLog entry and add to the current session.
 
     Does NOT commit -- caller's transaction includes it.

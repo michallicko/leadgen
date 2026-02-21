@@ -14,7 +14,6 @@ import re
 import time
 from datetime import datetime, timezone
 
-from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
@@ -203,6 +202,7 @@ Employee Sentiment: {employee_sentiment}"""
 # Main entry point
 # ---------------------------------------------------------------------------
 
+
 def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
     """Run L2 deep research enrichment for a single company.
 
@@ -238,48 +238,47 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
             total_cost += news_cost
         except Exception as e:
             logger.error("L2 news research failed for %s: %s", company_id, e)
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             return {"error": str(e), "enrichment_cost_usd": total_cost}
 
         try:
             strategic_data, strategic_cost = _research_strategic(
-                company, l1_data, model)
+                company, l1_data, model
+            )
             total_cost += strategic_cost
         except Exception as e:
             logger.error("L2 strategic research failed for %s: %s", company_id, e)
             # Save partial results from news
-            _upsert_l2_enrichment(company_id, news_data, {}, {},
-                                  total_cost)
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _upsert_l2_enrichment(company_id, news_data, {}, {}, total_cost)
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             return {"error": str(e), "enrichment_cost_usd": total_cost}
 
         # --- Phase 2: Anthropic synthesis ---
         try:
             synthesis_data, synthesis_cost = _synthesize(
-                company, l1_data, news_data, strategic_data)
+                company, l1_data, news_data, strategic_data
+            )
             total_cost += synthesis_cost
         except Exception as e:
-            logger.warning("L2 synthesis failed for %s: %s — saving research only",
-                           company_id, e)
+            logger.warning(
+                "L2 synthesis failed for %s: %s — saving research only", company_id, e
+            )
             # Save research without synthesis
-            _upsert_l2_enrichment(company_id, news_data, strategic_data, {},
-                                  total_cost)
+            _upsert_l2_enrichment(company_id, news_data, strategic_data, {}, total_cost)
             _set_company_status(company_id, "enriched_l2")
             db.session.commit()
             return {"enrichment_cost_usd": total_cost, "synthesis_failed": True}
 
         # --- Save everything ---
-        _upsert_l2_enrichment(company_id, news_data, strategic_data,
-                              synthesis_data, total_cost)
+        _upsert_l2_enrichment(
+            company_id, news_data, strategic_data, synthesis_data, total_cost
+        )
         _set_company_status(company_id, "enriched_l2")
 
         # --- Log LLM usage ---
         duration_ms = int((time.time() - start_time) * 1000)
         if log_llm_usage:
-            _log_usage(company_id, tenant_id, model, total_cost,
-                       duration_ms, boost)
+            _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost)
 
         db.session.commit()
         return {"enrichment_cost_usd": total_cost}
@@ -288,8 +287,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         logger.exception("L2 enrichment failed for %s: %s", company_id, e)
         db.session.rollback()
         try:
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             db.session.commit()
         except Exception:
             pass
@@ -299,6 +297,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
+
 
 def _load_company_and_l1(company_id):
     """Load company record and L1 enrichment data."""
@@ -346,6 +345,7 @@ def _load_company_and_l1(company_id):
 # ---------------------------------------------------------------------------
 # Phase 1: Perplexity research
 # ---------------------------------------------------------------------------
+
 
 def _research_news(company, l1_data, model):
     """Call Perplexity for news and business signals."""
@@ -399,6 +399,7 @@ def _research_strategic(company, l1_data, model):
 # Phase 2: Anthropic synthesis
 # ---------------------------------------------------------------------------
 
+
 def _synthesize(company, l1_data, news_data, strategic_data):
     """Call Anthropic Claude to synthesize research into actionable intel."""
     client = AnthropicClient()
@@ -448,8 +449,10 @@ def _synthesize(company, l1_data, news_data, strategic_data):
 # DB operations
 # ---------------------------------------------------------------------------
 
-def _upsert_l2_enrichment(company_id, news_data, strategic_data,
-                          synthesis_data, total_cost):
+
+def _upsert_l2_enrichment(
+    company_id, news_data, strategic_data, synthesis_data, total_cost
+):
     """Insert or update the company_enrichment_l2 record."""
     quick_wins = synthesis_data.get("quick_wins")
     if quick_wins and not isinstance(quick_wins, str):
@@ -504,8 +507,14 @@ def _upsert_l2_enrichment(company_id, news_data, strategic_data,
                     enriched_at = EXCLUDED.enriched_at,
                     enrichment_cost_usd = EXCLUDED.enrichment_cost_usd
             """),
-            _build_l2_params(company_id, news_data, strategic_data,
-                             synthesis_data, quick_wins, total_cost),
+            _build_l2_params(
+                company_id,
+                news_data,
+                strategic_data,
+                synthesis_data,
+                quick_wins,
+                total_cost,
+            ),
         )
     except Exception:
         db.session.rollback()
@@ -532,13 +541,20 @@ def _upsert_l2_enrichment(company_id, news_data, strategic_data,
                     :adoption_barriers, :enriched_at, :cost
                 )
             """),
-            _build_l2_params(company_id, news_data, strategic_data,
-                             synthesis_data, quick_wins, total_cost),
+            _build_l2_params(
+                company_id,
+                news_data,
+                strategic_data,
+                synthesis_data,
+                quick_wins,
+                total_cost,
+            ),
         )
 
 
-def _build_l2_params(company_id, news_data, strategic_data,
-                     synthesis_data, quick_wins, total_cost):
+def _build_l2_params(
+    company_id, news_data, strategic_data, synthesis_data, quick_wins, total_cost
+):
     """Build parameter dict for L2 upsert."""
     return {
         "cid": company_id,
@@ -613,6 +629,7 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_json(content):
     """Parse JSON from API response, handling markdown fences."""
     if not content:
@@ -632,6 +649,5 @@ def _parse_json(content):
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-        logger.warning("Failed to parse JSON from L2 response: %s...",
-                       content[:200])
+        logger.warning("Failed to parse JSON from L2 response: %s...", content[:200])
         return {}

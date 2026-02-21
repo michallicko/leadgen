@@ -34,7 +34,9 @@ def _auto_create_custom_field_defs(tenant_id, mapping):
                 entity_type, _, field_key = parts
                 # Prefer user-edited label from suggested_custom_field, fall back to csv_header
                 suggestion = m.get("suggested_custom_field") or {}
-                label = suggestion.get("field_label") or m.get("csv_header", field_key.replace("_", " ").title())
+                label = suggestion.get("field_label") or m.get(
+                    "csv_header", field_key.replace("_", " ").title()
+                )
                 field_type = suggestion.get("field_type", "text")
                 needed[(entity_type, field_key)] = {
                     "label": label,
@@ -43,7 +45,9 @@ def _auto_create_custom_field_defs(tenant_id, mapping):
 
     for (entity_type, field_key), info in needed.items():
         existing = CustomFieldDefinition.query.filter_by(
-            tenant_id=tenant_id, entity_type=entity_type, field_key=field_key,
+            tenant_id=tenant_id,
+            entity_type=entity_type,
+            field_key=field_key,
         ).first()
         if existing:
             if not existing.is_active:
@@ -82,7 +86,9 @@ def _parse_xlsx_bytes(raw):
     headers = [str(h) if h is not None else "" for h in header_row]
     rows = []
     for row in rows_iter:
-        rows.append({headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)})
+        rows.append(
+            {headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)}
+        )
     wb.close()
     return headers, rows
 
@@ -108,8 +114,8 @@ def upload_csv():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    user = request.environ.get("user") or getattr(request, "_user", None)
     from flask import g
+
     user_id = g.current_user.id
 
     if "file" not in request.files:
@@ -125,7 +131,9 @@ def upload_csv():
 
     raw = file.read()
     if len(raw) > MAX_CSV_SIZE:
-        return jsonify({"error": f"File too large (max {MAX_CSV_SIZE // (1024*1024)} MB)"}), 400
+        return jsonify(
+            {"error": f"File too large (max {MAX_CSV_SIZE // (1024 * 1024)} MB)"}
+        ), 400
 
     if filename_lower.endswith(".xlsx"):
         headers, rows = _parse_xlsx_bytes(raw)
@@ -147,14 +155,17 @@ def upload_csv():
 
     # Fetch existing custom field definitions for AI context
     custom_defs_rows = CustomFieldDefinition.query.filter_by(
-        tenant_id=str(tenant_id), is_active=True,
+        tenant_id=str(tenant_id),
+        is_active=True,
     ).all()
     custom_defs = [d.to_dict() for d in custom_defs_rows]
 
     # Call Claude for AI column mapping
     usage_info = None
     try:
-        mapping_result, usage_info = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
+        mapping_result, usage_info = call_claude_for_mapping(
+            headers, sample_rows, custom_defs=custom_defs
+        )
     except Exception as e:
         mapping_result = {
             "mappings": [],
@@ -163,8 +174,11 @@ def upload_csv():
         }
 
     # Compute overall confidence
-    confidences = [m.get("confidence", 0) for m in mapping_result.get("mappings", [])
-                   if m.get("target")]
+    confidences = [
+        m.get("confidence", 0)
+        for m in mapping_result.get("mappings", [])
+        if m.get("target")
+    ]
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0
 
     # Create import job
@@ -175,9 +189,13 @@ def upload_csv():
         file_size_bytes=len(raw),
         total_rows=len(rows),
         headers=json.dumps(headers) if isinstance(headers, list) else headers,
-        sample_rows=json.dumps(sample_rows) if isinstance(sample_rows, list) else sample_rows,
+        sample_rows=json.dumps(sample_rows)
+        if isinstance(sample_rows, list)
+        else sample_rows,
         raw_csv=text,
-        column_mapping=json.dumps(mapping_result) if isinstance(mapping_result, dict) else mapping_result,
+        column_mapping=json.dumps(mapping_result)
+        if isinstance(mapping_result, dict)
+        else mapping_result,
         mapping_confidence=round(avg_confidence, 2),
         status="mapped",
     )
@@ -203,15 +221,17 @@ def upload_csv():
 
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "filename": file.filename,
-        "total_rows": len(rows),
-        "headers": headers,
-        "sample_rows": sample_rows,
-        "mapping": mapping_result,
-        "mapping_confidence": round(avg_confidence, 2),
-    }), 201
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "filename": file.filename,
+            "total_rows": len(rows),
+            "headers": headers,
+            "sample_rows": sample_rows,
+            "mapping": mapping_result,
+            "mapping_confidence": round(avg_confidence, 2),
+        }
+    ), 201
 
 
 @imports_bp.route("/api/imports/<job_id>/remap", methods=["POST"])
@@ -239,17 +259,23 @@ def remap_import(job_id):
     sample_rows = [{h: row.get(h, "") for h in headers} for row in rows[:5]]
 
     custom_defs_rows = CustomFieldDefinition.query.filter_by(
-        tenant_id=str(tenant_id), is_active=True,
+        tenant_id=str(tenant_id),
+        is_active=True,
     ).all()
     custom_defs = [d.to_dict() for d in custom_defs_rows]
 
     try:
-        mapping_result, usage_info = call_claude_for_mapping(headers, sample_rows, custom_defs=custom_defs)
+        mapping_result, usage_info = call_claude_for_mapping(
+            headers, sample_rows, custom_defs=custom_defs
+        )
     except Exception as e:
         return jsonify({"error": f"AI mapping failed: {str(e)}"}), 500
 
-    confidences = [m.get("confidence", 0) for m in mapping_result.get("mappings", [])
-                   if m.get("target")]
+    confidences = [
+        m.get("confidence", 0)
+        for m in mapping_result.get("mappings", [])
+        if m.get("target")
+    ]
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0
 
     job.column_mapping = json.dumps(mapping_result)
@@ -259,6 +285,7 @@ def remap_import(job_id):
 
     if usage_info:
         from flask import g
+
         log_llm_usage(
             tenant_id=str(tenant_id),
             operation="csv_column_remap",
@@ -276,15 +303,17 @@ def remap_import(job_id):
 
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "filename": job.filename,
-        "total_rows": job.total_rows,
-        "headers": headers,
-        "sample_rows": sample_rows,
-        "mapping": mapping_result,
-        "mapping_confidence": round(avg_confidence, 2),
-    })
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "filename": job.filename,
+            "total_rows": job.total_rows,
+            "headers": headers,
+            "sample_rows": sample_rows,
+            "mapping": mapping_result,
+            "mapping_confidence": round(avg_confidence, 2),
+        }
+    )
 
 
 @imports_bp.route("/api/imports/<job_id>/preview", methods=["POST"])
@@ -306,10 +335,16 @@ def preview_import(job_id):
     body = request.get_json(silent=True) or {}
     mapping = body.get("mapping")
     if mapping:
-        job.column_mapping = json.dumps(mapping) if isinstance(mapping, dict) else mapping
+        job.column_mapping = (
+            json.dumps(mapping) if isinstance(mapping, dict) else mapping
+        )
         db.session.flush()
     else:
-        mapping = json.loads(job.column_mapping) if isinstance(job.column_mapping, str) else job.column_mapping
+        mapping = (
+            json.loads(job.column_mapping)
+            if isinstance(job.column_mapping, str)
+            else job.column_mapping
+        )
 
     # Parse all rows
     headers, all_rows = _parse_csv_text(job.raw_csv)
@@ -325,23 +360,27 @@ def preview_import(job_id):
     new_contacts = sum(1 for r in dedup_results if r["contact_status"] == "new")
     dup_contacts = sum(1 for r in dedup_results if r["contact_status"] == "duplicate")
     new_companies = sum(1 for r in dedup_results if r["company_status"] == "new")
-    existing_companies = sum(1 for r in dedup_results if r["company_status"] == "existing")
+    existing_companies = sum(
+        1 for r in dedup_results if r["company_status"] == "existing"
+    )
 
     job.status = "previewed"
     db.session.commit()
 
-    return jsonify({
-        "job_id": str(job.id),
-        "preview_rows": dedup_results,
-        "total_rows": job.total_rows,
-        "preview_count": len(dedup_results),
-        "summary": {
-            "new_contacts": new_contacts,
-            "duplicate_contacts": dup_contacts,
-            "new_companies": new_companies,
-            "existing_companies": existing_companies,
-        },
-    })
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "preview_rows": dedup_results,
+            "total_rows": job.total_rows,
+            "preview_count": len(dedup_results),
+            "summary": {
+                "new_contacts": new_contacts,
+                "duplicate_contacts": dup_contacts,
+                "new_companies": new_companies,
+                "existing_companies": existing_companies,
+            },
+        }
+    )
 
 
 @imports_bp.route("/api/imports/<job_id>/execute", methods=["POST"])
@@ -391,7 +430,11 @@ def execute_import_job(job_id):
 
     try:
         # Parse all rows and apply mapping
-        mapping = json.loads(job.column_mapping) if isinstance(job.column_mapping, str) else job.column_mapping
+        mapping = (
+            json.loads(job.column_mapping)
+            if isinstance(job.column_mapping, str)
+            else job.column_mapping
+        )
 
         # Auto-create custom field definitions for any custom.* targets
         _auto_create_custom_field_defs(str(tenant_id), mapping)
@@ -411,33 +454,35 @@ def execute_import_job(job_id):
 
         counts = result["counts"]
         dedup_rows = result["dedup_rows"]
-        total_conflicts = sum(
-            len(r.get("conflicts", [])) for r in dedup_rows
-        )
+        total_conflicts = sum(len(r.get("conflicts", [])) for r in dedup_rows)
 
         job.contacts_created = counts["contacts_created"]
         job.contacts_updated = counts["contacts_updated"]
         job.contacts_skipped = counts["contacts_skipped"]
         job.companies_created = counts["companies_created"]
         job.companies_linked = counts["companies_linked"]
-        job.dedup_results = json.dumps({
-            "summary": {
-                "contacts_created": counts["contacts_created"],
-                "contacts_skipped": counts["contacts_skipped"],
-                "contacts_updated": counts["contacts_updated"],
-                "total_conflicts": total_conflicts,
-            },
-            "rows": dedup_rows,
-        })
+        job.dedup_results = json.dumps(
+            {
+                "summary": {
+                    "contacts_created": counts["contacts_created"],
+                    "contacts_skipped": counts["contacts_skipped"],
+                    "contacts_updated": counts["contacts_updated"],
+                    "total_conflicts": total_conflicts,
+                },
+                "rows": dedup_rows,
+            }
+        )
         job.status = "completed"
         db.session.commit()
 
-        return jsonify({
-            "job_id": str(job.id),
-            "status": "completed",
-            "tag_name": tag_name,
-            "counts": counts,
-        })
+        return jsonify(
+            {
+                "job_id": str(job.id),
+                "status": "completed",
+                "tag_name": tag_name,
+                "counts": counts,
+            }
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -494,17 +539,19 @@ def import_results(job_id):
 
     total = len(filtered)
     start = (page - 1) * per_page
-    page_rows = filtered[start:start + per_page]
+    page_rows = filtered[start : start + per_page]
 
-    return jsonify({
-        "job_id": str(job.id),
-        "summary": summary,
-        "filter": filter_type,
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "rows": page_rows,
-    })
+    return jsonify(
+        {
+            "job_id": str(job.id),
+            "summary": summary,
+            "filter": filter_type,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "rows": page_rows,
+        }
+    )
 
 
 @imports_bp.route("/api/imports/<job_id>/status", methods=["GET"])
@@ -531,10 +578,17 @@ def list_imports():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    jobs = ImportJob.query.filter_by(
-        tenant_id=str(tenant_id),
-    ).order_by(ImportJob.created_at.desc()).limit(50).all()
+    jobs = (
+        ImportJob.query.filter_by(
+            tenant_id=str(tenant_id),
+        )
+        .order_by(ImportJob.created_at.desc())
+        .limit(50)
+        .all()
+    )
 
-    return jsonify({
-        "imports": [j.to_dict() for j in jobs],
-    })
+    return jsonify(
+        {
+            "imports": [j.to_dict() for j in jobs],
+        }
+    )

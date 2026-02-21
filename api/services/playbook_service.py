@@ -62,38 +62,46 @@ def build_system_prompt(tenant, document, enrichment_data=None):
     content = document.content if document.content else {}
     if content:
         content_str = json.dumps(content, indent=2, default=str)
-        parts.extend([
-            "",
-            "--- Current Strategy Document ---",
-            content_str,
-            "--- End of Current Strategy ---",
-        ])
+        parts.extend(
+            [
+                "",
+                "--- Current Strategy Document ---",
+                content_str,
+                "--- End of Current Strategy ---",
+            ]
+        )
     else:
-        parts.extend([
-            "",
-            "The strategy document is currently empty. Help the user build it "
-            "from scratch, starting with whatever section they want to tackle first.",
-        ])
+        parts.extend(
+            [
+                "",
+                "The strategy document is currently empty. Help the user build it "
+                "from scratch, starting with whatever section they want to tackle first.",
+            ]
+        )
 
     # Include enrichment/research data if available
     if enrichment_data:
         enrichment_str = json.dumps(enrichment_data, indent=2, default=str)
-        parts.extend([
-            "",
-            "--- Company Research Data ---",
-            enrichment_str,
-            "--- End of Research Data ---",
-            "",
-            "Use this research data to ground your recommendations. Reference "
-            "specific findings when making suggestions.",
-        ])
+        parts.extend(
+            [
+                "",
+                "--- Company Research Data ---",
+                enrichment_str,
+                "--- End of Research Data ---",
+                "",
+                "Use this research data to ground your recommendations. Reference "
+                "specific findings when making suggestions.",
+            ]
+        )
 
-    parts.extend([
-        "",
-        "Keep responses focused and actionable. Use bullet points and headers "
-        "for readability. When suggesting changes to the playbook, be specific "
-        "about which section and what content to add or modify.",
-    ])
+    parts.extend(
+        [
+            "",
+            "Keep responses focused and actionable. Use bullet points and headers "
+            "for readability. When suggesting changes to the playbook, be specific "
+            "about which section and what content to add or modify.",
+        ]
+    )
 
     return "\n".join(parts)
 
@@ -161,8 +169,7 @@ def build_extraction_prompt(document_content):
 
     content_str = json.dumps(document_content, indent=2, default=str)
     user_message = (
-        "Extract structured data from this GTM strategy document:\n\n"
-        + content_str
+        "Extract structured data from this GTM strategy document:\n\n" + content_str
     )
 
     return system_prompt, user_message
@@ -185,12 +192,13 @@ def build_messages(chat_history, user_message):
             [{"role": "user"|"assistant", "content": "text"}, ...]
     """
     # Limit history to last N messages
-    recent = chat_history[-MAX_HISTORY_MESSAGES:] if len(chat_history) > MAX_HISTORY_MESSAGES else chat_history
+    recent = (
+        chat_history[-MAX_HISTORY_MESSAGES:]
+        if len(chat_history) > MAX_HISTORY_MESSAGES
+        else chat_history
+    )
 
-    messages = [
-        {"role": msg.role, "content": msg.content}
-        for msg in recent
-    ]
+    messages = [{"role": msg.role, "content": msg.content} for msg in recent]
 
     # Append the new user message
     messages.append({"role": "user", "content": user_message})

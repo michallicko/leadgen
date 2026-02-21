@@ -10,56 +10,111 @@ import time
 
 TARGET_FIELDS = {
     "contact": [
-        "first_name", "last_name", "job_title", "email_address", "linkedin_url",
-        "phone_number", "location_city", "location_country",
-        "seniority_level", "department", "contact_source", "language",
+        "first_name",
+        "last_name",
+        "job_title",
+        "email_address",
+        "linkedin_url",
+        "phone_number",
+        "location_city",
+        "location_country",
+        "seniority_level",
+        "department",
+        "contact_source",
+        "language",
     ],
     "company": [
-        "name", "domain", "industry", "hq_city", "hq_country",
-        "company_size", "business_model",
+        "name",
+        "domain",
+        "industry",
+        "hq_city",
+        "hq_country",
+        "company_size",
+        "business_model",
     ],
 }
 
 # Reverse maps for enum normalization (display value → DB value)
 ENUM_FIELDS = {
     "seniority_level": {
-        "c-level": "c_level", "c level": "c_level", "vp": "vp",
-        "vice president": "vp", "director": "director", "manager": "manager",
-        "individual contributor": "individual_contributor", "ic": "individual_contributor",
-        "founder": "founder", "other": "other",
+        "c-level": "c_level",
+        "c level": "c_level",
+        "vp": "vp",
+        "vice president": "vp",
+        "director": "director",
+        "manager": "manager",
+        "individual contributor": "individual_contributor",
+        "ic": "individual_contributor",
+        "founder": "founder",
+        "other": "other",
     },
     "department": {
-        "executive": "executive", "engineering": "engineering", "product": "product",
-        "sales": "sales", "marketing": "marketing", "customer success": "customer_success",
-        "finance": "finance", "hr": "hr", "human resources": "hr",
-        "operations": "operations", "other": "other",
+        "executive": "executive",
+        "engineering": "engineering",
+        "product": "product",
+        "sales": "sales",
+        "marketing": "marketing",
+        "customer success": "customer_success",
+        "finance": "finance",
+        "hr": "hr",
+        "human resources": "hr",
+        "operations": "operations",
+        "other": "other",
     },
     "contact_source": {
-        "inbound": "inbound", "outbound": "outbound", "referral": "referral",
-        "event": "event", "social": "social", "other": "other",
+        "inbound": "inbound",
+        "outbound": "outbound",
+        "referral": "referral",
+        "event": "event",
+        "social": "social",
+        "other": "other",
     },
     "language": {
-        "english": "en", "en": "en", "german": "de", "de": "de",
-        "dutch": "nl", "nl": "nl", "czech": "cs", "cs": "cs",
+        "english": "en",
+        "en": "en",
+        "german": "de",
+        "de": "de",
+        "dutch": "nl",
+        "nl": "nl",
+        "czech": "cs",
+        "cs": "cs",
     },
     "industry": {
-        "software": "software_saas", "saas": "software_saas", "software / saas": "software_saas",
-        "it": "it", "professional services": "professional_services",
-        "financial services": "financial_services", "healthcare": "healthcare",
-        "manufacturing": "manufacturing", "retail": "retail", "media": "media",
-        "energy": "energy", "telecom": "telecom", "transport": "transport",
-        "construction": "construction", "education": "education",
-        "public sector": "public_sector", "other": "other",
+        "software": "software_saas",
+        "saas": "software_saas",
+        "software / saas": "software_saas",
+        "it": "it",
+        "professional services": "professional_services",
+        "financial services": "financial_services",
+        "healthcare": "healthcare",
+        "manufacturing": "manufacturing",
+        "retail": "retail",
+        "media": "media",
+        "energy": "energy",
+        "telecom": "telecom",
+        "transport": "transport",
+        "construction": "construction",
+        "education": "education",
+        "public sector": "public_sector",
+        "other": "other",
     },
     "company_size": {
-        "micro": "micro", "startup": "startup", "smb": "smb",
-        "mid-market": "mid_market", "mid market": "mid_market",
+        "micro": "micro",
+        "startup": "startup",
+        "smb": "smb",
+        "mid-market": "mid_market",
+        "mid market": "mid_market",
         "enterprise": "enterprise",
     },
     "business_model": {
-        "b2b": "b2b", "b2c": "b2c", "marketplace": "marketplace",
-        "government": "gov", "gov": "gov", "non-profit": "non_profit",
-        "nonprofit": "non_profit", "hybrid": "hybrid",
+        "b2b": "b2b",
+        "b2c": "b2c",
+        "marketplace": "marketplace",
+        "government": "gov",
+        "gov": "gov",
+        "non-profit": "non_profit",
+        "nonprofit": "non_profit",
+        "hybrid": "hybrid",
     },
 }
 
@@ -112,12 +167,14 @@ def _build_custom_fields_section(custom_defs):
     contact_custom = []
     company_custom = []
     for d in custom_defs:
-        entry = f"contact.custom.{d['field_key']}" if d["entity_type"] == "contact" \
+        entry = (
+            f"contact.custom.{d['field_key']}"
+            if d["entity_type"] == "contact"
             else f"company.custom.{d['field_key']}"
-        label = d.get("field_label", d["field_key"])
-        ft = d.get("field_type", "text")
-        contact_custom.append(entry) if d["entity_type"] == "contact" \
-            else company_custom.append(entry)
+        )
+        contact_custom.append(entry) if d[
+            "entity_type"
+        ] == "contact" else company_custom.append(entry)
 
     lines = ["\nExisting custom fields for this tenant:"]
     if contact_custom:
@@ -205,7 +262,7 @@ def extract_domain(url):
     # Strip protocol
     for prefix in ("https://", "http://"):
         if url.startswith(prefix):
-            url = url[len(prefix):]
+            url = url[len(prefix) :]
             break
     # Strip www.
     if url.startswith("www."):

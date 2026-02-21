@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 # Pricing per 1M tokens
 MODEL_PRICING = {
-    "claude-haiku-4-5-20251001":    {"input_per_m": 0.80, "output_per_m": 4.0},
-    "claude-sonnet-4-5-20241022":   {"input_per_m": 3.0,  "output_per_m": 15.0},
-    "claude-opus-4-6":              {"input_per_m": 15.0, "output_per_m": 75.0},
+    "claude-haiku-4-5-20251001": {"input_per_m": 0.80, "output_per_m": 4.0},
+    "claude-sonnet-4-5-20241022": {"input_per_m": 3.0, "output_per_m": 15.0},
+    "claude-opus-4-6": {"input_per_m": 15.0, "output_per_m": 75.0},
 }
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
@@ -51,9 +51,15 @@ class AnthropicResponse:
 class AnthropicClient:
     """Shared Anthropic Messages API client."""
 
-    def __init__(self, api_key, base_url="https://api.anthropic.com",
-                 default_model="claude-haiku-4-5-20251001", timeout=90,
-                 max_retries=2, retry_delay=1.0):
+    def __init__(
+        self,
+        api_key,
+        base_url="https://api.anthropic.com",
+        default_model="claude-haiku-4-5-20251001",
+        timeout=90,
+        max_retries=2,
+        retry_delay=1.0,
+    ):
         self.api_key = api_key
         self.base_url = base_url
         self.default_model = default_model
@@ -61,8 +67,9 @@ class AnthropicClient:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-    def query(self, system_prompt, user_prompt, model=None,
-              max_tokens=1024, temperature=0.3):
+    def query(
+        self, system_prompt, user_prompt, model=None, max_tokens=1024, temperature=0.3
+    ):
         """Send a query to Anthropic Messages API.
 
         Args:
@@ -136,10 +143,13 @@ class AnthropicClient:
                     raise
 
                 if attempt < self.max_retries:
-                    delay = self.retry_delay * (2 ** attempt)
+                    delay = self.retry_delay * (2**attempt)
                     logger.warning(
                         "Anthropic API %s (attempt %d/%d), retrying in %.1fs",
-                        status, attempt + 1, 1 + self.max_retries, delay,
+                        status,
+                        attempt + 1,
+                        1 + self.max_retries,
+                        delay,
                     )
                     time.sleep(delay)
                 else:
@@ -147,8 +157,9 @@ class AnthropicClient:
 
         raise last_error
 
-    def stream_query(self, messages, system_prompt, max_tokens=4096,
-                     model=None, temperature=0.3):
+    def stream_query(
+        self, messages, system_prompt, max_tokens=4096, model=None, temperature=0.3
+    ):
         """Stream a response from Anthropic Messages API via SSE.
 
         Yields text chunks as they arrive. Use this for real-time streaming
@@ -216,7 +227,9 @@ class AnthropicClient:
                     try:
                         data = json.loads(data_str)
                     except (json.JSONDecodeError, ValueError):
-                        logger.warning("Skipping malformed SSE data: %s", data_str[:100])
+                        logger.warning(
+                            "Skipping malformed SSE data: %s", data_str[:100]
+                        )
                         continue
 
                     delta = data.get("delta", {})

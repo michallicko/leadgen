@@ -120,7 +120,8 @@ def google_callback():
         if token_data.get("refresh_token"):
             existing.refresh_token_enc = encrypt_token(token_data["refresh_token"])
         existing.token_expiry = datetime.fromtimestamp(
-            time.time() + token_data["expires_in"], tz=timezone.utc,
+            time.time() + token_data["expires_in"],
+            tz=timezone.utc,
         )
         existing.provider_email = token_data["email"]
         existing.status = "active"
@@ -135,7 +136,8 @@ def google_callback():
             access_token_enc=encrypt_token(token_data["access_token"]),
             refresh_token_enc=encrypt_token(token_data.get("refresh_token")),
             token_expiry=datetime.fromtimestamp(
-                time.time() + token_data["expires_in"], tz=timezone.utc,
+                time.time() + token_data["expires_in"],
+                tz=timezone.utc,
             ),
             scopes=request.args.getlist("scope") or [],
             status="active",
@@ -158,15 +160,21 @@ def list_connections():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    connections = OAuthConnection.query.filter(
-        OAuthConnection.user_id == g.current_user.id,
-        OAuthConnection.tenant_id == str(tenant_id),
-        OAuthConnection.status != "revoked",
-    ).order_by(OAuthConnection.created_at.desc()).all()
+    connections = (
+        OAuthConnection.query.filter(
+            OAuthConnection.user_id == g.current_user.id,
+            OAuthConnection.tenant_id == str(tenant_id),
+            OAuthConnection.status != "revoked",
+        )
+        .order_by(OAuthConnection.created_at.desc())
+        .all()
+    )
 
-    return jsonify({
-        "connections": [c.to_dict() for c in connections],
-    })
+    return jsonify(
+        {
+            "connections": [c.to_dict() for c in connections],
+        }
+    )
 
 
 @oauth_bp.route("/api/oauth/connections/<connection_id>", methods=["DELETE"])

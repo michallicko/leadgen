@@ -1,4 +1,5 @@
 """Playbook (GTM Strategy) API routes."""
+
 import json
 import logging
 import os
@@ -9,7 +10,11 @@ from flask import Blueprint, Response, jsonify, request
 from ..auth import require_auth, resolve_tenant
 from ..models import Company, StrategyDocument, StrategyChatMessage, Tenant, db
 from ..services.anthropic_client import AnthropicClient
-from ..services.playbook_service import build_extraction_prompt, build_messages, build_system_prompt
+from ..services.playbook_service import (
+    build_extraction_prompt,
+    build_messages,
+    build_system_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +58,14 @@ def update_playbook():
         return jsonify({"error": "No strategy document found"}), 404
 
     if doc.version != version:
-        return jsonify({
-            "error": "Conflict: document was edited by someone else",
-            "current_version": doc.version,
-            "updated_by": doc.updated_by,
-            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
-        }), 409
+        return jsonify(
+            {
+                "error": "Conflict: document was edited by someone else",
+                "current_version": doc.version,
+                "updated_by": doc.updated_by,
+                "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+            }
+        ), 409
 
     doc.content = content
     doc.version = doc.version + 1
@@ -99,24 +106,28 @@ def extract_strategy():
         return jsonify({"error": "LLM extraction failed: {}".format(str(e))}), 502
 
     # Strip markdown code fences if the LLM wraps the JSON
-    stripped = re.sub(r'```(?:json)?\s*(.*?)\s*```', r'\1', raw_text, flags=re.DOTALL)
+    stripped = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", raw_text, flags=re.DOTALL)
 
     try:
         extracted_data = json.loads(stripped)
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("LLM returned invalid JSON: %s", raw_text[:200])
-        return jsonify({
-            "error": "Failed to parse extraction result as JSON",
-            "detail": str(e),
-        }), 422
+        return jsonify(
+            {
+                "error": "Failed to parse extraction result as JSON",
+                "detail": str(e),
+            }
+        ), 422
 
     doc.extracted_data = extracted_data
     db.session.commit()
 
-    return jsonify({
-        "extracted_data": extracted_data,
-        "version": doc.version,
-    }), 200
+    return jsonify(
+        {
+            "extracted_data": extracted_data,
+            "version": doc.version,
+        }
+    ), 200
 
 
 def _get_or_create_document(tenant_id):
@@ -167,12 +178,12 @@ def trigger_research():
         domain = tenant.domain if tenant else None
 
     if not domain:
-        return jsonify({"error": "Domain is required (provide in body or set on tenant)"}), 400
+        return jsonify(
+            {"error": "Domain is required (provide in body or set on tenant)"}
+        ), 400
 
     # Find or create the self-company for this tenant
-    company = Company.query.filter_by(
-        tenant_id=tenant_id, is_self=True
-    ).first()
+    company = Company.query.filter_by(tenant_id=tenant_id, is_self=True).first()
 
     if company:
         # Update domain if it changed
@@ -199,11 +210,13 @@ def trigger_research():
     # This will POST to the enrich-pipeline-v2 webhook with the company's
     # batch/tag and owner info. For now, just set up the data model.
 
-    return jsonify({
-        "status": "triggered",
-        "company_id": company.id,
-        "domain": company.domain,
-    }), 200
+    return jsonify(
+        {
+            "status": "triggered",
+            "company_id": company.id,
+            "domain": company.domain,
+        }
+    ), 200
 
 
 @playbook_bp.route("/api/playbook/research", methods=["GET"])
@@ -222,16 +235,18 @@ def get_research_status():
     if not company:
         return jsonify({"status": "not_started"}), 200
 
-    return jsonify({
-        "status": _research_status_from_company(company),
-        "company": {
-            "id": company.id,
-            "name": company.name,
-            "domain": company.domain,
-            "status": company.status,
-            "tier": company.tier,
-        },
-    }), 200
+    return jsonify(
+        {
+            "status": _research_status_from_company(company),
+            "company": {
+                "id": company.id,
+                "name": company.name,
+                "domain": company.domain,
+                "status": company.status,
+                "tier": company.tier,
+            },
+        }
+    ), 200
 
 
 @playbook_bp.route("/api/playbook/chat", methods=["GET"])
@@ -248,8 +263,7 @@ def get_chat_history():
         return jsonify({"messages": []}), 200
 
     messages = (
-        StrategyChatMessage.query
-        .filter_by(document_id=doc.id)
+        StrategyChatMessage.query.filter_by(document_id=doc.id)
         .order_by(StrategyChatMessage.created_at.asc())
         .limit(limit)
         .all()
@@ -303,8 +317,7 @@ def post_chat_message():
 
     # Load chat history for context
     history = (
-        StrategyChatMessage.query
-        .filter_by(document_id=doc.id)
+        StrategyChatMessage.query.filter_by(document_id=doc.id)
         .filter(StrategyChatMessage.id != user_msg.id)
         .order_by(StrategyChatMessage.created_at.asc())
         .all()
@@ -318,13 +331,21 @@ def post_chat_message():
 
     if _wants_streaming(request):
         return _stream_response(
-            client, system_prompt, messages,
-            tenant_id, doc.id, user_msg,
+            client,
+            system_prompt,
+            messages,
+            tenant_id,
+            doc.id,
+            user_msg,
         )
     else:
         return _sync_response(
-            client, system_prompt, messages,
-            tenant_id, doc.id, user_msg,
+            client,
+            system_prompt,
+            messages,
+            tenant_id,
+            doc.id,
+            user_msg,
         )
 
 
@@ -336,6 +357,7 @@ def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_ms
     """
     # Capture the app for use inside the generator (runs outside request context)
     from flask import current_app
+
     app = current_app._get_current_object()
 
     def generate():
@@ -372,9 +394,7 @@ def _stream_response(client, system_prompt, messages, tenant_id, doc_id, user_ms
             db.session.commit()
             msg_id = assistant_msg.id
 
-        yield "data: {}\n\n".format(
-            json.dumps({"type": "done", "message_id": msg_id})
-        )
+        yield "data: {}\n\n".format(json.dumps({"type": "done", "message_id": msg_id}))
 
     # Commit the user message before entering the generator
     db.session.commit()
@@ -405,7 +425,9 @@ def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg)
     except Exception as e:
         logger.exception("LLM query error: %s", e)
         # Fall back to error message so the user message is still saved
-        assistant_content = "Sorry, I encountered an error generating a response. Please try again."
+        assistant_content = (
+            "Sorry, I encountered an error generating a response. Please try again."
+        )
 
     assistant_msg = StrategyChatMessage(
         tenant_id=tenant_id,
@@ -416,7 +438,9 @@ def _sync_response(client, system_prompt, messages, tenant_id, doc_id, user_msg)
     db.session.add(assistant_msg)
     db.session.commit()
 
-    return jsonify({
-        "user_message": user_msg.to_dict(),
-        "assistant_message": assistant_msg.to_dict(),
-    }), 201
+    return jsonify(
+        {
+            "user_message": user_msg.to_dict(),
+            "assistant_message": assistant_msg.to_dict(),
+        }
+    ), 201

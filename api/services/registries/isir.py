@@ -9,7 +9,6 @@ Protocol: SOAP 1.1 (document/literal)
 
 import json
 import logging
-import time
 import uuid
 from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
@@ -106,7 +105,12 @@ def _parse_soap_response(xml_bytes):
 
     response_el = root.find(".//ns2:getIsirWsCuzkDataResponse", _NS)
     if response_el is None:
-        return {"proceedings": [], "total": 0, "error": "no_response_element", "raw": []}
+        return {
+            "proceedings": [],
+            "total": 0,
+            "error": "no_response_element",
+            "raw": [],
+        }
 
     # Check status
     stav = response_el.find("stav")
@@ -140,14 +144,21 @@ def _parse_proceeding(raw):
         "case_number": case_number,
         "court": raw.get("nazevOrganizace", ""),
         "status_code": status_code,
-        "status": PROCEEDING_STATUSES.get(status_code, status_code.lower() if status_code else "unknown"),
+        "status": PROCEEDING_STATUSES.get(
+            status_code, status_code.lower() if status_code else "unknown"
+        ),
         "debtor_name": raw.get("nazevOsoby", ""),
         "debtor_address": _build_address(raw),
-        "started_at": raw.get("datumPmZahajeniUpadku", "").replace("Z", "") if raw.get("datumPmZahajeniUpadku") else None,
-        "ended_at": raw.get("datumPmUkonceniUpadku", "").replace("Z", "") if raw.get("datumPmUkonceniUpadku") else None,
+        "started_at": raw.get("datumPmZahajeniUpadku", "").replace("Z", "")
+        if raw.get("datumPmZahajeniUpadku")
+        else None,
+        "ended_at": raw.get("datumPmUkonceniUpadku", "").replace("Z", "")
+        if raw.get("datumPmUkonceniUpadku")
+        else None,
         "detail_url": raw.get("urlDetailRizeni", ""),
         "has_other_debtors": raw.get("dalsiDluznikVRizeni") == "T",
-        "is_active": status_code not in ("VYRIZENY", "PRAVOMOCNE_SKONC", "ODSKRTNUTO", "ODDLUZENI_SPLNENO"),
+        "is_active": status_code
+        not in ("VYRIZENY", "PRAVOMOCNE_SKONC", "ODSKRTNUTO", "ODDLUZENI_SPLNENO"),
     }
 
 
@@ -307,8 +318,13 @@ class IsirAdapter(BaseRegistryAdapter):
     """
 
     country_code = "CZ"
-    country_names = ["Czech Republic", "Czechia", "CZ",
-                     "Česká republika", "Ceska republika"]
+    country_names = [
+        "Czech Republic",
+        "Czechia",
+        "CZ",
+        "Česká republika",
+        "Ceska republika",
+    ]
     domain_tlds = [".cz"]
     legal_suffixes = []
     request_delay = ISIR_DELAY
@@ -338,18 +354,28 @@ class IsirAdapter(BaseRegistryAdapter):
         """ISIR has no name search — requires ICO."""
         raise NotImplementedError("ISIR requires ICO, not name search")
 
-    def enrich_company(self, company_id, tenant_id, name, reg_id=None,
-                       hq_country=None, domain=None, store=True):
+    def enrich_company(
+        self,
+        company_id,
+        tenant_id,
+        name,
+        reg_id=None,
+        hq_country=None,
+        domain=None,
+        store=True,
+    ):
         """Run ISIR enrichment. reg_id is the ICO."""
         ico = reg_id
         if not ico:
-            return {"status": "skipped", "reason": "no_ico",
-                    "enrichment_cost_usd": 0}
+            return {"status": "skipped", "reason": "no_ico", "enrichment_cost_usd": 0}
 
         result_data = self.lookup_by_id(ico)
         if result_data is None:
-            return {"status": "error", "error": "isir_query_failed",
-                    "enrichment_cost_usd": 0}
+            return {
+                "status": "error",
+                "error": "isir_query_failed",
+                "enrichment_cost_usd": 0,
+            }
 
         if store:
             store_result(
