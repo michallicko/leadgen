@@ -179,6 +179,19 @@ export function StrategyEditor({
     }
   }, [editor, editable])
 
+  // Sync content prop when it changes (e.g. after research seeds template)
+  // Tiptap only uses `content` during initialization, so we must push updates manually.
+  useEffect(() => {
+    if (editor && content && content.length > 0) {
+      // Only update if editor is empty/placeholder — don't overwrite user edits
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentMd = (editor.storage as any).markdown?.getMarkdown() || ''
+      if (!currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')) {
+        editor.commands.setContent(content)
+      }
+    }
+  }, [editor, content])
+
   return (
     <div className="strategy-editor rounded-lg border border-border-solid overflow-hidden bg-surface">
       {editable && <Toolbar editor={editor} />}
