@@ -16,10 +16,21 @@ export interface Campaign {
   updated_at: string | null
 }
 
+export interface SenderConfig {
+  from_email?: string
+  from_name?: string
+  reply_to?: string
+  linkedin_daily_connections?: number
+  linkedin_daily_messages?: number
+  linkedin_active_hours?: { start: string; end: string }
+  linkedin_delay_range?: { min: number; max: number }
+}
+
 export interface CampaignDetail extends Campaign {
   owner_id: string | null
   generation_started_at: string | null
   generation_completed_at: string | null
+  sender_config: SenderConfig
   contact_status_counts: Record<string, number>
 }
 

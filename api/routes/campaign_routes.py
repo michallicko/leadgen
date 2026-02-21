@@ -163,7 +163,8 @@ def get_campaign(campaign_id):
                 c.template_config, c.generation_config,
                 c.generation_started_at, c.generation_completed_at,
                 c.created_at, c.updated_at,
-                o.name AS owner_name, o.id AS owner_id
+                o.name AS owner_name, o.id AS owner_id,
+                c.sender_config
             FROM campaigns c
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE c.id = :id AND c.tenant_id = :t
@@ -204,6 +205,7 @@ def get_campaign(campaign_id):
             "updated_at": _format_ts(row[12]),
             "owner_name": row[13],
             "owner_id": str(row[14]) if row[14] else None,
+            "sender_config": _parse_jsonb(row[15]) or {},
             "contact_status_counts": status_counts,
         }
     )
@@ -267,6 +269,7 @@ def update_campaign(campaign_id):
         "owner_id",
         "template_config",
         "generation_config",
+        "sender_config",
     }
     fields = {k: v for k, v in body.items() if k in allowed_fields}
 
@@ -276,7 +279,7 @@ def update_campaign(campaign_id):
     set_parts = []
     params = {"id": campaign_id, "t": tenant_id}
     for k, v in fields.items():
-        if k in ("template_config", "generation_config"):
+        if k in ("template_config", "generation_config", "sender_config"):
             set_parts.append(f"{k} = :{k}")
             params[k] = json.dumps(v) if isinstance(v, (dict, list)) else v
         else:
@@ -1033,7 +1036,8 @@ def generation_status(campaign_id):
     row = db.session.execute(
         db.text("""
             SELECT status, total_contacts, generated_count, generation_cost,
-                   generation_started_at, generation_completed_at
+                   generation_started_at, generation_completed_at,
+                   template_config
             FROM campaigns WHERE id = :id AND tenant_id = :t
         """),
         {"id": campaign_id, "t": tenant_id},
@@ -1044,6 +1048,7 @@ def generation_status(campaign_id):
 
     total = row[1] or 0
     generated = row[2] or 0
+    template_config = _parse_jsonb(row[6]) or []
 
     # Count per-contact statuses
     contact_stats = db.session.execute(
@@ -1056,6 +1061,57 @@ def generation_status(campaign_id):
     ).fetchall()
     status_counts = {r[0]: r[1] for r in contact_stats}
 
+    # Channel breakdown: count generated messages per channel vs target
+    enabled_steps = [s for s in template_config if s.get("enabled")]
+    channels = {}
+    if enabled_steps and total > 0:
+        # Target per channel = contacts * steps with that channel
+        channel_step_counts = {}
+        for step in enabled_steps:
+            ch = step.get("channel", "unknown")
+            channel_step_counts[ch] = channel_step_counts.get(ch, 0) + 1
+
+        for ch, step_count in channel_step_counts.items():
+            channels[ch] = {"generated": 0, "target": total * step_count}
+
+        # Count actual generated messages per channel
+        msg_channel_stats = db.session.execute(
+            db.text("""
+                SELECT m.channel, COUNT(*)
+                FROM messages m
+                JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+                WHERE cc.campaign_id = :id AND cc.tenant_id = :t
+                    AND m.status != 'failed'
+                GROUP BY m.channel
+            """),
+            {"id": campaign_id, "t": tenant_id},
+        ).fetchall()
+        for ch, cnt in msg_channel_stats:
+            if ch in channels:
+                channels[ch]["generated"] = cnt
+            else:
+                channels[ch] = {"generated": cnt, "target": cnt}
+
+    # Failed contacts with error details
+    failed_rows = db.session.execute(
+        db.text("""
+            SELECT cc.contact_id, ct.first_name, ct.last_name, cc.error
+            FROM campaign_contacts cc
+            JOIN contacts ct ON cc.contact_id = ct.id
+            WHERE cc.campaign_id = :id AND cc.tenant_id = :t
+                AND cc.status = 'failed'
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchall()
+    failed_contacts = [
+        {
+            "contact_id": str(r[0]),
+            "name": ((r[1] or "") + " " + (r[2] or "")).strip(),
+            "error": r[3] or "Generation error",
+        }
+        for r in failed_rows
+    ]
+
     return jsonify(
         {
             "status": display_campaign_status(row[0] or "draft"),
@@ -1066,8 +1122,60 @@ def generation_status(campaign_id):
             "generation_started_at": _format_ts(row[4]),
             "generation_completed_at": _format_ts(row[5]),
             "contact_statuses": status_counts,
+            "channels": channels,
+            "failed_contacts": failed_contacts,
         }
     )
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/generate", methods=["DELETE"])
+@require_role("editor")
+def cancel_campaign_generation(campaign_id):
+    """Cancel an active generation by setting the cancelled flag.
+
+    The background generator checks this flag between messages and stops
+    gracefully. Campaign status reverts to 'ready' so generation can be
+    restarted later.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text(
+            "SELECT status, generation_config FROM campaigns WHERE id = :id AND tenant_id = :t"
+        ),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    current_status = row[0] or "draft"
+    if current_status != "generating":
+        return jsonify(
+            {"error": f"Campaign is not generating (current: {current_status})"}
+        ), 400
+
+    # Set cancelled flag in generation_config so the background thread stops
+    gen_config = _parse_jsonb(row[1]) or {}
+    gen_config["cancelled"] = True
+
+    db.session.execute(
+        db.text("""
+            UPDATE campaigns
+            SET generation_config = :gc, status = 'ready'
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {
+            "gc": json.dumps(gen_config),
+            "id": campaign_id,
+            "t": tenant_id,
+        },
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True, "status": "cancelled"})
 
 
 # --- T6: Disqualify contact ---
@@ -1739,3 +1847,227 @@ def queue_linkedin(campaign_id):
     db.session.commit()
 
     return jsonify({"queued_count": queued_count, "by_owner": by_owner})
+
+
+# --- T8: Campaign analytics aggregation ---
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/analytics", methods=["GET"])
+@require_role("viewer")
+def campaign_analytics(campaign_id):
+    """Return aggregated campaign metrics for the OutreachTab / CampaignAnalytics component.
+
+    Aggregates message counts, sending stats, contact stats, cost, and timeline.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign exists and belongs to tenant
+    campaign_row = db.session.execute(
+        db.text("""
+            SELECT id, generation_config, created_at,
+                   generation_started_at, generation_completed_at
+            FROM campaigns
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not campaign_row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    gen_config = _parse_jsonb(campaign_row[1]) or {}
+    campaign_created_at = campaign_row[2]
+    generation_started_at = campaign_row[3]
+    generation_completed_at = campaign_row[4]
+
+    # ── Messages aggregation ─────────────────────────────────
+    # By status
+    msg_by_status_rows = db.session.execute(
+        db.text("""
+            SELECT m.status, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY m.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    msg_by_status = {r[0]: r[1] for r in msg_by_status_rows}
+    msg_total = sum(msg_by_status.values())
+
+    # By channel
+    msg_by_channel_rows = db.session.execute(
+        db.text("""
+            SELECT m.channel, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY m.channel
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    msg_by_channel = {r[0]: r[1] for r in msg_by_channel_rows}
+
+    # By step
+    msg_by_step_rows = db.session.execute(
+        db.text("""
+            SELECT m.sequence_step, COUNT(*)
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY m.sequence_step
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    msg_by_step = {str(r[0]): r[1] for r in msg_by_step_rows}
+
+    # ── Email sending stats ──────────────────────────────────
+    email_send_rows = db.session.execute(
+        db.text("""
+            SELECT esl.status, COUNT(*)
+            FROM email_send_log esl
+            JOIN messages m ON esl.message_id = m.id
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY esl.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    email_counts = {r[0]: r[1] for r in email_send_rows}
+    email_total = sum(email_counts.values())
+
+    # ── LinkedIn sending stats ───────────────────────────────
+    li_send_rows = db.session.execute(
+        db.text("""
+            SELECT lsq.status, COUNT(*)
+            FROM linkedin_send_queue lsq
+            JOIN messages m ON lsq.message_id = m.id
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            GROUP BY lsq.status
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+    li_counts = {r[0]: r[1] for r in li_send_rows}
+    li_total = sum(li_counts.values())
+
+    # ── Contact stats ────────────────────────────────────────
+    contact_stats_row = db.session.execute(
+        db.text("""
+            SELECT
+                COUNT(DISTINCT cc.contact_id) AS total,
+                COUNT(DISTINCT CASE WHEN ct.email_address IS NOT NULL AND ct.email_address != '' THEN cc.contact_id END) AS with_email,
+                COUNT(DISTINCT CASE WHEN ct.linkedin_url IS NOT NULL AND ct.linkedin_url != '' THEN cc.contact_id END) AS with_linkedin,
+                COUNT(DISTINCT CASE WHEN
+                    (ct.email_address IS NOT NULL AND ct.email_address != '')
+                    AND (ct.linkedin_url IS NOT NULL AND ct.linkedin_url != '')
+                THEN cc.contact_id END) AS both_channels
+            FROM campaign_contacts cc
+            JOIN contacts ct ON cc.contact_id = ct.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    contacts_total = contact_stats_row[0] if contact_stats_row else 0
+    contacts_with_email = contact_stats_row[1] if contact_stats_row else 0
+    contacts_with_linkedin = contact_stats_row[2] if contact_stats_row else 0
+    contacts_both = contact_stats_row[3] if contact_stats_row else 0
+
+    # ── Cost ─────────────────────────────────────────────────
+    cost_data = gen_config.get("cost", {})
+    generation_cost_usd = float(cost_data.get("generation_usd", 0)) if isinstance(cost_data, dict) else 0
+
+    # Also sum generation_cost_usd from messages as a fallback
+    if generation_cost_usd == 0:
+        cost_row = db.session.execute(
+            db.text("""
+                SELECT COALESCE(SUM(m.generation_cost_usd), 0)
+                FROM messages m
+                JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+                WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+            """),
+            {"cid": campaign_id, "t": tenant_id},
+        ).fetchone()
+        generation_cost_usd = float(cost_row[0]) if cost_row else 0
+
+    # ── Timeline ─────────────────────────────────────────────
+    # First/last send timestamps from email_send_log
+    send_times = db.session.execute(
+        db.text("""
+            SELECT MIN(esl.sent_at), MAX(esl.sent_at)
+            FROM email_send_log esl
+            JOIN messages m ON esl.message_id = m.id
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND esl.sent_at IS NOT NULL
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    first_send_at = send_times[0] if send_times else None
+    last_send_at = send_times[1] if send_times else None
+
+    # Also check linkedin_send_queue for first/last send
+    li_send_times = db.session.execute(
+        db.text("""
+            SELECT MIN(lsq.sent_at), MAX(lsq.sent_at)
+            FROM linkedin_send_queue lsq
+            JOIN messages m ON lsq.message_id = m.id
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND lsq.sent_at IS NOT NULL
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if li_send_times and li_send_times[0]:
+        if first_send_at is None or li_send_times[0] < first_send_at:
+            first_send_at = li_send_times[0]
+        if last_send_at is None or li_send_times[1] > last_send_at:
+            last_send_at = li_send_times[1]
+
+    return jsonify({
+        "messages": {
+            "total": msg_total,
+            "by_status": msg_by_status,
+            "by_channel": msg_by_channel,
+            "by_step": msg_by_step,
+        },
+        "sending": {
+            "email": {
+                "total": email_total,
+                "queued": email_counts.get("queued", 0),
+                "sent": email_counts.get("sent", 0),
+                "delivered": email_counts.get("delivered", 0),
+                "bounced": email_counts.get("bounced", 0),
+                "failed": email_counts.get("failed", 0),
+            },
+            "linkedin": {
+                "total": li_total,
+                "queued": li_counts.get("queued", 0),
+                "sent": li_counts.get("sent", 0),
+                "delivered": li_counts.get("delivered", 0),
+                "failed": li_counts.get("failed", 0),
+            },
+        },
+        "contacts": {
+            "total": contacts_total,
+            "with_email": contacts_with_email,
+            "with_linkedin": contacts_with_linkedin,
+            "both_channels": contacts_both,
+        },
+        "cost": {
+            "generation_usd": generation_cost_usd,
+            "email_sends": email_total,
+        },
+        "timeline": {
+            "created_at": _format_ts(campaign_created_at),
+            "generation_started_at": _format_ts(generation_started_at),
+            "generation_completed_at": _format_ts(generation_completed_at),
+            "first_send_at": _format_ts(first_send_at),
+            "last_send_at": _format_ts(last_send_at),
+        },
+    })

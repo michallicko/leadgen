@@ -112,7 +112,7 @@ export function CampaignDetailPage() {
     { id: 'generation', label: 'Generation' },
     { id: 'review', label: 'Messages', badge: campaign?.generated_count || undefined },
     { id: 'outreach', label: 'Outreach', disabled: true },
-    { id: 'settings', label: 'Settings', disabled: true },
+    { id: 'settings', label: 'Settings' },
   ], [contactCount, campaign?.generated_count])
 
   // Loading state
@@ -232,7 +232,7 @@ export function CampaignDetailPage() {
           <MessagesTab campaignId={campaign.id} onNavigate={handleNavigate} />
         )}
         {activeTab === 'outreach' && <OutreachTab />}
-        {activeTab === 'settings' && <SettingsTab />}
+        {activeTab === 'settings' && <SettingsTab campaign={campaign} isEditable={isEditable} />}
       </div>
 
       {/* Cross-entity detail modal */}
