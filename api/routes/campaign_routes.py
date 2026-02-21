@@ -1,13 +1,15 @@
 import json
+import logging
 
-from flask import Blueprint, jsonify, request
-
-from flask import current_app
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, db
+from ..models import Campaign, CampaignContact, LinkedInSendQueue, db
 from ..services.message_generator import estimate_generation_cost, start_generation
+from ..services.send_service import get_send_status, send_campaign_emails
+
+logger = logging.getLogger(__name__)
 
 campaigns_bp = Blueprint("campaigns", __name__)
 
@@ -427,6 +429,183 @@ def list_campaign_contacts(campaign_id):
     return jsonify({"contacts": contacts, "total": len(contacts)})
 
 
+def _resolve_contacts_by_filters(tenant_id, owner_id, icp_filters, company_ids):
+    """Resolve contact IDs from owner_id, ICP filters, and company_ids.
+
+    Builds a dynamic SQL query joining contacts and companies to find
+    contacts matching the criteria.  Returns a list of contact ID strings.
+    """
+    where = [
+        "ct.tenant_id = :t",
+        "(ct.is_disqualified = false OR ct.is_disqualified IS NULL)",
+    ]
+    params = {"t": tenant_id}
+
+    if owner_id:
+        where.append("ct.owner_id = :owner_id")
+        params["owner_id"] = owner_id
+
+    if company_ids:
+        ph = ", ".join(f":comp_{i}" for i in range(len(company_ids)))
+        for i, v in enumerate(company_ids):
+            params[f"comp_{i}"] = v
+        where.append(f"ct.company_id IN ({ph})")
+
+    if icp_filters:
+        # Tier filter (on company)
+        tiers = icp_filters.get("tiers", [])
+        if tiers:
+            ph = ", ".join(f":tier_{i}" for i in range(len(tiers)))
+            for i, v in enumerate(tiers):
+                params[f"tier_{i}"] = v
+            where.append(f"co.tier IN ({ph})")
+
+        # Industry filter (on company)
+        industries = icp_filters.get("industries", [])
+        if industries:
+            ph = ", ".join(f":ind_{i}" for i in range(len(industries)))
+            for i, v in enumerate(industries):
+                params[f"ind_{i}"] = v
+            where.append(f"co.industry IN ({ph})")
+
+        # ICP fit filter (on contact)
+        icp_fit_values = icp_filters.get("icp_fit", [])
+        if icp_fit_values:
+            ph = ", ".join(f":icp_{i}" for i in range(len(icp_fit_values)))
+            for i, v in enumerate(icp_fit_values):
+                params[f"icp_{i}"] = v
+            where.append(f"ct.icp_fit IN ({ph})")
+
+        # Seniority filter (on contact)
+        seniority_levels = icp_filters.get("seniority_levels", [])
+        if seniority_levels:
+            ph = ", ".join(f":sen_{i}" for i in range(len(seniority_levels)))
+            for i, v in enumerate(seniority_levels):
+                params[f"sen_{i}"] = v
+            where.append(f"ct.seniority_level IN ({ph})")
+
+        # Tag filter (on contact via contact_tag_assignments)
+        tag_ids = icp_filters.get("tag_ids", [])
+        if tag_ids:
+            ph = ", ".join(f":tag_{i}" for i in range(len(tag_ids)))
+            for i, v in enumerate(tag_ids):
+                params[f"tag_{i}"] = v
+            where.append(f"""EXISTS (
+                SELECT 1 FROM contact_tag_assignments cta
+                WHERE cta.contact_id = ct.id AND cta.tag_id IN ({ph})
+            )""")
+
+        # Min contact score
+        min_score = icp_filters.get("min_contact_score")
+        if min_score is not None:
+            where.append("ct.contact_score >= :min_score")
+            params["min_score"] = min_score
+
+        # Enrichment readiness filter
+        if icp_filters.get("enrichment_ready"):
+            where.append("""EXISTS (
+                SELECT 1 FROM entity_stage_completions esc_l1
+                WHERE esc_l1.entity_id = co.id AND esc_l1.tenant_id = :t
+                    AND esc_l1.stage = 'l1_company' AND esc_l1.status = 'completed'
+            )""")
+            where.append("""EXISTS (
+                SELECT 1 FROM entity_stage_completions esc_l2
+                WHERE esc_l2.entity_id = co.id AND esc_l2.tenant_id = :t
+                    AND esc_l2.stage = 'l2_deep_research' AND esc_l2.status = 'completed'
+            )""")
+            where.append("""EXISTS (
+                SELECT 1 FROM entity_stage_completions esc_p
+                WHERE esc_p.entity_id = ct.id AND esc_p.tenant_id = :t
+                    AND esc_p.stage = 'person' AND esc_p.status = 'completed'
+            )""")
+
+    where_clause = " AND ".join(where)
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT ct.id FROM contacts ct
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE {where_clause}
+        """),
+        params,
+    ).fetchall()
+    return [str(r[0]) for r in rows]
+
+
+def _check_enrichment_gaps(tenant_id, contact_ids):
+    """Check enrichment readiness for a set of contacts.
+
+    Returns a list of dicts with contact_id, contact_name, and missing stages.
+    Only contacts with gaps are included.
+    """
+    if not contact_ids:
+        return []
+
+    # Load contact + company info
+    ph = ", ".join(f":cid_{i}" for i in range(len(contact_ids)))
+    params = {f"cid_{i}": v for i, v in enumerate(contact_ids)}
+    params["t"] = tenant_id
+    contacts = db.session.execute(
+        db.text(f"""
+            SELECT ct.id, ct.first_name, ct.last_name, ct.company_id
+            FROM contacts ct
+            WHERE ct.tenant_id = :t AND ct.id IN ({ph})
+        """),
+        params,
+    ).fetchall()
+
+    if not contacts:
+        return []
+
+    # Build entity IDs for stage completion lookup
+    company_ids_set = list({str(r[3]) for r in contacts if r[3]})
+    all_entity_ids = list(set(contact_ids) | set(company_ids_set))
+
+    completions = {}
+    if all_entity_ids:
+        eph = ", ".join(f":eid_{i}" for i in range(len(all_entity_ids)))
+        eparams = {f"eid_{i}": v for i, v in enumerate(all_entity_ids)}
+        eparams["t"] = tenant_id
+        rows = db.session.execute(
+            db.text(f"""
+                SELECT entity_id, stage
+                FROM entity_stage_completions
+                WHERE tenant_id = :t AND status = 'completed'
+                    AND entity_id IN ({eph})
+            """),
+            eparams,
+        ).fetchall()
+        for r in rows:
+            completions.setdefault(str(r[0]), set()).add(r[1])
+
+    gaps = []
+    for row in contacts:
+        cid, first_name, last_name, company_id = row
+        missing = []
+        company_stages = (
+            completions.get(str(company_id), set()) if company_id else set()
+        )
+        contact_stages = completions.get(str(cid), set())
+
+        if "l1_company" not in company_stages:
+            missing.append("l1_company")
+        if "l2_deep_research" not in company_stages:
+            missing.append("l2_deep_research")
+        if "person" not in contact_stages:
+            missing.append("person")
+
+        if missing:
+            full_name = ((first_name or "") + " " + (last_name or "")).strip()
+            gaps.append(
+                {
+                    "contact_id": str(cid),
+                    "contact_name": full_name,
+                    "missing": missing,
+                }
+            )
+
+    return gaps
+
+
 @campaigns_bp.route("/api/campaigns/<campaign_id>/contacts", methods=["POST"])
 @require_role("editor")
 def add_campaign_contacts(campaign_id):
@@ -449,12 +628,27 @@ def add_campaign_contacts(campaign_id):
     body = request.get_json(silent=True) or {}
     contact_ids = body.get("contact_ids", [])
     company_ids = body.get("company_ids", [])
+    owner_id = body.get("owner_id")
+    icp_filters = body.get("icp_filters")
 
-    if not contact_ids and not company_ids:
-        return jsonify({"error": "contact_ids or company_ids required"}), 400
+    has_explicit = bool(contact_ids or company_ids)
+    has_filters = bool(owner_id or icp_filters)
 
-    # If company_ids provided, resolve all contacts for those companies
-    if company_ids:
+    if not has_explicit and not has_filters:
+        return jsonify(
+            {"error": "contact_ids, company_ids, owner_id, or icp_filters required"}
+        ), 400
+
+    # Resolve contacts from ICP filters and/or owner_id
+    if has_filters:
+        filter_company_ids = company_ids if company_ids else []
+        resolved_ids = _resolve_contacts_by_filters(
+            tenant_id, owner_id, icp_filters, filter_company_ids
+        )
+        # Merge with explicit contact_ids (deduplicate)
+        contact_ids = list(set(contact_ids + resolved_ids))
+    elif company_ids:
+        # Legacy path: resolve contacts from company_ids only
         cid_placeholders = ", ".join(f":cid_{i}" for i in range(len(company_ids)))
         cid_params = {f"cid_{i}": v for i, v in enumerate(company_ids)}
         cid_params["t"] = tenant_id
@@ -497,6 +691,7 @@ def add_campaign_contacts(campaign_id):
 
     added = 0
     skipped = 0
+    added_ids = []
     for cid in contact_ids:
         if cid not in valid_ids:
             continue
@@ -511,6 +706,7 @@ def add_campaign_contacts(campaign_id):
         )
         db.session.add(cc)
         added += 1
+        added_ids.append(cid)
 
     # Flush ORM inserts so the count subquery can see them
     if added > 0:
@@ -528,8 +724,16 @@ def add_campaign_contacts(campaign_id):
 
     db.session.commit()
 
+    # Check enrichment readiness for newly added contacts
+    enrichment_gaps = _check_enrichment_gaps(tenant_id, added_ids) if added_ids else []
+
     return jsonify(
-        {"added": added, "skipped": skipped, "total": added + len(existing_ids)}
+        {
+            "added": added,
+            "skipped": skipped,
+            "total": added + len(existing_ids),
+            "gaps": enrichment_gaps,
+        }
     )
 
 
@@ -810,8 +1014,6 @@ def start_campaign_generation(campaign_id):
     db.session.commit()
 
     # Get user_id from auth context
-    from flask import g
-
     user_id = getattr(g, "user_id", None)
 
     # Start background generation
@@ -1303,3 +1505,237 @@ def batch_message_action(campaign_id):
             "errors": errors,
         }
     )
+
+
+# --- Email send + status ---
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/send-emails", methods=["POST"])
+@require_role("editor")
+def send_emails(campaign_id):
+    """Send approved email messages for a campaign via Resend.
+
+    Validates campaign has approved email messages and a sender_config.
+    Starts the send in a background thread and returns immediately.
+
+    Body: { confirm?: boolean }
+    Response: { queued_count: N, sender: { from_email, from_name } }
+    """
+    import threading
+
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign = db.session.get(Campaign, campaign_id)
+    if not campaign or str(campaign.tenant_id) != str(tenant_id):
+        return jsonify({"error": "Campaign not found"}), 404
+
+    # Validate sender_config
+    sender_config = campaign.sender_config
+    if isinstance(sender_config, str):
+        sender_config = json.loads(sender_config)
+    sender_config = sender_config or {}
+
+    from_email = sender_config.get("from_email")
+    if not from_email:
+        return jsonify(
+            {"error": "Campaign sender_config is missing from_email. Configure sender identity first."}
+        ), 400
+
+    # Validate tenant has Resend API key
+    from ..models import Tenant
+
+    tenant = db.session.get(Tenant, tenant_id)
+    tenant_settings = tenant.settings if tenant else {}
+    if isinstance(tenant_settings, str):
+        tenant_settings = json.loads(tenant_settings)
+    tenant_settings = tenant_settings or {}
+
+    if not tenant_settings.get("resend_api_key"):
+        return jsonify(
+            {"error": "Tenant settings missing resend_api_key. Contact your admin."}
+        ), 400
+
+    # Count approved email messages not yet sent
+    approved_count = db.session.execute(
+        db.text("""
+            SELECT COUNT(*) FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND m.status = 'approved' AND m.channel = 'email'
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).scalar()
+
+    if approved_count == 0:
+        return jsonify({"error": "No approved email messages to send"}), 400
+
+    # Start background send
+    app = current_app._get_current_object()
+
+    def _run_send():
+        with app.app_context():
+            try:
+                result = send_campaign_emails(campaign_id, str(tenant_id))
+                logger.info(
+                    "Send completed for campaign %s: %s",
+                    campaign_id,
+                    result,
+                )
+            except Exception:
+                logger.exception(
+                    "Send failed for campaign %s", campaign_id
+                )
+
+    thread = threading.Thread(target=_run_send, daemon=True)
+    thread.start()
+
+    return jsonify(
+        {
+            "queued_count": approved_count,
+            "sender": {
+                "from_email": from_email,
+                "from_name": sender_config.get("from_name"),
+            },
+        }
+    )
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/send-status", methods=["GET"])
+@require_auth
+def send_status(campaign_id):
+    """Get email send status for a campaign.
+
+    Response: { total, queued, sent, delivered, failed, bounced }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign exists
+    campaign = db.session.execute(
+        db.text("SELECT id FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    status = get_send_status(campaign_id, str(tenant_id))
+    return jsonify(status)
+
+
+# --- Queue LinkedIn messages for Chrome extension ---
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/queue-linkedin", methods=["POST"])
+@require_role("editor")
+def queue_linkedin(campaign_id):
+    """Queue approved LinkedIn messages for the Chrome extension to send.
+
+    Finds all approved LinkedIn messages (linkedin_connect, linkedin_message)
+    in this campaign and creates LinkedInSendQueue entries for each.
+    Idempotent: re-queuing skips messages already in the queue.
+
+    Returns: { queued_count: N, by_owner: { "Alice": 5, "Bob": 3 } }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign exists and belongs to tenant
+    campaign = db.session.execute(
+        db.text("SELECT id, status FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    # Load approved LinkedIn messages for this campaign
+    rows = db.session.execute(
+        db.text("""
+            SELECT m.id, m.body, m.channel, m.contact_id, m.owner_id,
+                   ct.linkedin_url, ct.first_name, ct.last_name
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            JOIN contacts ct ON m.contact_id = ct.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                AND m.status = 'approved'
+                AND m.channel IN ('linkedin_connect', 'linkedin_message')
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    if not rows:
+        return jsonify({"queued_count": 0, "by_owner": {}})
+
+    # Get already-queued message IDs (idempotency)
+    message_ids = [str(r[0]) for r in rows]
+    mid_placeholders = ", ".join(f":mid_{i}" for i in range(len(message_ids)))
+    mid_params = {f"mid_{i}": v for i, v in enumerate(message_ids)}
+    mid_params["t"] = tenant_id
+    existing = db.session.execute(
+        db.text(f"""
+            SELECT message_id FROM linkedin_send_queue
+            WHERE tenant_id = :t AND message_id IN ({mid_placeholders})
+        """),
+        mid_params,
+    ).fetchall()
+    existing_message_ids = {str(r[0]) for r in existing}
+
+    # Map action_type from channel name
+    channel_to_action = {
+        "linkedin_connect": "connection_request",
+        "linkedin_message": "message",
+    }
+
+    # Load owner names for the response
+    owner_ids = list({str(r[4]) for r in rows if r[4]})
+    owner_names = {}
+    if owner_ids:
+        oid_placeholders = ", ".join(f":oid_{i}" for i in range(len(owner_ids)))
+        oid_params = {f"oid_{i}": v for i, v in enumerate(owner_ids)}
+        owner_rows = db.session.execute(
+            db.text(f"SELECT id, name FROM owners WHERE id IN ({oid_placeholders})"),
+            oid_params,
+        ).fetchall()
+        owner_names = {str(r[0]): r[1] for r in owner_rows}
+
+    queued_count = 0
+    by_owner = {}
+
+    for r in rows:
+        msg_id = r[0]
+        body = r[1]
+        channel = r[2]
+        contact_id = r[3]
+        owner_id = r[4]
+        linkedin_url = r[5]
+
+        if str(msg_id) in existing_message_ids:
+            continue
+
+        if not owner_id:
+            continue
+
+        action_type = channel_to_action.get(channel, "message")
+
+        entry = LinkedInSendQueue(
+            tenant_id=str(tenant_id),
+            message_id=str(msg_id),
+            contact_id=str(contact_id),
+            owner_id=str(owner_id),
+            action_type=action_type,
+            linkedin_url=linkedin_url,
+            body=body,
+            status="queued",
+        )
+        db.session.add(entry)
+        queued_count += 1
+
+        owner_name = owner_names.get(str(owner_id), str(owner_id))
+        by_owner[owner_name] = by_owner.get(owner_name, 0) + 1
+
+    db.session.commit()
+
+    return jsonify({"queued_count": queued_count, "by_owner": by_owner})
