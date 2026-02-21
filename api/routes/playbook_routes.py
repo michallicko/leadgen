@@ -156,6 +156,7 @@ def _get_or_create_document(tenant_id):
 
 # --- Company status mapping for research status ---
 _COMPLETED_STATUSES = {"enriched_l2", "triage_passed", "triage_disqualified"}
+_FAILED_STATUSES = {"enrichment_l2_failed", "enrichment_failed", "disqualified"}
 _IN_PROGRESS_STATUSES = {"new", "enrichment_l1", "enrichment_l2"}
 
 
@@ -166,6 +167,8 @@ def _research_status_from_company(company):
     status = company.status.lower().replace(" ", "_")
     if status in _COMPLETED_STATUSES:
         return "completed"
+    if status in _FAILED_STATUSES:
+        return "failed"
     if status in _IN_PROGRESS_STATUSES:
         return "in_progress"
     return "in_progress"
@@ -258,16 +261,31 @@ def _run_self_research(app, company_id, tenant_id):
 
             enrich_l1(company_id, tenant_id)
 
-            # After L1, auto-advance to triage_passed if still in early status
+            # Update company name from L1 enrichment results
             company = db.session.get(Company, company_id)
+            if company and company.is_self:
+                l1 = db.session.get(CompanyEnrichmentL1, company_id)
+                if l1 and l1.raw_response:
+                    import json as _json
+                    try:
+                        raw = _json.loads(l1.raw_response) if isinstance(l1.raw_response, str) else l1.raw_response
+                        l1_name = raw.get("company_name") or raw.get("name")
+                        if l1_name and l1_name != company.name:
+                            company.name = l1_name
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+
+            # After L1, auto-advance to triage_passed if still in early status
             _SKIP_STATUSES = {"triage_passed", "enriched_l2", "enrichment_l2_failed"}
             if company and company.status not in _SKIP_STATUSES:
                 company.status = "triage_passed"
                 db.session.commit()
 
-            enrich_l2(company_id, tenant_id)
+            l2_result = enrich_l2(company_id, tenant_id)
+            l2_failed = "error" in l2_result
 
-            # After L2, seed the strategy document if it hasn't been edited
+            # Seed the strategy document with whatever data we have
+            # (L1 data if L2 failed, full data if L2 succeeded)
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
             if doc and doc.version == 1:
                 enrichment_data = _load_enrichment_data(company_id)
@@ -276,26 +294,46 @@ def _run_self_research(app, company_id, tenant_id):
                 )
                 db.session.commit()
 
-            logger.info("Self-research completed for company %s", company_id)
+            if l2_failed:
+                logger.warning(
+                    "Self-research L2 failed for company %s: %s — seeded with L1 data",
+                    company_id,
+                    l2_result.get("error"),
+                )
+            else:
+                logger.info("Self-research completed for company %s", company_id)
 
-            # Log research completion
+            # Log research completion (skip if no valid user_id to avoid UUID error)
             doc = StrategyDocument.query.filter_by(enrichment_id=company_id).first()
-            if doc:
+            if doc and doc.updated_by:
                 enrichment_data = _load_enrichment_data(company_id)
                 _log_event(
                     tenant_id=tenant_id,
-                    user_id=doc.updated_by or "system",
+                    user_id=doc.updated_by,
                     doc_id=doc.id,
-                    event_type="research_complete",
+                    event_type="research_complete" if not l2_failed else "research_partial",
                     payload={
                         "company_id": str(company_id),
                         "enrichment_keys": list(enrichment_data.keys()) if enrichment_data else [],
+                        "l2_failed": l2_failed,
                     },
                 )
         except Exception:
             logger.exception(
                 "Self-research failed for company %s", company_id
             )
+            # Still try to seed template with whatever data we have
+            try:
+                doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+                if doc and doc.version == 1:
+                    enrichment_data = _load_enrichment_data(company_id)
+                    if enrichment_data:
+                        doc.content = build_seeded_template(
+                            doc.objective, enrichment_data
+                        )
+                        db.session.commit()
+            except Exception:
+                logger.exception("Failed to seed template after research error")
 
 
 @playbook_bp.route("/api/playbook/research", methods=["POST"])
@@ -411,8 +449,8 @@ def get_research_status():
         },
     }
 
-    # Include enrichment data when research is completed
-    if result["status"] == "completed":
+    # Include enrichment data when research is completed or failed (partial data)
+    if result["status"] in ("completed", "failed"):
         enrichment_data = _load_enrichment_data(company.id)
         if enrichment_data:
             result["enrichment_data"] = enrichment_data
