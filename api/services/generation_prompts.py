@@ -119,7 +119,9 @@ def _build_strategy_section(strategy_data: dict) -> str:
             vp = ", ".join(messaging["themes"])
     if vp:
         if isinstance(vp, dict):
-            lines.append(f"Value Proposition: {', '.join(str(v) for v in vp.values() if v)}")
+            lines.append(
+                f"Value Proposition: {', '.join(str(v) for v in vp.values() if v)}"
+            )
         else:
             lines.append(f"Value Proposition: {vp}")
 

@@ -1525,9 +1525,7 @@ def batch_message_action(campaign_id):
     if not message_ids:
         return jsonify({"error": "message_ids is required and cannot be empty"}), 400
     if action not in ("approve", "reject"):
-        return jsonify(
-            {"error": "action must be 'approve' or 'reject'"}
-        ), 400
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
 
     # Verify campaign exists and belongs to tenant
     campaign = db.session.execute(
@@ -1648,7 +1646,9 @@ def send_emails(campaign_id):
     from_email = sender_config.get("from_email")
     if not from_email:
         return jsonify(
-            {"error": "Campaign sender_config is missing from_email. Configure sender identity first."}
+            {
+                "error": "Campaign sender_config is missing from_email. Configure sender identity first."
+            }
         ), 400
 
     # Validate tenant has Resend API key
@@ -1692,9 +1692,7 @@ def send_emails(campaign_id):
                     result,
                 )
             except Exception:
-                logger.exception(
-                    "Send failed for campaign %s", campaign_id
-                )
+                logger.exception("Send failed for campaign %s", campaign_id)
 
     thread = threading.Thread(target=_run_send, daemon=True)
     thread.start()
@@ -1978,7 +1976,9 @@ def campaign_analytics(campaign_id):
 
     # ── Cost ─────────────────────────────────────────────────
     cost_data = gen_config.get("cost", {})
-    generation_cost_usd = float(cost_data.get("generation_usd", 0)) if isinstance(cost_data, dict) else 0
+    generation_cost_usd = (
+        float(cost_data.get("generation_usd", 0)) if isinstance(cost_data, dict) else 0
+    )
 
     # Also sum generation_cost_usd from messages as a fallback
     if generation_cost_usd == 0:
@@ -2029,45 +2029,47 @@ def campaign_analytics(campaign_id):
         if last_send_at is None or li_send_times[1] > last_send_at:
             last_send_at = li_send_times[1]
 
-    return jsonify({
-        "messages": {
-            "total": msg_total,
-            "by_status": msg_by_status,
-            "by_channel": msg_by_channel,
-            "by_step": msg_by_step,
-        },
-        "sending": {
-            "email": {
-                "total": email_total,
-                "queued": email_counts.get("queued", 0),
-                "sent": email_counts.get("sent", 0),
-                "delivered": email_counts.get("delivered", 0),
-                "bounced": email_counts.get("bounced", 0),
-                "failed": email_counts.get("failed", 0),
+    return jsonify(
+        {
+            "messages": {
+                "total": msg_total,
+                "by_status": msg_by_status,
+                "by_channel": msg_by_channel,
+                "by_step": msg_by_step,
             },
-            "linkedin": {
-                "total": li_total,
-                "queued": li_counts.get("queued", 0),
-                "sent": li_counts.get("sent", 0),
-                "delivered": li_counts.get("delivered", 0),
-                "failed": li_counts.get("failed", 0),
+            "sending": {
+                "email": {
+                    "total": email_total,
+                    "queued": email_counts.get("queued", 0),
+                    "sent": email_counts.get("sent", 0),
+                    "delivered": email_counts.get("delivered", 0),
+                    "bounced": email_counts.get("bounced", 0),
+                    "failed": email_counts.get("failed", 0),
+                },
+                "linkedin": {
+                    "total": li_total,
+                    "queued": li_counts.get("queued", 0),
+                    "sent": li_counts.get("sent", 0),
+                    "delivered": li_counts.get("delivered", 0),
+                    "failed": li_counts.get("failed", 0),
+                },
             },
-        },
-        "contacts": {
-            "total": contacts_total,
-            "with_email": contacts_with_email,
-            "with_linkedin": contacts_with_linkedin,
-            "both_channels": contacts_both,
-        },
-        "cost": {
-            "generation_usd": generation_cost_usd,
-            "email_sends": email_total,
-        },
-        "timeline": {
-            "created_at": _format_ts(campaign_created_at),
-            "generation_started_at": _format_ts(generation_started_at),
-            "generation_completed_at": _format_ts(generation_completed_at),
-            "first_send_at": _format_ts(first_send_at),
-            "last_send_at": _format_ts(last_send_at),
-        },
-    })
+            "contacts": {
+                "total": contacts_total,
+                "with_email": contacts_with_email,
+                "with_linkedin": contacts_with_linkedin,
+                "both_channels": contacts_both,
+            },
+            "cost": {
+                "generation_usd": generation_cost_usd,
+                "email_sends": email_total,
+            },
+            "timeline": {
+                "created_at": _format_ts(campaign_created_at),
+                "generation_started_at": _format_ts(generation_started_at),
+                "generation_completed_at": _format_ts(generation_completed_at),
+                "first_send_at": _format_ts(first_send_at),
+                "last_send_at": _format_ts(last_send_at),
+            },
+        }
+    )

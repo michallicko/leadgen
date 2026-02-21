@@ -215,9 +215,7 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
     for i, contact_row in enumerate(contacts):
         # Check for cancellation before each contact
         cancel_row = db.session.execute(
-            db.text(
-                "SELECT generation_config FROM campaigns WHERE id = :id"
-            ),
+            db.text("SELECT generation_config FROM campaigns WHERE id = :id"),
             {"id": campaign_id},
         ).fetchone()
         if cancel_row:

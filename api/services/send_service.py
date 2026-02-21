@@ -10,7 +10,15 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from ..models import Campaign, CampaignContact, Contact, EmailSendLog, Message, Tenant, db
+from ..models import (
+    Campaign,
+    CampaignContact,
+    Contact,
+    EmailSendLog,
+    Message,
+    Tenant,
+    db,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +48,7 @@ def send_campaign_emails(campaign_id: str, tenant_id: str) -> dict:
     sender_config = campaign.sender_config
     if isinstance(sender_config, str):
         import json
+
         sender_config = json.loads(sender_config)
     sender_config = sender_config or {}
 
@@ -58,6 +67,7 @@ def send_campaign_emails(campaign_id: str, tenant_id: str) -> dict:
     tenant_settings = tenant.settings
     if isinstance(tenant_settings, str):
         import json
+
         tenant_settings = json.loads(tenant_settings)
     tenant_settings = tenant_settings or {}
 
@@ -151,9 +161,7 @@ def send_campaign_emails(campaign_id: str, tenant_id: str) -> dict:
             sent_count += 1
 
         except Exception as e:
-            logger.error(
-                "Failed to send email for message %s: %s", message.id, str(e)
-            )
+            logger.error("Failed to send email for message %s: %s", message.id, str(e))
             log.status = "failed"
             log.error = str(e)[:500]
             db.session.commit()
