@@ -167,7 +167,8 @@ export function StrategyEditor({
     content: content ?? STRATEGY_TEMPLATE,
     editable,
     onUpdate({ editor: ed }) {
-      onUpdate(ed.storage.markdown.getMarkdown())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onUpdate((ed.storage as any).markdown.getMarkdown())
     },
   })
 
