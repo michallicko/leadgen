@@ -473,6 +473,31 @@ _INDUSTRY_PERSONAS = {
         ("CMO / VP Clinical", "Clinical workflow efficiency, patient outcomes"),
         ("VP Operations", "Cost reduction, process automation"),
     ],
+    "insurance": [
+        ("Chief Underwriting Officer", "Risk assessment, pricing accuracy"),
+        ("VP Claims / Head of Claims", "Claims efficiency, fraud detection"),
+        ("CTO / VP Engineering", "Digital transformation, legacy modernization"),
+    ],
+    "retail": [
+        ("VP Digital / Head of E-Commerce", "Online conversion, omnichannel experience"),
+        ("Head of Supply Chain / VP Operations", "Inventory optimization, logistics"),
+        ("CMO / VP Marketing", "Customer acquisition, brand engagement"),
+    ],
+    "manufacturing": [
+        ("VP Operations / COO", "Production efficiency, quality control"),
+        ("CTO / VP Engineering", "Automation, IoT integration"),
+        ("Head of Supply Chain", "Supplier management, demand forecasting"),
+    ],
+    "energy": [
+        ("VP Operations / COO", "Asset management, operational efficiency"),
+        ("CTO / VP Engineering", "Grid modernization, data infrastructure"),
+        ("Chief Sustainability Officer", "Emissions reduction, ESG compliance"),
+    ],
+    "education": [
+        ("CTO / VP Engineering", "Platform scalability, data privacy"),
+        ("VP Academic Affairs / Provost", "Curriculum delivery, student outcomes"),
+        ("Head of EdTech / VP Digital Learning", "Learning platforms, engagement"),
+    ],
 }
 
 _DEFAULT_PERSONAS = [
@@ -480,6 +505,52 @@ _DEFAULT_PERSONAS = [
     ("VP Product / Head of Product", "Feature roadmap, competitive positioning"),
     ("VP Operations / COO", "Process efficiency, cost optimization"),
 ]
+
+# Maps industry substrings to canonical _INDUSTRY_PERSONAS keys.
+# Checked in order; first match wins.
+_INDUSTRY_FAMILIES = {
+    "health": "healthcare",
+    "medical": "healthcare",
+    "pharma": "healthcare",
+    "biotech": "healthcare",
+    "life_sci": "healthcare",
+    "insur": "insurance",
+    "fintech": "financial_services",
+    "banking": "financial_services",
+    "finance": "financial_services",
+    "retail": "retail",
+    "ecommerce": "retail",
+    "e_commerce": "retail",
+    "manufactur": "manufacturing",
+    "energy": "energy",
+    "utilit": "energy",
+    "education": "education",
+    "edtech": "education",
+}
+
+
+def _match_industry_personas(industry_key: str) -> list:
+    """Match industry to buyer personas with fuzzy prefix matching.
+
+    Tries exact match first, then falls back to substring matching
+    against ``_INDUSTRY_FAMILIES`` so that variants like
+    ``health_insurance`` or ``healthcare_services`` resolve to the
+    canonical ``healthcare`` persona set.
+    """
+    if not industry_key:
+        return _DEFAULT_PERSONAS
+
+    # Exact match first
+    if industry_key in _INDUSTRY_PERSONAS:
+        return _INDUSTRY_PERSONAS[industry_key]
+
+    # Substring matching for industry families
+    for prefix, canonical in _INDUSTRY_FAMILIES.items():
+        if prefix in industry_key:
+            if canonical in _INDUSTRY_PERSONAS:
+                return _INDUSTRY_PERSONAS[canonical]
+
+    return _DEFAULT_PERSONAS
 
 
 def build_seeded_template(objective=None, enrichment_data=None):
@@ -621,7 +692,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
     # Generate industry-specific persona templates
     industry_key = industry_raw.lower() if industry_raw else ""
-    personas = _INDUSTRY_PERSONAS.get(industry_key, _DEFAULT_PERSONAS)
+    personas = _match_industry_personas(industry_key)
     for title, focus in personas:
         persona_parts.append("### {}".format(title))
         persona_parts.append("**Focus Areas:** {}".format(focus))
