@@ -143,7 +143,7 @@ class TestPlaybookChat:
         # Verify stream_query was called with correct args
         mock_client.stream_query.assert_called_once()
         call_kwargs = mock_client.stream_query.call_args
-        assert call_kwargs.kwargs["max_tokens"] == 4096
+        assert call_kwargs.kwargs["max_tokens"] == 1024
         # Messages should end with the user message
         msgs = call_kwargs.kwargs["messages"]
         assert msgs[-1] == {"role": "user", "content": "What is our ICP?"}

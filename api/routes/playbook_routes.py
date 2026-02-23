@@ -733,7 +733,7 @@ def _stream_response(
             for chunk in client.stream_query(
                 messages=messages,
                 system_prompt=system_prompt,
-                max_tokens=4096,
+                max_tokens=1024,
                 temperature=0.4,
             ):
                 full_text.append(chunk)
@@ -794,7 +794,7 @@ def _sync_response(
         for chunk in client.stream_query(
             messages=messages,
             system_prompt=system_prompt,
-            max_tokens=4096,
+            max_tokens=1024,
             temperature=0.4,
         ):
             full_text.append(chunk)
