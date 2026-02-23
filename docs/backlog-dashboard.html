@@ -231,7 +231,6 @@ body {
   background: var(--white);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  overflow: hidden;
   border: 1px solid var(--border);
 }
 
@@ -827,30 +826,31 @@ body {
 <script>
 // ─── Backlog Data ────────────────────────────────────────────────
 const BACKLOG_DATA = [
-  {"id": "PB-035", "name": "Auto-Save (Debounced)", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#36", "deps": [], "assignee": "", "sprint": "Sprint 1"},
-  {"id": "PB-036", "name": "Real-Time Collaboration (Yjs)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
-  {"id": "PB-037", "name": "Intelligent Auto-Extraction", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
-  {"id": "PB-001", "name": "Phase Infrastructure (Migration+Model+API)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#37", "deps": [], "assignee": "", "sprint": "Sprint 1"},
-  {"id": "PB-006", "name": "Phase UI (Routing+Stepper+TopBar)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#39", "deps": ["PB-001"], "assignee": "", "sprint": "Sprint 1"},
-  {"id": "TONE", "name": "AI Tone Fix + TODOs + Doc Awareness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#35", "deps": [], "assignee": "", "sprint": "Sprint 1"},
-  {"id": "CHAT-MD", "name": "Chat Markdown Rendering + Conciseness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#38", "deps": [], "assignee": "", "sprint": "Sprint 1"},
-  {"id": "PERSIST", "name": "Persistent App-Wide Chat (Marketing Strategist)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2"},
-  {"id": "AGENT", "name": "Agent-Ready Chat (Tool Use Architecture)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2"},
-  {"id": "THINK", "name": "Transparent AI Thinking (Tool Calls, Reasoning)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2"},
-  {"id": "WRITE", "name": "Chat Writes/Updates Strategy Doc Directly", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2"},
-  {"id": "ONBOARD", "name": "Smart Onboarding (Discovery Qs Before Draft)", "priority": "Must Have", "effort": "S", "status": "Idea", "deps": ["WRITE"], "assignee": "", "sprint": "Sprint 3"},
-  {"id": "N8N-RM", "name": "Remove n8n \u2192 Python Orchestration", "priority": "Must Have", "effort": "XL", "status": "Spec'd", "deps": [], "assignee": "", "sprint": "Backlog"},
-  {"id": "COLLAB", "name": "Real-Time Collaboration (Yjs/Hocuspocus)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
-  {"id": "VOICE", "name": "Voice Interface (ElevenLabs MVP)", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Backlog"},
-  {"id": "TMPL", "name": "GTM Strategy Templates (Hybrid)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Sprint 3"},
-  {"id": "ANALYZE", "name": "Contacts/Companies Analyzer Tool", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3"},
-  {"id": "LANG", "name": "Namespace Language Settings", "priority": "Should Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Backlog"},
-  {"id": "VERSION", "name": "Strategy Version History + AI Revert", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
-  {"id": "MULTI", "name": "Multi-Strategy + Campaign Linking", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-001"], "assignee": "", "sprint": "Backlog"},
-  {"id": "TABS", "name": "Strategy Tabs (Sub-Documents)", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["MULTI"], "assignee": "", "sprint": "Backlog"},
-  {"id": "SEARCH", "name": "Chat Internet Access (Perplexity Research)", "priority": "Should Have", "effort": "S", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3"},
-  {"id": "CONTEXT", "name": "Context Management (Doc-as-Memory + RAG)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["PERSIST"], "assignee": "", "sprint": "Backlog"}
+  {"id": "PB-035", "name": "Auto-Save (Debounced)", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#36", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Auto-Save (Debounced)\n\n### Goal\nAutomatically save the strategy document as the user types, eliminating manual save actions and preventing data loss.\n\n### Behavior\n- **Debounce interval**: 1.5 seconds after last keystroke\n- **Visual feedback**: Subtle \"Saving...\" indicator in top bar, transitions to \"Saved\" with checkmark\n- **Conflict handling**: If server returns 409 (concurrent edit), show merge dialog\n- **Offline queue**: Store pending saves in localStorage; flush when reconnected\n- **Scope**: Strategy doc fields (title, body, ICP, pain points, etc.)\n\n### Technical Approach\n- `useAutoSave(docId, fields, delay)` custom hook\n- PATCH `/api/strategies/:id` with changed fields only (delta save)\n- ETag-based optimistic concurrency on the API\n- localStorage key: `autosave:{tenantId}:{docId}`\n\n### Acceptance Criteria\n- Given a user editing the strategy doc, when they pause typing for 1.5s, then changes are persisted without clicking Save\n- Given a network failure, when connectivity returns, then queued saves are flushed automatically\n- Given two users editing the same doc, when a conflict is detected, then a merge dialog appears"},
+  {"id": "PB-036", "name": "Real-Time Collaboration (Yjs)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Real-Time Collaboration (Yjs)\n\n### Goal\nAllow multiple users to edit the same strategy document simultaneously with live cursors and presence awareness.\n\n### Behavior\n- **Live cursors**: Each collaborator sees others' cursor positions with colored name labels\n- **Presence**: Avatar pills in top bar show who is viewing/editing\n- **Sync**: Sub-second convergence using CRDT (Yjs)\n- **Offline**: Local edits queue and merge automatically on reconnect\n\n### Technical Approach\n- Yjs + y-websocket provider (or Hocuspocus for auth)\n- Y.Doc per strategy document, Y.Text for rich-text body\n- WebSocket endpoint: `/ws/collab/:docId`\n- Awareness protocol for cursor/selection sharing\n- Requires PB-035 (auto-save) as the persistence layer\n\n### Acceptance Criteria\n- Given two users on the same doc, when one types, the other sees changes within 500ms\n- Given a user goes offline and types, when they reconnect, their changes merge without data loss\n- Given three concurrent editors, all cursors and selections are visible and labeled"},
+  {"id": "PB-037", "name": "Intelligent Auto-Extraction", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Intelligent Auto-Extraction\n\n### Goal\nAutomatically extract structured fields (ICP, pain points, value props) from the free-text strategy body using AI.\n\n### Behavior\n- **Trigger**: After auto-save completes, if body changed significantly (>50 chars delta)\n- **Extraction**: AI reads strategy body and populates/updates structured fields\n- **Review**: Extracted values appear as suggestions (yellow highlight) until user confirms\n- **Scope**: ICP, industry, company size, pain points, value propositions, key messaging\n\n### Technical Approach\n- Background job triggered by save webhook\n- Claude API with structured output (JSON schema)\n- Diff extracted fields against current values; only suggest changes\n- `PATCH /api/strategies/:id/suggestions` stores pending suggestions\n- UI shows inline diff with Accept/Reject per field\n\n### Acceptance Criteria\n- Given a user writes a strategy paragraph mentioning \"Series A SaaS companies with 50-200 employees\", when auto-save fires, then ICP fields are suggested with those values\n- Given extracted values match existing fields, then no suggestion is created (no noise)\n- Given user rejects a suggestion, it is not re-suggested unless the source text changes"},
+  {"id": "PB-001", "name": "Phase Infrastructure (Migration+Model+API)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#37", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Phase Infrastructure (Migration+Model+API)\n\n### Goal\nAdd the database schema, models, and API endpoints to support multi-phase playbook workflows (Strategy, Contacts, Messages, Campaign).\n\n### Scope\n- **Migration 005**: `phases` table with `id`, `strategy_id`, `phase_type` (enum), `status`, `config` (JSONB), `created_at`, `updated_at`\n- **Model**: `Phase` SQLAlchemy model with relationships to Strategy\n- **API endpoints**:\n  - `GET /api/strategies/:id/phases` — list phases for a strategy\n  - `POST /api/strategies/:id/phases` — create a phase\n  - `PATCH /api/phases/:id` — update phase status/config\n  - `GET /api/phases/:id` — get phase detail\n- **Phase types**: `strategy`, `contacts`, `messages`, `campaign`\n- **Phase statuses**: `not_started`, `in_progress`, `completed`, `skipped`\n\n### Acceptance Criteria\n- Given a new strategy, when created, then 4 default phases are auto-created in order\n- Given a phase is completed, when the next phase is queried, its status can be set to in_progress\n- Given phase config is updated via PATCH, then only provided fields are merged (JSONB merge)"},
+  {"id": "PB-006", "name": "Phase UI (Routing+Stepper+TopBar)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#39", "deps": ["PB-001"], "assignee": "", "sprint": "Sprint 1", "spec": "## Phase UI (Routing+Stepper+TopBar)\n\n### Goal\nBuild the frontend routing, phase stepper navigation, and top bar to support the multi-phase playbook workflow.\n\n### Scope\n- **React Router**: `/strategy/:id/phase/:type` routes\n- **Phase Stepper**: Horizontal step indicator showing all 4 phases with current/completed/locked states\n- **Top Bar**: Strategy name, phase stepper, and action buttons (Save, AI Chat toggle)\n- **Phase transitions**: Click stepper to navigate; locked phases show tooltip \"Complete previous phase first\"\n- **Responsive**: Stepper collapses to dropdown on mobile\n\n### Technical Approach\n- `PhaseLayout` wrapper component with stepper + content area\n- `usePhasesQuery(strategyId)` React Query hook\n- Stepper component: 4 circles connected by lines, filled/outlined/locked states\n- CSS transitions for stepper state changes\n- Depends on PB-001 for phase API\n\n### Acceptance Criteria\n- Given a strategy with 4 phases, the stepper shows all phases with correct states\n- Given the user clicks a completed phase, navigation occurs\n- Given the user clicks a locked phase, a tooltip explains the prerequisite\n- Given mobile viewport, the stepper collapses to a dropdown selector"},
+  {"id": "TONE", "name": "AI Tone Fix + TODOs + Doc Awareness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#35", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## AI Tone Fix + TODOs + Doc Awareness\n\n### Goal\nFix the AI chat assistant's tone to be a collaborative marketing strategist rather than a generic chatbot. Add TODO tracking and strategy document awareness.\n\n### Scope\n- **Tone rules**: System prompt updated to act as \"Chief Marketing Strategist\" — confident, concise, proactive\n- **Forbidden patterns**: No \"Sure!\", \"Great question!\", \"I'd be happy to help\" — get straight to substance\n- **TODO extraction**: AI identifies action items from conversations and adds to TODO sidebar\n- **Doc awareness**: AI reads current strategy doc before responding, references specific sections\n- **is_self gate**: Prevents AI from responding to its own messages in the chat loop\n\n### Acceptance Criteria\n- Given a user asks \"what should my ICP be?\", the AI responds with a direct recommendation (not \"That's a great question!\")\n- Given a conversation mentions \"we should test LinkedIn ads\", a TODO item is auto-created\n- Given the strategy doc mentions B2B SaaS, the AI references this when discussing messaging"},
+  {"id": "CHAT-MD", "name": "Chat Markdown Rendering + Conciseness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#38", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Chat Markdown Rendering + Conciseness\n\n### Goal\nRender AI chat responses as formatted markdown instead of plain text, and enforce concise output.\n\n### Scope\n- **Markdown rendering**: Headings, bold, italic, lists, code blocks, links in chat bubbles\n- **react-markdown**: Use the react-markdown library with remark-gfm plugin\n- **Conciseness prompt**: Add `max_tokens` budget and system instructions for brevity\n- **Code blocks**: Syntax-highlighted with copy button\n- **Tables**: GFM table rendering in chat context\n\n### Technical Approach\n- Install `react-markdown` + `remark-gfm` + `rehype-highlight`\n- Replace `<p>{message.content}</p>` with `<ReactMarkdown>{message.content}</ReactMarkdown>`\n- Custom components for code blocks (copy button), links (open in new tab)\n- System prompt addendum: \"Be concise. Use bullet points. Max 3 paragraphs unless asked for detail.\"\n\n### Acceptance Criteria\n- Given AI responds with markdown, the chat bubble renders formatted headings, lists, and bold text\n- Given AI includes a code block, it appears with syntax highlighting and a copy button\n- Given a simple question, the AI response is under 150 words"},
+  {"id": "PERSIST", "name": "Persistent App-Wide Chat (Marketing Strategist)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2", "spec": "## Persistent App-Wide Chat (Marketing Strategist)\n\n### Goal\nThe AI chat should persist across page navigations and be accessible from any page in the app, acting as an always-available marketing strategist.\n\n### Behavior\n- **Global sidebar**: Chat panel slides in from the right on any page\n- **Persistent history**: Conversations are stored per-strategy and loaded on revisit\n- **Context-aware**: Chat knows which page/phase the user is on and adapts\n- **Thread model**: One conversation thread per strategy, with ability to start fresh\n\n### Technical Approach\n- `ChatProvider` at app root with React Context\n- `messages` table: `id`, `strategy_id`, `role` (user/assistant/system), `content`, `created_at`\n- API: `GET/POST /api/strategies/:id/messages`\n- Sliding panel component with chat history + input\n- Keyboard shortcut: `Cmd+K` toggles chat\n\n### Acceptance Criteria\n- Given a user chats on the Strategy phase, navigates to Contacts, then returns — chat history is preserved\n- Given a user opens the app on a new device, previous conversations load from the server\n- Given `Cmd+K` is pressed on any page, the chat panel toggles open/closed"},
+  {"id": "AGENT", "name": "Agent-Ready Chat (Tool Use Architecture)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2", "spec": "## Agent-Ready Chat (Tool Use Architecture)\n\n### Goal\nUpgrade the chat backend to support AI tool use (function calling), enabling the AI to take actions like updating the strategy doc, searching contacts, or triggering workflows.\n\n### Behavior\n- **Tool definitions**: Registered set of tools the AI can invoke (read_strategy, update_field, search_contacts, etc.)\n- **Tool execution**: Backend executes tool calls and returns results to the AI\n- **Multi-turn**: AI can chain multiple tool calls in a single response\n- **Safety**: All tool calls are logged; destructive actions require user confirmation\n\n### Technical Approach\n- Claude API `tools` parameter with JSON schema definitions\n- Tool registry: Python dict mapping tool names to handler functions\n- Execution loop: send message -> if tool_use -> execute -> send result -> repeat\n- Tool handlers: `strategy_tools.py`, `contact_tools.py`, `workflow_tools.py`\n- Audit log: every tool call logged to `tool_executions` table\n\n### Acceptance Criteria\n- Given the AI decides to update ICP, it calls `update_strategy_field` and the doc updates in real-time\n- Given a tool call fails, the AI receives the error and explains to the user\n- Given a destructive tool call, the user sees a confirmation dialog before execution"},
+  {"id": "THINK", "name": "Transparent AI Thinking (Tool Calls, Reasoning)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2", "spec": "## Transparent AI Thinking (Tool Calls, Reasoning)\n\n### Goal\nShow the user what the AI is doing behind the scenes — which tools it's calling, what data it's reading, and its reasoning process.\n\n### Behavior\n- **Thinking indicator**: Animated \"thinking\" state while AI processes\n- **Tool call cards**: Inline cards showing \"Reading strategy doc...\", \"Searching 847 contacts...\", \"Updating ICP field...\"\n- **Expandable detail**: Click a tool card to see the raw input/output\n- **Reasoning traces**: Optional \"Show reasoning\" toggle displays the AI's chain of thought\n\n### Technical Approach\n- Stream tool_use events from the API via SSE (Server-Sent Events)\n- `ToolCallCard` component: icon, name, status (running/done/error), expandable body\n- Reasoning: Use Claude's `thinking` blocks if available, else parse from response\n- State machine: `idle -> thinking -> tool_calling -> responding`\n\n### Acceptance Criteria\n- Given the AI calls `search_contacts`, the user sees \"Searching contacts...\" before the result\n- Given a multi-tool response, each tool call appears as a separate card in sequence\n- Given the user clicks a tool card, raw input/output JSON is shown"},
+  {"id": "WRITE", "name": "Chat Writes/Updates Strategy Doc Directly", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2", "spec": "## Chat Writes/Updates Strategy Doc Directly\n\n### Goal\nThe AI can directly edit the strategy document through chat — updating fields, adding sections, and refining content based on conversation.\n\n### Behavior\n- **Direct edits**: AI calls tools like `update_strategy_body`, `set_icp_field`, `add_pain_point`\n- **Inline diff**: User sees what changed with green/red highlighting before confirming\n- **Undo**: Each AI edit creates a version snapshot; user can undo\n- **Batch edits**: AI can make multiple field updates in one turn\n\n### Technical Approach\n- Strategy tool handlers: `update_body(section, content)`, `set_field(field, value)`, `append_section(title, content)`\n- Diff engine: `diff-match-patch` library for inline change visualization\n- Version table: `strategy_versions` with full JSON snapshot per edit\n- Real-time push: WebSocket event notifies other tabs of changes\n\n### Acceptance Criteria\n- Given user says \"update the ICP to focus on Series B fintech\", the AI calls the tool and the doc updates live\n- Given an AI edit, the user sees a diff overlay showing before/after\n- Given user clicks Undo, the previous version is restored"},
+  {"id": "ONBOARD", "name": "Smart Onboarding (Discovery Qs Before Draft)", "priority": "Must Have", "effort": "S", "status": "Idea", "deps": ["WRITE"], "assignee": "", "sprint": "Sprint 3", "spec": "## Smart Onboarding (Discovery Qs Before Draft)\n\n### Goal\nWhen a user creates a new strategy, the AI asks targeted discovery questions before drafting anything — acting like a real strategist's first meeting.\n\n### Behavior\n- **Guided flow**: 5-7 questions asked one at a time (not a form)\n- **Adaptive**: Questions change based on previous answers (\"You mentioned SaaS — B2B or B2C?\")\n- **Draft generation**: After discovery, AI auto-generates the first strategy draft\n- **Skip option**: Experienced users can skip with \"I'll write it myself\"\n\n### Question Sequence (adaptive)\n1. What does your company do? (elevator pitch)\n2. Who is your ideal customer? (role, company type, size)\n3. What problem do you solve for them?\n4. What channels do you currently use for outreach?\n5. What's working? What isn't?\n6. What's your primary goal for the next 90 days?\n7. Any competitors we should be aware of?\n\n### Acceptance Criteria\n- Given a new strategy is created, the AI starts with question 1 instead of a blank doc\n- Given the user answers all questions, a complete strategy draft is generated automatically\n- Given the user says \"skip\", they get an empty strategy doc template"},
+  {"id": "N8N-RM", "name": "Remove n8n \u2192 Python Orchestration", "priority": "Must Have", "effort": "XL", "status": "Spec'd", "deps": [], "assignee": "", "sprint": "Backlog", "spec": "## Remove n8n -> Python Orchestration\n\n### Goal\nReplace the n8n-based enrichment pipeline with a native Python orchestration layer, reducing infrastructure complexity and improving debuggability.\n\n### Scope\n- **Migrate 6 workflows**: Orchestrator, L1 Company, L2 Company, L2 Person, Progress Store, Batch APIs\n- **Python orchestrator**: Celery (or dramatiq) task queue with Redis broker\n- **Direct API calls**: Replace n8n HTTP nodes with Python `httpx` calls to Perplexity, Anthropic, Airtable\n- **Progress**: WebSocket push instead of n8n webhook polling\n- **Monitoring**: Structured logging + Sentry for error tracking\n\n### Migration Strategy\n1. Build Python orchestrator alongside n8n (parallel run)\n2. A/B test: route 10% of batches to Python\n3. Validate results match n8n output\n4. Cut over and decommission n8n\n\n### Acceptance Criteria\n- Given a batch is triggered, the Python orchestrator produces identical enrichment results to n8n\n- Given a sub-workflow fails, retries happen automatically with exponential backoff\n- Given the migration is complete, n8n container is removed and VPS RAM usage drops by ~500MB"},
+  {"id": "COLLAB", "name": "Real-Time Collaboration (Yjs/Hocuspocus)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Real-Time Collaboration (Yjs/Hocuspocus)\n\n### Goal\nEnable real-time collaborative editing of strategy documents using Yjs CRDTs with Hocuspocus as the WebSocket server.\n\n### Scope\n- **Hocuspocus server**: Node.js WebSocket server with auth hook\n- **Yjs integration**: Y.Doc per strategy, Y.XmlFragment for rich text body\n- **Presence**: User avatars and cursor positions\n- **Persistence**: Hocuspocus writes to PostgreSQL via custom extension\n- **Auth**: JWT token validation on WebSocket connect\n\n### Technical Approach\n- Hocuspocus server as separate Docker container\n- `@hocuspocus/extension-database` for PG persistence\n- Frontend: `y-prosemirror` bindings for the rich text editor\n- Awareness protocol for presence (name, color, cursor)\n\n### Acceptance Criteria\n- Given two users open the same strategy, edits from one appear on the other's screen in real-time\n- Given a user disconnects and reconnects, their document state converges correctly\n- Given authentication fails, the WebSocket connection is rejected with 401"},
+  {"id": "VOICE", "name": "Voice Interface (ElevenLabs MVP)", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Backlog", "spec": "## Voice Interface (ElevenLabs MVP)\n\n### Goal\nAllow users to interact with the AI strategist via voice — speak questions, hear responses — for a more natural strategy session experience.\n\n### Scope\n- **Speech-to-text**: Browser Web Speech API (free) or Whisper API\n- **Text-to-speech**: ElevenLabs API with a professional voice\n- **Push-to-talk**: Hold spacebar or click mic button to speak\n- **Voice responses**: AI responses are both displayed as text and spoken aloud\n- **Settings**: Voice on/off toggle, voice selection, speed control\n\n### Technical Approach\n- `useVoiceInput()` hook: manages Web Speech API / Whisper\n- `useVoiceOutput()` hook: manages ElevenLabs streaming TTS\n- Backend proxy: `/api/tts` to avoid exposing ElevenLabs API key\n- Audio player: streaming playback with cancel on new input\n- Depends on ONBOARD (voice is especially powerful for discovery flow)\n\n### Acceptance Criteria\n- Given the user holds the mic button and speaks, their speech is transcribed and sent as a chat message\n- Given the AI responds, the response is spoken aloud with natural intonation\n- Given the user toggles voice off, only text chat is used"},
+  {"id": "TMPL", "name": "GTM Strategy Templates (Hybrid)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Sprint 3", "spec": "## GTM Strategy Templates (Hybrid)\n\n### Goal\nProvide pre-built GTM strategy templates that combine structured fields with AI-generated content, so users can start with a proven framework and customize.\n\n### Templates\n- **SaaS PLG**: Product-led growth for B2B SaaS\n- **Enterprise ABM**: Account-based marketing for high-ACV deals\n- **SMB Outbound**: Cold outreach for SMB market\n- **Startup Launch**: First GTM motion for pre-seed/seed startups\n- **Expansion Play**: Upsell/cross-sell to existing customers\n\n### Behavior\n- **Template gallery**: Visual cards with preview and description\n- **Hybrid generation**: Template provides structure; AI fills in company-specific content\n- **Customizable**: All template fields are editable after generation\n- **Smart selection**: AI recommends templates based on onboarding answers\n\n### Acceptance Criteria\n- Given a user selects \"SaaS PLG\" template, a strategy is created with PLG-specific sections pre-filled\n- Given onboarding reveals enterprise sales motion, the AI recommends \"Enterprise ABM\" template\n- Given a template is applied, all fields are editable (not locked)"},
+  {"id": "ANALYZE", "name": "Contacts/Companies Analyzer Tool", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Contacts/Companies Analyzer Tool\n\n### Goal\nGive the AI the ability to analyze the user's contacts and companies database to inform strategy recommendations.\n\n### Tools\n- `search_contacts(query, filters)` — search by name, title, company, tags\n- `analyze_contacts(segment)` — aggregate stats (titles, industries, company sizes)\n- `search_companies(query, filters)` — search by name, industry, tier\n- `analyze_companies(segment)` — tier distribution, enrichment status, industry breakdown\n\n### Behavior\n- AI uses these tools when discussing ICP, outreach strategy, or contact segmentation\n- Results are summarized in natural language with key stats\n- User can ask: \"How many of my contacts are CTOs at Series B SaaS companies?\"\n\n### Technical Approach\n- Tool handlers query PostgreSQL with parameterized filters\n- Aggregate queries use SQL GROUP BY for performance\n- Response format: structured JSON that AI interprets for the user\n- Rate limited: max 5 tool calls per message to prevent abuse\n\n### Acceptance Criteria\n- Given user asks \"who are my best contacts for enterprise sales?\", the AI searches and summarizes matching contacts\n- Given user asks \"what industries are most represented?\", the AI runs an aggregate and presents a breakdown\n- Given the contact database has 2000+ records, search returns in under 2 seconds"},
+  {"id": "LANG", "name": "Namespace Language Settings", "priority": "Should Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Backlog", "spec": "## Namespace Language Settings\n\n### Goal\nAllow each namespace (tenant) to configure their preferred language for the AI assistant and UI elements.\n\n### Scope\n- **Language setting**: Per-namespace config stored in `namespaces` table\n- **AI language**: System prompt includes language instruction\n- **UI i18n**: Key UI strings translated (buttons, labels, placeholders)\n- **Supported languages**: English (default), Czech, German, Spanish, French\n- **Settings page**: Admin dropdown to select namespace language\n\n### Technical Approach\n- `language` column on `namespaces` table (default: 'en')\n- i18n JSON files: `locales/{lang}.json` with key-value translations\n- `useI18n()` hook reads namespace language from auth context\n- AI system prompt: \"Always respond in {language}. The user's interface is in {language}.\"\n- Backend: `Accept-Language` header forwarded to AI calls\n\n### Acceptance Criteria\n- Given namespace language is set to Czech, the AI responds in Czech\n- Given namespace language is set to German, UI labels appear in German\n- Given no language is set, English is used as default"},
+  {"id": "VERSION", "name": "Strategy Version History + AI Revert", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Strategy Version History + AI Revert\n\n### Goal\nTrack every change to a strategy document with full version history, and allow AI-assisted revert to any previous version.\n\n### Behavior\n- **Auto-versioning**: Every save creates a version snapshot (debounced, max 1 per minute)\n- **Version timeline**: Side panel showing version list with timestamps, authors, and change summaries\n- **Diff view**: Compare any two versions with inline diff highlighting\n- **AI revert**: Tell the AI \"go back to the version from Tuesday\" and it finds and restores it\n- **Named versions**: Users can name important versions (\"v1 - Board Presentation\")\n\n### Technical Approach\n- `strategy_versions` table: `id`, `strategy_id`, `version_number`, `snapshot` (JSONB), `summary`, `created_by`, `created_at`\n- Auto-summary: AI generates one-line change description per version\n- Diff: JSON deep-diff on snapshot objects, rendered as field-level changes\n- Revert tool: `revert_to_version(version_id)` for AI tool use\n\n### Acceptance Criteria\n- Given 10 saves over an hour, the version timeline shows 10 entries with summaries\n- Given user asks AI \"revert to last Tuesday\", the correct version is identified and restored\n- Given two versions are selected, a clear diff shows what changed"},
+  {"id": "MULTI", "name": "Multi-Strategy + Campaign Linking", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-001"], "assignee": "", "sprint": "Backlog", "spec": "## Multi-Strategy + Campaign Linking\n\n### Goal\nAllow users to create multiple strategies per namespace and link them to specific outreach campaigns.\n\n### Scope\n- **Strategy list**: Dashboard view showing all strategies with status, last updated, linked campaigns\n- **Create new**: \"New Strategy\" button with template selection or blank\n- **Campaign linking**: Each strategy can be linked to one or more campaigns\n- **Archive**: Soft-delete strategies (archive/restore)\n- **Strategy switcher**: Quick-switch dropdown in the top bar\n\n### Technical Approach\n- Strategies table already supports multiple per namespace\n- New: `strategy_campaigns` join table linking strategies to campaigns\n- UI: Strategy list page at `/{namespace}/strategies`\n- Strategy card: name, phase progress, last edit, campaign count\n- Depends on PB-001 (phase infrastructure) for phase progress display\n\n### Acceptance Criteria\n- Given a namespace, the user can create and view multiple strategies\n- Given a strategy is linked to 2 campaigns, both appear in the strategy detail\n- Given a strategy is archived, it disappears from the list but can be restored from archive view"},
+  {"id": "TABS", "name": "Strategy Tabs (Sub-Documents)", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["MULTI"], "assignee": "", "sprint": "Backlog", "spec": "## Strategy Tabs (Sub-Documents)\n\n### Goal\nAllow a strategy to contain multiple tabs/sub-documents for different aspects (ICP Research, Competitive Analysis, Messaging Framework, etc.).\n\n### Behavior\n- **Tab bar**: Horizontal tabs below the strategy header\n- **Default tabs**: Overview, ICP, Competition, Messaging, Playbook\n- **Custom tabs**: User can add/rename/reorder/delete tabs\n- **Per-tab AI context**: AI is aware of which tab is active and its content\n- **Cross-tab references**: AI can reference content from other tabs in responses\n\n### Technical Approach\n- `strategy_tabs` table: `id`, `strategy_id`, `name`, `order`, `content` (JSONB), `created_at`\n- Default tabs created with new strategy\n- Drag-and-drop reorder via `@dnd-kit/sortable`\n- AI context: include active tab content + tab names in system prompt\n- Depends on MULTI (multi-strategy) for the strategy model changes\n\n### Acceptance Criteria\n- Given a new strategy, 5 default tabs are created\n- Given a user adds a custom tab \"LinkedIn Playbook\", it appears in the tab bar\n- Given the user is on the Competition tab, the AI references competitive data when answering"},
+  {"id": "SEARCH", "name": "Chat Internet Access (Perplexity Research)", "priority": "Should Have", "effort": "S", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Chat Internet Access (Perplexity Research)\n\n### Goal\nGive the AI the ability to search the internet in real-time during chat, using Perplexity API for up-to-date market research.\n\n### Behavior\n- **Research tool**: AI calls `search_web(query)` when it needs current information\n- **Source attribution**: Results include source URLs and snippets\n- **Use cases**: Competitor research, industry trends, company news, technology comparisons\n- **Rate limiting**: Max 3 web searches per conversation turn\n\n### Technical Approach\n- Perplexity API: `sonar` model for search-augmented generation\n- Tool: `search_web(query, num_results=5)` returns summarized results with citations\n- Backend handler: `POST /api/tools/search` proxies to Perplexity\n- Citation rendering: Footnote-style links in chat responses\n- Depends on AGENT (tool use architecture) for the tool framework\n\n### Acceptance Criteria\n- Given user asks \"what are the latest trends in B2B SaaS marketing?\", the AI searches and provides current data with sources\n- Given search results, citations are rendered as clickable footnotes\n- Given 3 searches already done this turn, the AI uses existing context instead of searching again"},
+  {"id": "CONTEXT", "name": "Context Management (Doc-as-Memory + RAG)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["PERSIST"], "assignee": "", "sprint": "Backlog", "spec": "## Context Management (Doc-as-Memory + RAG)\n\n### Goal\nGive the AI long-term memory by using the strategy document as persistent context, augmented with RAG for large document sets.\n\n### Scope\n- **Doc-as-memory**: Current strategy doc is always included in AI context\n- **Conversation summary**: Long conversations are auto-summarized to fit context window\n- **RAG pipeline**: For large strategies, use embeddings + vector search to find relevant sections\n- **Cross-strategy memory**: AI can reference insights from other strategies in the namespace\n\n### Technical Approach\n- Strategy doc injection: full doc for small strategies, chunked RAG for large ones\n- Embedding: `text-embedding-3-small` via OpenAI API\n- Vector store: `pgvector` extension on existing PostgreSQL\n- Chunking: 500-token overlapping chunks per strategy section\n- Conversation compaction: Summarize every 20 messages into a \"memory\" message\n- Depends on PERSIST (persistent chat) for conversation history\n\n### Acceptance Criteria\n- Given a 10-page strategy doc, the AI can answer questions about any section\n- Given a 50-message conversation, older messages are summarized without losing key context\n- Given two strategies exist, the AI can reference insights from the other when asked"}
 ];
+
 
 let items = [...BACKLOG_DATA];
 let currentFilters = { priority: 'all', status: 'all', effort: 'all', sprint: 'all' };
@@ -916,6 +916,218 @@ function createEl(tag, attrs, children) {
     });
   }
   return el;
+}
+
+// ─── Markdown Parser (safe DOM) ──────────────────────────────────
+function parseMarkdown(md) {
+  var container = document.createElement('div');
+  container.className = 'spec-content';
+  if (!md) return container;
+
+  var lines = md.split('\n');
+  var i = 0;
+  var currentList = null;
+  var currentListType = null;
+
+  function flushList() {
+    if (currentList) {
+      container.appendChild(currentList);
+      currentList = null;
+      currentListType = null;
+    }
+  }
+
+  function applyInline(text) {
+    var frag = document.createDocumentFragment();
+    var regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+    var lastIndex = 0;
+    var match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      if (match[2]) {
+        var strong = document.createElement('strong');
+        strong.textContent = match[2];
+        frag.appendChild(strong);
+      } else if (match[3]) {
+        var code = document.createElement('code');
+        code.textContent = match[3];
+        frag.appendChild(code);
+      } else if (match[4]) {
+        var em = document.createElement('em');
+        em.textContent = match[4];
+        frag.appendChild(em);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+    return frag;
+  }
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    // Code block
+    if (line.trim().indexOf('```') === 0) {
+      flushList();
+      var codeLines = [];
+      i++;
+      while (i < lines.length && lines[i].trim().indexOf('```') !== 0) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++;
+      var pre = document.createElement('pre');
+      var codeEl = document.createElement('code');
+      codeEl.textContent = codeLines.join('\n');
+      pre.appendChild(codeEl);
+      container.appendChild(pre);
+      continue;
+    }
+
+    // Headings
+    var headingMatch = line.match(/^(#{1,3})\s+(.+)/);
+    if (headingMatch) {
+      flushList();
+      var level = headingMatch[1].length;
+      var heading = document.createElement('h' + level);
+      heading.appendChild(applyInline(headingMatch[2]));
+      container.appendChild(heading);
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.trim().indexOf('> ') === 0) {
+      flushList();
+      var bq = document.createElement('blockquote');
+      var bqP = document.createElement('p');
+      bqP.appendChild(applyInline(line.trim().slice(2)));
+      bq.appendChild(bqP);
+      container.appendChild(bq);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^\s*[-*]\s+/)) {
+      if (currentListType !== 'ul') {
+        flushList();
+        currentList = document.createElement('ul');
+        currentListType = 'ul';
+      }
+      var li = document.createElement('li');
+      li.appendChild(applyInline(line.replace(/^\s*[-*]\s+/, '')));
+      currentList.appendChild(li);
+      i++;
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^\s*\d+\.\s+/)) {
+      if (currentListType !== 'ol') {
+        flushList();
+        currentList = document.createElement('ol');
+        currentListType = 'ol';
+      }
+      var li2 = document.createElement('li');
+      li2.appendChild(applyInline(line.replace(/^\s*\d+\.\s+/, '')));
+      currentList.appendChild(li2);
+      i++;
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      flushList();
+      i++;
+      continue;
+    }
+
+    // Paragraph
+    flushList();
+    var p = document.createElement('p');
+    p.appendChild(applyInline(line));
+    container.appendChild(p);
+    i++;
+  }
+  flushList();
+  return container;
+}
+
+// ─── Spec Modal ──────────────────────────────────────────────────
+var currentSpecItem = null;
+
+function openSpecModal(item) {
+  currentSpecItem = item;
+  var overlay = document.getElementById('specOverlay');
+  var idEl = document.getElementById('specId');
+  var titleEl = document.getElementById('specTitle');
+  var badgesEl = document.getElementById('specBadges');
+  var depsEl = document.getElementById('specDeps');
+  var contentEl = document.getElementById('specContent');
+  var copyBtn = document.getElementById('specCopy');
+
+  idEl.textContent = item.id;
+  titleEl.textContent = item.name;
+
+  // Badges
+  clearChildren(badgesEl);
+  badgesEl.appendChild(createEl('span', {
+    className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''),
+    textContent: item.priority
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'effort ' + (EFFORT_CLASS[item.effort] || ''),
+    textContent: item.effort
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'badge ' + (STATUS_CLASS[item.status] || ''),
+    textContent: item.status
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'),
+    textContent: item.sprint || 'Backlog'
+  }));
+
+  // Deps
+  clearChildren(depsEl);
+  if (item.deps.length > 0) {
+    depsEl.appendChild(createEl('span', { className: 'spec-panel-deps-label', textContent: 'Depends on:' }));
+    item.deps.forEach(function(d) {
+      depsEl.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+    });
+  }
+
+  // Spec content
+  clearChildren(contentEl);
+  if (item.spec) {
+    contentEl.appendChild(parseMarkdown(item.spec));
+  } else {
+    contentEl.appendChild(createEl('div', {
+      className: 'empty-state',
+      style: 'padding:32px',
+      textContent: 'No specification written yet.'
+    }));
+  }
+
+  // Reset copy button
+  copyBtn.classList.remove('copied');
+  var svgNode = copyBtn.querySelector('svg');
+  while (copyBtn.lastChild !== svgNode) copyBtn.removeChild(copyBtn.lastChild);
+  copyBtn.appendChild(document.createTextNode(' Copy Spec'));
+
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSpecModal() {
+  document.getElementById('specOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  currentSpecItem = null;
 }
 
 // ─── Render Sprint Summary ───────────────────────────────────────
@@ -1054,7 +1266,10 @@ function applyFilters() {
 
 // ─── Build Table Row ─────────────────────────────────────────────
 function buildTableRow(item, i) {
-  var tr = createEl('tr', { style: 'animation-delay: ' + (i * 0.03) + 's' });
+  var tr = createEl('tr', {
+    style: 'animation-delay: ' + (i * 0.03) + 's',
+    onClick: function() { openSpecModal(item); }
+  });
 
   // ID cell
   tr.appendChild(createEl('td', {}, [createEl('span', { className: 'feature-id', textContent: item.id })]));
@@ -1067,6 +1282,7 @@ function buildTableRow(item, i) {
       target: '_blank',
       textContent: item.name
     });
+    link.addEventListener('click', function(e) { e.stopPropagation(); });
     nameSpan.appendChild(link);
   } else {
     nameSpan.textContent = item.name;
@@ -1096,12 +1312,14 @@ function buildTableRow(item, i) {
   // PR cell
   var prTd = createEl('td', { className: 'hide-mobile' });
   if (item.pr) {
-    prTd.appendChild(createEl('a', {
+    var prLink = createEl('a', {
       className: 'pr-link',
       href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
       target: '_blank',
       textContent: item.pr
-    }));
+    });
+    prLink.addEventListener('click', function(e) { e.stopPropagation(); });
+    prTd.appendChild(prLink);
   } else {
     prTd.appendChild(createEl('span', { className: 'no-deps' }, [document.createTextNode('\u2014')]));
   }
@@ -1220,7 +1438,11 @@ function renderKanban() {
     }
 
     cards.forEach(function(item, i) {
-      var card = createEl('div', { className: 'kanban-card', style: 'animation-delay: ' + (i * 0.05) + 's' });
+      var card = createEl('div', {
+        className: 'kanban-card',
+        style: 'animation-delay: ' + (i * 0.05) + 's',
+        onClick: function() { openSpecModal(item); }
+      });
       card.appendChild(createEl('div', { className: 'card-id', textContent: item.id }));
       card.appendChild(createEl('div', { className: 'card-name', textContent: item.name }));
 
@@ -1241,13 +1463,15 @@ function renderKanban() {
         textContent: SPRINT_LABELS[item.sprint] || 'BL'
       }));
       if (item.pr) {
-        meta.appendChild(createEl('a', {
+        var kanbanPrLink = createEl('a', {
           className: 'pr-link',
           href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
           target: '_blank',
           style: 'font-size:10px',
           textContent: item.pr
-        }));
+        });
+        kanbanPrLink.addEventListener('click', function(e) { e.stopPropagation(); });
+        meta.appendChild(kanbanPrLink);
       }
       card.appendChild(meta);
 
@@ -1559,6 +1783,35 @@ document.getElementById('depGraphToggle').addEventListener('click', function() {
   if (container.classList.contains('open')) {
     setTimeout(renderDepGraph, 50);
   }
+});
+
+// Spec modal handlers
+document.getElementById('specClose').addEventListener('click', closeSpecModal);
+document.getElementById('specCloseBtn').addEventListener('click', closeSpecModal);
+document.getElementById('specOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSpecModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('specOverlay').classList.contains('open')) {
+    closeSpecModal();
+  }
+});
+
+// Copy spec to clipboard
+document.getElementById('specCopy').addEventListener('click', function() {
+  if (!currentSpecItem || !currentSpecItem.spec) return;
+  var btn = this;
+  var svgNode = btn.querySelector('svg');
+  navigator.clipboard.writeText(currentSpecItem.spec).then(function() {
+    btn.classList.add('copied');
+    while (btn.lastChild !== svgNode) btn.removeChild(btn.lastChild);
+    btn.appendChild(document.createTextNode(' Copied!'));
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      while (btn.lastChild !== svgNode) btn.removeChild(btn.lastChild);
+      btn.appendChild(document.createTextNode(' Copy Spec'));
+    }, 2000);
+  });
 });
 
 // ─── Auto-Refresh ────────────────────────────────────────────────
