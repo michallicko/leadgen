@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-058
+**Next ID**: BL-059
 
 ## Must Have
 
@@ -333,6 +333,12 @@ The Echo tab becomes a living, constantly-prioritized task list. Tasks from thre
 **Depends on**: — | **Theme**: Closed-Loop Analytics
 
 Instrument all untracked LLM call sites (playbook chat, strategy extraction, person enrichment) and break L2 enrichment logging into per-call granularity. Add missing model pricing (sonar-reasoning). Build a cost dashboard UI for super_admins consuming the existing `/api/llm-usage/summary` endpoint — summary cards, breakdown tables by operation/model, and daily cost trend chart.
+
+### BL-058: Strategy Feedback Loop — Scoring, Conflict Detection & Gap Analysis
+**Status**: Spec'd | **Effort**: L | **Spec**: `docs/specs/strategy-feedback-loop.md`
+**Depends on**: AGENT (agent-ready chat), BL-055/BL-056 (token cost display) | **Theme**: Playbook Core
+
+Multi-perspective strategy evaluation system. Scores 8 dimensions (ICP Clarity, Market Positioning, Channel Strategy, Messaging Strength, Competitive Differentiation, Value Proposition, Feasibility, Completeness) on 1-10 scale with weighted overall score (0-100, letter grade A-F). Conflict detection catches ICP-channel mismatches, positioning-messaging tone conflicts, multi-segment without differentiation, budget-ambition gaps, and timeline contradictions. Gap analysis identifies missing sections, weak areas, and unexplored enrichment opportunities. Dual trigger: user (button/chat) and AI proactive (after major edits, phase transitions). Lightweight completeness check on every save (no LLM). Evaluation history tracks improvement over time. Chat tools: `evaluate_strategy`, `find_conflicts`, `analyze_gaps`, `get_score_history`, `score_section`. Credit cost displayed per BL-056 rules.
 
 ## Could Have
 
