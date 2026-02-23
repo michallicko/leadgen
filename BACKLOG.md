@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-053
+**Next ID**: BL-055
 
 ## Must Have
 
@@ -101,6 +101,12 @@ Data model: `tenant_email_configs` table (mode, domain, subdomain, encrypted API
 **Depends on**: AGENT (agent-ready chat), PB-001 (phase infrastructure) | **Theme**: Outreach Engine
 
 Users can filter/select contacts and create or assign them to campaigns through BOTH AI chat tools and traditional UI. Chat tools: `filter_contacts`, `create_campaign`, `assign_to_campaign`, `check_strategy_conflicts`. UI: faceted filter panel, contact table with checkboxes, campaign creation modal. AI proactively flags ALL strategy conflicts: ICP mismatch, channel gaps, segment overlap with active campaigns, timing/cooldown violations, and tone mismatches. Campaigns become internal (no Lemlist dependency). Strategy document links to campaigns for ICP-aware conflict detection.
+
+### BL-054: Chat Access to Self-Company Enrichment Data
+**Status**: Spec'd | **Effort**: M | **Spec**: `docs/specs/chat-enrichment-access.md`
+**Depends on**: AGENT (agent-ready chat) | **Theme**: Outreach Engine
+
+Give the playbook chat full access to the tenant's own company enrichment data (L1, L2, profile, signals, market, legal). Phase 1 (no deps): expand `_load_enrichment_data()` to include pitch_framing, revenue_trend, industry_pain_points, relevant_case_study in the system prompt; add fallback self-company lookup when strategy doc has no enrichment_id. Phase 2 (requires AGENT): `get_company_research(section)` tool for on-demand access to detailed signals, market, legal, and opportunity data. Achieves parity between onboarding and chat contexts.
 
 ### BL-031: Campaign CRUD + Data Model
 **Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
