@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-057
+**Next ID**: BL-058
 
 ## Must Have
 
@@ -113,6 +113,12 @@ Give the playbook chat full access to the tenant's own company enrichment data (
 **Depends on**: BL-055 | **Theme**: Platform Foundation
 
 Unified token credit system for metering all LLM usage per namespace. 1 credit = $0.001 USD. Per-namespace budgets with configurable enforcement (monitor/soft/hard). Credit reservation for concurrent operations. Admin dashboard showing usage gauge, time series, operation breakdown, and per-user consumption. Auto-reset on monthly/quarterly schedule. Integrates with existing `LlmUsageLog` infrastructure. Budget checks at all LLM call sites (chat, enrichment, generation, extraction).
+
+### BL-057: Campaign Generation Customization
+**Status**: Spec'd | **Effort**: M | **Spec**: `docs/specs/campaign-generation-customization.md`
+**Depends on**: BL-055, BL-056 | **Theme**: Outreach Engine
+
+Full control over message generation: extended tone selector (8 options including consultative, direct, friendly, provocative), campaign-level language and formality settings, on-demand example message preview per step (3 AI-generated examples using real contacts), bulk regeneration (all messages or per-step with config overrides), full version history with revert (`message_versions` table), and token credit cost display (estimated before, actual after, credits for users, USD for super_admin only).
 
 ### BL-031: Campaign CRUD + Data Model
 **Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
