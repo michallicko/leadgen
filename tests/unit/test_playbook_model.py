@@ -63,6 +63,62 @@ class TestStrategyDocumentModel:
         assert d["objective"] == "Win more deals"
 
 
+class TestPlaybookPhaseModel:
+    def test_default_phase_is_strategy(self, app, db, seed_tenant):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id)
+        db.session.add(doc)
+        db.session.commit()
+        assert doc.phase == "strategy"
+        # SQLite stores JSONB default as string '{}'; PostgreSQL as dict {}
+        sels = doc.playbook_selections
+        if isinstance(sels, str):
+            import json
+
+            sels = json.loads(sels)
+        assert sels == {} or sels is None
+
+    def test_phase_persists(self, app, db, seed_tenant):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="contacts")
+        db.session.add(doc)
+        db.session.commit()
+        fetched = db.session.get(StrategyDocument, doc.id)
+        assert fetched.phase == "contacts"
+
+    def test_playbook_selections_stores_json(self, app, db, seed_tenant):
+        from api.models import StrategyDocument
+
+        selections = {
+            "contacts": {"selected_ids": ["id1", "id2"], "filters": {"industry": "SaaS"}}
+        }
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id, playbook_selections=selections
+        )
+        db.session.add(doc)
+        db.session.commit()
+        fetched = db.session.get(StrategyDocument, doc.id)
+        # SQLite stores JSONB as text; parse if needed
+        sels = fetched.playbook_selections
+        if isinstance(sels, str):
+            import json
+
+            sels = json.loads(sels)
+        assert sels["contacts"]["selected_ids"] == ["id1", "id2"]
+
+    def test_to_dict_includes_phase_fields(self, app, db, seed_tenant):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="messages")
+        db.session.add(doc)
+        db.session.commit()
+        d = doc.to_dict()
+        assert d["phase"] == "messages"
+        assert "playbook_selections" in d
+
+
 class TestStrategyChatMessageModel:
     def test_create_message(self, app, db, seed_tenant):
         from api.models import StrategyDocument, StrategyChatMessage

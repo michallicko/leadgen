@@ -1161,6 +1161,9 @@ class Activity(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+PLAYBOOK_PHASES = ["strategy", "contacts", "messages", "campaign"]
+
+
 class StrategyDocument(db.Model):
     __tablename__ = "strategy_documents"
 
@@ -1180,6 +1183,15 @@ class StrategyDocument(db.Model):
     version = db.Column(db.Integer, nullable=False, default=1)
     enrichment_id = db.Column(UUID(as_uuid=False), db.ForeignKey("companies.id"))
     objective = db.Column(db.Text)
+    phase = db.Column(
+        db.String(20),
+        nullable=False,
+        server_default=db.text("'strategy'"),
+        default="strategy",
+    )
+    playbook_selections = db.Column(
+        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
+    )
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
@@ -1194,6 +1206,8 @@ class StrategyDocument(db.Model):
             "version": self.version,
             "enrichment_id": self.enrichment_id,
             "objective": self.objective,
+            "phase": self.phase,
+            "playbook_selections": self.playbook_selections or {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "updated_by": self.updated_by,

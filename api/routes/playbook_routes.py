@@ -16,6 +16,7 @@ from ..models import (
     CompanyEnrichmentProfile,
     CompanyEnrichmentSignals,
     CompanyEnrichmentMarket,
+    PLAYBOOK_PHASES,
     PlaybookLog,
     StrategyDocument,
     StrategyChatMessage,
@@ -89,6 +90,116 @@ def update_playbook():
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
+
+
+@playbook_bp.route("/api/playbook/phase", methods=["PUT"])
+@require_auth
+def update_phase():
+    """Advance or rewind the playbook phase.
+
+    Forward transitions are gated:
+      strategy -> contacts: requires non-empty extracted_data
+      contacts -> messages: requires at least 1 selected contact
+      messages -> campaign: requires at least 1 generated message
+
+    Backward transitions are always allowed.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    target_phase = data.get("phase")
+    if target_phase not in PLAYBOOK_PHASES:
+        return jsonify(
+            {
+                "error": "Invalid phase. Must be one of: {}".format(
+                    ", ".join(PLAYBOOK_PHASES)
+                )
+            }
+        ), 400
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    current_idx = (
+        PLAYBOOK_PHASES.index(doc.phase) if doc.phase in PLAYBOOK_PHASES else 0
+    )
+    target_idx = PLAYBOOK_PHASES.index(target_phase)
+
+    # Forward transition validation
+    if target_idx > current_idx:
+        error = _validate_phase_transition(doc, doc.phase, target_phase)
+        if error:
+            return jsonify({"error": error, "current_phase": doc.phase}), 422
+
+    doc.phase = target_phase
+    db.session.commit()
+
+    return jsonify(doc.to_dict()), 200
+
+
+def _validate_phase_transition(doc, current_phase, target_phase):
+    """Validate that a forward phase transition is allowed.
+
+    Returns an error message string if blocked, or None if allowed.
+    """
+    if target_phase == "contacts":
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            import json as _json
+
+            try:
+                extracted = _json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        if not extracted.get("icp"):
+            return (
+                "Strategy must have extracted ICP data before moving to Contacts. "
+                "Save and extract first."
+            )
+        return None
+
+    if target_phase == "messages":
+        selections = doc.playbook_selections or {}
+        if isinstance(selections, str):
+            import json as _json
+
+            try:
+                selections = _json.loads(selections)
+            except (ValueError, TypeError):
+                selections = {}
+        contact_ids = selections.get("contacts", {}).get("selected_ids", [])
+        if not contact_ids:
+            return "Select at least one contact before moving to Messages."
+        return None
+
+    if target_phase == "campaign":
+        selections = doc.playbook_selections or {}
+        if isinstance(selections, str):
+            import json as _json
+
+            try:
+                selections = _json.loads(selections)
+            except (ValueError, TypeError):
+                selections = {}
+        contact_ids = selections.get("contacts", {}).get("selected_ids", [])
+        if not contact_ids:
+            return "No contacts selected."
+        from ..models import Message
+
+        msg_count = Message.query.filter(
+            Message.tenant_id == doc.tenant_id,
+            Message.contact_id.in_(contact_ids),
+        ).count()
+        if msg_count == 0:
+            return (
+                "Generate messages for selected contacts before launching a campaign."
+            )
+        return None
+
+    return None
 
 
 @playbook_bp.route("/api/playbook/extract", methods=["POST"])
@@ -583,8 +694,13 @@ def post_chat_message():
     if doc.enrichment_id:
         enrichment_data = _load_enrichment_data(doc.enrichment_id)
 
+    # Determine phase for system prompt (request param overrides doc phase)
+    phase = data.get("phase") or doc.phase or "strategy"
+
     # Build prompt and messages
-    system_prompt = build_system_prompt(tenant, doc, enrichment_data=enrichment_data)
+    system_prompt = build_system_prompt(
+        tenant, doc, enrichment_data=enrichment_data, phase=phase
+    )
     messages = build_messages(history, message_text)
 
     client = _get_anthropic_client()
