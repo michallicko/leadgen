@@ -4,7 +4,7 @@
   "priority": "Must Have",
   "effort": "M",
   "status": "Spec'd",
-  "sprint": "Sprint 2",
+  "sprint": "Sprint 3",
   "depends_on": [
     "BL-055",
     "BL-056"
