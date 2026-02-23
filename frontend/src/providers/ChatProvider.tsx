@@ -19,7 +19,6 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation } from 'react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { usePlaybookChat, useNewThread } from '../api/queries/usePlaybook'
 import { useSSE } from '../hooks/useSSE'
@@ -85,7 +84,6 @@ function setStoredOpen(open: boolean) {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
-  const queryClient = useQueryClient()
   const { isAuthenticated } = useAuth()
 
   // Server state — only fetch when authenticated
