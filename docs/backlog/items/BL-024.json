@@ -1,0 +1,13 @@
+{
+  "id": "BL-024",
+  "title": "Google Drive Contact Import",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Import contacts from Google Drive spreadsheets (Sheets). OAuth2 integration with Google APIs. User connects their Google account, browses Drive for contact lists, and imports directly. Reuses existing AI column mapper and dedup engine. Eliminates the \"export to CSV, then upload\" step.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

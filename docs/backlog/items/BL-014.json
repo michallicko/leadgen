@@ -1,0 +1,15 @@
+{
+  "id": "BL-014",
+  "title": "On-Demand Contact Enrichment",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-015"
+  ],
+  "description": "Select contacts from the dashboard and trigger enrichment for missing fields via Perplexity/Claude. Shows credit cost estimate before execution. Progress tracking per contact. Results written back to contact/company records. First user-facing feature powered by the Python pipeline engine.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

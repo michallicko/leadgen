@@ -1,0 +1,13 @@
+{
+  "id": "BL-026",
+  "title": "Gmail Email History Scan",
+  "priority": "Should Have",
+  "effort": "L",
+  "status": "Building",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Scan Gmail inbox/sent for contacts not in the database. Extract contact info from email headers (From/To/CC), signatures (title, phone, company), and email footers. AI-powered extraction for unstructured signature parsing. Surfaces \"hidden\" contacts the user has been emailing but never added to any CRM.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

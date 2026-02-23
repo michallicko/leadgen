@@ -1,0 +1,15 @@
+{
+  "id": "BL-043",
+  "title": "A/B Variant Generation",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-035"
+  ],
+  "description": "Generate 2 variants per step (different angles/temperature). Both shown in review. Cost doubles for 2-variant steps.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "COLLAB",
+  "title": "Real-Time Collaboration (Yjs/Hocuspocus)",
+  "priority": "Must Have",
+  "effort": "L",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "PB-035"
+  ],
+  "spec": "## Real-Time Collaboration (Yjs/Hocuspocus)\n\n### Goal\nEnable real-time collaborative editing of strategy documents using Yjs CRDTs with Hocuspocus as the WebSocket server.\n\n### Scope\n- **Hocuspocus server**: Node.js WebSocket server with auth hook\n- **Yjs integration**: Y.Doc per strategy, Y.XmlFragment for rich text body\n- **Presence**: User avatars and cursor positions\n- **Persistence**: Hocuspocus writes to PostgreSQL via custom extension\n- **Auth**: JWT token validation on WebSocket connect\n\n### Technical Approach\n- Hocuspocus server as separate Docker container\n- `@hocuspocus/extension-database` for PG persistence\n- Frontend: `y-prosemirror` bindings for the rich text editor\n- Awareness protocol for presence (name, color, cursor)\n\n### Acceptance Criteria\n- Given two users open the same strategy, edits from one appear on the other's screen in real-time\n- Given a user disconnects and reconnects, their document state converges correctly\n- Given authentication fails, the WebSocket connection is rejected with 401",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

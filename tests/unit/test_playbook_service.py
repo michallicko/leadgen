@@ -135,13 +135,19 @@ class TestBuildSystemPrompt:
         prompt = build_system_prompt(tenant, doc)
         # Must contain the tone rules section
         assert "TONE RULES" in prompt
-        # Must explicitly forbid harsh phrases
-        assert "DISQUALIFY" in prompt
+        # Must explicitly forbid harsh phrases (expanded list)
+        assert "disqualify" in prompt.lower()
+        assert "not a viable prospect" in prompt.lower()
+        assert "not viable" in prompt.lower()
+        assert "remove from list" in prompt.lower()
+        assert "red flag" in prompt.lower()
         assert "no verifiable business presence" in prompt
         assert "minimal digital footprint" in prompt
         assert "insufficient data" in prompt
         # Must instruct collaborative reframing
         assert "encouraging and collaborative" in prompt
+        # Must instruct never dropping prospects
+        assert "never recommend" in prompt.lower()
         # Must position AI as strategist, not judge
         assert "strategist" in prompt.lower()
 
@@ -177,8 +183,8 @@ class TestBuildSystemPrompt:
 
         prompt = build_system_prompt(tenant, doc)
         lower = prompt.lower()
-        # Must instruct conciseness
-        assert "concise" in lower or "2-4 sentences" in lower
+        # Must enforce word limit
+        assert "150 words" in lower
         # Must prohibit filler phrases
         assert "great question" in lower
         # Must instruct bullet points

@@ -1,0 +1,15 @@
+{
+  "id": "BL-018",
+  "title": "Contact Enrichment Modules",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-016"
+  ],
+  "description": "Enrichment modules for individual contacts, plugging into the modular framework (BL-016): - **Role & Employment**: Current title verification, reporting structure, tenure (builds on BL-019) - **Social & Online**: LinkedIn profile analysis, Twitter/X presence, speaking engagements, publications - **Career History**: Previous roles, companies, career trajectory, industry experience - **Contact Details**: Email verification (via BL-013), phone numbers, alternative contact methods Depth selection: \"basics\" (role + email) vs \"full profile\" (all modules). Credit cost scales with depth.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

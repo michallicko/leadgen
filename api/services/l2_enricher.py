@@ -28,6 +28,20 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _to_text(val):
+    """Coerce enrichment value to string for L2 result dict."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    if isinstance(val, dict):
+        return json.dumps(val)
+    return str(val)
+
+
 PERPLEXITY_MAX_TOKENS = 1200
 PERPLEXITY_TEMPERATURE = 0.2
 ANTHROPIC_MAX_TOKENS = 4000
@@ -69,6 +83,7 @@ Return ONLY a JSON object. No markdown. No code fences. Start with {.
   "digital_initiatives": "ERP, CRM, cloud implementations. Or 'None found'",
   "revenue_trend": "growing|stable|declining|restructuring with evidence. Or 'Unknown'",
   "growth_signals": "Concrete evidence: headcount growth, new offices. Or 'None found'",
+  "ma_activity": "Recent mergers, acquisitions, or divestitures with dates. Or 'None found'",
   "news_confidence": "high|medium|low|none"
 }"""
 
@@ -115,6 +130,10 @@ Return ONLY a JSON object. No markdown. Start with {.
   "regulatory_pressure": "Applicable regulations with deadlines. Or 'None identified'",
   "vendor_partnerships": "Technology partnerships or platform usage. Or 'Unknown'",
   "employee_sentiment": "Review ratings and themes. Or 'Not found'",
+  "tech_stack_categories": "Known technology platforms by category (CRM, ERP, Cloud, MarTech, DevTools). Or 'Unknown'",
+  "fiscal_year_end": "Company fiscal year end month, if known. Or 'Unknown'",
+  "digital_maturity_score": "Rate digital maturity 1-10 based on website sophistication, social presence, and technology adoption. Or 'Unknown'",
+  "it_spend_indicators": "Evidence of technology investment level (IT team size, cloud migration, tech purchases). Or 'Unknown'",
   "data_completeness": "high|medium|low"
 }"""
 
@@ -147,6 +166,20 @@ RULES:
 - Quick wins MUST be achievable in 4-8 weeks with clear ROI
 - Pain hypothesis = what keeps a senior leader awake, based on evidence
 
+TONE RULES (CRITICAL — this output is shown to business owners):
+- NEVER use the word "DISQUALIFY" or similar harsh labels in any field
+- NEVER say a company "shows no verifiable business presence" or imply a company may not be real
+- When data is limited, frame it constructively: "Limited public information available" not \
+"No company information found"
+- Frame gaps as "we could not find X" or "X could not be confirmed" — never "X doesn't exist"
+- The executive_brief is read by business owners about their own prospects. Keep it professional \
+and respectful at all times
+- If research yields very little, focus on what IS known and suggest areas for further research
+- Example good tone: "A company in [industry] with limited public presence. \
+Additional research recommended to confirm company scale and identify specific AI opportunities."
+- Example bad tone: "DISQUALIFY: shows no verifiable business presence. \
+Recommend data validation before sales investment."
+
 PITCH FRAMING:
 - growth_acceleration: expansion, funding, hiring
 - efficiency_protection: cost pressure, layoffs, flat revenue
@@ -156,15 +189,19 @@ PITCH FRAMING:
 OUTPUT FORMAT: Return ONLY valid JSON. Start with {.
 
 {
-  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact",
-  "pain_hypothesis": "1-2 sentences based on evidence",
+  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact. If data is limited, \
+suggest general industry-relevant opportunities and note that further research may refine these.",
+  "pain_hypothesis": "1-2 sentences based on evidence. If evidence is thin, frame as \
+'Based on industry patterns, likely challenges include...'",
   "quick_wins": [{"use_case": "...", "evidence": "...", "impact": "...", "complexity": "low|medium"}],
   "industry_pain_points": "Top 3 industry-specific pain points",
   "cross_functional_pain": "Cross-department pain points",
   "adoption_barriers": "Likely objections or blockers",
   "competitor_ai_moves": "Competitor AI activity or null",
   "pitch_framing": "growth_acceleration|efficiency_protection|competitive_catch_up|compliance_driven",
-  "executive_brief": "3-4 sentence summary for a sales rep"
+  "executive_brief": "3-4 sentence professional summary for a sales rep. Always lead with what \
+IS known about the company. If information is limited, note this neutrally and suggest next steps \
+like manual research or direct outreach. Never use dismissive or disqualifying language."
 }"""
 
 SYNTHESIS_USER_TEMPLATE = """Generate AI opportunity analysis for {company_name} ({domain}):
@@ -227,6 +264,11 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         if not company:
             return {"error": "Company not found", "enrichment_cost_usd": 0}
 
+        # Skip tenant's own company — never enrich self
+        if company.get("is_self"):
+            logger.info("Skipping self-company %s — is_self=True", company["name"])
+            return {"enrichment_cost_usd": 0, "skipped": "is_self"}
+
         if not tenant_id:
             tenant_id = company["tenant_id"]
 
@@ -249,7 +291,9 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         except Exception as e:
             logger.error("L2 strategic research failed for %s: %s", company_id, e)
             # Save partial results from news
-            _upsert_l2_enrichment(company_id, news_data, {}, {}, total_cost)
+            _upsert_l2_enrichment(
+                company_id, news_data, {}, {}, total_cost, l1_data=l1_data
+            )
             _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             return {"error": str(e), "enrichment_cost_usd": total_cost}
 
@@ -264,14 +308,21 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
                 "L2 synthesis failed for %s: %s — saving research only", company_id, e
             )
             # Save research without synthesis
-            _upsert_l2_enrichment(company_id, news_data, strategic_data, {}, total_cost)
+            _upsert_l2_enrichment(
+                company_id, news_data, strategic_data, {}, total_cost, l1_data=l1_data
+            )
             _set_company_status(company_id, "enriched_l2")
             db.session.commit()
             return {"enrichment_cost_usd": total_cost, "synthesis_failed": True}
 
         # --- Save everything ---
         _upsert_l2_enrichment(
-            company_id, news_data, strategic_data, synthesis_data, total_cost
+            company_id,
+            news_data,
+            strategic_data,
+            synthesis_data,
+            total_cost,
+            l1_data=l1_data,
         )
         _set_company_status(company_id, "enriched_l2")
 
@@ -306,7 +357,8 @@ def _load_company_and_l1(company_id):
             SELECT c.id, c.tenant_id, c.name, c.domain, c.industry,
                    c.verified_revenue_eur_m, c.verified_employees,
                    c.geo_region, c.tier, c.hq_city, c.hq_country,
-                   l1.raw_response, l1.confidence, l1.qc_flags
+                   l1.raw_response, l1.confidence, l1.qc_flags,
+                   c.is_self
             FROM companies c
             LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
             WHERE c.id = :cid
@@ -329,6 +381,7 @@ def _load_company_and_l1(company_id):
         "tier": row[8] or "",
         "hq_city": row[9] or "",
         "hq_country": row[10] or "",
+        "is_self": row[14],
     }
 
     l1_raw = row[11]
@@ -455,133 +508,133 @@ def _synthesize(company, l1_data, news_data, strategic_data):
 
 
 def _upsert_l2_enrichment(
-    company_id, news_data, strategic_data, synthesis_data, total_cost
+    company_id, news_data, strategic_data, synthesis_data, total_cost, l1_data=None
 ):
-    """Insert or update the company_enrichment_l2 record."""
+    """Insert or update the company_enrichment_l2 record.
+
+    Includes Phase 1 (data loss fix) and Phase 2 (new high-value) columns.
+    """
     quick_wins = synthesis_data.get("quick_wins")
     if quick_wins and not isinstance(quick_wins, str):
         quick_wins = json.dumps(quick_wins)
 
+    params = _build_l2_params(
+        company_id,
+        news_data,
+        strategic_data,
+        synthesis_data,
+        quick_wins,
+        total_cost,
+        l1_data=l1_data,
+    )
+
+    # Column list shared by INSERT and ON CONFLICT UPDATE
+    _COLUMNS = (
+        "company_intel",
+        "recent_news",
+        "ai_opportunities",
+        "pain_hypothesis",
+        "relevant_case_study",
+        "digital_initiatives",
+        "leadership_changes",
+        "hiring_signals",
+        "key_products",
+        "customer_segments",
+        "competitors",
+        "tech_stack",
+        "funding_history",
+        "eu_grants",
+        "leadership_team",
+        "ai_hiring",
+        "tech_partnerships",
+        "certifications",
+        "quick_wins",
+        "industry_pain_points",
+        "cross_functional_pain",
+        "adoption_barriers",
+        "competitor_ai_moves",
+        # Phase 1: previously lost fields
+        "expansion",
+        "workflow_ai_evidence",
+        "revenue_trend",
+        "growth_signals",
+        "regulatory_pressure",
+        "employee_sentiment",
+        "pitch_framing",
+        # Phase 2: new high-value fields
+        "ma_activity",
+        "tech_stack_categories",
+        "fiscal_year_end",
+        "digital_maturity_score",
+        "it_spend_indicators",
+    )
+
+    col_list = ", ".join(_COLUMNS)
+    val_list = ", ".join(f":{c}" for c in _COLUMNS)
+    update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in _COLUMNS)
+
     # Try PostgreSQL upsert first, fall back to SQLite
     try:
         db.session.execute(
-            text("""
+            text(f"""
                 INSERT INTO company_enrichment_l2 (
-                    company_id, company_intel, recent_news, ai_opportunities,
-                    pain_hypothesis, relevant_case_study, digital_initiatives,
-                    leadership_changes, hiring_signals, key_products,
-                    customer_segments, competitors, tech_stack,
-                    funding_history, eu_grants, leadership_team,
-                    ai_hiring, tech_partnerships, certifications,
-                    quick_wins, industry_pain_points, cross_functional_pain,
-                    adoption_barriers, enriched_at, enrichment_cost_usd
+                    company_id, {col_list},
+                    enriched_at, enrichment_cost_usd
                 ) VALUES (
-                    :cid, :company_intel, :recent_news, :ai_opportunities,
-                    :pain_hypothesis, :relevant_case_study, :digital_initiatives,
-                    :leadership_changes, :hiring_signals, :key_products,
-                    :customer_segments, :competitors, :tech_stack,
-                    :funding_history, :eu_grants, :leadership_team,
-                    :ai_hiring, :tech_partnerships, :certifications,
-                    :quick_wins, :industry_pain_points, :cross_functional_pain,
-                    :adoption_barriers, :enriched_at, :cost
+                    :cid, {val_list},
+                    :enriched_at, :cost
                 )
                 ON CONFLICT (company_id) DO UPDATE SET
-                    company_intel = EXCLUDED.company_intel,
-                    recent_news = EXCLUDED.recent_news,
-                    ai_opportunities = EXCLUDED.ai_opportunities,
-                    pain_hypothesis = EXCLUDED.pain_hypothesis,
-                    relevant_case_study = EXCLUDED.relevant_case_study,
-                    digital_initiatives = EXCLUDED.digital_initiatives,
-                    leadership_changes = EXCLUDED.leadership_changes,
-                    hiring_signals = EXCLUDED.hiring_signals,
-                    key_products = EXCLUDED.key_products,
-                    customer_segments = EXCLUDED.customer_segments,
-                    competitors = EXCLUDED.competitors,
-                    tech_stack = EXCLUDED.tech_stack,
-                    funding_history = EXCLUDED.funding_history,
-                    eu_grants = EXCLUDED.eu_grants,
-                    leadership_team = EXCLUDED.leadership_team,
-                    ai_hiring = EXCLUDED.ai_hiring,
-                    tech_partnerships = EXCLUDED.tech_partnerships,
-                    certifications = EXCLUDED.certifications,
-                    quick_wins = EXCLUDED.quick_wins,
-                    industry_pain_points = EXCLUDED.industry_pain_points,
-                    cross_functional_pain = EXCLUDED.cross_functional_pain,
-                    adoption_barriers = EXCLUDED.adoption_barriers,
+                    {update_list},
                     enriched_at = EXCLUDED.enriched_at,
                     enrichment_cost_usd = EXCLUDED.enrichment_cost_usd
             """),
-            _build_l2_params(
-                company_id,
-                news_data,
-                strategic_data,
-                synthesis_data,
-                quick_wins,
-                total_cost,
-            ),
+            params,
         )
     except Exception:
         db.session.rollback()
-        # SQLite fallback (INSERT OR REPLACE is SQLite-only; PG uses ON CONFLICT above)
-        try:
-            db.session.execute(
-                text("""
-                    INSERT OR REPLACE INTO company_enrichment_l2 (
-                        company_id, company_intel, recent_news, ai_opportunities,
-                        pain_hypothesis, relevant_case_study, digital_initiatives,
-                        leadership_changes, hiring_signals, key_products,
-                        customer_segments, competitors, tech_stack,
-                        funding_history, eu_grants, leadership_team,
-                        ai_hiring, tech_partnerships, certifications,
-                        quick_wins, industry_pain_points, cross_functional_pain,
-                        adoption_barriers, enriched_at, enrichment_cost_usd
-                    ) VALUES (
-                        :cid, :company_intel, :recent_news, :ai_opportunities,
-                        :pain_hypothesis, :relevant_case_study, :digital_initiatives,
-                        :leadership_changes, :hiring_signals, :key_products,
-                        :customer_segments, :competitors, :tech_stack,
-                        :funding_history, :eu_grants, :leadership_team,
-                        :ai_hiring, :tech_partnerships, :certifications,
-                        :quick_wins, :industry_pain_points, :cross_functional_pain,
-                        :adoption_barriers, :enriched_at, :cost
-                    )
-                """),
-                _build_l2_params(
-                    company_id,
-                    news_data,
-                    strategic_data,
-                    synthesis_data,
-                    quick_wins,
-                    total_cost,
-                ),
-            )
-        except Exception:
-            db.session.rollback()
-            logger.warning(
-                "L2 upsert failed for %s on both PG and SQLite paths",
-                company_id,
-            )
-
-
-def _to_text(value):
-    """Convert a value to a text string suitable for a TEXT column.
-
-    Lists and dicts are JSON-serialized; None passes through; everything
-    else is str().
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (list, dict)):
-        return json.dumps(value, default=str)
-    return str(value)
+        # SQLite fallback
+        db.session.execute(
+            text(f"""
+                INSERT OR REPLACE INTO company_enrichment_l2 (
+                    company_id, {col_list},
+                    enriched_at, enrichment_cost_usd
+                ) VALUES (
+                    :cid, {val_list},
+                    :enriched_at, :cost
+                )
+            """),
+            params,
+        )
 
 
 def _build_l2_params(
-    company_id, news_data, strategic_data, synthesis_data, quick_wins, total_cost
+    company_id,
+    news_data,
+    strategic_data,
+    synthesis_data,
+    quick_wins,
+    total_cost,
+    l1_data=None,
 ):
-    """Build parameter dict for L2 upsert."""
+    """Build parameter dict for L2 upsert.
+
+    Phase 1 fixes (data loss):
+    - expansion, workflow_ai_evidence, revenue_trend, growth_signals from news_data
+    - regulatory_pressure, employee_sentiment from strategic_data
+    - pitch_framing from synthesis_data
+    - key_products, customer_segments sourced from L1 / synthesis instead of None
+    - tech_stack uses certifications/digital_initiatives context; tech_partnerships
+      uses vendor_partnerships (no longer duplicated)
+    - competitors uses L1 competitors; competitor_ai_moves is separate synthesis field
+
+    Phase 2 additions:
+    - ma_activity from news_data
+    - tech_stack_categories, fiscal_year_end, digital_maturity_score,
+      it_spend_indicators from strategic_data
+    """
+    l1 = l1_data or {}
+
     return {
         "cid": company_id,
         "company_intel": _to_text(synthesis_data.get("executive_brief")),
@@ -589,23 +642,50 @@ def _build_l2_params(
         "ai_opportunities": _to_text(synthesis_data.get("ai_opportunities")),
         "pain_hypothesis": _to_text(synthesis_data.get("pain_hypothesis")),
         "relevant_case_study": None,
-        "digital_initiatives": _to_text(news_data.get("digital_initiatives")),
-        "leadership_changes": _to_text(news_data.get("leadership_changes")),
-        "hiring_signals": _to_text(strategic_data.get("other_hiring_signals")),
-        "key_products": None,
-        "customer_segments": None,
-        "competitors": _to_text(synthesis_data.get("competitor_ai_moves")),
-        "tech_stack": _to_text(strategic_data.get("vendor_partnerships")),
-        "funding_history": _to_text(news_data.get("funding")),
-        "eu_grants": _to_text(strategic_data.get("eu_grants")),
-        "leadership_team": _to_text(strategic_data.get("leadership_team")),
-        "ai_hiring": _to_text(strategic_data.get("ai_transformation_roles")),
-        "tech_partnerships": _to_text(strategic_data.get("vendor_partnerships")),
-        "certifications": _to_text(strategic_data.get("certifications")),
+        "digital_initiatives": news_data.get("digital_initiatives"),
+        "leadership_changes": news_data.get("leadership_changes"),
+        "hiring_signals": strategic_data.get("other_hiring_signals"),
+        # Fix #8: key_products from L1 data instead of hardcoded None
+        "key_products": (
+            l1.get("key_products")
+            or l1.get("products")
+            or synthesis_data.get("key_products")
+        ),
+        # Fix #9: customer_segments from L1 data instead of hardcoded None
+        "customer_segments": (
+            l1.get("customer_segments") or synthesis_data.get("customer_segments")
+        ),
+        # Fix #10: competitors from L1 (named competitors), not synthesis ai_moves
+        "competitors": l1.get("competitors") or synthesis_data.get("competitors"),
+        # Fix #10: tech_stack = digital_initiatives tech detail (what they use)
+        "tech_stack": news_data.get("digital_initiatives"),
+        "funding_history": news_data.get("funding"),
+        "eu_grants": strategic_data.get("eu_grants"),
+        "leadership_team": strategic_data.get("leadership_team"),
+        "ai_hiring": strategic_data.get("ai_transformation_roles"),
+        # Fix #10: tech_partnerships = vendor_partnerships (who they partner with)
+        "tech_partnerships": strategic_data.get("vendor_partnerships"),
+        "certifications": strategic_data.get("certifications"),
         "quick_wins": quick_wins,
-        "industry_pain_points": _to_text(synthesis_data.get("industry_pain_points")),
-        "cross_functional_pain": _to_text(synthesis_data.get("cross_functional_pain")),
-        "adoption_barriers": _to_text(synthesis_data.get("adoption_barriers")),
+        "industry_pain_points": synthesis_data.get("industry_pain_points"),
+        "cross_functional_pain": synthesis_data.get("cross_functional_pain"),
+        "adoption_barriers": synthesis_data.get("adoption_barriers"),
+        # Fix: competitor_ai_moves now properly stored from synthesis
+        "competitor_ai_moves": synthesis_data.get("competitor_ai_moves"),
+        # Phase 1 fixes: fields previously generated but not stored
+        "expansion": news_data.get("expansion"),
+        "workflow_ai_evidence": news_data.get("workflow_ai_evidence"),
+        "revenue_trend": news_data.get("revenue_trend"),
+        "growth_signals": news_data.get("growth_signals"),
+        "regulatory_pressure": strategic_data.get("regulatory_pressure"),
+        "employee_sentiment": strategic_data.get("employee_sentiment"),
+        "pitch_framing": synthesis_data.get("pitch_framing"),
+        # Phase 2: new high-value fields
+        "ma_activity": news_data.get("ma_activity"),
+        "tech_stack_categories": strategic_data.get("tech_stack_categories"),
+        "fiscal_year_end": strategic_data.get("fiscal_year_end"),
+        "digital_maturity_score": strategic_data.get("digital_maturity_score"),
+        "it_spend_indicators": strategic_data.get("it_spend_indicators"),
         "enriched_at": datetime.now(timezone.utc),
         "cost": total_cost,
     }

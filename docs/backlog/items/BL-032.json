@@ -1,0 +1,15 @@
+{
+  "id": "BL-032",
+  "title": "Assign Contacts to Campaign",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Done",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-031"
+  ],
+  "description": "Contact picker with filters (batch, company, owner, tags). Add/remove contacts from campaign. Duplicate detection. Campaign detail shows contact count.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

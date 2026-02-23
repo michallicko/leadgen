@@ -1,0 +1,17 @@
+{
+  "id": "BL-045",
+  "title": "Message Review Workflow",
+  "effort": "XL",
+  "status": "Building",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-035",
+    "BL-036"
+  ],
+  "description": "Enhanced review with focused single-message queue (must approve/reject to advance), per-message regeneration (language, formality, tone, custom instruction), version tracking with tagged edit feedback for LLM training, contact disqualification (campaign-only or global), and campaign outreach approval gate.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "priority": "Must Have",
+  "spec_file": "docs/specs/message-review-workflow/",
+  "theme": "Outreach Engine"
+}

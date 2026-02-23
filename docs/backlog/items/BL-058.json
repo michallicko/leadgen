@@ -1,0 +1,18 @@
+{
+  "id": "BL-058",
+  "title": "Strategy Feedback Loop",
+  "priority": "Should Have",
+  "effort": "L",
+  "status": "Spec'd",
+  "sprint": "Sprint 3",
+  "depends_on": [
+    "AGENT",
+    "BL-055",
+    "BL-056"
+  ],
+  "description": "AI-powered strategy evaluation: multi-dimension scoring (ICP clarity, channel fit, messaging alignment, market timing, competitive awareness, data quality), conflict detection across sections, gap analysis flagging missing elements, and a progress score that improves over time as the strategy matures.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "theme": "Playbook Core",
+  "spec_file": "docs/specs/strategy-feedback-loop.md"
+}

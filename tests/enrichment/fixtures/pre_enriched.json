@@ -1,0 +1,66 @@
+{
+  "rohlik_group_l1": {
+    "company_name": "Rohlik Group",
+    "summary": "Online grocery delivery platform operating across Central Europe. Founded in 2014, headquartered in Prague.",
+    "b2b": false,
+    "hq": "Prague, Czech Republic",
+    "markets": ["Czech Republic", "Germany", "Austria", "Hungary", "Italy", "Romania"],
+    "founded": "2014",
+    "ownership": "VC-backed",
+    "industry": "retail",
+    "business_type": "platform",
+    "revenue_eur_m": 600,
+    "employees": 5000,
+    "confidence": 0.85,
+    "flags": []
+  },
+  "rohlik_group_l2_news": {
+    "recent_news": "Jan 2026: Rohlik expanded automated warehouse in Munich. Oct 2025: Raised Series E of EUR 170M.",
+    "funding": "Series E EUR 170M in Oct 2025. Total raised over EUR 500M.",
+    "leadership_changes": "New COO hired in Q3 2025 from Amazon Fresh.",
+    "expansion": "New automated warehouse in Munich, DE market doubling YoY.",
+    "workflow_ai_evidence": "Using AI for demand forecasting and delivery routing.",
+    "digital_initiatives": "Automated dark stores, robotic picking.",
+    "revenue_trend": "growing",
+    "growth_signals": "Headcount grew 30% YoY. Munich warehouse expansion.",
+    "news_confidence": "high"
+  },
+  "rohlik_group_l2_signals": {
+    "leadership_team": "CEO: Tomas Cupr, COO: New hire from Amazon (2025), CTO: Internal promotion",
+    "ai_transformation_roles": "Hiring: ML Engineer, Data Scientist, AI Product Manager",
+    "other_hiring_signals": "100+ open roles across DE, CZ. Heavy engineering hiring.",
+    "eu_grants": "None found",
+    "certifications": "ISO 22000 (food safety)",
+    "regulatory_pressure": "EU Digital Markets Act, food safety regulations",
+    "vendor_partnerships": "AWS, Autostore (warehouse robotics)",
+    "employee_sentiment": "Glassdoor 3.8/5, positive on innovation culture, concerns about pace",
+    "data_completeness": "high"
+  },
+  "tomas_cupr_profile": {
+    "current_role_verified": true,
+    "role_verification_source": "LinkedIn, Forbes Czech Republic",
+    "role_mismatch_flag": null,
+    "career_highlights": "Founded Rohlik in 2014, previously co-founded Slevomat (acquired by Secret Escapes). Serial entrepreneur.",
+    "career_trajectory": "ascending",
+    "thought_leadership": "Regular speaker at European tech conferences. Forbes Czech 40 under 40.",
+    "thought_leadership_topics": ["e-commerce", "logistics", "startup scaling"],
+    "education": "Czech Technical University",
+    "certifications": "None found",
+    "expertise_areas": ["e-commerce", "logistics", "startup", "fundraising"],
+    "public_presence_level": "high",
+    "data_confidence": "high"
+  },
+  "tomas_cupr_signals": {
+    "ai_champion_evidence": "Publicly stated AI as core competitive advantage. Driving AI-first warehouse automation.",
+    "ai_champion_score": 4,
+    "authority_signals": "Founder-CEO, controls strategic direction and budget. Board seat.",
+    "authority_level": "high",
+    "team_size_indication": "5000+ employees under leadership",
+    "budget_signals": "Controls Series E allocation. EUR 170M to deploy.",
+    "technology_interests": ["AI", "robotics", "logistics optimization", "demand forecasting"],
+    "pain_indicators": "Scaling automation across multiple markets. Last-mile delivery costs.",
+    "buying_signals": "Evaluating warehouse robotics vendors. Active on AI tooling.",
+    "recent_activity_level": "active",
+    "data_confidence": "high"
+  }
+}

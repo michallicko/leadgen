@@ -1,0 +1,15 @@
+{
+  "id": "BL-055",
+  "title": "LLM Cost Logging & Breakdown Dashboard",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Spec'd",
+  "sprint": "Sprint 2",
+  "depends_on": [],
+  "spec": "## LLM Cost Logging & Breakdown Dashboard\n\n### Goal\nInstrument all untracked LLM call sites and build an admin cost dashboard.\n\n### Phase 1: Backend Instrumentation\n- Playbook chat streaming: capture tokens from SSE message_start/message_delta events\n- Strategy extraction: log tokens from AnthropicResponse after client.query()\n- Person enrichment: add log_llm_usage() after each of 3 LLM calls\n- L2 enrichment: replace single aggregate log with 3 per-call logs\n- Add missing sonar-reasoning models to MODEL_PRICING\n\n### Phase 2: Cost Dashboard UI\n- Summary cards: total cost, total calls, avg cost/call\n- Breakdown tables by operation and by model/provider\n- Time-series chart showing daily cost trend\n- Date range picker defaulting to last 30 days\n- Consumes existing GET /api/llm-usage/summary endpoint\n\n### Acceptance Criteria\n- Given a playbook chat message, an llm_usage_log entry is created with operation='playbook_chat'\n- Given person enrichment runs, 3 separate log entries are created (profile/signals/synthesis)\n- Given a super_admin views the cost dashboard, summary cards and breakdown tables display correctly",
+  "description": "Instrument all untracked LLM call sites (playbook chat, strategy extraction, person enrichment) and break L2 enrichment logging into per-call granularity. Add missing model pricing (sonar-reasoning). Build a cost dashboard UI for super_admins consuming the existing `/api/llm-usage/summary` endpoint — summary cards, breakdown tables by operation/model, and daily cost trend chart.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "theme": "Closed-Loop Analytics",
+  "spec_file": "docs/specs/llm-cost-tracking.md"
+}

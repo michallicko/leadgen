@@ -1,8 +1,8 @@
 /**
  * PhaseIndicator — horizontal stepper showing the 4 playbook phases.
  *
- * States: completed (checkmark), active (highlighted), available (clickable), locked (grayed).
- * Clicking an unlocked phase fires onNavigate.
+ * All phases are always navigable. Visual indicators show completion status
+ * but never prevent clicking.
  */
 
 import { Fragment } from 'react'
@@ -21,7 +21,7 @@ export const PHASE_ORDER: PhaseKey[] = PHASES.map((p) => p.key)
 interface PhaseIndicatorProps {
   /** Currently viewed phase (from URL) */
   current: string
-  /** Highest unlocked phase (from DB) */
+  /** Highest completed phase (from DB) — used for visual indicators only */
   unlocked: string
   /** Navigate to a phase */
   onNavigate: (phase: string) => void
@@ -33,7 +33,6 @@ export function PhaseIndicator({ current, unlocked, onNavigate }: PhaseIndicator
   return (
     <div className="flex items-center gap-0 mb-3 px-2">
       {PHASES.map((phase, idx) => {
-        const isUnlocked = idx <= unlockedIdx
         const isCurrent = phase.key === current
         const isCompleted = idx < unlockedIdx
 
@@ -48,11 +47,9 @@ export function PhaseIndicator({ current, unlocked, onNavigate }: PhaseIndicator
               />
             )}
 
-            {/* Phase button */}
+            {/* Phase button — always clickable */}
             <button
-              onClick={() => isUnlocked && onNavigate(phase.key)}
-              disabled={!isUnlocked}
-              title={!isUnlocked ? 'Complete the previous phase to unlock' : undefined}
+              onClick={() => onNavigate(phase.key)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs
                 font-medium transition-colors cursor-pointer
                 ${
@@ -60,9 +57,7 @@ export function PhaseIndicator({ current, unlocked, onNavigate }: PhaseIndicator
                     ? 'bg-accent/15 text-accent border border-accent/30'
                     : isCompleted
                       ? 'text-success hover:bg-success/10 border border-transparent'
-                      : isUnlocked
-                        ? 'text-text-muted hover:bg-surface-alt border border-transparent'
-                        : 'text-text-dim opacity-50 cursor-not-allowed border border-transparent'
+                      : 'text-text-muted hover:bg-surface-alt border border-transparent'
                 }`}
             >
               <span

@@ -1,0 +1,15 @@
+{
+  "id": "BL-016",
+  "title": "Modular Enrichment Framework",
+  "priority": "Must Have",
+  "effort": "L",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-015"
+  ],
+  "description": "Framework for modular, depth-selectable enrichment — the core of \"AI company due diligence.\" Users choose which enrichment modules to run (company profile, legal, signals, news) and at what depth (quick scan vs full DD). Includes: module registry (pluggable enrichment stages), depth selector UI in dashboard, credit cost estimation before execution, progress tracking per module, and results viewer. Each module is a Python pipeline stage (via BL-015) that can be run independently or in combination.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

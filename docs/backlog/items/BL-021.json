@@ -1,0 +1,13 @@
+{
+  "id": "BL-021",
+  "title": "Data Normalization",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Standardize company names (e.g., \"Google LLC\" → \"Google\"), job titles (e.g., \"VP Sales\" → \"Vice President of Sales\"), and locations (e.g., \"NYC\" → \"New York, NY, US\") across all contacts. AI-assisted matching with manual override. Runs at import and on-demand. Improves dedup accuracy and filtering quality.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}
