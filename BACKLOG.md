@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-047
+**Next ID**: BL-053
 
 ## Must Have
 
@@ -96,6 +96,12 @@ Two use cases: (1) **Transactional** — enrichment notifications, import status
 
 Data model: `tenant_email_configs` table (mode, domain, subdomain, encrypted API key, verification status). Send logic checks mode and uses the appropriate Resend API key. Domain conflict auto-detected on registration attempt.
 
+### BL-052: Contact Filtering, Selection & Campaign Management via Chat + UI
+**Status**: Spec'd | **Effort**: L | **Spec**: `docs/specs/contact-campaign-management.md`
+**Depends on**: AGENT (agent-ready chat), PB-001 (phase infrastructure) | **Theme**: Outreach Engine
+
+Users can filter/select contacts and create or assign them to campaigns through BOTH AI chat tools and traditional UI. Chat tools: `filter_contacts`, `create_campaign`, `assign_to_campaign`, `check_strategy_conflicts`. UI: faceted filter panel, contact table with checkboxes, campaign creation modal. AI proactively flags ALL strategy conflicts: ICP mismatch, channel gaps, segment overlap with active campaigns, timing/cooldown violations, and tone mismatches. Campaigns become internal (no Lemlist dependency). Strategy document links to campaigns for ICP-aware conflict detection.
+
 ### BL-031: Campaign CRUD + Data Model
 **Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
 **Depends on**: — | **ADR**: `docs/adr/006-campaign-data-model.md` | **Theme**: Outreach Engine
@@ -185,6 +191,18 @@ Generate 2 variants per step (different angles/temperature). Both shown in revie
 **Depends on**: BL-035 | **Theme**: Outreach Engine
 
 Per-campaign instruction text appended to generation prompts. Max 2000 chars.
+
+### BL-049: Playbook Auto-Save (Debounced)
+**Status**: Idea | **Effort**: S | **Spec**: —
+**Depends on**: — | **Theme**: Outreach Engine
+
+Replace the explicit save button in the Playbook editor with debounced auto-save (triggers 1-2s after typing stops). Remove version conflict detection UI since CRDT collaboration (BL-050) handles conflicts natively. Subtle status indicator replaces the save button: "Saving...", "Saved", or "Save failed". Supersedes the old explicit save pattern. Prerequisite for real-time collaboration. Playbook backlog: PB-035.
+
+### BL-050: Playbook Real-Time Collaboration (GDocs-style)
+**Status**: Idea | **Effort**: L | **Spec**: —
+**Depends on**: BL-049 | **Theme**: Outreach Engine
+
+Full cursor presence and live document sync using Yjs + Hocuspocus (Tiptap's native CRDT stack). Multiple users editing the same playbook see each other's cursors, selections, and changes in real time. WebSocket sync server for document state. Backend persists CRDT document state (binary Yjs format), replacing the current `content` column approach. Supersedes the old version conflict detection pattern. Core product differentiator for collaborative GTM strategy work. Playbook backlog: PB-036.
 
 ## Should Have
 
@@ -286,6 +304,12 @@ Scan Gmail inbox/sent for contacts not in the database. Extract contact info fro
 
 Import contacts from Microsoft 365 / Outlook (Microsoft Graph API). OAuth2 via Microsoft identity platform. Pulls contacts, email history scan (similar to BL-026 for Gmail). Covers users in Microsoft-centric orgs. Shares extraction logic with Gmail scan where possible.
 
+### BL-051: Playbook Intelligent Auto-Extraction
+**Status**: Idea | **Effort**: M | **Spec**: —
+**Depends on**: BL-049 | **Theme**: Outreach Engine
+
+AI detects when meaningful edits have been made to the strategy document and re-extracts structured data (ICP, personas, value propositions) in the background. No explicit "extract" button — the system determines when extraction is warranted by tracking the document diff from the last extraction (>5% change threshold). Runs asynchronously without blocking the user. Supersedes the old manual extract pattern. Enhances the AI-as-strategist experience by removing mechanical steps. Playbook backlog: PB-037.
+
 ## Could Have
 
 ### BL-028: Influencer Signal Ingest
@@ -299,6 +323,73 @@ Monitor engagement on a person-of-interest's LinkedIn posts. Capture commenters 
 **Depends on**: BL-013, BL-015, BL-023 | **Theme**: Contact Intelligence
 
 Cost-optimized scheduled contact freshness system. **Tier 1 (cheap cron)**: Periodic lightweight probes on critical time-sensitive attributes only — email deliverability (SMTP/MX check), LinkedIn profile delta detection (title/company changed), company domain/website status (still active, redirects, new content), and job posting signals (company hiring for the contact's role = possible departure). **Tier 2 (selective deep refresh)**: Only contacts where Tier 1 detects a change get flagged for full re-enrichment via the modular pipeline (BL-016). Configurable per tenant: scan frequency, credit budget cap, change sensitivity threshold. Optimizes for cost — spend credits only where something actually changed.
+
+### BL-047: Voice Dialog Mode — Hands-Free GTM Workflow + AI Avatar
+**Status**: Idea | **Effort**: XL | **Spec**: —
+**Depends on**: BL-031, BL-035 | **Theme**: Outreach Engine
+
+Voice-based interaction mode where the AI speaks to the user in their native language and guides them through the full GTM workflow (strategy → contact sourcing → campaign prep) via voice dialog. Designed for busy company owners who want to work while driving, commuting, or otherwise hands-free.
+
+Key features:
+- Voice input/output in user's native language (Czech, German, English, etc.)
+- AI narrates what's happening: "I've found 12 companies matching your ICP in the DACH region. The top 3 are..."
+- User makes key decisions by voice: "Focus on the manufacturing ones" / "Skip that one"
+- Full workflow coverage: create strategy, source contacts, prepare outreach — all voice-guided
+- Session continuity: pick up where you left off
+- Async handoff: voice session creates actionable items that can be reviewed later on desktop
+
+Use case: Company owner driving 2 hours wants to create a GTM strategy, source a contact list, and prepare everything for campaign launch by the time they arrive.
+
+**Quality Bar: ChatGPT Advanced Voice Mode or better**
+- Real-time, natural conversation — not text-to-speech bolted on
+- Low latency (near-instant response, no awkward pauses)
+- Interruption support (user can cut in, AI adapts)
+- Natural prosody (varies tone, pace, emphasis — not monotone TTS)
+- Multilingual fluency (switches between English/Czech/German naturally mid-conversation)
+- Context awareness (remembers prior conversation, references past points)
+- "Thinking out loud" narration ("Let me look at your contacts... okay, I see 3 that match...")
+- Technology candidates: OpenAI Realtime API, ElevenLabs Conversational AI, or equivalent native voice-to-voice model
+- Basic TTS/STT pipelines are NOT acceptable — this must feel like talking to a real person
+
+**AI Avatar / Virtual Team Member** (expanded scope):
+- Animated AI avatar with voice that serves as a virtual team member, not just a chatbot
+- Creates sense of presence and accountability — "someone is working on this"
+- Avatar narrates progress: "I'm analyzing your ICP now... found 3 strong segments"
+- Expressive — shows thinking, excitement about good findings, concern about gaps
+- Designed for AI-first founders who spend 8+ hours/day working with AI and need human-like interaction to avoid isolation
+- Technologies to explore: ElevenLabs (voice), HeyGen/Synthesia (avatar), WebRTC (real-time), or lightweight animated character (lower cost)
+- Could be a browser tab, mobile app, or even a desktop companion widget
+
+This addresses the "lonely AI-first founder" use case — turning AI tools from text interfaces into virtual teammates with presence.
+
+### BL-048: Continuous Learning Loop — AI That Gets Smarter With Every Interaction
+**Status**: Idea | **Effort**: XL | **Spec**: —
+**Depends on**: BL-047, BL-031, BL-035 | **Theme**: Intelligence Engine
+
+Machine learning feedback loop where the AI strategist learns from every interaction and campaign outcome at both individual user and platform-wide levels. First customer gets a good strategist. Hundredth customer gets an exceptional one.
+
+**User-Level Learning:**
+- Track what approaches/angles/channels worked for this specific user's market and audience
+- Remember past campaigns: "We tried approach X, reply rate was 2%. Approach Y got 8%."
+- Adapt recommendations based on proven results: "For your DACH manufacturing prospects, ROI framing outperforms innovation framing 4:1"
+- Learn buyer persona preferences: "Marketing Directors respond to case studies, CTOs respond to technical whitepapers"
+- Build a feedback loop: strategy → outreach → results → refined strategy
+
+**Cross-User Learning (Anonymized):**
+- Aggregate anonymized performance data across all customers
+- Surface platform-wide insights: "LinkedIn outperforms cold email 3:1 for German market"
+- Best practices emerge from data, not assumptions: send times, message length, subject lines
+- Industry-specific benchmarks: "SaaS companies targeting SMB see 12% reply rate average"
+- Every customer's wins improve every other customer's recommendations
+
+**Implementation Ideas:**
+- Outcome tracking: link campaign results (reply rates, meetings booked, deals closed) back to strategy decisions
+- Feedback ingestion: user marks what worked/didn't after campaign runs
+- Model fine-tuning or RAG: inject proven patterns into system prompts
+- A/B testing engine: automatically test variations and learn from results
+- Benchmarking dashboard: show how user's metrics compare to anonymized platform averages
+
+**Key Insight**: This is the moat. As the system learns from real outcomes across thousands of campaigns, recommendations become prescriptive and increasingly personalized — hard to replicate without the data.
 
 ## Won't Have (for now)
 
