@@ -124,6 +124,8 @@ class TestPlaybookChat:
         # Mock the AnthropicClient.stream_query to yield text chunks
         mock_client = MagicMock()
         mock_client.stream_query.return_value = iter(["Your ICP ", "should focus on ", "enterprise SaaS."])
+        mock_client.last_stream_usage = {"input_tokens": 100, "output_tokens": 50, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -153,6 +155,8 @@ class TestPlaybookChat:
         """POST /api/playbook/chat with Accept: text/event-stream returns SSE."""
         mock_client = MagicMock()
         mock_client.stream_query.return_value = iter(["Hello ", "world!"])
+        mock_client.last_stream_usage = {"input_tokens": 80, "output_tokens": 30, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -192,6 +196,8 @@ class TestPlaybookChat:
         """POST /api/playbook/chat handles LLM errors gracefully in non-streaming mode."""
         mock_client = MagicMock()
         mock_client.stream_query.side_effect = Exception("API rate limited")
+        mock_client.last_stream_usage = {"input_tokens": 0, "output_tokens": 0, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -325,6 +331,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = json.dumps(extracted)
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 200
+        mock_response.output_tokens = 150
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 
@@ -376,6 +385,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "This is not valid JSON at all!"
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 100
+        mock_response.output_tokens = 50
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 
@@ -417,6 +429,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = fenced_json
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 100
+        mock_response.output_tokens = 80
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 

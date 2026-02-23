@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -212,7 +213,9 @@ def extract_strategy():
     system_prompt, user_prompt = build_extraction_prompt(doc.content or "")
 
     client = _get_anthropic_client()
+    user_id = getattr(request, "user_id", None)
 
+    start_time = time.time()
     try:
         result = client.query(
             system_prompt=system_prompt,
@@ -225,6 +228,21 @@ def extract_strategy():
         logger.exception("LLM extraction error: %s", e)
         return jsonify({"error": "LLM extraction failed: {}".format(str(e))}), 502
 
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Log LLM usage for strategy extraction
+    log_llm_usage(
+        tenant_id=tenant_id,
+        operation="strategy_extraction",
+        model=result.model,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        provider="anthropic",
+        user_id=user_id,
+        duration_ms=duration_ms,
+        metadata={"document_id": str(doc.id)},
+    )
+
     # Strip markdown code fences if the LLM wraps the JSON
     stripped = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", raw_text, flags=re.DOTALL)
 
@@ -232,6 +250,7 @@ def extract_strategy():
         extracted_data = json.loads(stripped)
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("LLM returned invalid JSON: %s", raw_text[:200])
+        db.session.commit()  # Commit the LLM usage log even on parse failure
         return jsonify(
             {
                 "error": "Failed to parse extraction result as JSON",
@@ -861,6 +880,7 @@ def _stream_simple_response(
     client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id, app
 ):
     """Backward-compatible simple streaming (no tools)."""
+    start_time = time.time()
 
     def generate():
         full_text = []
@@ -885,6 +905,7 @@ def _stream_simple_response(
 
         # Save the assistant message after streaming completes
         assistant_content = "".join(full_text)
+        duration_ms = int((time.time() - start_time) * 1000)
         with app.app_context():
             assistant_msg = StrategyChatMessage(
                 tenant_id=tenant_id,
@@ -893,6 +914,25 @@ def _stream_simple_response(
                 content=assistant_content,
             )
             db.session.add(assistant_msg)
+
+            # Log LLM usage from streaming token data
+            usage = client.last_stream_usage
+            log_llm_usage(
+                tenant_id=tenant_id,
+                operation="playbook_chat",
+                model=usage.get("model", client.default_model),
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                provider="anthropic",
+                user_id=user_id,
+                duration_ms=duration_ms,
+                metadata={
+                    "document_id": str(doc_id),
+                    "message_length": len(assistant_content),
+                    "streaming": True,
+                },
+            )
+
             db.session.commit()
             msg_id = assistant_msg.id
 
@@ -1081,6 +1121,8 @@ def _sync_response(
         )
 
     # --- No-tools path (backward compatible) ---
+    start_time = time.time()
+    llm_error = False
     try:
         full_text = []
         for chunk in client.stream_query(
@@ -1094,10 +1136,13 @@ def _sync_response(
         assistant_content = "".join(full_text)
     except Exception as e:
         logger.exception("LLM query error: %s", e)
+        llm_error = True
         # Fall back to error message so the user message is still saved
         assistant_content = (
             "Sorry, I encountered an error generating a response. Please try again."
         )
+
+    duration_ms = int((time.time() - start_time) * 1000)
 
     assistant_msg = StrategyChatMessage(
         tenant_id=tenant_id,
@@ -1106,6 +1151,26 @@ def _sync_response(
         content=assistant_content,
     )
     db.session.add(assistant_msg)
+
+    # Log LLM usage (skip if LLM call failed)
+    if not llm_error:
+        usage = client.last_stream_usage
+        log_llm_usage(
+            tenant_id=tenant_id,
+            operation="playbook_chat",
+            model=usage.get("model", client.default_model),
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            provider="anthropic",
+            user_id=user_id,
+            duration_ms=duration_ms,
+            metadata={
+                "document_id": str(doc_id),
+                "message_length": len(assistant_content),
+                "streaming": False,
+            },
+        )
+
     db.session.commit()
 
     # Log assistant chat event
