@@ -13,7 +13,8 @@
 - **Sync before starting work** — If SessionStart shows "N commits behind origin/staging", run `make sync` before writing any code.
 - **Verify before handoff** — Use `/validate` after implementation. Work is not done until the validation report says READY.
 - **Lead agent NEVER does work** — In delegation mode, the lead coordinator NEVER reads source files, writes code, calls MCP tools for data gathering, runs bash commands, or does any extensive work (more than 1 tool call). ALL work is delegated to spawned agents. "Let me just read this first" is building. Delegate it.
-- **Start every session from the backlog dashboard** — `docs/backlog-dashboard.html` is the source of truth for the development plan. Open it first, check sprint status, see where we left off, then pick up from there. Never start work without consulting the dashboard.
+- **Start every session from the backlog dashboard** — `docs/backlog/index.html` is the source of truth for the development plan. Open it first, check sprint status, see where we left off, then pick up from there. Never start work without consulting the dashboard.
+- **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Create a JSON file in `docs/backlog/items/BL-XXX.json` and add the ID to `docs/backlog/config.json`, (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). This ensures nothing is lost, work is prioritized, and the dashboard stays the single source of truth.
 
 ## Branch Model
 
@@ -95,7 +96,8 @@ leadgen-pipeline/
     ARCHITECTURE.md       # System architecture and data flow
     adr/                  # Architecture Decision Records (append-only)
     specs/                # Feature specifications (created per feature)
-  BACKLOG.md              # MoSCoW-prioritized feature backlog
+  docs/backlog/           # Backlog dashboard + JSON items (source of truth)
+  BACKLOG.md              # DEPRECATED — see docs/backlog/
   CLAUDE.md               # This file — project rules
   CHANGELOG.md            # Release log
   README.md               # Project overview and quick start
@@ -333,7 +335,7 @@ Lead decides N (engineers) based on how many items can run in parallel. PM, EM, 
 
 ### Live Backlog Dashboard
 
-The backlog dashboard at `docs/backlog-dashboard.html` shows:
+The backlog dashboard at `docs/backlog/index.html` shows:
 - All items with priority, effort, status, dependencies, assignee
 - Sprint groupings with progress tracking
 - Kanban and table views with filters
@@ -368,11 +370,12 @@ A feature is **done** when ALL of the following gates pass in order. Work is not
 - [ ] No secrets in code, no hardcoded credentials
 - [ ] Auth/authz checks on all new endpoints
 
-### Gate 3: Staging Deployment + E2E
+### Gate 3: Staging Revision + Automated E2E
 - [ ] Deployed to staging revision (`deploy-revision.sh`)
-- [ ] Playwright E2E tests pass against staging revision
-- [ ] Acceptance criteria verified on staging (manual or automated)
+- [ ] Playwright E2E tests pass against staging revision (run by agent, NOT the user)
+- [ ] Acceptance criteria verified via Playwright against the revision
 - [ ] No regressions in existing E2E tests
+- [ ] Tear down revision container after tests pass (free staging resources)
 
 ### Gate 4: Review & Audit
 - [ ] Code review by `feature-dev:code-reviewer` or human (confidence >= 80%)
@@ -386,14 +389,20 @@ A feature is **done** when ALL of the following gates pass in order. Work is not
 - [ ] API docs updated (if endpoints changed)
 - [ ] Backlog items marked Done
 
-### Gate 6: Merge
+### Gate 6: Merge to Staging
 - [ ] PR created to staging with passing CI
 - [ ] PR approved (1 approval required)
 - [ ] Merged to staging
-- [ ] Staging root deployment verified
+- [ ] Staging root deployment verified (auto-deploys on merge)
 - [ ] User notified: "Feature X is ready for testing on staging"
 
-**Gate order is strict**: Code Quality → Security → Staging + E2E → Review → Docs → Merge. Do not skip ahead.
+**Gate order is strict**: Code Quality → Security → Staging Rev + E2E → Review → Docs → Merge. Do not skip ahead.
+
+### Testing Responsibilities
+- **Agents do**: Deploy to staging revision, run Playwright E2E, verify acceptance criteria, tear down revision, code review, security audit, merge to staging
+- **User does**: Manual testing on staging root AFTER features are merged. User tests the integrated experience, not individual revisions.
+- **Flow**: Agent builds → Agent deploys rev → Agent runs E2E → Agent reviews → Agent merges to staging → User tests on staging root
+- **Manual test scripts**: `docs/testing/sprint-{N}-manual-tests.md` — used by the user for staging root testing
 
 ## Code Standards
 
