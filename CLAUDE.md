@@ -17,6 +17,18 @@
 - **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Create a JSON file in `docs/backlog/items/BL-XXX.json` and add the ID to `docs/backlog/config.json`, (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). This ensures nothing is lost, work is prioritized, and the dashboard stays the single source of truth.
 - **Agents must self-test before handoff** — Before notifying the user or asking them to test anything, agents MUST: (1) Run ALL tests in the current sprint test script (`docs/testing/sprint-{N}-manual-tests.md`), (2) Mark each test PASS or FAIL, (3) Fix any FAIL and redeploy before proceeding, (4) Only notify the user after ALL tests pass or after documenting unfixable issues with a clear explanation. **Never ask the user to test something you haven't tested yourself first.**
 
+## Sprint Boundary Protocol
+
+Between sprints, the user runs `/clear` + `make sync` to start fresh. The new session picks up all context from persisted files:
+- **Backlog**: `docs/backlog/` (items, config, sprints)
+- **Sprint plan**: `docs/plans/sprint-N-plan.md`
+- **Specs**: `docs/specs/*.md`
+- **Test scripts**: `docs/testing/`
+- **Memory**: Auto-loaded from `.claude/` memory files
+- **Directives**: This file (CLAUDE.md)
+
+No conversation context carries over. Every sprint starts clean.
+
 ## Branch Model
 
 ```
