@@ -111,14 +111,15 @@ def scrape_website(domain):
         meta_desc = meta_tag["content"].strip()
 
     # Remove script, style, nav, footer, header elements
-    for tag in soup.find_all(["script", "style", "nav", "footer", "header",
-                               "noscript", "svg", "iframe"]):
+    for tag in soup.find_all(
+        ["script", "style", "nav", "footer", "header", "noscript", "svg", "iframe"]
+    ):
         tag.decompose()
 
     # Extract visible text
     body_text = soup.get_text(separator=" ", strip=True)
     # Collapse multiple whitespace
-    body_text = re.sub(r'\s+', ' ', body_text).strip()
+    body_text = re.sub(r"\s+", " ", body_text).strip()
 
     # Assemble output
     parts = []
@@ -253,13 +254,17 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
     # 3. Call Perplexity
     model = get_model_for_stage("l1", boost=boost)
     try:
-        pplx_response = _call_perplexity(company_name, domain,
-                                          existing_industry, existing_size,
-                                          existing_revenue,
-                                          contact_linkedin_urls,
-                                          previous_data=previous_data,
-                                          model=model,
-                                          website_content=website_content)
+        pplx_response = _call_perplexity(
+            company_name,
+            domain,
+            existing_industry,
+            existing_size,
+            existing_revenue,
+            contact_linkedin_urls,
+            previous_data=previous_data,
+            model=model,
+            website_content=website_content,
+        )
         raw_response = pplx_response.content
         usage = {
             "input_tokens": pplx_response.input_tokens,
@@ -473,9 +478,18 @@ def _load_previous_enrichment(company_id):
 # Perplexity API call
 # ---------------------------------------------------------------------------
 
-def _call_perplexity(company_name, domain, existing_industry, existing_size,
-                     existing_revenue, contact_linkedin_urls=None,
-                     previous_data=None, model=None, website_content=None):
+
+def _call_perplexity(
+    company_name,
+    domain,
+    existing_industry,
+    existing_size,
+    existing_revenue,
+    contact_linkedin_urls=None,
+    previous_data=None,
+    model=None,
+    website_content=None,
+):
     """Call Perplexity sonar API for company research.
 
     Args:
@@ -546,12 +560,16 @@ def _call_perplexity(company_name, domain, existing_industry, existing_size,
                 + "\n".join(prev_lines)
             )
 
-    user_prompt = USER_PROMPT_TEMPLATE.format(
-        company_name=company_name,
-        domain_line=domain_line,
-        contacts_section=contacts_section,
-        claims_section=claims_section,
-    ) + website_section + previous_section
+    user_prompt = (
+        USER_PROMPT_TEMPLATE.format(
+            company_name=company_name,
+            domain_line=domain_line,
+            contacts_section=contacts_section,
+            claims_section=claims_section,
+        )
+        + website_section
+        + previous_section
+    )
 
     client = PerplexityClient(
         api_key=api_key,

@@ -22,6 +22,7 @@ def _to_str(val):
         return json.dumps(val)
     return str(val)
 
+
 # Maximum number of historical messages to include in context
 MAX_HISTORY_MESSAGES = 20
 
@@ -245,9 +246,9 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
         "low-quality, not worth pursuing, questionable, problematic, concerning.",
         "2. MAXIMUM 150 words per response unless the user explicitly asks for "
         "more detail. Use bullet points, not paragraphs.",
-        "3. NEVER start with filler: \"Great question\", \"Absolutely\", "
-        "\"That's a great point\", \"I'd be happy to\". Start with the answer.",
-        "4. When data is sparse, say \"[TODO: Research needed]\" and suggest how "
+        '3. NEVER start with filler: "Great question", "Absolutely", '
+        '"That\'s a great point", "I\'d be happy to". Start with the answer.',
+        '4. When data is sparse, say "[TODO: Research needed]" and suggest how '
         "to learn more. NEVER judge a company negatively for limited data.",
         "5. Frame every company as a potential opportunity worth exploring.",
         "",
@@ -375,9 +376,9 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
             "RESPONSE STYLE — strict rules:",
             "- You are a fractional CMO. Talk like one: brief, direct, no fluff.",
             "- NEVER start a response with filler phrases. Absolutely forbidden "
-            "openers: \"Great question\", \"That's a great point\", "
-            "\"Absolutely\", \"I'd be happy to\", \"That's interesting\", "
-            "\"Good thinking\", \"Sure thing\", \"Of course\". Start with the "
+            'openers: "Great question", "That\'s a great point", '
+            '"Absolutely", "I\'d be happy to", "That\'s interesting", '
+            '"Good thinking", "Sure thing", "Of course". Start with the '
             "answer or recommendation directly.",
             "- Lead with the recommendation, then give ONE supporting reason.",
             "- Never repeat what the user said. Never restate the question.",
