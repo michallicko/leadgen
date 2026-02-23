@@ -241,8 +241,15 @@ interests to the company's needs."""
 # ---------------------------------------------------------------------------
 
 
-def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
+def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False, user_id=None):
     """Enrich a contact with person-level intelligence.
+
+    Args:
+        contact_id: UUID string of the contact
+        tenant_id: UUID string (optional, read from contact)
+        previous_data: dict of prior enrichment (for re-enrichment)
+        boost: if True, use higher-quality Perplexity model
+        user_id: optional UUID string for LLM usage attribution
 
     Returns dict with enrichment_cost_usd (and optionally error).
     """
@@ -261,6 +268,7 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
             contact_data,
             company_data,
             pplx_model,
+            user_id=user_id,
         )
         total_cost += profile_cost
     except Exception as exc:
@@ -274,6 +282,7 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
             company_data,
             l2_data,
             pplx_model,
+            user_id=user_id,
         )
         total_cost += signals_cost
     except Exception as exc:
@@ -300,6 +309,7 @@ def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False):
             profile_data,
             signals_data,
             scores,
+            user_id=user_id,
         )
         total_cost += synthesis_cost
     except Exception as exc:
@@ -411,7 +421,7 @@ def _load_contact_and_company(contact_id):
 # ---------------------------------------------------------------------------
 
 
-def _research_profile(contact_data, company_data, model):
+def _research_profile(contact_data, company_data, model, user_id=None):
     """Call Perplexity for professional profile research."""
     import time as _time
 
@@ -448,6 +458,7 @@ def _research_profile(contact_data, company_data, model):
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="perplexity",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "contact_id": contact_data.get("id"),
@@ -461,7 +472,7 @@ def _research_profile(contact_data, company_data, model):
     return data, resp.cost_usd
 
 
-def _research_signals(contact_data, company_data, l2_data, model):
+def _research_signals(contact_data, company_data, l2_data, model, user_id=None):
     """Call Perplexity for decision-making signals."""
     import time as _time
 
@@ -499,6 +510,7 @@ def _research_signals(contact_data, company_data, l2_data, model):
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="perplexity",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "contact_id": contact_data.get("id"),
@@ -673,7 +685,8 @@ def _validate_and_score(
 
 
 def _synthesize(
-    contact_data, company_data, l2_data, profile_data, signals_data, scores
+    contact_data, company_data, l2_data, profile_data, signals_data, scores,
+    user_id=None,
 ):
     """Call Anthropic for personalization synthesis."""
     import time as _time
@@ -730,6 +743,7 @@ def _synthesize(
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="anthropic",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "contact_id": contact_data.get("id"),

@@ -1,5 +1,7 @@
 """LLM usage tracking API routes (super admin only)."""
 
+from datetime import datetime, timedelta
+
 from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_role
@@ -28,8 +30,9 @@ def _date_filter(args):
         clauses.append("l.created_at >= :start_date")
         params["start_date"] = start_date
     if end_date:
-        clauses.append("l.created_at <= :end_date_end")
-        params["end_date_end"] = end_date + "T23:59:59"
+        clauses.append("l.created_at < :end_date_end")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+        params["end_date_end"] = end_dt.strftime("%Y-%m-%dT00:00:00+00:00")
     return clauses, params
 
 

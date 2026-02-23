@@ -240,7 +240,7 @@ Employee Sentiment: {employee_sentiment}"""
 # ---------------------------------------------------------------------------
 
 
-def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
+def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False, user_id=None):
     """Run L2 deep research enrichment for a single company.
 
     Args:
@@ -248,6 +248,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         tenant_id: UUID string (optional, read from company)
         previous_data: dict of prior L2 enrichment (for re-enrichment)
         boost: if True, use higher-quality Perplexity model
+        user_id: optional UUID string for LLM usage attribution
 
     Returns:
         dict with enrichment_cost_usd, or error key on failure.
@@ -275,7 +276,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
 
         # --- Phase 1: Two Perplexity research calls ---
         try:
-            news_data, news_cost = _research_news(company, l1_data, model)
+            news_data, news_cost = _research_news(company, l1_data, model, user_id=user_id)
             total_cost += news_cost
         except Exception as e:
             logger.error("L2 news research failed for %s: %s", company_id, e)
@@ -284,7 +285,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
 
         try:
             strategic_data, strategic_cost = _research_strategic(
-                company, l1_data, model
+                company, l1_data, model, user_id=user_id
             )
             total_cost += strategic_cost
         except Exception as e:
@@ -299,7 +300,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         # --- Phase 2: Anthropic synthesis ---
         try:
             synthesis_data, synthesis_cost = _synthesize(
-                company, l1_data, news_data, strategic_data
+                company, l1_data, news_data, strategic_data, user_id=user_id
             )
             total_cost += synthesis_cost
         except Exception as e:
@@ -397,7 +398,7 @@ def _load_company_and_l1(company_id):
 # ---------------------------------------------------------------------------
 
 
-def _research_news(company, l1_data, model):
+def _research_news(company, l1_data, model, user_id=None):
     """Call Perplexity for news and business signals."""
     client = PerplexityClient()
     user_prompt = NEWS_USER_TEMPLATE.format(
@@ -429,6 +430,7 @@ def _research_news(company, l1_data, model):
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="perplexity",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "company_id": str(company.get("id")),
@@ -442,7 +444,7 @@ def _research_news(company, l1_data, model):
     return data, resp.cost_usd
 
 
-def _research_strategic(company, l1_data, model):
+def _research_strategic(company, l1_data, model, user_id=None):
     """Call Perplexity for strategic signals."""
     client = PerplexityClient()
     user_prompt = STRATEGIC_USER_TEMPLATE.format(
@@ -474,6 +476,7 @@ def _research_strategic(company, l1_data, model):
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="perplexity",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "company_id": str(company.get("id")),
@@ -492,7 +495,7 @@ def _research_strategic(company, l1_data, model):
 # ---------------------------------------------------------------------------
 
 
-def _synthesize(company, l1_data, news_data, strategic_data):
+def _synthesize(company, l1_data, news_data, strategic_data, user_id=None):
     """Call Anthropic Claude to synthesize research into actionable intel."""
     client = AnthropicClient()
 
@@ -545,6 +548,7 @@ def _synthesize(company, l1_data, news_data, strategic_data):
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
                 provider="anthropic",
+                user_id=user_id,
                 duration_ms=duration_ms,
                 metadata={
                     "company_id": str(company.get("id")),
@@ -770,28 +774,6 @@ def _set_company_status(company_id, status, error_msg=None):
             {"cid": company_id, "status": status},
         )
 
-
-def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
-    """Log LLM usage for all L2 calls."""
-    try:
-        log_llm_usage(
-            tenant_id=tenant_id,
-            operation="l2_enrichment",
-            provider="perplexity+anthropic",
-            model=model,
-            input_tokens=0,  # Aggregated — individual costs tracked per call
-            output_tokens=0,
-            duration_ms=duration_ms,
-            metadata={
-                "boost": boost,
-                "cost_usd": total_cost,
-                "entity_type": "company",
-                "entity_id": company_id,
-                "stage": "l2",
-            },
-        )
-    except Exception as e:
-        logger.warning("Failed to log L2 LLM usage: %s", e)
 
 
 # ---------------------------------------------------------------------------

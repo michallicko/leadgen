@@ -92,6 +92,8 @@ export function LlmCostsPage() {
   const [endDate, setEndDate] = useState(daysAgo(0))
   const [fetchSeq, setFetchSeq] = useState(0)
 
+  const isSuperAdmin = user?.is_super_admin ?? false
+
   // Wrap date setters to also trigger loading state
   function handleStartDate(v: string) {
     setStartDate(v)
@@ -103,6 +105,7 @@ export function LlmCostsPage() {
   }
 
   useEffect(() => {
+    if (!isSuperAdmin) return
     let cancelled = false
     apiFetch<SummaryResponse>('/llm-usage/summary', {
       params: { start_date: startDate, end_date: endDate },
@@ -121,10 +124,9 @@ export function LlmCostsPage() {
         }
       })
     return () => { cancelled = true }
-  }, [startDate, endDate, fetchSeq])
+  }, [startDate, endDate, fetchSeq, isSuperAdmin])
 
   // Super admin guard
-  const isSuperAdmin = user?.is_super_admin ?? false
   if (!isSuperAdmin) {
     return (
       <div className="flex items-center justify-center h-full">
