@@ -62,19 +62,29 @@ This means:
 
 ---
 
+## Access Control
+
+**Raw USD cost data is super_admin only.** This feature is for platform operators who need to understand infrastructure spend — not for namespace admins or regular users.
+
+- The existing API endpoints (`/api/llm-usage/summary`, `/api/llm-usage/logs`) already enforce super_admin via `@require_role("admin")` + `_require_super_admin()`.
+- The cost dashboard UI must only be accessible to super_admin users.
+- Namespace admins will see **token/credit usage** (abstracted from raw USD) via a separate feature (BL-056). This spec does NOT cover namespace-visible usage.
+
+---
+
 ## User Stories
 
-### Cost Visibility
-1. As an operator, I want to see total AI cost broken down by source (enrichment, chat, messages, imports) so I can understand where money goes.
-2. As an operator, I want to see cost trends over time (daily/weekly/monthly) so I can detect anomalies and forecast spending.
-3. As an operator, I want to filter costs by date range, operation, provider, and model so I can drill into specific areas.
+### Cost Visibility (Super Admin)
+1. As a **super_admin**, I want to see total AI cost in USD broken down by source (enrichment, chat, messages, imports) so I can understand where money goes.
+2. As a **super_admin**, I want to see cost trends over time (daily/weekly/monthly) so I can detect anomalies and forecast spending.
+3. As a **super_admin**, I want to filter costs by date range, operation, provider, and model so I can drill into specific areas.
 
 ### Per-Call Tracking
 4. As a developer, I want every LLM call to automatically log tokens and cost so I never have to remember to add logging manually.
-5. As an operator, I want to see individual call logs with latency data so I can identify slow or expensive calls.
+5. As a **super_admin**, I want to see individual call logs with latency data so I can identify slow or expensive calls.
 
-### Dashboard
-6. As an operator, I want a "Costs" tab or section in the admin area showing a summary card (total spend, call count, avg cost) and breakdown charts so I have at-a-glance visibility.
+### Dashboard (Super Admin)
+6. As a **super_admin**, I want a "Costs" tab in the admin area showing a summary card (total spend, call count, avg cost) and breakdown charts so I have at-a-glance visibility.
 
 ---
 
@@ -168,7 +178,7 @@ Specifically, add:
 
 **Estimated effort: S-M (2-3 days)**
 
-1. **New admin page** — `costs.html` (or React component in `frontend/`) accessible from the admin nav.
+1. **New super_admin page** — `costs.html` (or React component in `frontend/`) accessible only from the super_admin area (not namespace admin nav). Guarded by the same super_admin check as the API endpoints.
 2. **Summary cards** — Total cost, total calls, avg cost/call for the selected period.
 3. **Breakdown tables** — By operation, by model/provider. Sortable, filterable.
 4. **Time-series chart** — Daily cost trend using a lightweight chart library (Chart.js or similar, already may be available).
@@ -177,6 +187,7 @@ Specifically, add:
 
 ### Future Considerations (Not in Scope)
 
+- **Token/credit system for namespace admins (BL-056)** — Namespace admins see abstracted token/credit usage, not raw USD. Separate spec covers credit allocation, budgets, and namespace-level visibility.
 - **Per-tenant cost budgets and alerts** — Useful for SaaS pricing but not needed for MVP
 - **Real-time cost streaming** — WebSocket push of cost events
 - **Cost attribution to campaigns** — Link LLM costs to specific campaign ROI
