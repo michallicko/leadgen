@@ -476,6 +476,55 @@ body {
 
 .sprint-group-header:hover { background: transparent !important; }
 
+/* Docs Bar */
+.docs-bar {
+  padding: 10px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.docs-bar-label {
+  font-family: var(--font-title);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.doc-link:hover {
+  border-color: var(--purple-light);
+  color: var(--purple);
+  background: #F3F0FF;
+}
+
+.doc-link .doc-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
 /* Kanban sprint divider */
 .kanban-sprint-label {
   padding: 4px 8px;
@@ -736,6 +785,32 @@ body {
     <span class="refresh-dot" title="Auto-refreshing every 30s"></span>
   </div>
 </header>
+
+<!-- Planning Docs Bar -->
+<div class="docs-bar">
+  <span class="docs-bar-label">Planning Docs</span>
+  <a class="doc-link" href="plans/2026-02-22-playbook-vision.html" target="_blank">
+    <span class="doc-icon">🎯</span> Product Vision
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-gap-analysis.md" target="_blank">
+    <span class="doc-icon">🔍</span> Gap Analysis
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-gtm-strategy.md" target="_blank">
+    <span class="doc-icon">📈</span> GTM Strategy
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-business-model-analysis.md" target="_blank">
+    <span class="doc-icon">💼</span> Business Model
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-playbook-multi-phase-design.md" target="_blank">
+    <span class="doc-icon">📐</span> Playbook Design
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-playbook-implementation-backlog.md" target="_blank">
+    <span class="doc-icon">📋</span> Implementation Backlog
+  </a>
+  <a class="doc-link" href="vision/index.html" target="_blank">
+    <span class="doc-icon">🚀</span> Vision Microsite
+  </a>
+</div>
 
 <!-- Sprint Summary -->
 <div class="sprint-summary" id="sprintSummary"></div>
