@@ -121,6 +121,107 @@ class TestBuildSystemPrompt:
         assert "strategy" in lower or "strategist" in lower
         assert "gtm" in lower or "go-to-market" in lower
 
+    def test_contains_tone_rules(self):
+        """System prompt includes explicit tone rules forbidding harsh language."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        # Must contain the tone rules section
+        assert "TONE RULES" in prompt
+        # Must explicitly forbid harsh phrases
+        assert "DISQUALIFY" in prompt
+        assert "no verifiable business presence" in prompt
+        assert "minimal digital footprint" in prompt
+        assert "insufficient data" in prompt
+        # Must instruct collaborative reframing
+        assert "encouraging and collaborative" in prompt
+        # Must position AI as strategist, not judge
+        assert "strategist" in prompt.lower()
+
+    def test_contains_sparse_data_instructions(self):
+        """System prompt includes TODO/example instructions for sparse data."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        # Must instruct TODO markers for sparse sections
+        assert "**TODO**" in prompt
+        # Must instruct providing examples
+        assert "concrete example" in prompt or "starting point" in prompt
+        # Must mention never leaving sections empty
+        assert "Never leave a section completely empty" in prompt
+
+    def test_contains_document_awareness_instruction(self):
+        """System prompt instructs AI to reference existing document content."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = "## ICP\n\nMid-market SaaS companies in DACH."
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        # Must contain document awareness section
+        assert "DOCUMENT AWARENESS" in prompt
+        # Must instruct not to re-ask for existing info
+        assert "Never ask the user to repeat information" in prompt
+        # Must also include the actual document content
+        assert "Mid-market SaaS companies in DACH" in prompt
+
+    def test_document_awareness_present_even_when_empty(self):
+        """Document awareness instruction is present even with empty document."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "DOCUMENT AWARENESS" in prompt
+        # When empty, should guide user to start filling sections
+        assert "proactively guide" in prompt
+
+    def test_no_harsh_language_in_any_prompt_template(self):
+        """No prompt template in playbook_service contains harsh language patterns."""
+        import inspect
+        import api.services.playbook_service as module
+
+        source = inspect.getsource(module)
+        # These phrases should only appear inside forbidden-phrase lists (tone rules),
+        # not as actual instructions to the AI
+        # Check that phrases like "DISQUALIFY:" aren't used as instructions
+        # (they appear in the tone rules as things to avoid, which is fine)
+        harsh_instructions = [
+            "DISQUALIFY:",  # as an instruction (colon = directive)
+            "shows no verifiable",
+            "has no verifiable",
+            "has minimal digital",
+            "shows minimal digital",
+            "has insufficient",
+        ]
+        for phrase in harsh_instructions:
+            assert phrase not in source, (
+                "Found harsh instruction '{}' in playbook_service".format(phrase)
+            )
+
 
 class TestBuildMessages:
     def test_formats_correctly(self):
