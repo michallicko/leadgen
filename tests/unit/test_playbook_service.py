@@ -185,6 +185,9 @@ class TestBuildSystemPrompt:
         assert "bullet" in lower
         # Must instruct leading with insight
         assert "lead with" in lower
+        # Must instruct referencing document content, never ask user to repeat
+        assert "never ask the user to repeat" in lower
+        assert "already written" in lower or "in the document" in lower
 
     def test_contains_document_awareness_instruction(self):
         """System prompt instructs AI to reference existing document content."""

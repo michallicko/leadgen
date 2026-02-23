@@ -326,6 +326,9 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
             "research data or provide a TODO with an example.",
             "",
             "RESPONSE STYLE RULES:",
+            "- You have the full strategy document above. ALWAYS reference and "
+            "build on what is already written. Never ask the user to repeat "
+            "information that is in the document — cite it directly.",
             "- Be concise: 2-4 sentences by default. Only go longer when the "
             "user explicitly asks for detail or the content genuinely requires it.",
             "- Use bullet points over long paragraphs.",
