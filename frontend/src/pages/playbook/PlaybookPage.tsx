@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate, Navigate } from 'react-router'
+import { useParams, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
@@ -130,16 +130,19 @@ export function PlaybookPage() {
     ? urlPhase
     : isValidPhase(docPhase) ? docPhase : 'strategy'
 
-  // Guard: redirect if URL phase is ahead of unlocked phase
-  const viewIdx = PHASE_ORDER.indexOf(viewPhase)
-  const unlockedIdx = PHASE_ORDER.indexOf(docPhase as PhaseKey)
-
   // Seed lastSavedContentRef with server content on first load
   useEffect(() => {
     if (docQuery.data?.content && lastSavedContentRef.current === null) {
       lastSavedContentRef.current = docQuery.data.content
     }
   }, [docQuery.data?.content])
+
+  // Keep version ref in sync with server data
+  useEffect(() => {
+    if (docQuery.data) {
+      versionRef.current = docQuery.data.version
+    }
+  }, [docQuery.data])
 
   // Poll for content when document has enrichment_id but empty content
   // (race condition: research completed before template was seeded)
@@ -351,13 +354,6 @@ export function PlaybookPage() {
         </div>
       </div>
     )
-  }
-
-  // Guard: redirect if URL phase is ahead of unlocked phase
-  if (docQuery.data && viewIdx > unlockedIdx && unlockedIdx >= 0) {
-    const pathParts = window.location.pathname.split('/')
-    const namespace = pathParts[1]
-    return <Navigate to={`/${namespace}/playbook/${docPhase}`} replace />
   }
 
   // ---------------------------------------------------------------------------
