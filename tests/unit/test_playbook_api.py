@@ -67,28 +67,34 @@ class TestUpdatePlaybook:
         db.session.commit()
         resp = client.put("/api/playbook", json={
             "content": "# Updated Strategy\n\nNew content here.",
-            "version": 1,
         }, headers=headers)
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["version"] == 2
 
-    def test_optimistic_lock_conflict(self, client, seed_tenant, seed_super_admin, db):
+    def test_save_increments_version(self, client, seed_tenant, seed_super_admin, db):
+        """Multiple saves increment version each time (auto-save friendly)."""
         from api.models import StrategyDocument
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
-        doc = StrategyDocument(tenant_id=seed_tenant.id, version=3)
+        doc = StrategyDocument(tenant_id=seed_tenant.id, version=1)
         db.session.add(doc)
         db.session.commit()
-        resp = client.put("/api/playbook", json={
-            "content": "# Strategy",
-            "version": 1,
+        # First save
+        resp1 = client.put("/api/playbook", json={
+            "content": "# First edit",
         }, headers=headers)
-        assert resp.status_code == 409
-        data = resp.get_json()
-        assert "conflict" in data["error"].lower()
+        assert resp1.status_code == 200
+        assert resp1.get_json()["version"] == 2
+        # Second save
+        resp2 = client.put("/api/playbook", json={
+            "content": "# Second edit",
+        }, headers=headers)
+        assert resp2.status_code == 200
+        assert resp2.get_json()["version"] == 3
 
-    def test_version_required(self, client, seed_tenant, seed_super_admin, db):
+    def test_save_without_version_field(self, client, seed_tenant, seed_super_admin, db):
+        """PUT /api/playbook works without a version field (auto-save)."""
         from api.models import StrategyDocument
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
@@ -96,7 +102,7 @@ class TestUpdatePlaybook:
         db.session.add(doc)
         db.session.commit()
         resp = client.put("/api/playbook", json={"content": "# Strategy"}, headers=headers)
-        assert resp.status_code == 400
+        assert resp.status_code == 200
 
 
 class TestPlaybookChat:
