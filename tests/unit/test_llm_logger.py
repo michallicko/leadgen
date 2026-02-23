@@ -47,6 +47,38 @@ class TestComputeCost:
         expected = (input_cost + output_cost).quantize(Decimal("0.000001"))
         assert cost == expected
 
+    def test_haiku_45_pricing(self):
+        """Haiku 4.5: $0.80/1M input, $4/1M output."""
+        cost = compute_cost("anthropic", "claude-haiku-4-5-20251001", 10000, 5000)
+        input_cost = Decimal("10000") * Decimal("0.80") / Decimal("1000000")
+        output_cost = Decimal("5000") * Decimal("4.00") / Decimal("1000000")
+        expected = (input_cost + output_cost).quantize(Decimal("0.000001"))
+        assert cost == expected
+
+    def test_sonar_reasoning_pro_pricing(self):
+        """sonar-reasoning-pro: $2/1M input, $8/1M output."""
+        cost = compute_cost("perplexity", "sonar-reasoning-pro", 10000, 5000)
+        input_cost = Decimal("10000") * Decimal("2.00") / Decimal("1000000")
+        output_cost = Decimal("5000") * Decimal("8.00") / Decimal("1000000")
+        expected = (input_cost + output_cost).quantize(Decimal("0.000001"))
+        assert cost == expected
+
+    def test_sonar_reasoning_pricing(self):
+        """sonar-reasoning: $1/1M input, $5/1M output."""
+        cost = compute_cost("perplexity", "sonar-reasoning", 10000, 5000)
+        input_cost = Decimal("10000") * Decimal("1.00") / Decimal("1000000")
+        output_cost = Decimal("5000") * Decimal("5.00") / Decimal("1000000")
+        expected = (input_cost + output_cost).quantize(Decimal("0.000001"))
+        assert cost == expected
+
+    def test_sonar_pro_pricing(self):
+        """sonar-pro: $3/1M input, $15/1M output."""
+        cost = compute_cost("perplexity", "sonar-pro", 10000, 5000)
+        input_cost = Decimal("10000") * Decimal("3.00") / Decimal("1000000")
+        output_cost = Decimal("5000") * Decimal("15.00") / Decimal("1000000")
+        expected = (input_cost + output_cost).quantize(Decimal("0.000001"))
+        assert cost == expected
+
 
 class TestLogLlmUsage:
     def test_creates_entry_with_correct_cost(self, app, db, seed_tenant):
@@ -101,3 +133,107 @@ class TestLogLlmUsage:
         )
         db.session.flush()
         assert entry.user_id is None
+
+    def test_all_operation_names(self, app, db, seed_tenant):
+        """All standardized operation names should create valid log entries."""
+        operations = [
+            "playbook_chat",
+            "strategy_extraction",
+            "person_profile_research",
+            "person_signals_research",
+            "person_synthesis",
+            "l2_news_research",
+            "l2_strategic_research",
+            "l2_synthesis",
+            "message_generation",
+            "message_regeneration",
+        ]
+        for op in operations:
+            entry = log_llm_usage(
+                tenant_id=seed_tenant.id,
+                operation=op,
+                model="claude-sonnet-4-5-20250929",
+                input_tokens=100,
+                output_tokens=50,
+            )
+            assert entry.operation == op
+        db.session.flush()
+
+
+class TestStreamingUsage:
+    """Tests for AnthropicClient streaming token capture."""
+
+    def test_stream_query_captures_usage(self):
+        """stream_query should populate last_stream_usage from SSE events."""
+        from unittest.mock import MagicMock, patch
+
+        from api.services.anthropic_client import AnthropicClient
+
+        # Build a mock SSE response
+        lines = [
+            b"event: message_start",
+            b'data: {"type":"message_start","message":{"usage":{"input_tokens":150}}}',
+            b"",
+            b"event: content_block_delta",
+            b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}',
+            b"",
+            b"event: content_block_delta",
+            b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":" world"}}',
+            b"",
+            b"event: message_delta",
+            b'data: {"type":"message_delta","usage":{"output_tokens":42}}',
+            b"",
+            b"event: message_stop",
+            b"data: {}",
+            b"",
+        ]
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.iter_lines = MagicMock(return_value=iter(lines))
+
+        with patch("requests.post", return_value=mock_resp):
+            client = AnthropicClient(api_key="test-key")
+            chunks = list(
+                client.stream_query(
+                    messages=[{"role": "user", "content": "hi"}],
+                    system_prompt="test",
+                )
+            )
+
+        assert chunks == ["Hello", " world"]
+        assert client.last_stream_usage["input_tokens"] == 150
+        assert client.last_stream_usage["output_tokens"] == 42
+        assert client.last_stream_usage["model"] == "claude-haiku-4-5-20251001"
+
+    def test_stream_query_default_usage_on_no_events(self):
+        """If no usage events arrive, tokens should default to 0."""
+        from unittest.mock import MagicMock, patch
+
+        from api.services.anthropic_client import AnthropicClient
+
+        lines = [
+            b"event: content_block_delta",
+            b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"test"}}',
+            b"",
+            b"event: message_stop",
+            b"data: {}",
+            b"",
+        ]
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.iter_lines = MagicMock(return_value=iter(lines))
+
+        with patch("requests.post", return_value=mock_resp):
+            client = AnthropicClient(api_key="test-key")
+            chunks = list(
+                client.stream_query(
+                    messages=[{"role": "user", "content": "hi"}],
+                    system_prompt="test",
+                )
+            )
+
+        assert chunks == ["test"]
+        assert client.last_stream_usage["input_tokens"] == 0
+        assert client.last_stream_usage["output_tokens"] == 0

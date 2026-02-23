@@ -67,6 +67,8 @@ class AnthropicClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        # Populated after stream_query() completes
+        self.last_stream_usage = {"input_tokens": 0, "output_tokens": 0, "model": ""}
 
     def query(
         self, system_prompt, user_prompt, model=None, max_tokens=1024, temperature=0.3
@@ -252,8 +254,12 @@ class AnthropicClient:
     ):
         """Stream a response from Anthropic Messages API via SSE.
 
-        Yields text chunks as they arrive. Use this for real-time streaming
-        in playbook generation and other long-form outputs.
+        Yields text chunks as they arrive. After the generator is exhausted,
+        call ``stream_query_usage`` on the returned generator or access
+        ``stream_usage`` on this client instance to get token counts.
+
+        Usage data is captured from ``message_start`` (input tokens) and
+        ``message_delta`` (output tokens) SSE events.
 
         Args:
             messages: List of message dicts with 'role' and 'content' keys.
@@ -294,6 +300,13 @@ class AnthropicClient:
         )
         resp.raise_for_status()
 
+        # Reset streaming usage tracking
+        self.last_stream_usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "model": model,
+        }
+
         current_event = None
         for line in resp.iter_lines():
             if not line:
@@ -312,6 +325,30 @@ class AnthropicClient:
 
                 if current_event == "message_stop":
                     return
+
+                if current_event == "message_start":
+                    try:
+                        data = json.loads(data_str)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    # Capture input tokens from message_start event
+                    usage = data.get("message", {}).get("usage", {})
+                    input_tokens = usage.get("input_tokens", 0)
+                    if input_tokens:
+                        self.last_stream_usage["input_tokens"] = input_tokens
+                    continue
+
+                if current_event == "message_delta":
+                    try:
+                        data = json.loads(data_str)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    # Capture output tokens from message_delta event
+                    usage = data.get("usage", {})
+                    output_tokens = usage.get("output_tokens", 0)
+                    if output_tokens:
+                        self.last_stream_usage["output_tokens"] = output_tokens
+                    continue
 
                 if current_event == "content_block_delta":
                     try:

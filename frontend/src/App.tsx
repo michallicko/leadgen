@@ -18,6 +18,7 @@ import { ImportPage } from './pages/import/ImportPage'
 import { AdminPage } from './pages/admin/AdminPage'
 import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
+import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +57,7 @@ export default function App() {
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="preferences" element={<PreferencesPage />} />
-              <Route path="llm-costs" element={<PlaceholderPage title="LLM Costs" description="AI usage tracking — cost over time, per-operation breakdown, per-tenant analysis, and call logs." />} />
+              <Route path="llm-costs" element={<LlmCostsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

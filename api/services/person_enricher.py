@@ -413,6 +413,8 @@ def _load_contact_and_company(contact_id):
 
 def _research_profile(contact_data, company_data, model):
     """Call Perplexity for professional profile research."""
+    import time as _time
+
     user_prompt = PROFILE_USER_TEMPLATE.format(
         full_name=contact_data["full_name"],
         job_title=contact_data["job_title"],
@@ -425,6 +427,7 @@ def _research_profile(contact_data, company_data, model):
     )
 
     client = PerplexityClient()
+    start_time = _time.time()
     resp = client.query(
         system_prompt=PROFILE_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -433,6 +436,26 @@ def _research_profile(contact_data, company_data, model):
         temperature=PERPLEXITY_TEMPERATURE,
         search_recency_filter="month",
     )
+    duration_ms = int((_time.time() - start_time) * 1000)
+
+    # Log person profile research usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=contact_data.get("tenant_id"),
+                operation="person_profile_research",
+                model=model,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="perplexity",
+                duration_ms=duration_ms,
+                metadata={
+                    "contact_id": contact_data.get("id"),
+                    "company_id": contact_data.get("company_id"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log person profile research usage: %s", e)
 
     data = _parse_json(resp.content)
     return data, resp.cost_usd
@@ -440,6 +463,8 @@ def _research_profile(contact_data, company_data, model):
 
 def _research_signals(contact_data, company_data, l2_data, model):
     """Call Perplexity for decision-making signals."""
+    import time as _time
+
     user_prompt = SIGNALS_USER_TEMPLATE.format(
         full_name=contact_data["full_name"],
         job_title=contact_data["job_title"],
@@ -454,6 +479,7 @@ def _research_signals(contact_data, company_data, l2_data, model):
     )
 
     client = PerplexityClient()
+    start_time = _time.time()
     resp = client.query(
         system_prompt=SIGNALS_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -461,6 +487,26 @@ def _research_signals(contact_data, company_data, l2_data, model):
         max_tokens=600,
         temperature=PERPLEXITY_TEMPERATURE,
     )
+    duration_ms = int((_time.time() - start_time) * 1000)
+
+    # Log person signals research usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=contact_data.get("tenant_id"),
+                operation="person_signals_research",
+                model=model,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="perplexity",
+                duration_ms=duration_ms,
+                metadata={
+                    "contact_id": contact_data.get("id"),
+                    "company_id": contact_data.get("company_id"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log person signals research usage: %s", e)
 
     data = _parse_json(resp.content)
     return data, resp.cost_usd
@@ -630,6 +676,8 @@ def _synthesize(
     contact_data, company_data, l2_data, profile_data, signals_data, scores
 ):
     """Call Anthropic for personalization synthesis."""
+    import time as _time
+
     expertise = profile_data.get("expertise_areas", [])
     if isinstance(expertise, list):
         expertise = ", ".join(expertise)
@@ -662,6 +710,7 @@ def _synthesize(
     )
 
     client = AnthropicClient()
+    start_time = _time.time()
     resp = client.query(
         system_prompt=SYNTHESIS_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -669,6 +718,26 @@ def _synthesize(
         max_tokens=ANTHROPIC_MAX_TOKENS,
         temperature=ANTHROPIC_TEMPERATURE,
     )
+    duration_ms = int((_time.time() - start_time) * 1000)
+
+    # Log person synthesis usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=contact_data.get("tenant_id"),
+                operation="person_synthesis",
+                model=ANTHROPIC_MODEL,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="anthropic",
+                duration_ms=duration_ms,
+                metadata={
+                    "contact_id": contact_data.get("id"),
+                    "company_id": contact_data.get("company_id"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log person synthesis usage: %s", e)
 
     data = _parse_json(resp.content)
     return data, resp.cost_usd

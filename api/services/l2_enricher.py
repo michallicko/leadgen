@@ -252,7 +252,6 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
     Returns:
         dict with enrichment_cost_usd, or error key on failure.
     """
-    start_time = time.time()
     total_cost = 0.0
     news_data = {}
     strategic_data = {}
@@ -326,10 +325,8 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         )
         _set_company_status(company_id, "enriched_l2")
 
-        # --- Log LLM usage ---
-        duration_ms = int((time.time() - start_time) * 1000)
-        if log_llm_usage:
-            _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost)
+        # Per-call LLM usage is now logged in _research_news, _research_strategic,
+        # and _synthesize individually. No aggregate log needed.
 
         db.session.commit()
         return {"enrichment_cost_usd": total_cost}
@@ -411,6 +408,7 @@ def _research_news(company, l1_data, model):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    start_time = time.time()
     resp = client.query(
         system_prompt=NEWS_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -419,6 +417,26 @@ def _research_news(company, l1_data, model):
         temperature=PERPLEXITY_TEMPERATURE,
         search_recency_filter="month",
     )
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Log L2 news research usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=company.get("tenant_id"),
+                operation="l2_news_research",
+                model=model,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="perplexity",
+                duration_ms=duration_ms,
+                metadata={
+                    "company_id": str(company.get("id")),
+                    "company_name": company.get("name"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log L2 news research usage: %s", e)
 
     data = _parse_json(resp.content)
     return data, resp.cost_usd
@@ -436,6 +454,7 @@ def _research_strategic(company, l1_data, model):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    start_time = time.time()
     resp = client.query(
         system_prompt=STRATEGIC_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -443,6 +462,26 @@ def _research_strategic(company, l1_data, model):
         max_tokens=PERPLEXITY_MAX_TOKENS,
         temperature=PERPLEXITY_TEMPERATURE,
     )
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Log L2 strategic research usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=company.get("tenant_id"),
+                operation="l2_strategic_research",
+                model=model,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="perplexity",
+                duration_ms=duration_ms,
+                metadata={
+                    "company_id": str(company.get("id")),
+                    "company_name": company.get("name"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log L2 strategic research usage: %s", e)
 
     data = _parse_json(resp.content)
     return data, resp.cost_usd
@@ -486,6 +525,7 @@ def _synthesize(company, l1_data, news_data, strategic_data):
         employee_sentiment=strategic_data.get("employee_sentiment") or "Not found",
     )
 
+    start_time = time.time()
     resp = client.query(
         system_prompt=SYNTHESIS_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -493,6 +533,26 @@ def _synthesize(company, l1_data, news_data, strategic_data):
         max_tokens=ANTHROPIC_MAX_TOKENS,
         temperature=ANTHROPIC_TEMPERATURE,
     )
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Log L2 synthesis usage
+    if log_llm_usage:
+        try:
+            log_llm_usage(
+                tenant_id=company.get("tenant_id"),
+                operation="l2_synthesis",
+                model=ANTHROPIC_MODEL,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                provider="anthropic",
+                duration_ms=duration_ms,
+                metadata={
+                    "company_id": str(company.get("id")),
+                    "company_name": company.get("name"),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log L2 synthesis usage: %s", e)
 
     data = _parse_json(resp.content)
     if not data:
