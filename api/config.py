@@ -2,7 +2,9 @@ import os
 
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "postgresql://localhost/leadgen")
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL", "postgresql://localhost/leadgen"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "change-me-in-production")
     JWT_ACCESS_EXPIRY = 3600  # 1 hour
@@ -20,4 +22,6 @@ class Config:
 
     # Perplexity API
     PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY", "")
-    PERPLEXITY_BASE_URL = os.environ.get("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
+    PERPLEXITY_BASE_URL = os.environ.get(
+        "PERPLEXITY_BASE_URL", "https://api.perplexity.ai"
+    )

@@ -1,11 +1,18 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   useUpdateCampaign,
   useCampaignTemplates,
   type CampaignDetail,
   type TemplateStep,
 } from '../../../api/queries/useCampaigns'
+import {
+  useCostEstimate,
+  useStartGeneration,
+  type CostEstimateResponse,
+} from '../../../api/queries/useCampaignGeneration'
 import { useToast } from '../../../components/ui/Toast'
+import { Modal } from '../../../components/ui/Modal'
+import { GenerationProgressModal } from '../../../components/campaign/GenerationProgressModal'
 import { EditableSelect, EditableTextarea, FieldGrid, Field } from '../../../components/ui/DetailField'
 
 const TONE_OPTIONS = [
@@ -31,6 +38,18 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
   const { toast } = useToast()
   const updateCampaign = useUpdateCampaign()
   const { data: templateData } = useCampaignTemplates()
+  const costEstimate = useCostEstimate()
+  const startGeneration = useStartGeneration()
+
+  // Cost confirm dialog state
+  const [showCostDialog, setShowCostDialog] = useState(false)
+  const [costData, setCostData] = useState<CostEstimateResponse | null>(null)
+
+  // Progress modal state
+  const [showProgress, setShowProgress] = useState(false)
+
+  // If campaign is currently generating, show progress modal automatically
+  const isGenerating = campaign.status === 'Generating'
 
   const templates = useMemo(() => templateData?.templates ?? [], [templateData])
 
@@ -41,6 +60,16 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
   const generationConfig = useMemo(() => {
     return (campaign.generation_config || {}) as Record<string, unknown>
   }, [campaign.generation_config])
+
+  const enabledSteps = useMemo(
+    () => templateConfig.filter((s) => s.enabled),
+    [templateConfig],
+  )
+
+  const canGenerate =
+    (campaign.status === 'Ready' || campaign.status === 'Draft') &&
+    campaign.total_contacts > 0 &&
+    enabledSteps.length > 0
 
   const handleLoadTemplate = useCallback(async (templateId: string) => {
     const tpl = templates.find((t) => t.id === templateId)
@@ -95,6 +124,28 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
       toast('Failed to update instructions', 'error')
     }
   }, [generationConfig, campaign.id, updateCampaign, toast])
+
+  // Cost estimate → confirmation dialog
+  const handleEstimateCost = useCallback(async () => {
+    try {
+      const data = await costEstimate.mutateAsync(campaign.id)
+      setCostData(data)
+      setShowCostDialog(true)
+    } catch {
+      toast('Failed to estimate cost', 'error')
+    }
+  }, [campaign.id, costEstimate, toast])
+
+  // Confirm generation
+  const handleConfirmGenerate = useCallback(async () => {
+    setShowCostDialog(false)
+    try {
+      await startGeneration.mutateAsync(campaign.id)
+      setShowProgress(true)
+    } catch {
+      toast('Failed to start generation', 'error')
+    }
+  }, [campaign.id, startGeneration, toast])
 
   return (
     <div className="space-y-4">
@@ -181,6 +232,109 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
           )}
         </div>
       )}
+
+      {/* Generate actions */}
+      {templateConfig.length > 0 && (
+        <div className="flex items-center gap-3 pt-4 border-t border-border">
+          {canGenerate && (
+            <>
+              <button
+                onClick={handleEstimateCost}
+                disabled={costEstimate.isPending}
+                className="px-4 py-2 text-sm font-medium rounded border border-border text-text-muted hover:text-text hover:border-accent-cyan cursor-pointer bg-transparent transition-colors disabled:opacity-50"
+              >
+                {costEstimate.isPending ? 'Estimating...' : 'Estimate Cost'}
+              </button>
+              <button
+                onClick={handleEstimateCost}
+                disabled={startGeneration.isPending || costEstimate.isPending}
+                className="px-4 py-2 text-sm font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50"
+              >
+                {startGeneration.isPending ? 'Starting...' : 'Generate Messages'}
+              </button>
+            </>
+          )}
+          {isGenerating && (
+            <button
+              onClick={() => setShowProgress(true)}
+              className="px-4 py-2 text-sm font-medium rounded border border-accent/30 text-accent-hover bg-accent/10 cursor-pointer hover:bg-accent/20 transition-colors"
+            >
+              View Progress
+            </button>
+          )}
+          {!canGenerate && !isGenerating && campaign.total_contacts === 0 && (
+            <p className="text-xs text-text-dim">Add contacts to the campaign before generating messages.</p>
+          )}
+          {!canGenerate && !isGenerating && campaign.total_contacts > 0 && enabledSteps.length === 0 && (
+            <p className="text-xs text-text-dim">Enable at least one message step to generate.</p>
+          )}
+        </div>
+      )}
+
+      {/* Cost confirmation dialog */}
+      <Modal
+        open={showCostDialog}
+        onClose={() => setShowCostDialog(false)}
+        title="Confirm Generation"
+        actions={
+          <>
+            <button
+              onClick={() => setShowCostDialog(false)}
+              className="px-3 py-1.5 text-sm rounded border border-border text-text-muted hover:text-text cursor-pointer bg-transparent transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmGenerate}
+              disabled={startGeneration.isPending}
+              className="px-4 py-1.5 text-sm font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50"
+            >
+              {startGeneration.isPending ? 'Starting...' : 'Generate'}
+            </button>
+          </>
+        }
+      >
+        {costData && (
+          <div className="space-y-4">
+            <p className="text-sm text-text">
+              Generate{' '}
+              <span className="font-semibold text-accent-cyan">{costData.total_messages} messages</span>
+              {' '}for{' '}
+              <span className="font-semibold text-accent-cyan">{costData.total_contacts} contacts</span>?
+            </p>
+
+            {/* Step breakdown */}
+            {costData.by_step && costData.by_step.length > 0 && (
+              <div className="space-y-1">
+                {costData.by_step.map((step) => (
+                  <div key={step.step} className="flex items-center justify-between text-xs">
+                    <span className="text-text-muted">
+                      Step {step.step}: {step.label}
+                      <span className="text-text-dim ml-1">({step.channel.replace('_', ' ')})</span>
+                    </span>
+                    <span className="text-text-dim">{step.count} msgs</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Estimated cost */}
+            <div className="flex items-center justify-between px-4 py-3 bg-surface-alt rounded-lg border border-border">
+              <span className="text-sm text-text-muted">Estimated cost</span>
+              <span className="text-lg font-semibold text-accent-cyan">
+                ${costData.estimated_cost.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Generation progress modal */}
+      <GenerationProgressModal
+        campaignId={campaign.id}
+        isOpen={showProgress || isGenerating}
+        onClose={() => setShowProgress(false)}
+      />
     </div>
   )
 }

@@ -21,12 +21,36 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _LEGAL_SUFFIXES = (
-    " inc", " inc.", " incorporated", " llc", " ltd", " ltd.",
-    " limited", " gmbh", " ag", " sa", " se", " plc",
-    " corp", " corp.", " corporation", " company",
-    " co.", " s.r.o.", " a.s.", " a/s", " oy", " ab",
-    " sp. z o.o.", " spol. s r.o.", " s.a.", " s.p.a.",
-    " b.v.", " n.v.", " pty", " pty.",
+    " inc",
+    " inc.",
+    " incorporated",
+    " llc",
+    " ltd",
+    " ltd.",
+    " limited",
+    " gmbh",
+    " ag",
+    " sa",
+    " se",
+    " plc",
+    " corp",
+    " corp.",
+    " corporation",
+    " company",
+    " co.",
+    " s.r.o.",
+    " a.s.",
+    " a/s",
+    " oy",
+    " ab",
+    " sp. z o.o.",
+    " spol. s r.o.",
+    " s.a.",
+    " s.p.a.",
+    " b.v.",
+    " n.v.",
+    " pty",
+    " pty.",
 )
 
 
@@ -53,8 +77,8 @@ def name_similarity(name_a, name_b):
     if not a or not b:
         return 0.0
 
-    a_bigrams = set(a[i:i+2] for i in range(len(a) - 1))
-    b_bigrams = set(b[i:i+2] for i in range(len(b) - 1))
+    a_bigrams = set(a[i : i + 2] for i in range(len(a) - 1))
+    b_bigrams = set(b[i : i + 2] for i in range(len(b) - 1))
 
     if not a_bigrams or not b_bigrams:
         return 0.0
@@ -68,13 +92,14 @@ def name_similarity(name_a, name_b):
 # ---------------------------------------------------------------------------
 
 NAME_SIMILARITY_THRESHOLD = 0.5
-REVENUE_CONFLICT_RATIO = 0.50   # >50% difference between sources
+REVENUE_CONFLICT_RATIO = 0.50  # >50% difference between sources
 EMPLOYEE_CONFLICT_RATIO = 1.00  # >100% difference between sources
 
 
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
+
 
 def _check_registry_name_mismatch(company_name, registry_rows):
     """Compare L1 company name against registry official_name(s)."""
@@ -86,9 +111,7 @@ def _check_registry_name_mismatch(company_name, registry_rows):
             continue
         sim = name_similarity(company_name, official)
         if sim < NAME_SIMILARITY_THRESHOLD:
-            flags.append(
-                "registry_name_mismatch:%s:%.2f" % (country, sim)
-            )
+            flags.append("registry_name_mismatch:%s:%.2f" % (country, sim))
     return flags
 
 
@@ -102,19 +125,43 @@ def _check_hq_country_conflict(hq_country, registry_rows):
 
     # Normalize common country names to ISO codes
     country_map = {
-        "czech republic": "cz", "czechia": "cz", "cz": "cz",
-        "norway": "no", "norge": "no", "no": "no",
-        "finland": "fi", "suomi": "fi", "fi": "fi",
-        "france": "fr", "fr": "fr",
-        "germany": "de", "deutschland": "de", "de": "de",
-        "sweden": "se", "sverige": "se", "se": "se",
-        "denmark": "dk", "danmark": "dk", "dk": "dk",
-        "austria": "at", "osterreich": "at", "at": "at",
-        "switzerland": "ch", "schweiz": "ch", "ch": "ch",
-        "poland": "pl", "polska": "pl", "pl": "pl",
-        "united kingdom": "gb", "uk": "gb", "gb": "gb",
-        "united states": "us", "usa": "us", "us": "us",
-        "netherlands": "nl", "nl": "nl",
+        "czech republic": "cz",
+        "czechia": "cz",
+        "cz": "cz",
+        "norway": "no",
+        "norge": "no",
+        "no": "no",
+        "finland": "fi",
+        "suomi": "fi",
+        "fi": "fi",
+        "france": "fr",
+        "fr": "fr",
+        "germany": "de",
+        "deutschland": "de",
+        "de": "de",
+        "sweden": "se",
+        "sverige": "se",
+        "se": "se",
+        "denmark": "dk",
+        "danmark": "dk",
+        "dk": "dk",
+        "austria": "at",
+        "osterreich": "at",
+        "at": "at",
+        "switzerland": "ch",
+        "schweiz": "ch",
+        "ch": "ch",
+        "poland": "pl",
+        "polska": "pl",
+        "pl": "pl",
+        "united kingdom": "gb",
+        "uk": "gb",
+        "gb": "gb",
+        "united states": "us",
+        "usa": "us",
+        "us": "us",
+        "netherlands": "nl",
+        "nl": "nl",
     }
     hq_norm = country_map.get(hq_lower, hq_lower)
 
@@ -122,11 +169,11 @@ def _check_hq_country_conflict(hq_country, registry_rows):
         reg_country = reg.get("registry_country", "")
         if not reg_country:
             continue
-        reg_norm = country_map.get(reg_country.strip().lower(), reg_country.strip().lower())
+        reg_norm = country_map.get(
+            reg_country.strip().lower(), reg_country.strip().lower()
+        )
         if hq_norm != reg_norm:
-            flags.append(
-                "hq_country_conflict:%s_vs_%s" % (hq_country, reg_country)
-            )
+            flags.append("hq_country_conflict:%s_vs_%s" % (hq_country, reg_country))
     return flags
 
 
@@ -135,9 +182,7 @@ def _check_active_insolvency(insolvency_rows):
     flags = []
     for ins in insolvency_rows:
         if ins.get("has_insolvency") and ins.get("active_proceedings", 0) > 0:
-            flags.append(
-                "active_insolvency:%d_proceedings" % ins["active_proceedings"]
-            )
+            flags.append("active_insolvency:%d_proceedings" % ins["active_proceedings"])
     return flags
 
 
@@ -178,11 +223,14 @@ def _check_low_registry_confidence(registry_rows):
     for reg in registry_rows:
         confidence = reg.get("match_confidence")
         method = reg.get("match_method", "")
-        if confidence is not None and float(confidence) < 0.7 and method != "ico_direct":
+        if (
+            confidence is not None
+            and float(confidence) < 0.7
+            and method != "ico_direct"
+        ):
             flags.append(
-                "low_registry_confidence:%s:%.2f" % (
-                    reg.get("registry_country", "?"), float(confidence)
-                )
+                "low_registry_confidence:%s:%.2f"
+                % (reg.get("registry_country", "?"), float(confidence))
             )
     return flags
 
@@ -190,6 +238,7 @@ def _check_low_registry_confidence(registry_rows):
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def run_qc(entity_id, tenant_id):
     """Run QC checks for a company entity. Returns handler-compatible dict.
@@ -204,14 +253,18 @@ def run_qc(entity_id, tenant_id):
     qc_flags = []
 
     # Load company data
-    row = db.session.execute(
-        text("""
+    row = (
+        db.session.execute(
+            text("""
             SELECT name, hq_country, hq_city, industry, summary,
                    verified_revenue_eur_m, verified_employees, status
             FROM companies WHERE id = :id AND tenant_id = :tid
         """),
-        {"id": str(entity_id), "tid": str(tenant_id)},
-    ).mappings().first()
+            {"id": str(entity_id), "tid": str(tenant_id)},
+        )
+        .mappings()
+        .first()
+    )
 
     if not row:
         return {"enrichment_cost_usd": 0.0, "qc_flags": ["entity_not_found"]}
@@ -220,25 +273,31 @@ def run_qc(entity_id, tenant_id):
 
     # Load registry data
     registry_rows = [
-        dict(r) for r in db.session.execute(
+        dict(r)
+        for r in db.session.execute(
             text("""
                 SELECT official_name, registry_country, registration_status,
                        date_dissolved, match_confidence, match_method
                 FROM company_registry_data WHERE company_id = :id
             """),
             {"id": str(entity_id)},
-        ).mappings().all()
+        )
+        .mappings()
+        .all()
     ]
 
     # Load insolvency data
     insolvency_rows = [
-        dict(r) for r in db.session.execute(
+        dict(r)
+        for r in db.session.execute(
             text("""
                 SELECT has_insolvency, active_proceedings, total_proceedings
                 FROM company_insolvency_data WHERE company_id = :id
             """),
             {"id": str(entity_id)},
-        ).mappings().all()
+        )
+        .mappings()
+        .all()
     ]
 
     # Check if L2 enrichment exists
@@ -262,10 +321,14 @@ def run_qc(entity_id, tenant_id):
 
     # Run all checks
     qc_flags.extend(_check_registry_name_mismatch(company.get("name"), registry_rows))
-    qc_flags.extend(_check_hq_country_conflict(company.get("hq_country"), registry_rows))
+    qc_flags.extend(
+        _check_hq_country_conflict(company.get("hq_country"), registry_rows)
+    )
     qc_flags.extend(_check_active_insolvency(insolvency_rows))
     qc_flags.extend(_check_dissolved(registry_rows))
-    qc_flags.extend(_check_data_completeness(company, has_l2, bool(registry_rows), completed_stages))
+    qc_flags.extend(
+        _check_data_completeness(company, has_l2, bool(registry_rows), completed_stages)
+    )
     qc_flags.extend(_check_low_registry_confidence(registry_rows))
 
     logger.info(

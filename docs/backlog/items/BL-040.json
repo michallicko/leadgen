@@ -1,0 +1,15 @@
+{
+  "id": "BL-040",
+  "title": "LinkedIn Export",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-036"
+  ],
+  "description": "Export approved LinkedIn messages as CSV: full_name, linkedin_url, connection_message, followup_message.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "BL-019",
+  "title": "Employment Verification",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-013",
+    "BL-015"
+  ],
+  "description": "Two-tier check to determine whether a contact still works at their listed company. Tier 1 (fast/cheap): email deliverability probe via BL-013 — if work email bounces, flag as likely departed. Tier 2 (thorough): AI research via Perplexity/Claude for inconclusive cases — checks LinkedIn profile, company website, recent news. Returns confidence score + evidence summary. Runnable on-demand per contact or in batch via the pipeline engine. Updates contact record with verification status and last-verified date.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

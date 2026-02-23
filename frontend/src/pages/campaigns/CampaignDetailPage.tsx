@@ -14,6 +14,7 @@ import { MessageGenTab } from './tabs/MessageGenTab'
 import { MessagesTab } from './tabs/MessagesTab'
 import { OutreachTab } from './tabs/OutreachTab'
 import { SettingsTab } from './tabs/SettingsTab'
+import { CampaignAnalytics } from '../../components/campaign/CampaignAnalytics'
 import { useEntityStack } from '../../hooks/useEntityStack'
 import { useReviewSummary } from '../../api/queries/useMessages'
 import { OutreachApprovalDialog } from './OutreachApprovalDialog'
@@ -28,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
   Archived: 'bg-[#8B92A0]/10 text-text-dim border-[#8B92A0]/20',
 }
 
-const TAB_IDS = ['contacts', 'generation', 'review', 'outreach', 'settings'] as const
+const TAB_IDS = ['contacts', 'generation', 'review', 'outreach', 'analytics', 'settings'] as const
 type TabId = (typeof TAB_IDS)[number]
 
 export function CampaignDetailPage() {
@@ -111,8 +112,9 @@ export function CampaignDetailPage() {
     { id: 'contacts', label: 'Contacts', badge: contactCount || undefined },
     { id: 'generation', label: 'Generation' },
     { id: 'review', label: 'Messages', badge: campaign?.generated_count || undefined },
-    { id: 'outreach', label: 'Outreach', disabled: true },
-    { id: 'settings', label: 'Settings', disabled: true },
+    { id: 'outreach', label: 'Outreach' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'settings', label: 'Settings' },
   ], [contactCount, campaign?.generated_count])
 
   // Loading state
@@ -231,8 +233,9 @@ export function CampaignDetailPage() {
         {activeTab === 'review' && (
           <MessagesTab campaignId={campaign.id} onNavigate={handleNavigate} />
         )}
-        {activeTab === 'outreach' && <OutreachTab />}
-        {activeTab === 'settings' && <SettingsTab />}
+        {activeTab === 'outreach' && <OutreachTab campaign={campaign} />}
+        {activeTab === 'analytics' && <CampaignAnalytics campaignId={campaign.id} />}
+        {activeTab === 'settings' && <SettingsTab campaign={campaign} isEditable={isEditable} />}
       </div>
 
       {/* Cross-entity detail modal */}

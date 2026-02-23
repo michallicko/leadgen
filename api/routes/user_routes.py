@@ -172,7 +172,9 @@ def change_password(user_id):
         if not data.get("current_password"):
             return jsonify({"error": "current_password required"}), 400
         user = db.session.get(User, user_id)
-        if not user or not verify_password(data["current_password"], user.password_hash):
+        if not user or not verify_password(
+            data["current_password"], user.password_hash
+        ):
             return jsonify({"error": "Current password is incorrect"}), 401
     else:
         user = db.session.get(User, user_id)

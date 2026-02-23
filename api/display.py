@@ -267,8 +267,19 @@ CAMPAIGN_CONTACT_STATUS_DISPLAY = {
     "excluded": "Excluded",
 }
 
+ENRICHMENT_STAGE_DISPLAY = {
+    "imported": "Imported",
+    "researched": "Researched",
+    "qualified": "Qualified",
+    "enriched": "Enriched",
+    "contacts_ready": "Contacts Ready",
+    "failed": "Failed",
+    "disqualified": "Disqualified",
+}
+
 
 # --- Reverse maps (display value → DB value) ---
+
 
 def _build_reverse(display_map):
     return {v: k for k, v in display_map.items()}
@@ -389,6 +400,10 @@ def display_campaign_status(v):
 
 def display_campaign_contact_status(v):
     return CAMPAIGN_CONTACT_STATUS_DISPLAY.get(v, v) if v else v
+
+
+def display_enrichment_stage(v):
+    return ENRICHMENT_STAGE_DISPLAY.get(v, v) if v else v
 
 
 def reverse_lookup(display_map, display_value):

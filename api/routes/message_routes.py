@@ -65,39 +65,43 @@ def list_messages():
 
     messages = []
     for r in rows:
-        messages.append({
-            "id": str(r[0]),
-            "channel": r[1],
-            "sequence_step": r[2],
-            "variant": (r[3] or "a").upper(),
-            "subject": r[4],
-            "body": r[5],
-            "status": r[6],
-            "tone": r[7],
-            "language": r[8],
-            "generation_cost": float(r[9]) if r[9] else None,
-            "review_notes": r[10],
-            "approved_at": r[11].isoformat() if r[11] else None,
-            "contact": {
-                "id": str(r[12]) if r[12] else None,
-                "full_name": ((r[13] or "") + " " + (r[14] or "")).strip(),
-                "first_name": r[13],
-                "last_name": r[14],
-                "job_title": r[15],
-                "linkedin_url": r[16],
-                "contact_score": r[17],
-                "icp_fit": r[18],
-                "owner_name": r[24],
-                "tag_name": r[25],
-            },
-            "company": {
-                "id": str(r[19]) if r[19] else None,
-                "name": r[20],
-                "tier": display_tier(r[21]),
-                "domain": r[22],
-                "status": display_status(r[23]),
-            } if r[19] else None,
-        })
+        messages.append(
+            {
+                "id": str(r[0]),
+                "channel": r[1],
+                "sequence_step": r[2],
+                "variant": (r[3] or "a").upper(),
+                "subject": r[4],
+                "body": r[5],
+                "status": r[6],
+                "tone": r[7],
+                "language": r[8],
+                "generation_cost": float(r[9]) if r[9] else None,
+                "review_notes": r[10],
+                "approved_at": r[11].isoformat() if r[11] else None,
+                "contact": {
+                    "id": str(r[12]) if r[12] else None,
+                    "full_name": ((r[13] or "") + " " + (r[14] or "")).strip(),
+                    "first_name": r[13],
+                    "last_name": r[14],
+                    "job_title": r[15],
+                    "linkedin_url": r[16],
+                    "contact_score": r[17],
+                    "icp_fit": r[18],
+                    "owner_name": r[24],
+                    "tag_name": r[25],
+                },
+                "company": {
+                    "id": str(r[19]) if r[19] else None,
+                    "name": r[20],
+                    "tier": display_tier(r[21]),
+                    "domain": r[22],
+                    "status": display_status(r[23]),
+                }
+                if r[19]
+                else None,
+            }
+        )
 
     return jsonify({"messages": messages})
 
@@ -110,8 +114,15 @@ def update_message(message_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    allowed = {"status", "review_notes", "approved_at", "body", "subject",
-               "edit_reason", "edit_reason_text"}
+    allowed = {
+        "status",
+        "review_notes",
+        "approved_at",
+        "body",
+        "subject",
+        "edit_reason",
+        "edit_reason_text",
+    }
     fields = {k: v for k, v in body.items() if k in allowed}
 
     if not fields:
@@ -140,9 +151,15 @@ def update_message(message_id):
     if body_changed or subject_changed:
         edit_reason = fields.get("edit_reason")
         if not edit_reason:
-            return jsonify({"error": "edit_reason required when changing body or subject"}), 400
+            return jsonify(
+                {"error": "edit_reason required when changing body or subject"}
+            ), 400
         if edit_reason not in EDIT_REASONS:
-            return jsonify({"error": f"Invalid edit_reason. Must be one of: {', '.join(EDIT_REASONS)}"}), 400
+            return jsonify(
+                {
+                    "error": f"Invalid edit_reason. Must be one of: {', '.join(EDIT_REASONS)}"
+                }
+            ), 400
 
         # Preserve originals (immutable once set)
         if body_changed and existing_original_body is None:
@@ -152,8 +169,17 @@ def update_message(message_id):
 
     set_parts = []
     params = {"id": message_id, "t": tenant_id}
-    safe_columns = {"status", "review_notes", "approved_at", "body", "subject",
-                    "edit_reason", "edit_reason_text", "original_body", "original_subject"}
+    safe_columns = {
+        "status",
+        "review_notes",
+        "approved_at",
+        "body",
+        "subject",
+        "edit_reason",
+        "edit_reason_text",
+        "original_body",
+        "original_subject",
+    }
     for k, v in fields.items():
         if k in safe_columns:
             set_parts.append(f"{k} = :{k}")
@@ -162,7 +188,9 @@ def update_message(message_id):
     set_parts.append("updated_at = CURRENT_TIMESTAMP")
 
     db.session.execute(
-        db.text(f"UPDATE messages SET {', '.join(set_parts)} WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            f"UPDATE messages SET {', '.join(set_parts)} WHERE id = :id AND tenant_id = :t"
+        ),
         params,
     )
     db.session.commit()
@@ -211,10 +239,13 @@ def regen_message(message_id):
     if not msg_status:
         return jsonify({"error": "Message not found"}), 404
     if msg_status[0] == "generating":
-        return jsonify({"error": "Cannot regenerate while message is being generated"}), 409
+        return jsonify(
+            {"error": "Cannot regenerate while message is being generated"}
+        ), 409
 
     from flask import g
-    user_id = str(g.current_user.id) if hasattr(g, 'current_user') else None
+
+    user_id = str(g.current_user.id) if hasattr(g, "current_user") else None
 
     try:
         result = regenerate_message(
@@ -264,7 +295,7 @@ def batch_update_messages():
     db.session.execute(
         db.text(f"""
             UPDATE messages
-            SET {', '.join(set_parts)}
+            SET {", ".join(set_parts)}
             WHERE tenant_id = :t AND id IN :ids
         """),
         params,

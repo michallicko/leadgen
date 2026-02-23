@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 PRH_BASE_URL = "https://avoindata.prh.fi/opendata-ytj-api/v3"
 
 FINNISH_SUFFIXES = [
-    r"\bOYJ?\s*$",          # OY, OYJ
-    r"\bOY\s+AB\s*$",       # OY AB (bilingual)
-    r"\bOSK\s*$",           # Osuuskunta
-    r"\bAB\s*$",            # Aktiebolag (Swedish)
-    r"\bKY\s*$",            # Kommandiittiyhtiö
-    r"\bAY\s*$",            # Avoin yhtiö
-    r"\bRY\s*$",            # Rekisteröity yhdistys
-    r"\bRS\s*$",            # Rekisteröity säätiö
+    r"\bOYJ?\s*$",  # OY, OYJ
+    r"\bOY\s+AB\s*$",  # OY AB (bilingual)
+    r"\bOSK\s*$",  # Osuuskunta
+    r"\bAB\s*$",  # Aktiebolag (Swedish)
+    r"\bKY\s*$",  # Kommandiittiyhtiö
+    r"\bAY\s*$",  # Avoin yhtiö
+    r"\bRY\s*$",  # Rekisteröity yhdistys
+    r"\bRS\s*$",  # Rekisteröity säätiö
 ]
 
 
@@ -35,8 +35,12 @@ class PrhAdapter(BaseRegistryAdapter):
     timeout = 10
 
     provides_fields = [
-        "registration_id", "official_name", "legal_form",
-        "registration_status", "date_established", "registered_address",
+        "registration_id",
+        "official_name",
+        "legal_form",
+        "registration_status",
+        "date_established",
+        "registered_address",
         "nace_codes",
     ]
     requires_inputs = ["name"]
@@ -73,7 +77,8 @@ class PrhAdapter(BaseRegistryAdapter):
             for item in companies:
                 parsed = _parse_prh_response(item)
                 parsed["similarity"] = self.name_similarity(
-                    name, parsed.get("official_name", ""))
+                    name, parsed.get("official_name", "")
+                )
                 candidates.append(parsed)
 
             candidates.sort(key=lambda c: c.get("similarity", 0), reverse=True)
@@ -100,7 +105,7 @@ def _get_description(descriptions, prefer_english=True):
     Some docs show string codes: "FI", "EN". We handle both.
     """
     en_desc = fi_desc = None
-    for d in (descriptions or []):
+    for d in descriptions or []:
         lc = d.get("languageCode", "")
         if _is_english(lc):
             en_desc = d.get("description", "")

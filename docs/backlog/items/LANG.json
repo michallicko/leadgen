@@ -1,0 +1,12 @@
+{
+  "id": "LANG",
+  "title": "Namespace Language Settings",
+  "priority": "Should Have",
+  "effort": "L",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "spec": "## Namespace Language Settings\n\n### Goal\nAllow each namespace (tenant) to configure their preferred language for the AI assistant and UI elements.\n\n### Scope\n- **Language setting**: Per-namespace config stored in `namespaces` table\n- **AI language**: System prompt includes language instruction\n- **UI i18n**: Key UI strings translated (buttons, labels, placeholders)\n- **Supported languages**: English (default), Czech, German, Spanish, French\n- **Settings page**: Admin dropdown to select namespace language\n\n### Technical Approach\n- `language` column on `namespaces` table (default: 'en')\n- i18n JSON files: `locales/{lang}.json` with key-value translations\n- `useI18n()` hook reads namespace language from auth context\n- AI system prompt: \"Always respond in {language}. The user's interface is in {language}.\"\n- Backend: `Accept-Language` header forwarded to AI calls\n\n### Acceptance Criteria\n- Given namespace language is set to Czech, the AI responds in Czech\n- Given namespace language is set to German, UI labels appear in German\n- Given no language is set, English is used as default",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

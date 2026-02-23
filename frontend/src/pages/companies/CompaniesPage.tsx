@@ -1,35 +1,73 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { withRev } from '../../lib/revision'
-import { useCompanies, type CompanyListItem, type CompanyFilters } from '../../api/queries/useCompanies'
+import { useCompanies, type CompanyFilters } from '../../api/queries/useCompanies'
 import { useTags } from '../../api/queries/useTags'
 import { useBulkAddTags, useCompaniesMatchingCount } from '../../api/queries/useBulkActions'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { DataTable, type Column, type SelectionMode } from '../../components/ui/DataTable'
+import { useAdvancedFilters, COMPANY_MULTI_KEYS } from '../../hooks/useAdvancedFilters'
+import { useFilterCounts } from '../../hooks/useFilterCounts'
+import { useColumnVisibility } from '../../hooks/useColumnVisibility'
+import { DataTable, type SelectionMode } from '../../components/ui/DataTable'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
+import { ColumnPicker } from '../../components/ui/ColumnPicker'
+import { MultiSelectFilter } from '../../components/ui/MultiSelectFilter'
 import { SelectionActionBar } from '../../components/ui/SelectionActionBar'
 import { TagPicker } from '../../components/ui/TagPicker'
-import { Badge } from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
+import { COMPANY_COLUMNS, COMPANY_ALWAYS_VISIBLE } from '../../config/companyColumns'
 import {
-  STATUS_DISPLAY,
+  ENRICHMENT_STAGE_DISPLAY,
   TIER_DISPLAY,
-  filterOptions,
+  INDUSTRY_DISPLAY,
+  COMPANY_SIZE_DISPLAY,
+  GEO_REGION_DISPLAY,
+  REVENUE_RANGE_DISPLAY,
 } from '../../lib/display'
+
+/** Build MultiSelectFilter options from a display map + optional facet counts */
+function buildMultiOptions(
+  displayMap: Record<string, string>,
+  facets?: { value: string; count: number }[],
+) {
+  const countMap = new Map<string, number>()
+  if (facets) {
+    for (const f of facets) countMap.set(f.value, f.count)
+  }
+  return Object.entries(displayMap).map(([dbVal, label]) => ({
+    value: dbVal,
+    label,
+    count: countMap.get(dbVal),
+  }))
+}
 
 export function CompaniesPage() {
   const { namespace } = useParams<{ namespace: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  // Filters persisted in localStorage
-  const [search, setSearch] = useLocalStorage('co_filter_search', '')
-  const [status, setStatus] = useLocalStorage('co_filter_status', '')
-  const [tier, setTier] = useLocalStorage('co_filter_tier', '')
-  const [tagName, setTagName] = useLocalStorage('co_filter_tag', '')
-  const [ownerName, setOwnerName] = useLocalStorage('co_filter_owner', '')
+  // Advanced filters (persisted to localStorage)
+  const {
+    filters: advFilters,
+    setSimpleFilter,
+    setMultiFilter,
+    toggleExclude,
+    clearAll,
+    activeFilterCount,
+    getMulti,
+    toQueryParams,
+    toCountsPayload,
+  } = useAdvancedFilters('co_adv_filters', COMPANY_MULTI_KEYS)
+
   const [sortField, setSortField] = useLocalStorage('co_sort_field', 'name')
   const [sortDir, setSortDir] = useLocalStorage<'asc' | 'desc'>('co_sort_dir', 'asc')
+  const [showAdvanced, setShowAdvanced] = useLocalStorage('co_show_advanced', false)
+
+  // Column visibility
+  const [visibleKeys, setVisibleKeys, resetColumns] = useColumnVisibility(
+    'co_visible_cols',
+    COMPANY_COLUMNS,
+  )
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -40,25 +78,24 @@ export function CompaniesPage() {
   const bulkAddTags = useBulkAddTags()
   const matchingCount = useCompaniesMatchingCount()
 
+  // Build CompanyFilters from advanced state + sort
   const filters: CompanyFilters = useMemo(() => ({
-    search,
-    status,
-    tier,
-    tag_name: tagName,
-    owner_name: ownerName,
+    ...toQueryParams(),
     sort: sortField,
     sort_dir: sortDir,
-  }), [search, status, tier, tagName, ownerName, sortField, sortDir])
+  }), [toQueryParams, sortField, sortDir])
 
+  // Active filters for bulk actions (no sort params)
   const activeFilters = useMemo(() => {
-    const f: Record<string, string> = {}
-    if (search) f.search = search
-    if (status) f.status = status
-    if (tier) f.tier = tier
-    if (tagName) f.tag_name = tagName
-    if (ownerName) f.owner_name = ownerName
-    return f
-  }, [search, status, tier, tagName, ownerName])
+    const params = toQueryParams()
+    delete params.sort
+    delete params.sort_dir
+    return params
+  }, [toQueryParams])
+
+  // Filter counts for faceted options
+  const countsPayload = useMemo(() => toCountsPayload(), [toCountsPayload])
+  const { data: countsData } = useFilterCounts(countsPayload, '/companies/filter-counts')
 
   const {
     data,
@@ -75,17 +112,11 @@ export function CompaniesPage() {
   const total = data?.pages[0]?.total ?? 0
 
   const handleFilterChange = useCallback((key: string, value: string) => {
-    switch (key) {
-      case 'search': setSearch(value); break
-      case 'status': setStatus(value); break
-      case 'tier': setTier(value); break
-      case 'tag_name': setTagName(value); break
-      case 'owner_name': setOwnerName(value); break
-    }
+    setSimpleFilter(key, value)
     // Clear selection when filters change
     setSelectedIds(new Set())
     setSelectionMode('explicit')
-  }, [setSearch, setStatus, setTier, setTagName, setOwnerName])
+  }, [setSimpleFilter])
 
   const handleSort = useCallback((field: string, dir: 'asc' | 'desc') => {
     setSortField(field)
@@ -125,56 +156,136 @@ export function CompaniesPage() {
 
   const filterConfigs: FilterConfig[] = useMemo(() => [
     { key: 'search', label: 'companies', type: 'search' as const, placeholder: 'Search name or domain...' },
-    { key: 'status', label: 'Status', type: 'select' as const, options: filterOptions(STATUS_DISPLAY) },
-    { key: 'tier', label: 'Tier', type: 'select' as const, options: filterOptions(TIER_DISPLAY) },
     { key: 'tag_name', label: 'Tag', type: 'select' as const, options: (tagsData?.tags ?? []).map((b) => ({ value: b.name, label: b.name })) },
     { key: 'owner_name', label: 'Owner', type: 'select' as const, options: (tagsData?.owners ?? []).map((o) => ({ value: o.name, label: o.name })) },
   ], [tagsData])
 
-  const columns: Column<CompanyListItem>[] = useMemo(() => [
-    { key: 'name', label: 'Name', sortKey: 'name', minWidth: '140px' },
-    { key: 'domain', label: 'Domain', sortKey: 'domain', minWidth: '100px', render: (c) => c.domain ? (
-      <a href={`https://${c.domain}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-accent-cyan hover:underline truncate block">{c.domain}</a>
-    ) : '-' },
-    { key: 'status', label: 'Status', sortKey: 'status', minWidth: '110px', shrink: false, render: (c) => <Badge variant="status" value={c.status} /> },
-    { key: 'tier', label: 'Tier', sortKey: 'tier', minWidth: '110px', shrink: false, render: (c) => <Badge variant="tier" value={c.tier} /> },
-    { key: 'owner_name', label: 'Owner', minWidth: '70px' },
-    { key: 'tag_names', label: 'Tags', minWidth: '90px', render: (c) => {
-      const names = (c as unknown as Record<string, unknown>).tag_names as string[] | undefined
-      if (!names || names.length === 0) return <span className="text-text-dim">-</span>
-      return <span className="text-xs" title={names.join(', ')}>{names.join(', ')}</span>
-    }},
-    { key: 'industry', label: 'Industry', minWidth: '90px' },
-    { key: 'hq_country', label: 'HQ', sortKey: 'hq_country', minWidth: '40px' },
-    { key: 'triage_score', label: 'Score', sortKey: 'triage_score', minWidth: '55px', render: (c) => c.triage_score != null ? c.triage_score.toFixed(1) : '-' },
-    { key: 'contact_count', label: 'Contacts', sortKey: 'contact_count', minWidth: '55px' },
-  ], [])
+  // Filter columns by visibility
+  const visibleSet = new Set(visibleKeys)
+  const columns = useMemo(
+    () => COMPANY_COLUMNS.filter((c) => visibleSet.has(c.key)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleKeys],
+  )
+
+  const facets = countsData?.facets
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <FilterBar
         filters={filterConfigs}
-        values={{ search, status, tier, tag_name: tagName, owner_name: ownerName }}
+        values={{
+          search: advFilters.search as string,
+          tag_name: advFilters.tag_name as string,
+          owner_name: advFilters.owner_name as string,
+        }}
         onChange={handleFilterChange}
         total={total}
         action={
-          namespace && (
-            <a
-              href={`/${namespace}/enrich`}
-              className="text-xs text-accent-cyan hover:underline ml-2"
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="px-2.5 py-1.5 text-xs rounded-md border border-border-solid bg-surface-alt text-text-muted hover:text-text hover:border-accent transition-colors flex items-center gap-1.5"
+              onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              Enrich Selection
-            </a>
-          )
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M1.5 3.5h11M3.5 7h7M5.5 10.5h3" />
+              </svg>
+              Advanced Filters
+              {activeFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-accent-cyan text-bg">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {namespace && (
+              <a
+                href={`/${namespace}/enrich`}
+                className="text-xs text-accent-cyan hover:underline"
+              >
+                Enrich Selection
+              </a>
+            )}
+            <ColumnPicker
+              allColumns={COMPANY_COLUMNS}
+              visibleKeys={visibleKeys}
+              onChange={setVisibleKeys}
+              onReset={resetColumns}
+              alwaysVisible={COMPANY_ALWAYS_VISIBLE}
+            />
+          </div>
         }
       />
+
+      {/* Advanced filter row */}
+      {showAdvanced && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 px-0.5">
+          <MultiSelectFilter
+            label="Stage"
+            options={buildMultiOptions(ENRICHMENT_STAGE_DISPLAY, facets?.enrichment_stage)}
+            selected={getMulti('enrichment_stage').values}
+            exclude={getMulti('enrichment_stage').exclude}
+            onSelectionChange={(v) => setMultiFilter('enrichment_stage', v)}
+            onExcludeToggle={() => toggleExclude('enrichment_stage')}
+          />
+          <MultiSelectFilter
+            label="Tier"
+            options={buildMultiOptions(TIER_DISPLAY, facets?.tier)}
+            selected={getMulti('tier').values}
+            exclude={getMulti('tier').exclude}
+            onSelectionChange={(v) => setMultiFilter('tier', v)}
+            onExcludeToggle={() => toggleExclude('tier')}
+          />
+          <MultiSelectFilter
+            label="Industry"
+            options={buildMultiOptions(INDUSTRY_DISPLAY, facets?.industry)}
+            selected={getMulti('industry').values}
+            exclude={getMulti('industry').exclude}
+            onSelectionChange={(v) => setMultiFilter('industry', v)}
+            onExcludeToggle={() => toggleExclude('industry')}
+          />
+          <MultiSelectFilter
+            label="Company Size"
+            options={buildMultiOptions(COMPANY_SIZE_DISPLAY, facets?.company_size)}
+            selected={getMulti('company_size').values}
+            exclude={getMulti('company_size').exclude}
+            onSelectionChange={(v) => setMultiFilter('company_size', v)}
+            onExcludeToggle={() => toggleExclude('company_size')}
+          />
+          <MultiSelectFilter
+            label="Region"
+            options={buildMultiOptions(GEO_REGION_DISPLAY, facets?.geo_region)}
+            selected={getMulti('geo_region').values}
+            exclude={getMulti('geo_region').exclude}
+            onSelectionChange={(v) => setMultiFilter('geo_region', v)}
+            onExcludeToggle={() => toggleExclude('geo_region')}
+          />
+          <MultiSelectFilter
+            label="Revenue"
+            options={buildMultiOptions(REVENUE_RANGE_DISPLAY, facets?.revenue_range)}
+            selected={getMulti('revenue_range').values}
+            exclude={getMulti('revenue_range').exclude}
+            onSelectionChange={(v) => setMultiFilter('revenue_range', v)}
+            onExcludeToggle={() => toggleExclude('revenue_range')}
+          />
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              className="px-2 py-1 text-xs text-text-muted hover:text-error transition-colors"
+              onClick={() => { clearAll(); setSelectedIds(new Set()); setSelectionMode('explicit') }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
 
       <DataTable
         columns={columns}
         data={allCompanies}
         sort={{ field: sortField, dir: sortDir }}
         onSort={handleSort}
-        onRowClick={selectedIds.size === 0 ? (c) => navigate(withRev(`/${namespace}/companies/${c.id}`), { state: { origin: withRev(`/${namespace}/companies`) } }) : undefined}
+        onRowClick={(c) => navigate(withRev(`/${namespace}/companies/${c.id}`), { state: { origin: withRev(`/${namespace}/companies`) } })}
         onLoadMore={() => fetchNextPage()}
         hasMore={hasNextPage}
         isLoading={isLoading || isFetchingNextPage}

@@ -1,0 +1,15 @@
+{
+  "id": "BL-015",
+  "title": "Python Pipeline Engine",
+  "priority": "Must Have",
+  "effort": "L",
+  "status": "Building",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-002"
+  ],
+  "description": "Port enrichment pipeline stages from n8n to Python. L1 stage ported (ADR-003). Hybrid dispatch: `_process_entity()` routes L1 to native Python, L2/Person/Generate still via n8n webhooks. Remaining: port L2, Person, Generate stages.",
+  "theme": "Platform Foundation",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

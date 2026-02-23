@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playbook Backlog — VisionVolve</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --purple: #6E2C8B;
+  --purple-dark: #4A1D5E;
+  --purple-light: #9B59B6;
+  --cyan: #00B8CF;
+  --cyan-dark: #008B9A;
+  --cyan-light: #67E8F9;
+  --text: #404B5C;
+  --text-secondary: #6B7280;
+  --bg: #F8F9FC;
+  --border: #E5E7EB;
+  --white: #FFFFFF;
+  --success: #059669;
+  --success-light: #D1FAE5;
+  --warning: #D97706;
+  --warning-light: #FEF3C7;
+  --danger: #DC2626;
+  --danger-light: #FEE2E2;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+  --transition: 0.2s ease;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(90deg, #6E2C8B 0%, #00B8CF 100%);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--white);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(110, 44, 139, 0.3);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  height: 28px;
+  opacity: 0.95;
+}
+
+.header h1 {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.last-updated {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.refresh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  display: inline-block;
+  animation: pulse-dot 2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Summary Stats */
+.stats-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stat-card .stat-number {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stat-card.must .stat-number { color: var(--danger); }
+.stat-card.should .stat-number { color: var(--warning); }
+.stat-card.could .stat-number { color: #3B82F6; }
+.stat-card.total .stat-number { color: var(--purple); }
+
+/* Toolbar */
+.toolbar {
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  border-right: 1px solid var(--border);
+}
+
+.filter-btn:last-child { border-right: none; }
+
+.filter-btn:hover { background: var(--bg); }
+
+.filter-btn.active {
+  background: var(--purple);
+  color: var(--white);
+}
+
+.filter-btn.active.priority-must { background: var(--danger); }
+.filter-btn.active.priority-should { background: var(--warning); }
+.filter-btn.active.priority-could { background: #3B82F6; }
+
+.view-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.view-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-right: 1px solid var(--border);
+}
+
+.view-btn:last-child { border-right: none; }
+.view-btn:hover { background: var(--bg); }
+
+.view-btn.active {
+  background: var(--purple);
+  color: var(--white);
+}
+
+/* Main content */
+.main {
+  padding: 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Table View */
+.table-container {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.backlog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.backlog-table thead {
+  background: var(--bg);
+  position: sticky;
+  top: 68px;
+  z-index: 10;
+}
+
+.backlog-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.backlog-table th:hover { color: var(--purple); }
+
+.backlog-table th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.3;
+}
+
+.backlog-table th.sorted .sort-icon { opacity: 1; color: var(--purple); }
+
+.backlog-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.backlog-table tbody tr {
+  transition: background var(--transition);
+}
+
+.backlog-table tbody tr:hover {
+  background: #F3F0FF;
+}
+
+.backlog-table tbody tr:last-child td { border-bottom: none; }
+
+.feature-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.feature-name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.feature-name a {
+  color: var(--purple);
+  text-decoration: none;
+  font-weight: 600;
+}
+.feature-name a:hover { text-decoration: underline; }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Priority badges */
+.priority-must { background: var(--danger-light); color: var(--danger); }
+.priority-should { background: var(--warning-light); color: var(--warning); }
+.priority-could { background: #DBEAFE; color: #2563EB; }
+
+/* Status badges */
+.status-idea { background: #F3F4F6; color: #6B7280; }
+.status-specd { background: #DBEAFE; color: #2563EB; }
+.status-building { background: var(--warning-light); color: var(--warning); }
+.status-pr-open { background: #FED7AA; color: #C2410C; }
+.status-in-review { background: #EDE9FE; color: #7C3AED; }
+.status-merged { background: #CFFAFE; color: var(--cyan-dark); }
+.status-done { background: var(--success-light); color: var(--success); }
+
+/* Effort badges */
+.effort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-title);
+}
+
+.effort-s { background: var(--success-light); color: var(--success); }
+.effort-m { background: #DBEAFE; color: #2563EB; }
+.effort-l { background: var(--warning-light); color: var(--warning); }
+.effort-xl { background: var(--danger-light); color: var(--danger); }
+
+/* Sprint badges */
+.sprint-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-title);
+  white-space: nowrap;
+}
+
+.sprint-1 { background: #EDE9FE; color: #7C3AED; }
+.sprint-2 { background: #CFFAFE; color: var(--cyan-dark); }
+.sprint-3 { background: #FEF3C7; color: #92400E; }
+.sprint-backlog { background: #F3F4F6; color: #6B7280; }
+
+/* Sprint Summary Cards */
+.sprint-summary {
+  display: flex;
+  gap: 12px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.sprint-card {
+  flex: 1;
+  min-width: 200px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.sprint-card:hover {
+  border-color: var(--purple-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.sprint-card.active {
+  border-color: var(--purple);
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.sprint-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sprint-card-name {
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.sprint-card-count {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--purple);
+}
+
+.sprint-card-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.sprint-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.sprint-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.sprint-progress-fill.sprint-1-fill { background: #7C3AED; }
+.sprint-progress-fill.sprint-2-fill { background: var(--cyan); }
+.sprint-progress-fill.sprint-3-fill { background: var(--warning); }
+.sprint-progress-fill.sprint-backlog-fill { background: #9CA3AF; }
+
+.sprint-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Sprint group headers in table */
+.sprint-group-header td {
+  padding: 8px 14px;
+  background: var(--bg);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--purple-dark);
+  border-bottom: 2px solid var(--border);
+  letter-spacing: 0.02em;
+}
+
+.sprint-group-header:hover { background: transparent !important; }
+
+/* Docs Bar */
+.docs-bar {
+  padding: 10px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.docs-bar-label {
+  font-family: var(--font-title);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.doc-link:hover {
+  border-color: var(--purple-light);
+  color: var(--purple);
+  background: #F3F0FF;
+}
+
+.doc-link .doc-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Kanban sprint divider */
+.kanban-sprint-label {
+  padding: 4px 8px;
+  margin: 4px 0 2px;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.deps-list {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.dep-tag {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--cyan-dark);
+  background: #ECFEFF;
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.dep-tag:hover {
+  background: var(--cyan);
+  color: var(--white);
+}
+
+.no-deps {
+  color: #D1D5DB;
+  font-size: 11px;
+}
+
+.pr-link {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--purple);
+  text-decoration: none;
+}
+
+.pr-link:hover { text-decoration: underline; }
+
+/* Kanban View */
+.kanban-container {
+  display: none;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.kanban-container.active {
+  display: flex;
+}
+
+.kanban-column {
+  min-width: 220px;
+  max-width: 260px;
+  flex: 1;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  padding: 12px 14px;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-column-header .count {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.kanban-cards {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 80px;
+}
+
+.kanban-card {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--white);
+  cursor: default;
+  transition: all var(--transition);
+  animation: card-in 0.3s ease both;
+}
+
+.kanban-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--purple-light);
+  transform: translateY(-1px);
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kanban-card .card-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.kanban-card .card-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0 8px;
+  line-height: 1.3;
+}
+
+.kanban-card .card-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kanban-card .card-deps {
+  margin-top: 6px;
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+/* Dependency Graph */
+.dep-graph-section {
+  margin-top: 24px;
+}
+
+.dep-graph-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  user-select: none;
+}
+
+.dep-graph-toggle .chevron {
+  transition: transform var(--transition);
+  font-size: 12px;
+}
+
+.dep-graph-toggle.open .chevron {
+  transform: rotate(90deg);
+}
+
+.dep-graph-container {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.4s ease;
+}
+
+.dep-graph-container.open {
+  max-height: 600px;
+}
+
+.dep-graph-canvas {
+  width: 100%;
+  height: 400px;
+  display: block;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+}
+
+/* Animations */
+.fade-enter {
+  animation: fadeIn 0.25s ease both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.table-container tbody tr { animation: row-in 0.2s ease both; }
+@keyframes row-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header { padding: 14px 16px; }
+  .header h1 { font-size: 16px; }
+  .stats-bar { padding: 12px 16px; }
+  .toolbar { padding: 10px 16px; }
+  .main { padding: 16px; }
+  .backlog-table { font-size: 12px; }
+  .backlog-table th, .backlog-table td { padding: 8px 8px; }
+  .kanban-column { min-width: 200px; }
+  .filters { gap: 6px; }
+
+  .hide-mobile { display: none; }
+  .sprint-summary { padding: 12px 16px; gap: 8px; }
+  .sprint-card { min-width: 160px; padding: 10px 12px; }
+}
+
+@media (max-width: 480px) {
+  .header-right { display: none; }
+  .stats-bar { gap: 8px; }
+  .stat-card { padding: 6px 10px; font-size: 12px; }
+  .stat-card .stat-number { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <img src="https://ds.visionvolve.com/assets/logos/visionvolve-logo-white.svg" alt="VisionVolve" class="header-logo">
+    <h1>Playbook Backlog</h1>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">Updated just now</span>
+    <span class="refresh-dot" title="Auto-refreshing every 30s"></span>
+  </div>
+</header>
+
+<!-- Planning Docs Bar -->
+<div class="docs-bar">
+  <span class="docs-bar-label">Planning Docs</span>
+  <a class="doc-link" href="plans/2026-02-22-playbook-vision.html" target="_blank">
+    <span class="doc-icon">🎯</span> Product Vision
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-gap-analysis.md" target="_blank">
+    <span class="doc-icon">🔍</span> Gap Analysis
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-gtm-strategy.md" target="_blank">
+    <span class="doc-icon">📈</span> GTM Strategy
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-business-model-analysis.md" target="_blank">
+    <span class="doc-icon">💼</span> Business Model
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-playbook-multi-phase-design.md" target="_blank">
+    <span class="doc-icon">📐</span> Playbook Design
+  </a>
+  <a class="doc-link" href="plans/2026-02-22-playbook-implementation-backlog.md" target="_blank">
+    <span class="doc-icon">📋</span> Implementation Backlog
+  </a>
+  <a class="doc-link" href="vision/index.html" target="_blank">
+    <span class="doc-icon">🚀</span> Vision Microsite
+  </a>
+</div>
+
+<!-- Sprint Summary -->
+<div class="sprint-summary" id="sprintSummary"></div>
+
+<!-- Summary Stats -->
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="filters">
+    <div class="filter-group" id="priorityFilter">
+      <button class="filter-btn active" data-priority="all">All</button>
+      <button class="filter-btn priority-must" data-priority="Must Have">Must</button>
+      <button class="filter-btn priority-should" data-priority="Should Have">Should</button>
+      <button class="filter-btn priority-could" data-priority="Could Have">Could</button>
+    </div>
+    <div class="filter-group" id="statusFilter">
+      <button class="filter-btn active" data-status="all">All</button>
+      <button class="filter-btn" data-status="Idea">Idea</button>
+      <button class="filter-btn" data-status="Spec'd">Spec'd</button>
+      <button class="filter-btn" data-status="PR Open">PR Open</button>
+      <button class="filter-btn" data-status="Done">Done</button>
+    </div>
+    <div class="filter-group" id="sprintFilter">
+      <button class="filter-btn active" data-sprint="all">All</button>
+      <button class="filter-btn" data-sprint="Sprint 1">S1</button>
+      <button class="filter-btn" data-sprint="Sprint 2">S2</button>
+      <button class="filter-btn" data-sprint="Sprint 3">S3</button>
+      <button class="filter-btn" data-sprint="Backlog">BL</button>
+    </div>
+    <div class="filter-group" id="effortFilter">
+      <button class="filter-btn active" data-effort="all">All</button>
+      <button class="filter-btn" data-effort="S">S</button>
+      <button class="filter-btn" data-effort="M">M</button>
+      <button class="filter-btn" data-effort="L">L</button>
+      <button class="filter-btn" data-effort="XL">XL</button>
+    </div>
+  </div>
+
+  <div class="view-toggle">
+    <button class="view-btn active" data-view="table">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a1 1 0 011-1h14a1 1 0 011 1v1H0V2zm0 3h16v2H0V5zm0 4h16v2H0V9zm0 4h16v1a1 1 0 01-1 1H1a1 1 0 01-1-1v-1z"/></svg>
+      Table
+    </button>
+    <button class="view-btn" data-view="kanban">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h4v14H1V1zm5 0h4v10H6V1zm5 0h4v12h-4V1z"/></svg>
+      Kanban
+    </button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <!-- Table View -->
+  <div class="table-container" id="tableView">
+    <table class="backlog-table">
+      <thead>
+        <tr>
+          <th data-sort="id">ID <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="name">Feature <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="sprint">Sprint <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="priority">Priority <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="effort">Effort <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="status">Status <span class="sort-icon">&#9650;</span></th>
+          <th class="hide-mobile">PR</th>
+          <th class="hide-mobile">Deps</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Kanban View -->
+  <div class="kanban-container" id="kanbanView"></div>
+
+  <!-- Dependency Graph -->
+  <div class="dep-graph-section">
+    <div class="dep-graph-toggle" id="depGraphToggle">
+      <span class="chevron">&#9654;</span>
+      Dependency Graph
+    </div>
+    <div class="dep-graph-container" id="depGraphContainer">
+      <canvas class="dep-graph-canvas" id="depCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Backlog Data ────────────────────────────────────────────────
+const BACKLOG_DATA = [
+  {"id": "PB-035", "name": "Auto-Save (Debounced)", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#36", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Auto-Save (Debounced)\n\n### Goal\nAutomatically save the strategy document as the user types, eliminating manual save actions and preventing data loss.\n\n### Behavior\n- **Debounce interval**: 1.5 seconds after last keystroke\n- **Visual feedback**: Subtle \"Saving...\" indicator in top bar, transitions to \"Saved\" with checkmark\n- **Conflict handling**: If server returns 409 (concurrent edit), show merge dialog\n- **Offline queue**: Store pending saves in localStorage; flush when reconnected\n- **Scope**: Strategy doc fields (title, body, ICP, pain points, etc.)\n\n### Technical Approach\n- `useAutoSave(docId, fields, delay)` custom hook\n- PATCH `/api/strategies/:id` with changed fields only (delta save)\n- ETag-based optimistic concurrency on the API\n- localStorage key: `autosave:{tenantId}:{docId}`\n\n### Acceptance Criteria\n- Given a user editing the strategy doc, when they pause typing for 1.5s, then changes are persisted without clicking Save\n- Given a network failure, when connectivity returns, then queued saves are flushed automatically\n- Given two users editing the same doc, when a conflict is detected, then a merge dialog appears"},
+  {"id": "PB-036", "name": "Real-Time Collaboration (Yjs)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Real-Time Collaboration (Yjs)\n\n### Goal\nAllow multiple users to edit the same strategy document simultaneously with live cursors and presence awareness.\n\n### Behavior\n- **Live cursors**: Each collaborator sees others' cursor positions with colored name labels\n- **Presence**: Avatar pills in top bar show who is viewing/editing\n- **Sync**: Sub-second convergence using CRDT (Yjs)\n- **Offline**: Local edits queue and merge automatically on reconnect\n\n### Technical Approach\n- Yjs + y-websocket provider (or Hocuspocus for auth)\n- Y.Doc per strategy document, Y.Text for rich-text body\n- WebSocket endpoint: `/ws/collab/:docId`\n- Awareness protocol for cursor/selection sharing\n- Requires PB-035 (auto-save) as the persistence layer\n\n### Acceptance Criteria\n- Given two users on the same doc, when one types, the other sees changes within 500ms\n- Given a user goes offline and types, when they reconnect, their changes merge without data loss\n- Given three concurrent editors, all cursors and selections are visible and labeled"},
+  {"id": "PB-037", "name": "Intelligent Auto-Extraction", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Intelligent Auto-Extraction\n\n### Goal\nAutomatically extract structured fields (ICP, pain points, value props) from the free-text strategy body using AI.\n\n### Behavior\n- **Trigger**: After auto-save completes, if body changed significantly (>50 chars delta)\n- **Extraction**: AI reads strategy body and populates/updates structured fields\n- **Review**: Extracted values appear as suggestions (yellow highlight) until user confirms\n- **Scope**: ICP, industry, company size, pain points, value propositions, key messaging\n\n### Technical Approach\n- Background job triggered by save webhook\n- Claude API with structured output (JSON schema)\n- Diff extracted fields against current values; only suggest changes\n- `PATCH /api/strategies/:id/suggestions` stores pending suggestions\n- UI shows inline diff with Accept/Reject per field\n\n### Acceptance Criteria\n- Given a user writes a strategy paragraph mentioning \"Series A SaaS companies with 50-200 employees\", when auto-save fires, then ICP fields are suggested with those values\n- Given extracted values match existing fields, then no suggestion is created (no noise)\n- Given user rejects a suggestion, it is not re-suggested unless the source text changes"},
+  {"id": "PB-001", "name": "Phase Infrastructure (Migration+Model+API)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#37", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Phase Infrastructure (Migration+Model+API)\n\n### Goal\nAdd the database schema, models, and API endpoints to support multi-phase playbook workflows (Strategy, Contacts, Messages, Campaign).\n\n### Scope\n- **Migration 005**: `phases` table with `id`, `strategy_id`, `phase_type` (enum), `status`, `config` (JSONB), `created_at`, `updated_at`\n- **Model**: `Phase` SQLAlchemy model with relationships to Strategy\n- **API endpoints**:\n  - `GET /api/strategies/:id/phases` — list phases for a strategy\n  - `POST /api/strategies/:id/phases` — create a phase\n  - `PATCH /api/phases/:id` — update phase status/config\n  - `GET /api/phases/:id` — get phase detail\n- **Phase types**: `strategy`, `contacts`, `messages`, `campaign`\n- **Phase statuses**: `not_started`, `in_progress`, `completed`, `skipped`\n\n### Acceptance Criteria\n- Given a new strategy, when created, then 4 default phases are auto-created in order\n- Given a phase is completed, when the next phase is queried, its status can be set to in_progress\n- Given phase config is updated via PATCH, then only provided fields are merged (JSONB merge)"},
+  {"id": "PB-006", "name": "Phase UI (Routing+Stepper+TopBar)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#39", "deps": ["PB-001"], "assignee": "", "sprint": "Sprint 1", "spec": "## Phase UI (Routing+Stepper+TopBar)\n\n### Goal\nBuild the frontend routing, phase stepper navigation, and top bar to support the multi-phase playbook workflow.\n\n### Scope\n- **React Router**: `/strategy/:id/phase/:type` routes\n- **Phase Stepper**: Horizontal step indicator showing all 4 phases with current/completed/locked states\n- **Top Bar**: Strategy name, phase stepper, and action buttons (Save, AI Chat toggle)\n- **Phase transitions**: Click stepper to navigate; locked phases show tooltip \"Complete previous phase first\"\n- **Responsive**: Stepper collapses to dropdown on mobile\n\n### Technical Approach\n- `PhaseLayout` wrapper component with stepper + content area\n- `usePhasesQuery(strategyId)` React Query hook\n- Stepper component: 4 circles connected by lines, filled/outlined/locked states\n- CSS transitions for stepper state changes\n- Depends on PB-001 for phase API\n\n### Acceptance Criteria\n- Given a strategy with 4 phases, the stepper shows all phases with correct states\n- Given the user clicks a completed phase, navigation occurs\n- Given the user clicks a locked phase, a tooltip explains the prerequisite\n- Given mobile viewport, the stepper collapses to a dropdown selector"},
+  {"id": "TONE", "name": "AI Tone Fix + TODOs + Doc Awareness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#35", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## AI Tone Fix + TODOs + Doc Awareness\n\n### Goal\nFix the AI chat assistant's tone to be a collaborative marketing strategist rather than a generic chatbot. Add TODO tracking and strategy document awareness.\n\n### Scope\n- **Tone rules**: System prompt updated to act as \"Chief Marketing Strategist\" — confident, concise, proactive\n- **Forbidden patterns**: No \"Sure!\", \"Great question!\", \"I'd be happy to help\" — get straight to substance\n- **TODO extraction**: AI identifies action items from conversations and adds to TODO sidebar\n- **Doc awareness**: AI reads current strategy doc before responding, references specific sections\n- **is_self gate**: Prevents AI from responding to its own messages in the chat loop\n\n### Acceptance Criteria\n- Given a user asks \"what should my ICP be?\", the AI responds with a direct recommendation (not \"That's a great question!\")\n- Given a conversation mentions \"we should test LinkedIn ads\", a TODO item is auto-created\n- Given the strategy doc mentions B2B SaaS, the AI references this when discussing messaging"},
+  {"id": "CHAT-MD", "name": "Chat Markdown Rendering + Conciseness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#38", "deps": [], "assignee": "", "sprint": "Sprint 1", "spec": "## Chat Markdown Rendering + Conciseness\n\n### Goal\nRender AI chat responses as formatted markdown instead of plain text, and enforce concise output.\n\n### Scope\n- **Markdown rendering**: Headings, bold, italic, lists, code blocks, links in chat bubbles\n- **react-markdown**: Use the react-markdown library with remark-gfm plugin\n- **Conciseness prompt**: Add `max_tokens` budget and system instructions for brevity\n- **Code blocks**: Syntax-highlighted with copy button\n- **Tables**: GFM table rendering in chat context\n\n### Technical Approach\n- Install `react-markdown` + `remark-gfm` + `rehype-highlight`\n- Replace `<p>{message.content}</p>` with `<ReactMarkdown>{message.content}</ReactMarkdown>`\n- Custom components for code blocks (copy button), links (open in new tab)\n- System prompt addendum: \"Be concise. Use bullet points. Max 3 paragraphs unless asked for detail.\"\n\n### Acceptance Criteria\n- Given AI responds with markdown, the chat bubble renders formatted headings, lists, and bold text\n- Given AI includes a code block, it appears with syntax highlighting and a copy button\n- Given a simple question, the AI response is under 150 words"},
+  {"id": "PERSIST", "name": "Persistent App-Wide Chat (Marketing Strategist)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2", "spec": "## Persistent App-Wide Chat (Marketing Strategist)\n\n### Goal\nThe AI chat should persist across page navigations and be accessible from any page in the app, acting as an always-available marketing strategist.\n\n### Behavior\n- **Global sidebar**: Chat panel slides in from the right on any page\n- **Persistent history**: Conversations are stored per-strategy and loaded on revisit\n- **Context-aware**: Chat knows which page/phase the user is on and adapts\n- **Thread model**: One conversation thread per strategy, with ability to start fresh\n\n### Technical Approach\n- `ChatProvider` at app root with React Context\n- `messages` table: `id`, `strategy_id`, `role` (user/assistant/system), `content`, `created_at`\n- API: `GET/POST /api/strategies/:id/messages`\n- Sliding panel component with chat history + input\n- Keyboard shortcut: `Cmd+K` toggles chat\n\n### Acceptance Criteria\n- Given a user chats on the Strategy phase, navigates to Contacts, then returns — chat history is preserved\n- Given a user opens the app on a new device, previous conversations load from the server\n- Given `Cmd+K` is pressed on any page, the chat panel toggles open/closed"},
+  {"id": "AGENT", "name": "Agent-Ready Chat (Tool Use Architecture)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2", "spec": "## Agent-Ready Chat (Tool Use Architecture)\n\n### Goal\nUpgrade the chat backend to support AI tool use (function calling), enabling the AI to take actions like updating the strategy doc, searching contacts, or triggering workflows.\n\n### Behavior\n- **Tool definitions**: Registered set of tools the AI can invoke (read_strategy, update_field, search_contacts, etc.)\n- **Tool execution**: Backend executes tool calls and returns results to the AI\n- **Multi-turn**: AI can chain multiple tool calls in a single response\n- **Safety**: All tool calls are logged; destructive actions require user confirmation\n\n### Technical Approach\n- Claude API `tools` parameter with JSON schema definitions\n- Tool registry: Python dict mapping tool names to handler functions\n- Execution loop: send message -> if tool_use -> execute -> send result -> repeat\n- Tool handlers: `strategy_tools.py`, `contact_tools.py`, `workflow_tools.py`\n- Audit log: every tool call logged to `tool_executions` table\n\n### Acceptance Criteria\n- Given the AI decides to update ICP, it calls `update_strategy_field` and the doc updates in real-time\n- Given a tool call fails, the AI receives the error and explains to the user\n- Given a destructive tool call, the user sees a confirmation dialog before execution"},
+  {"id": "THINK", "name": "Transparent AI Thinking (Tool Calls, Reasoning)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2", "spec": "## Transparent AI Thinking (Tool Calls, Reasoning)\n\n### Goal\nShow the user what the AI is doing behind the scenes — which tools it's calling, what data it's reading, and its reasoning process.\n\n### Behavior\n- **Thinking indicator**: Animated \"thinking\" state while AI processes\n- **Tool call cards**: Inline cards showing \"Reading strategy doc...\", \"Searching 847 contacts...\", \"Updating ICP field...\"\n- **Expandable detail**: Click a tool card to see the raw input/output\n- **Reasoning traces**: Optional \"Show reasoning\" toggle displays the AI's chain of thought\n\n### Technical Approach\n- Stream tool_use events from the API via SSE (Server-Sent Events)\n- `ToolCallCard` component: icon, name, status (running/done/error), expandable body\n- Reasoning: Use Claude's `thinking` blocks if available, else parse from response\n- State machine: `idle -> thinking -> tool_calling -> responding`\n\n### Acceptance Criteria\n- Given the AI calls `search_contacts`, the user sees \"Searching contacts...\" before the result\n- Given a multi-tool response, each tool call appears as a separate card in sequence\n- Given the user clicks a tool card, raw input/output JSON is shown"},
+  {"id": "WRITE", "name": "Chat Writes/Updates Strategy Doc Directly", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2", "spec": "## Chat Writes/Updates Strategy Doc Directly\n\n### Goal\nThe AI can directly edit the strategy document through chat — updating fields, adding sections, and refining content based on conversation.\n\n### Behavior\n- **Direct edits**: AI calls tools like `update_strategy_body`, `set_icp_field`, `add_pain_point`\n- **Inline diff**: User sees what changed with green/red highlighting before confirming\n- **Undo**: Each AI edit creates a version snapshot; user can undo\n- **Batch edits**: AI can make multiple field updates in one turn\n\n### Technical Approach\n- Strategy tool handlers: `update_body(section, content)`, `set_field(field, value)`, `append_section(title, content)`\n- Diff engine: `diff-match-patch` library for inline change visualization\n- Version table: `strategy_versions` with full JSON snapshot per edit\n- Real-time push: WebSocket event notifies other tabs of changes\n\n### Acceptance Criteria\n- Given user says \"update the ICP to focus on Series B fintech\", the AI calls the tool and the doc updates live\n- Given an AI edit, the user sees a diff overlay showing before/after\n- Given user clicks Undo, the previous version is restored"},
+  {"id": "ONBOARD", "name": "Smart Onboarding (Discovery Qs Before Draft)", "priority": "Must Have", "effort": "S", "status": "Idea", "deps": ["WRITE"], "assignee": "", "sprint": "Sprint 3", "spec": "## Smart Onboarding (Discovery Qs Before Draft)\n\n### Goal\nWhen a user creates a new strategy, the AI asks targeted discovery questions before drafting anything — acting like a real strategist's first meeting.\n\n### Behavior\n- **Guided flow**: 5-7 questions asked one at a time (not a form)\n- **Adaptive**: Questions change based on previous answers (\"You mentioned SaaS — B2B or B2C?\")\n- **Draft generation**: After discovery, AI auto-generates the first strategy draft\n- **Skip option**: Experienced users can skip with \"I'll write it myself\"\n\n### Question Sequence (adaptive)\n1. What does your company do? (elevator pitch)\n2. Who is your ideal customer? (role, company type, size)\n3. What problem do you solve for them?\n4. What channels do you currently use for outreach?\n5. What's working? What isn't?\n6. What's your primary goal for the next 90 days?\n7. Any competitors we should be aware of?\n\n### Acceptance Criteria\n- Given a new strategy is created, the AI starts with question 1 instead of a blank doc\n- Given the user answers all questions, a complete strategy draft is generated automatically\n- Given the user says \"skip\", they get an empty strategy doc template"},
+  {"id": "N8N-RM", "name": "Remove n8n \u2192 Python Orchestration", "priority": "Must Have", "effort": "XL", "status": "Spec'd", "deps": [], "assignee": "", "sprint": "Backlog", "spec": "## Remove n8n -> Python Orchestration\n\n### Goal\nReplace the n8n-based enrichment pipeline with a native Python orchestration layer, reducing infrastructure complexity and improving debuggability.\n\n### Scope\n- **Migrate 6 workflows**: Orchestrator, L1 Company, L2 Company, L2 Person, Progress Store, Batch APIs\n- **Python orchestrator**: Celery (or dramatiq) task queue with Redis broker\n- **Direct API calls**: Replace n8n HTTP nodes with Python `httpx` calls to Perplexity, Anthropic, Airtable\n- **Progress**: WebSocket push instead of n8n webhook polling\n- **Monitoring**: Structured logging + Sentry for error tracking\n\n### Migration Strategy\n1. Build Python orchestrator alongside n8n (parallel run)\n2. A/B test: route 10% of batches to Python\n3. Validate results match n8n output\n4. Cut over and decommission n8n\n\n### Acceptance Criteria\n- Given a batch is triggered, the Python orchestrator produces identical enrichment results to n8n\n- Given a sub-workflow fails, retries happen automatically with exponential backoff\n- Given the migration is complete, n8n container is removed and VPS RAM usage drops by ~500MB"},
+  {"id": "COLLAB", "name": "Real-Time Collaboration (Yjs/Hocuspocus)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Real-Time Collaboration (Yjs/Hocuspocus)\n\n### Goal\nEnable real-time collaborative editing of strategy documents using Yjs CRDTs with Hocuspocus as the WebSocket server.\n\n### Scope\n- **Hocuspocus server**: Node.js WebSocket server with auth hook\n- **Yjs integration**: Y.Doc per strategy, Y.XmlFragment for rich text body\n- **Presence**: User avatars and cursor positions\n- **Persistence**: Hocuspocus writes to PostgreSQL via custom extension\n- **Auth**: JWT token validation on WebSocket connect\n\n### Technical Approach\n- Hocuspocus server as separate Docker container\n- `@hocuspocus/extension-database` for PG persistence\n- Frontend: `y-prosemirror` bindings for the rich text editor\n- Awareness protocol for presence (name, color, cursor)\n\n### Acceptance Criteria\n- Given two users open the same strategy, edits from one appear on the other's screen in real-time\n- Given a user disconnects and reconnects, their document state converges correctly\n- Given authentication fails, the WebSocket connection is rejected with 401"},
+  {"id": "VOICE", "name": "Voice Interface (ElevenLabs MVP)", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Backlog", "spec": "## Voice Interface (ElevenLabs MVP)\n\n### Goal\nAllow users to interact with the AI strategist via voice — speak questions, hear responses — for a more natural strategy session experience.\n\n### Scope\n- **Speech-to-text**: Browser Web Speech API (free) or Whisper API\n- **Text-to-speech**: ElevenLabs API with a professional voice\n- **Push-to-talk**: Hold spacebar or click mic button to speak\n- **Voice responses**: AI responses are both displayed as text and spoken aloud\n- **Settings**: Voice on/off toggle, voice selection, speed control\n\n### Technical Approach\n- `useVoiceInput()` hook: manages Web Speech API / Whisper\n- `useVoiceOutput()` hook: manages ElevenLabs streaming TTS\n- Backend proxy: `/api/tts` to avoid exposing ElevenLabs API key\n- Audio player: streaming playback with cancel on new input\n- Depends on ONBOARD (voice is especially powerful for discovery flow)\n\n### Acceptance Criteria\n- Given the user holds the mic button and speaks, their speech is transcribed and sent as a chat message\n- Given the AI responds, the response is spoken aloud with natural intonation\n- Given the user toggles voice off, only text chat is used"},
+  {"id": "TMPL", "name": "GTM Strategy Templates (Hybrid)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Sprint 3", "spec": "## GTM Strategy Templates (Hybrid)\n\n### Goal\nProvide pre-built GTM strategy templates that combine structured fields with AI-generated content, so users can start with a proven framework and customize.\n\n### Templates\n- **SaaS PLG**: Product-led growth for B2B SaaS\n- **Enterprise ABM**: Account-based marketing for high-ACV deals\n- **SMB Outbound**: Cold outreach for SMB market\n- **Startup Launch**: First GTM motion for pre-seed/seed startups\n- **Expansion Play**: Upsell/cross-sell to existing customers\n\n### Behavior\n- **Template gallery**: Visual cards with preview and description\n- **Hybrid generation**: Template provides structure; AI fills in company-specific content\n- **Customizable**: All template fields are editable after generation\n- **Smart selection**: AI recommends templates based on onboarding answers\n\n### Acceptance Criteria\n- Given a user selects \"SaaS PLG\" template, a strategy is created with PLG-specific sections pre-filled\n- Given onboarding reveals enterprise sales motion, the AI recommends \"Enterprise ABM\" template\n- Given a template is applied, all fields are editable (not locked)"},
+  {"id": "ANALYZE", "name": "Contacts/Companies Analyzer Tool", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Contacts/Companies Analyzer Tool\n\n### Goal\nGive the AI the ability to analyze the user's contacts and companies database to inform strategy recommendations.\n\n### Tools\n- `search_contacts(query, filters)` — search by name, title, company, tags\n- `analyze_contacts(segment)` — aggregate stats (titles, industries, company sizes)\n- `search_companies(query, filters)` — search by name, industry, tier\n- `analyze_companies(segment)` — tier distribution, enrichment status, industry breakdown\n\n### Behavior\n- AI uses these tools when discussing ICP, outreach strategy, or contact segmentation\n- Results are summarized in natural language with key stats\n- User can ask: \"How many of my contacts are CTOs at Series B SaaS companies?\"\n\n### Technical Approach\n- Tool handlers query PostgreSQL with parameterized filters\n- Aggregate queries use SQL GROUP BY for performance\n- Response format: structured JSON that AI interprets for the user\n- Rate limited: max 5 tool calls per message to prevent abuse\n\n### Acceptance Criteria\n- Given user asks \"who are my best contacts for enterprise sales?\", the AI searches and summarizes matching contacts\n- Given user asks \"what industries are most represented?\", the AI runs an aggregate and presents a breakdown\n- Given the contact database has 2000+ records, search returns in under 2 seconds"},
+  {"id": "LANG", "name": "Namespace Language Settings", "priority": "Should Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Backlog", "spec": "## Namespace Language Settings\n\n### Goal\nAllow each namespace (tenant) to configure their preferred language for the AI assistant and UI elements.\n\n### Scope\n- **Language setting**: Per-namespace config stored in `namespaces` table\n- **AI language**: System prompt includes language instruction\n- **UI i18n**: Key UI strings translated (buttons, labels, placeholders)\n- **Supported languages**: English (default), Czech, German, Spanish, French\n- **Settings page**: Admin dropdown to select namespace language\n\n### Technical Approach\n- `language` column on `namespaces` table (default: 'en')\n- i18n JSON files: `locales/{lang}.json` with key-value translations\n- `useI18n()` hook reads namespace language from auth context\n- AI system prompt: \"Always respond in {language}. The user's interface is in {language}.\"\n- Backend: `Accept-Language` header forwarded to AI calls\n\n### Acceptance Criteria\n- Given namespace language is set to Czech, the AI responds in Czech\n- Given namespace language is set to German, UI labels appear in German\n- Given no language is set, English is used as default"},
+  {"id": "VERSION", "name": "Strategy Version History + AI Revert", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog", "spec": "## Strategy Version History + AI Revert\n\n### Goal\nTrack every change to a strategy document with full version history, and allow AI-assisted revert to any previous version.\n\n### Behavior\n- **Auto-versioning**: Every save creates a version snapshot (debounced, max 1 per minute)\n- **Version timeline**: Side panel showing version list with timestamps, authors, and change summaries\n- **Diff view**: Compare any two versions with inline diff highlighting\n- **AI revert**: Tell the AI \"go back to the version from Tuesday\" and it finds and restores it\n- **Named versions**: Users can name important versions (\"v1 - Board Presentation\")\n\n### Technical Approach\n- `strategy_versions` table: `id`, `strategy_id`, `version_number`, `snapshot` (JSONB), `summary`, `created_by`, `created_at`\n- Auto-summary: AI generates one-line change description per version\n- Diff: JSON deep-diff on snapshot objects, rendered as field-level changes\n- Revert tool: `revert_to_version(version_id)` for AI tool use\n\n### Acceptance Criteria\n- Given 10 saves over an hour, the version timeline shows 10 entries with summaries\n- Given user asks AI \"revert to last Tuesday\", the correct version is identified and restored\n- Given two versions are selected, a clear diff shows what changed"},
+  {"id": "BL-052", "name": "Contact Filtering, Selection & Campaign Management", "priority": "Must Have", "effort": "L", "status": "Spec'd", "deps": ["AGENT", "PB-001"], "assignee": "", "sprint": "Sprint 3", "spec": "## Contact Filtering, Selection & Campaign Management via Chat + UI\n\n### Goal\nEnable users to filter/select contacts and create or assign them to campaigns through BOTH the AI chat (as tool-use actions) and traditional UI (filter panel + table + modal).\n\n### Chat Tools\n- **filter_contacts**: Search contacts by tier, industry, seniority, department, region, score, enrichment status. Returns summary + top contacts.\n- **create_campaign**: Create a new campaign with name, description, strategy link.\n- **assign_to_campaign**: Add contacts (by IDs, company IDs, or filters) to a campaign. Handles dedup.\n- **check_strategy_conflicts**: Flag ICP mismatches, channel gaps, segment overlaps, timing/cooldown violations, tone mismatches.\n- **remove_from_campaign**: Remove contacts from draft/ready campaigns.\n\n### UI Components\n- **Filter Panel**: Faceted multi-value filters (company: tier, industry, size, region, revenue; contact: seniority, department, icp_fit, score range, language). Each filter shows counts.\n- **Contact Table**: Checkboxes, sort, virtual scroll, campaign badges for contacts already in campaigns.\n- **Add to Campaign Modal**: Select existing campaign or create new. Shows enrichment readiness and conflict check.\n- **Chat-UI Sync**: AI filters populate UI panel; UI selections available to AI.\n\n### API Endpoints\n- `POST /api/contacts/search` — Advanced paginated search with facets (for UI and AI)\n- `POST /api/contacts/search/summary` — Aggregate stats without records (for AI)\n- `POST /api/campaigns/{id}/conflict-check` — Strategy conflict analysis\n- Migration: `strategy_id`, `target_criteria`, `conflict_report`, `contact_cooldown_days` on campaigns; `campaign_overlap_log` audit table\n\n### Data Model Changes\n- Campaigns: add strategy_id (FK), target_criteria (JSONB), conflict_report (JSONB), contact_cooldown_days (INT)\n- New table: campaign_overlap_log (audit trail for overlap decisions)\n- No changes to contacts or messages tables\n\n### Conflict Detection (5 types)\n1. **ICP Mismatch**: Company attributes vs strategy ICP definition\n2. **Channel Gap**: Missing email/LinkedIn for campaign's configured channels\n3. **Segment Overlap**: Contact in other active/approved campaigns\n4. **Cooldown Violation**: Recently contacted (configurable per-channel cooldown)\n5. **Tone Mismatch**: Campaign tone vs contact relationship status\n\n### Acceptance Criteria\n- Given a user asks the AI to find contacts, the AI calls filter_contacts and returns a summary with top contacts and offers to create a campaign\n- Given no contacts match, the AI suggests relaxing criteria with alternatives\n- Given a user says 'create a campaign with those contacts', the AI creates the campaign and assigns contacts in one turn\n- Given contacts overlap with another campaign, the AI flags the overlap with campaign names and status\n- Given the UI filter panel is used, faceted counts update in real-time as filters change\n- Given 15 contacts are selected in the UI, clicking 'Add to Campaign' opens a modal with existing/new campaign options\n- Given the AI filters contacts, the UI filter panel can sync to show the same results"},
+  {"id": "MULTI", "name": "Multi-Strategy + Campaign Linking", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-001"], "assignee": "", "sprint": "Backlog", "spec": "## Multi-Strategy + Campaign Linking\n\n### Goal\nAllow users to create multiple strategies per namespace and link them to specific outreach campaigns.\n\n### Scope\n- **Strategy list**: Dashboard view showing all strategies with status, last updated, linked campaigns\n- **Create new**: \"New Strategy\" button with template selection or blank\n- **Campaign linking**: Each strategy can be linked to one or more campaigns\n- **Archive**: Soft-delete strategies (archive/restore)\n- **Strategy switcher**: Quick-switch dropdown in the top bar\n\n### Technical Approach\n- Strategies table already supports multiple per namespace\n- New: `strategy_campaigns` join table linking strategies to campaigns\n- UI: Strategy list page at `/{namespace}/strategies`\n- Strategy card: name, phase progress, last edit, campaign count\n- Depends on PB-001 (phase infrastructure) for phase progress display\n\n### Acceptance Criteria\n- Given a namespace, the user can create and view multiple strategies\n- Given a strategy is linked to 2 campaigns, both appear in the strategy detail\n- Given a strategy is archived, it disappears from the list but can be restored from archive view"},
+  {"id": "TABS", "name": "Strategy Tabs (Sub-Documents)", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["MULTI"], "assignee": "", "sprint": "Backlog", "spec": "## Strategy Tabs (Sub-Documents)\n\n### Goal\nAllow a strategy to contain multiple tabs/sub-documents for different aspects (ICP Research, Competitive Analysis, Messaging Framework, etc.).\n\n### Behavior\n- **Tab bar**: Horizontal tabs below the strategy header\n- **Default tabs**: Overview, ICP, Competition, Messaging, Playbook\n- **Custom tabs**: User can add/rename/reorder/delete tabs\n- **Per-tab AI context**: AI is aware of which tab is active and its content\n- **Cross-tab references**: AI can reference content from other tabs in responses\n\n### Technical Approach\n- `strategy_tabs` table: `id`, `strategy_id`, `name`, `order`, `content` (JSONB), `created_at`\n- Default tabs created with new strategy\n- Drag-and-drop reorder via `@dnd-kit/sortable`\n- AI context: include active tab content + tab names in system prompt\n- Depends on MULTI (multi-strategy) for the strategy model changes\n\n### Acceptance Criteria\n- Given a new strategy, 5 default tabs are created\n- Given a user adds a custom tab \"LinkedIn Playbook\", it appears in the tab bar\n- Given the user is on the Competition tab, the AI references competitive data when answering"},
+  {"id": "SEARCH", "name": "Chat Internet Access (Perplexity Research)", "priority": "Should Have", "effort": "S", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Chat Internet Access (Perplexity Research)\n\n### Goal\nGive the AI the ability to search the internet in real-time during chat, using Perplexity API for up-to-date market research.\n\n### Behavior\n- **Research tool**: AI calls `search_web(query)` when it needs current information\n- **Source attribution**: Results include source URLs and snippets\n- **Use cases**: Competitor research, industry trends, company news, technology comparisons\n- **Rate limiting**: Max 3 web searches per conversation turn\n\n### Technical Approach\n- Perplexity API: `sonar` model for search-augmented generation\n- Tool: `search_web(query, num_results=5)` returns summarized results with citations\n- Backend handler: `POST /api/tools/search` proxies to Perplexity\n- Citation rendering: Footnote-style links in chat responses\n- Depends on AGENT (tool use architecture) for the tool framework\n\n### Acceptance Criteria\n- Given user asks \"what are the latest trends in B2B SaaS marketing?\", the AI searches and provides current data with sources\n- Given search results, citations are rendered as clickable footnotes\n- Given 3 searches already done this turn, the AI uses existing context instead of searching again"},
+  {"id": "CONTEXT", "name": "Context Management (Doc-as-Memory + RAG)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["PERSIST"], "assignee": "", "sprint": "Backlog", "spec": "## Context Management (Doc-as-Memory + RAG)\n\n### Goal\nGive the AI long-term memory by using the strategy document as persistent context, augmented with RAG for large document sets.\n\n### Scope\n- **Doc-as-memory**: Current strategy doc is always included in AI context\n- **Conversation summary**: Long conversations are auto-summarized to fit context window\n- **RAG pipeline**: For large strategies, use embeddings + vector search to find relevant sections\n- **Cross-strategy memory**: AI can reference insights from other strategies in the namespace\n\n### Technical Approach\n- Strategy doc injection: full doc for small strategies, chunked RAG for large ones\n- Embedding: `text-embedding-3-small` via OpenAI API\n- Vector store: `pgvector` extension on existing PostgreSQL\n- Chunking: 500-token overlapping chunks per strategy section\n- Conversation compaction: Summarize every 20 messages into a \"memory\" message\n- Depends on PERSIST (persistent chat) for conversation history\n\n### Acceptance Criteria\n- Given a 10-page strategy doc, the AI can answer questions about any section\n- Given a 50-message conversation, older messages are summarized without losing key context\n- Given two strategies exist, the AI can reference insights from the other when asked"},
+  {"id": "BL-054", "name": "Chat Access to Self-Company Enrichment Data", "priority": "Must Have", "effort": "M", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Chat Access to Self-Company Enrichment Data\n\n### Goal\nGive the playbook chat full access to the tenant's own company enrichment data (L1, L2, profile, signals, market, legal), achieving parity with what onboarding uses.\n\n### Gap Analysis\nThe onboarding flow runs L1+L2 enrichment and seeds the strategy doc. The chat loads enrichment via `_load_enrichment_data()`, but:\n- **20+ L2 fields missing**: pitch_framing, revenue_trend, industry_pain_points, relevant_case_study, regulatory_pressure, employee_sentiment, ma_activity, digital_maturity_score, and more\n- **No fallback**: If strategy doc has no enrichment_id but a self-company exists, chat gets zero context\n- **No on-demand detail**: Detailed signals, legal, market data not accessible\n\n### Phase 1 (No Dependencies)\n- Expand `_load_enrichment_data()` to include pitch_framing, revenue_trend, industry_pain_points, relevant_case_study\n- Add fallback: if no enrichment_id, look up `is_self=True` company\n- Add new prompt sections: Strategic Positioning, Industry Context, Proof Points\n\n### Phase 2 (Requires AGENT)\n- `get_company_research(section)` tool for on-demand access to detailed data\n- Sections: legal, signals_detail, market_detail, opportunity_detail, strategic, tech_detail\n- Enrichment status awareness in system prompt\n\n### Acceptance Criteria\n- Given L2 enrichment is complete, system prompt includes pitch_framing, revenue_trend, industry_pain_points, relevant_case_study\n- Given no enrichment_id but is_self company exists, chat auto-links and loads data\n- Given no enrichment data exists, AI mentions research hasn't been done\n- Given AGENT is enabled and user asks about hiring signals, AI calls get_company_research('signals_detail')"},
+  {"id": "BL-055", "name": "LLM Cost Logging & Breakdown Dashboard", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": [], "assignee": "", "sprint": "Backlog", "spec": "## LLM Cost Logging & Breakdown Dashboard\n\n### Goal\nInstrument all untracked LLM call sites and build an admin cost dashboard.\n\n### Phase 1: Backend Instrumentation\n- Playbook chat streaming: capture tokens from SSE message_start/message_delta events\n- Strategy extraction: log tokens from AnthropicResponse after client.query()\n- Person enrichment: add log_llm_usage() after each of 3 LLM calls\n- L2 enrichment: replace single aggregate log with 3 per-call logs\n- Add missing sonar-reasoning models to MODEL_PRICING\n\n### Phase 2: Cost Dashboard UI\n- Summary cards: total cost, total calls, avg cost/call\n- Breakdown tables by operation and by model/provider\n- Time-series chart showing daily cost trend\n- Date range picker defaulting to last 30 days\n- Consumes existing GET /api/llm-usage/summary endpoint\n\n### Acceptance Criteria\n- Given a playbook chat message, an llm_usage_log entry is created with operation='playbook_chat'\n- Given person enrichment runs, 3 separate log entries are created (profile/signals/synthesis)\n- Given a super_admin views the cost dashboard, summary cards and breakdown tables display correctly"},
+  {"id": "BL-056", "name": "Token Credit System with Per-Namespace Budgets", "priority": "Must Have", "effort": "L", "status": "Spec'd", "deps": ["BL-055"], "assignee": "", "sprint": "Backlog", "spec": "## Token Credit System with Per-Namespace Budgets\n\n### Goal\nMeter all LLM usage per namespace using a unified credit system, with configurable budgets, enforcement modes, and admin visibility.\n\n### Credit Model\n- 1 credit = $0.001 USD of LLM usage\n- Credits computed from actual API cost (already tracked in `llm_usage_log.cost_usd`)\n- Provider-agnostic: works across Anthropic, Perplexity, and future providers\n\n### Data Model\n- `namespace_token_budgets` table: tenant_id (unique), total_budget, used_credits, reserved_credits, reset_period, enforcement_mode\n- `credits_consumed` column added to existing `llm_usage_log`\n- Three enforcement modes: monitor (log only), soft (warn + allow 120% overrun), hard (block at limit)\n\n### Budget Enforcement\n- `check_budget(tenant_id, estimated_credits)` called before every LLM operation\n- `reserve_credits()` for in-flight operations (prevents concurrent overruns)\n- `consume_credits()` after completion (moves reserved -> used)\n- Graceful degradation: complete current item, skip remaining\n\n### API Endpoints\n- `GET /api/admin/tokens` - current budget + usage breakdown (namespace admin)\n- `GET /api/admin/tokens/history` - usage over time (namespace admin)\n- `GET /api/admin/tokens/breakdown` - detailed operation + model breakdown\n- `PUT /api/admin/tokens/budget` - set budget (super admin only)\n- `POST /api/admin/tokens/topup` - add credits (super admin only)\n\n### Admin UI\n- Budget gauge (circular, color-coded by usage %)\n- Usage over time chart (daily/weekly/monthly)\n- Operation breakdown (horizontal bars)\n- Per-user consumption table\n- Persistent warning banner at 80%/100% thresholds\n\n### Acceptance Criteria\n- Given a namespace with 50K credits and 12K used, admin sees 24.7% gauge with operation breakdown\n- Given hard enforcement at 0 credits, chat returns HTTP 429 with clear message\n- Given concurrent enrichment runs, credit reservations prevent budget overruns\n- Given monthly reset, used_credits resets to 0 on the 1st\n- Given no budget configured, all LLM calls proceed without limit"},
+  {"id": "BL-057", "name": "Campaign Generation Customization", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["BL-055", "BL-056"], "assignee": "", "sprint": "Backlog", "spec": "## Campaign Generation Customization\n\n### Goal\nGive users full control over message generation: tone, language, examples, bulk regeneration, version history, and token credit cost visibility.\n\n### Current Gaps\n- Only 4 tone options (professional, casual, bold, empathetic)\n- No language selector in MessageGenTab (defaults to English silently)\n- No example preview before committing to full generation\n- Regeneration is per-message only, no bulk option\n- Version history limited to original + current (no intermediate versions)\n- Cost shown in USD, not token credits\n\n### Tone & Language\n- Extended tone options: professional, casual, bold, empathetic, consultative, direct, friendly, provocative\n- Campaign-level language dropdown with formality toggle for languages with formal/informal address\n- Stored in `campaigns.generation_config` (existing JSONB field)\n\n### Example Messages\n- Per-step 'Preview' button generates 3 examples using top contacts\n- Examples are ephemeral (not saved to DB)\n- Shows estimated credit cost before generating\n- Uses same prompt pipeline as real generation\n\n### Bulk Regeneration\n- 'Regenerate All' or 'Regenerate Step N' with config overrides\n- Background thread (same pattern as initial generation)\n- Previous versions preserved in `message_versions` table\n- Only regenerates draft/approved messages (not rejected/sent)\n\n### Version History\n- New `message_versions` table: message_id, version_number, subject, body, tone, language, cost, config snapshot\n- Every regeneration saves current version before overwriting\n- Revert to any version (creates new version entry)\n- Backfill existing `original_body` data as v1\n\n### Token Cost Display\n- Regular users see credits (1 credit = $0.001)\n- Super_admin sees credits + USD\n- Estimated cost before generation, actual cost after\n- Preview examples show cost in credits\n\n### API Endpoints\n- `POST /campaigns/:id/preview-examples` — generate ephemeral examples\n- `POST /campaigns/:id/regenerate-bulk` — bulk regeneration\n- `POST /campaigns/:id/regenerate-bulk/estimate` — estimate bulk regen cost\n- `GET /messages/:id/versions` — list message versions\n- `POST /messages/:id/revert` — revert to previous version\n\n### Acceptance Criteria\n- Given a campaign in Draft, user sees 8 tone options and a language dropdown\n- Given user clicks Preview on a step, 3 example messages are generated and shown\n- Given user clicks Regenerate All, all messages are regenerated with new settings and previous versions are preserved\n- Given user views message version history, they see all versions and can revert\n- Given a regular user views cost, it shows credits not USD"},
+  {"id": "BL-058", "name": "Strategy Feedback Loop — Scoring, Conflicts, Gaps", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["AGENT", "BL-055", "BL-056"], "assignee": "", "sprint": "Backlog", "spec": "## Strategy Feedback Loop — Scoring, Conflict Detection & Gap Analysis\n\n### Goal\nMulti-perspective strategy evaluation system that scores, detects contradictions, and identifies gaps — acting like a CMO reviewing the strategy.\n\n### Scoring Framework\n- 8 dimensions scored 1-10: ICP Clarity (15%), Channel Strategy (15%), Messaging Strength (15%), Completeness (15%), Market Positioning (10%), Competitive Differentiation (10%), Value Proposition (10%), Feasibility (10%)\n- Weighted overall score 0-100 with letter grade (A-F)\n- Confidence levels: high/medium/low per dimension\n- Each score includes explanation + actionable improvement suggestion\n\n### Conflict Detection\n- ICP vs Channel Mismatch (critical): e.g., targeting enterprise but only LinkedIn organic\n- Positioning vs Messaging Tone (critical): premium positioning with discount language\n- Multi-Segment Without Differentiation (warning): 3+ ICP segments, one messaging approach\n- Budget vs Ambition Gap (warning): 100-meeting target with single channel\n- Timeline Conflicts (warning): outcomes assumed before prerequisites complete\n- Geography vs Language (info), Persona vs Channel (warning)\n\n### Gap Analysis\n- Missing sections (no content or placeholder only)\n- Weak areas (present but underdeveloped)\n- Unexplored enrichment opportunities (data available but not in strategy)\n- Template comparison against 8-section ideal\n\n### Triggers\n- User: 'Evaluate Strategy' button, chat commands ('score my strategy', 'find conflicts')\n- AI proactive: after initial draft, major edits (3+ versions), phase transitions\n- Lightweight: completeness check on every save (0 credits, no LLM)\n\n### Data Model\n- `strategy_evaluations` table: id, tenant_id, strategy_id, triggered_by, scores (JSONB), conflicts (JSONB), gaps (JSONB), overall_score, overall_grade, strategy_version, credit_cost\n- `completeness_score` column on strategy_documents (updated on save, no LLM)\n\n### Chat Tools (Requires AGENT)\n- `evaluate_strategy` — full evaluation (all dimensions + conflicts + gaps)\n- `find_conflicts` — conflict detection only (faster/cheaper)\n- `analyze_gaps` — gap analysis only\n- `get_score_history` — past evaluations for trend view\n- `score_section(name)` — deep dive on single dimension\n\n### UI\n- Evaluation panel: overall score, radar chart (8 axes), dimension cards, conflict cards (severity-colored), gap checklist, trend chart\n- Completeness ring in top bar (always visible, updates on save)\n- Credit cost shown per BL-056 rules (credits only, never USD)\n\n### Acceptance Criteria\n- Given 3+ sections filled, when user clicks Evaluate, then full scoring + conflicts + gaps are displayed\n- Given ICP targets enterprise and channel is LinkedIn organic only, then critical conflict is flagged with resolution\n- Given 5/8 sections filled, gap analysis identifies 3 missing sections with suggestions\n- Given 3+ evaluations exist, trend chart shows score improvement over time\n- Given strategy is edited, completeness indicator updates without LLM call"},
+  {"id": "BL-053", "name": "Echo Task List — Living Prioritized Task Board", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3", "spec": "## Echo Task List — Living Prioritized Task Board\n\n### Goal\nTransform the Echo tab into a living, constantly-prioritized task list. Tasks come from three sources: manual user tasks, AI-generated recommendations, and system alerts.\n\n### Task Sources\n- **Manual**: User creates via chat (\"remind me to follow up with Acme\") or UI (Add Task button)\n- **AI-generated**: Proactive suggestions from strategy analysis, enrichment results, campaign performance\n- **System alerts**: Pipeline completions, send failures, import results, stale data warnings\n\n### Chat Tools (Requires AGENT)\n- `add_task(title, description, priority, due_date, linked_entity)` — Create a task\n- `update_task(task_id, fields)` — Update priority, due date, description, status\n- `complete_task(task_id)` — Mark as done\n- `get_prioritized_tasks(limit)` — Get sorted task list for AI reasoning\n- `suggest_tasks(focus_area)` — Analyze strategy/campaigns/enrichment and suggest new tasks\n\n### Data Model\n- `tasks` table: id, tenant_id, user_id, title, description, source, priority, status, due_date, snoozed_until, linked_entity_type, linked_entity_id, ai_context (JSONB), dedup_key (unique per tenant)\n- Sources: manual, ai_strategy, ai_enrichment, ai_campaign, system\n- Priorities: critical, high, medium, low\n- Statuses: open, completed, dismissed, snoozed\n\n### API Endpoints\n- `GET /api/tasks` — List with filters (status, source, priority, linked_entity_type)\n- `POST /api/tasks` — Create (with dedup_key support for AI/system tasks)\n- `PATCH /api/tasks/:id` — Update fields\n- `DELETE /api/tasks/:id` — Hard delete\n- `POST /api/tasks/prioritize` — AI-powered reprioritization\n\n### UI\n- Grouped sections: Overdue, Today, Upcoming, Recently Completed\n- Task cards: priority indicator, source badge, due date, linked entity link, AI context (expandable)\n- Actions: Done, Snooze (tomorrow/next week/next month/custom), Dismiss\n- Filters: All, Overdue, High Priority, AI Suggested, System\n- Empty state with onboarding CTA\n\n### Integration Points\n- Pipeline completion → system task\n- Email/LinkedIn send failure → system task\n- Strategy gap analysis → AI task\n- Campaign performance drop → AI task\n- Stale tasks (>14 days) get visual badge\n\n### Acceptance Criteria\n- Given user says \"remind me to call Acme Thursday\", AI creates task with due date\n- Given enrichment completes, system task appears with results summary\n- Given 10 open tasks, list is sorted: overdue first, then by priority and due date\n- Given user clicks Done, task moves to Recently Completed section\n- Given user asks \"what should I focus on?\", AI returns top tasks with reasoning\n- Given duplicate dedup_key, existing task is refreshed instead of creating duplicate"}
+];
+
+
+let items = [...BACKLOG_DATA];
+let currentFilters = { priority: 'all', status: 'all', effort: 'all', sprint: 'all' };
+let currentSort = { key: null, dir: 'asc' };
+let currentView = 'table';
+
+// ─── Sprint Config ───────────────────────────────────────────────
+var SPRINT_ORDER = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Backlog'];
+var SPRINT_LABELS = { 'Sprint 1': 'S1', 'Sprint 2': 'S2', 'Sprint 3': 'S3', 'Backlog': 'BL' };
+var SPRINT_CLASS = { 'Sprint 1': 'sprint-1', 'Sprint 2': 'sprint-2', 'Sprint 3': 'sprint-3', 'Backlog': 'sprint-backlog' };
+var SPRINT_FILL_CLASS = { 'Sprint 1': 'sprint-1-fill', 'Sprint 2': 'sprint-2-fill', 'Sprint 3': 'sprint-3-fill', 'Backlog': 'sprint-backlog-fill' };
+var SPRINT_SORT_ORDER = { 'Sprint 1': 0, 'Sprint 2': 1, 'Sprint 3': 2, 'Backlog': 3 };
+var DONE_STATUSES = ['Done', 'Merged', 'PR Open'];
+
+// ─── Status Config ───────────────────────────────────────────────
+const STATUS_ORDER = ['Idea', "Spec'd", 'Building', 'PR Open', 'In Review', 'Merged', 'Done'];
+const STATUS_CLASS = {
+  'Idea': 'status-idea',
+  "Spec'd": 'status-specd',
+  'Building': 'status-building',
+  'PR Open': 'status-pr-open',
+  'In Review': 'status-in-review',
+  'Merged': 'status-merged',
+  'Done': 'status-done'
+};
+
+const PRIORITY_ORDER = { 'Must Have': 0, 'Should Have': 1, 'Could Have': 2 };
+const PRIORITY_CLASS = {
+  'Must Have': 'priority-must',
+  'Should Have': 'priority-should',
+  'Could Have': 'priority-could'
+};
+
+const EFFORT_ORDER = { 'S': 0, 'M': 1, 'L': 2, 'XL': 3 };
+const EFFORT_CLASS = { 'S': 'effort-s', 'M': 'effort-m', 'L': 'effort-l', 'XL': 'effort-xl' };
+
+// ─── Safe DOM Helpers ────────────────────────────────────────────
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+function clearChildren(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function createEl(tag, attrs, children) {
+  var el = document.createElement(tag);
+  if (attrs) {
+    Object.keys(attrs).forEach(function(k) {
+      if (k === 'className') el.className = attrs[k];
+      else if (k === 'textContent') el.textContent = attrs[k];
+      else if (k === 'style') el.setAttribute('style', attrs[k]);
+      else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else el.setAttribute(k, attrs[k]);
+    });
+  }
+  if (children) {
+    children.forEach(function(child) {
+      if (typeof child === 'string') el.appendChild(document.createTextNode(child));
+      else if (child) el.appendChild(child);
+    });
+  }
+  return el;
+}
+
+// ─── Markdown Parser (safe DOM) ──────────────────────────────────
+function parseMarkdown(md) {
+  var container = document.createElement('div');
+  container.className = 'spec-content';
+  if (!md) return container;
+
+  var lines = md.split('\n');
+  var i = 0;
+  var currentList = null;
+  var currentListType = null;
+
+  function flushList() {
+    if (currentList) {
+      container.appendChild(currentList);
+      currentList = null;
+      currentListType = null;
+    }
+  }
+
+  function applyInline(text) {
+    var frag = document.createDocumentFragment();
+    var regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+    var lastIndex = 0;
+    var match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      if (match[2]) {
+        var strong = document.createElement('strong');
+        strong.textContent = match[2];
+        frag.appendChild(strong);
+      } else if (match[3]) {
+        var code = document.createElement('code');
+        code.textContent = match[3];
+        frag.appendChild(code);
+      } else if (match[4]) {
+        var em = document.createElement('em');
+        em.textContent = match[4];
+        frag.appendChild(em);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+    return frag;
+  }
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    // Code block
+    if (line.trim().indexOf('```') === 0) {
+      flushList();
+      var codeLines = [];
+      i++;
+      while (i < lines.length && lines[i].trim().indexOf('```') !== 0) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++;
+      var pre = document.createElement('pre');
+      var codeEl = document.createElement('code');
+      codeEl.textContent = codeLines.join('\n');
+      pre.appendChild(codeEl);
+      container.appendChild(pre);
+      continue;
+    }
+
+    // Headings
+    var headingMatch = line.match(/^(#{1,3})\s+(.+)/);
+    if (headingMatch) {
+      flushList();
+      var level = headingMatch[1].length;
+      var heading = document.createElement('h' + level);
+      heading.appendChild(applyInline(headingMatch[2]));
+      container.appendChild(heading);
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.trim().indexOf('> ') === 0) {
+      flushList();
+      var bq = document.createElement('blockquote');
+      var bqP = document.createElement('p');
+      bqP.appendChild(applyInline(line.trim().slice(2)));
+      bq.appendChild(bqP);
+      container.appendChild(bq);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^\s*[-*]\s+/)) {
+      if (currentListType !== 'ul') {
+        flushList();
+        currentList = document.createElement('ul');
+        currentListType = 'ul';
+      }
+      var li = document.createElement('li');
+      li.appendChild(applyInline(line.replace(/^\s*[-*]\s+/, '')));
+      currentList.appendChild(li);
+      i++;
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^\s*\d+\.\s+/)) {
+      if (currentListType !== 'ol') {
+        flushList();
+        currentList = document.createElement('ol');
+        currentListType = 'ol';
+      }
+      var li2 = document.createElement('li');
+      li2.appendChild(applyInline(line.replace(/^\s*\d+\.\s+/, '')));
+      currentList.appendChild(li2);
+      i++;
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      flushList();
+      i++;
+      continue;
+    }
+
+    // Paragraph
+    flushList();
+    var p = document.createElement('p');
+    p.appendChild(applyInline(line));
+    container.appendChild(p);
+    i++;
+  }
+  flushList();
+  return container;
+}
+
+// ─── Spec Modal ──────────────────────────────────────────────────
+var currentSpecItem = null;
+
+function openSpecModal(item) {
+  currentSpecItem = item;
+  var overlay = document.getElementById('specOverlay');
+  var idEl = document.getElementById('specId');
+  var titleEl = document.getElementById('specTitle');
+  var badgesEl = document.getElementById('specBadges');
+  var depsEl = document.getElementById('specDeps');
+  var contentEl = document.getElementById('specContent');
+  var copyBtn = document.getElementById('specCopy');
+
+  idEl.textContent = item.id;
+  titleEl.textContent = item.name;
+
+  // Badges
+  clearChildren(badgesEl);
+  badgesEl.appendChild(createEl('span', {
+    className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''),
+    textContent: item.priority
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'effort ' + (EFFORT_CLASS[item.effort] || ''),
+    textContent: item.effort
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'badge ' + (STATUS_CLASS[item.status] || ''),
+    textContent: item.status
+  }));
+  badgesEl.appendChild(createEl('span', {
+    className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'),
+    textContent: item.sprint || 'Backlog'
+  }));
+
+  // Deps
+  clearChildren(depsEl);
+  if (item.deps.length > 0) {
+    depsEl.appendChild(createEl('span', { className: 'spec-panel-deps-label', textContent: 'Depends on:' }));
+    item.deps.forEach(function(d) {
+      depsEl.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+    });
+  }
+
+  // Spec content
+  clearChildren(contentEl);
+  if (item.spec) {
+    contentEl.appendChild(parseMarkdown(item.spec));
+  } else {
+    contentEl.appendChild(createEl('div', {
+      className: 'empty-state',
+      style: 'padding:32px',
+      textContent: 'No specification written yet.'
+    }));
+  }
+
+  // Reset copy button
+  copyBtn.classList.remove('copied');
+  var svgNode = copyBtn.querySelector('svg');
+  while (copyBtn.lastChild !== svgNode) copyBtn.removeChild(copyBtn.lastChild);
+  copyBtn.appendChild(document.createTextNode(' Copy Spec'));
+
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSpecModal() {
+  document.getElementById('specOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  currentSpecItem = null;
+}
+
+// ─── Render Sprint Summary ───────────────────────────────────────
+function renderSprintSummary() {
+  var container = document.getElementById('sprintSummary');
+  clearChildren(container);
+
+  SPRINT_ORDER.forEach(function(sprint) {
+    var sprintItems = BACKLOG_DATA.filter(function(d) { return d.sprint === sprint; });
+    var total = sprintItems.length;
+    var done = sprintItems.filter(function(d) { return DONE_STATUSES.indexOf(d.status) !== -1; }).length;
+    var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    var isActive = currentFilters.sprint === sprint;
+    var card = createEl('div', {
+      className: 'sprint-card' + (isActive ? ' active' : ''),
+      onClick: function() {
+        currentFilters.sprint = currentFilters.sprint === sprint ? 'all' : sprint;
+        // Sync sprint filter buttons
+        document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(b) {
+          b.classList.remove('active');
+          if (b.dataset.sprint === currentFilters.sprint) b.classList.add('active');
+        });
+        applyFilters();
+      }
+    });
+
+    var header = createEl('div', { className: 'sprint-card-header' });
+    var nameEl = createEl('div', {}, [
+      createEl('div', { className: 'sprint-card-label', textContent: sprint === 'Backlog' ? 'UNSCHEDULED' : 'CURRENT SPRINT'.replace('CURRENT', sprint === 'Sprint 1' ? 'CURRENT' : sprint === 'Sprint 2' ? 'NEXT' : 'PLANNED') }),
+      createEl('div', { className: 'sprint-card-name' }, [
+        createEl('span', { className: 'sprint-badge ' + (SPRINT_CLASS[sprint] || ''), style: 'margin-right:6px', textContent: sprint })
+      ])
+    ]);
+    var countEl = createEl('div', { className: 'sprint-card-count', textContent: String(total) });
+    header.appendChild(nameEl);
+    header.appendChild(countEl);
+    card.appendChild(header);
+
+    var progressBar = createEl('div', { className: 'sprint-progress' });
+    var fill = createEl('div', {
+      className: 'sprint-progress-fill ' + (SPRINT_FILL_CLASS[sprint] || ''),
+      style: 'width:' + pct + '%'
+    });
+    progressBar.appendChild(fill);
+    card.appendChild(progressBar);
+
+    var meta = createEl('div', { className: 'sprint-card-meta' });
+    meta.appendChild(createEl('span', { textContent: done + '/' + total + ' done' }));
+    meta.appendChild(createEl('span', { textContent: pct + '%' }));
+    card.appendChild(meta);
+
+    container.appendChild(card);
+  });
+}
+
+// ─── Render Stats ────────────────────────────────────────────────
+function renderStats(data) {
+  var must = data.filter(function(d){ return d.priority === 'Must Have'; }).length;
+  var should = data.filter(function(d){ return d.priority === 'Should Have'; }).length;
+  var could = data.filter(function(d){ return d.priority === 'Could Have'; }).length;
+  var prOpen = data.filter(function(d){ return d.status === 'PR Open'; }).length;
+  var done = data.filter(function(d){ return d.status === 'Done' || d.status === 'Merged'; }).length;
+
+  var bar = document.getElementById('statsBar');
+  clearChildren(bar);
+
+  var stats = [
+    { cls: 'stat-card total', num: data.length, label: 'Total' },
+    { cls: 'stat-card must', num: must, label: 'Must Have' },
+    { cls: 'stat-card should', num: should, label: 'Should Have' },
+    { cls: 'stat-card could', num: could, label: 'Could Have' },
+    { cls: 'stat-card', num: prOpen, label: 'PRs Open', numStyle: 'color:#C2410C' },
+    { cls: 'stat-card', num: done, label: 'Done', numStyle: 'color:var(--success)' }
+  ];
+
+  stats.forEach(function(s) {
+    var numEl = createEl('span', { className: 'stat-number', style: s.numStyle || '' }, [String(s.num)]);
+    var card = createEl('div', { className: s.cls }, [numEl, document.createTextNode(' ' + s.label)]);
+    bar.appendChild(card);
+  });
+}
+
+// ─── Filter + Sort ───────────────────────────────────────────────
+function applyFilters() {
+  var filtered = BACKLOG_DATA.slice();
+
+  if (currentFilters.priority !== 'all') {
+    filtered = filtered.filter(function(d) { return d.priority === currentFilters.priority; });
+  }
+  if (currentFilters.status !== 'all') {
+    filtered = filtered.filter(function(d) { return d.status === currentFilters.status; });
+  }
+  if (currentFilters.effort !== 'all') {
+    filtered = filtered.filter(function(d) { return d.effort === currentFilters.effort; });
+  }
+  if (currentFilters.sprint !== 'all') {
+    filtered = filtered.filter(function(d) { return d.sprint === currentFilters.sprint; });
+  }
+
+  if (currentSort.key) {
+    filtered.sort(function(a, b) {
+      var va, vb;
+      switch (currentSort.key) {
+        case 'priority':
+          va = PRIORITY_ORDER[a.priority] !== undefined ? PRIORITY_ORDER[a.priority] : 9;
+          vb = PRIORITY_ORDER[b.priority] !== undefined ? PRIORITY_ORDER[b.priority] : 9;
+          break;
+        case 'effort':
+          va = EFFORT_ORDER[a.effort] !== undefined ? EFFORT_ORDER[a.effort] : 9;
+          vb = EFFORT_ORDER[b.effort] !== undefined ? EFFORT_ORDER[b.effort] : 9;
+          break;
+        case 'sprint':
+          va = SPRINT_SORT_ORDER[a.sprint] !== undefined ? SPRINT_SORT_ORDER[a.sprint] : 9;
+          vb = SPRINT_SORT_ORDER[b.sprint] !== undefined ? SPRINT_SORT_ORDER[b.sprint] : 9;
+          break;
+        case 'status':
+          va = STATUS_ORDER.indexOf(a.status);
+          vb = STATUS_ORDER.indexOf(b.status);
+          if (va < 0) va = 99;
+          if (vb < 0) vb = 99;
+          break;
+        default:
+          va = (a[currentSort.key] || '').toString().toLowerCase();
+          vb = (b[currentSort.key] || '').toString().toLowerCase();
+      }
+      if (va < vb) return currentSort.dir === 'asc' ? -1 : 1;
+      if (va > vb) return currentSort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  items = filtered;
+  render();
+}
+
+// ─── Build Table Row ─────────────────────────────────────────────
+function buildTableRow(item, i) {
+  var tr = createEl('tr', {
+    style: 'animation-delay: ' + (i * 0.03) + 's',
+    onClick: function() { openSpecModal(item); }
+  });
+
+  // ID cell
+  tr.appendChild(createEl('td', {}, [createEl('span', { className: 'feature-id', textContent: item.id })]));
+
+  // Feature name cell
+  var nameSpan = createEl('span', { className: 'feature-name' });
+  if (item.pr) {
+    var link = createEl('a', {
+      href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+      target: '_blank',
+      textContent: item.name
+    });
+    link.addEventListener('click', function(e) { e.stopPropagation(); });
+    nameSpan.appendChild(link);
+  } else {
+    nameSpan.textContent = item.name;
+  }
+  tr.appendChild(createEl('td', {}, [nameSpan]));
+
+  // Sprint cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'), textContent: item.sprint || 'Backlog' })
+  ]));
+
+  // Priority cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''), textContent: item.priority })
+  ]));
+
+  // Effort cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'effort ' + (EFFORT_CLASS[item.effort] || ''), textContent: item.effort })
+  ]));
+
+  // Status cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'badge ' + (STATUS_CLASS[item.status] || ''), textContent: item.status })
+  ]));
+
+  // PR cell
+  var prTd = createEl('td', { className: 'hide-mobile' });
+  if (item.pr) {
+    var prLink = createEl('a', {
+      className: 'pr-link',
+      href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+      target: '_blank',
+      textContent: item.pr
+    });
+    prLink.addEventListener('click', function(e) { e.stopPropagation(); });
+    prTd.appendChild(prLink);
+  } else {
+    prTd.appendChild(createEl('span', { className: 'no-deps' }, [document.createTextNode('\u2014')]));
+  }
+  tr.appendChild(prTd);
+
+  // Deps cell
+  var depsTd = createEl('td', { className: 'hide-mobile' });
+  if (item.deps.length > 0) {
+    var depsList = createEl('div', { className: 'deps-list' });
+    item.deps.forEach(function(d) {
+      depsList.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+    });
+    depsTd.appendChild(depsList);
+  } else {
+    depsTd.appendChild(createEl('span', { className: 'no-deps' }, [document.createTextNode('\u2014')]));
+  }
+  tr.appendChild(depsTd);
+
+  return tr;
+}
+
+// ─── Render Table ────────────────────────────────────────────────
+function renderTable() {
+  var tbody = document.getElementById('tableBody');
+  clearChildren(tbody);
+
+  if (items.length === 0) {
+    var emptyTd = createEl('td', { colspan: '8' }, [
+      createEl('div', { className: 'empty-state', textContent: 'No items match the current filters.' })
+    ]);
+    tbody.appendChild(createEl('tr', {}, [emptyTd]));
+    return;
+  }
+
+  // Group items by sprint for display (only when no sort active)
+  var groupBySprint = !currentSort.key;
+  var displayItems = groupBySprint ? [] : items;
+
+  if (groupBySprint) {
+    var sprintGroups = {};
+    SPRINT_ORDER.forEach(function(s) { sprintGroups[s] = []; });
+    items.forEach(function(item) {
+      var sp = item.sprint || 'Backlog';
+      if (!sprintGroups[sp]) sprintGroups[sp] = [];
+      sprintGroups[sp].push(item);
+    });
+
+    var rowIndex = 0;
+    SPRINT_ORDER.forEach(function(sprint) {
+      var group = sprintGroups[sprint];
+      if (group.length === 0) return;
+
+      // Sprint group header row
+      var headerTr = createEl('tr', { className: 'sprint-group-header' });
+      var headerTd = createEl('td', { colspan: '8' });
+      var sprintBadge = createEl('span', {
+        className: 'sprint-badge ' + (SPRINT_CLASS[sprint] || ''),
+        style: 'margin-right:8px',
+        textContent: sprint
+      });
+      headerTd.appendChild(sprintBadge);
+      headerTd.appendChild(document.createTextNode(group.length + ' item' + (group.length !== 1 ? 's' : '')));
+      headerTr.appendChild(headerTd);
+      tbody.appendChild(headerTr);
+
+      group.forEach(function(item) {
+        tbody.appendChild(buildTableRow(item, rowIndex++));
+      });
+    });
+    return;
+  }
+
+  items.forEach(function(item, i) {
+    tbody.appendChild(buildTableRow(item, i));
+  });
+}
+
+// ─── Render Kanban ───────────────────────────────────────────────
+function renderKanban() {
+  var container = document.getElementById('kanbanView');
+  clearChildren(container);
+
+  var statusGroups = {};
+  STATUS_ORDER.forEach(function(s) { statusGroups[s] = []; });
+  items.forEach(function(item) {
+    if (statusGroups[item.status]) {
+      statusGroups[item.status].push(item);
+    } else {
+      statusGroups['Idea'].push(item);
+    }
+  });
+
+  var visibleStatuses = STATUS_ORDER.filter(function(s) {
+    return statusGroups[s].length > 0 || ['Idea', "Spec'd", 'PR Open', 'Done'].indexOf(s) !== -1;
+  });
+
+  visibleStatuses.forEach(function(status) {
+    var cards = statusGroups[status];
+    var column = createEl('div', { className: 'kanban-column' });
+
+    // Header
+    var headerLeft = createEl('span', {}, [
+      createEl('span', { className: 'badge ' + (STATUS_CLASS[status] || ''), style: 'margin-right:6px', textContent: status })
+    ]);
+    var headerCount = createEl('span', { className: 'count', textContent: String(cards.length) });
+    column.appendChild(createEl('div', { className: 'kanban-column-header' }, [headerLeft, headerCount]));
+
+    // Cards container
+    var cardsEl = createEl('div', { className: 'kanban-cards' });
+
+    if (cards.length === 0) {
+      cardsEl.appendChild(createEl('div', {
+        style: 'color:#D1D5DB;font-size:12px;text-align:center;padding:16px',
+        textContent: 'No items'
+      }));
+    }
+
+    cards.forEach(function(item, i) {
+      var card = createEl('div', {
+        className: 'kanban-card',
+        style: 'animation-delay: ' + (i * 0.05) + 's',
+        onClick: function() { openSpecModal(item); }
+      });
+      card.appendChild(createEl('div', { className: 'card-id', textContent: item.id }));
+      card.appendChild(createEl('div', { className: 'card-name', textContent: item.name }));
+
+      var meta = createEl('div', { className: 'card-meta' });
+      meta.appendChild(createEl('span', {
+        className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''),
+        style: 'font-size:10px;padding:1px 6px',
+        textContent: item.priority.replace(' Have', '')
+      }));
+      meta.appendChild(createEl('span', {
+        className: 'effort ' + (EFFORT_CLASS[item.effort] || ''),
+        style: 'width:22px;height:18px;font-size:9px',
+        textContent: item.effort
+      }));
+      meta.appendChild(createEl('span', {
+        className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'),
+        style: 'font-size:9px;padding:1px 5px',
+        textContent: SPRINT_LABELS[item.sprint] || 'BL'
+      }));
+      if (item.pr) {
+        var kanbanPrLink = createEl('a', {
+          className: 'pr-link',
+          href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+          target: '_blank',
+          style: 'font-size:10px',
+          textContent: item.pr
+        });
+        kanbanPrLink.addEventListener('click', function(e) { e.stopPropagation(); });
+        meta.appendChild(kanbanPrLink);
+      }
+      card.appendChild(meta);
+
+      if (item.deps.length > 0) {
+        var depsDiv = createEl('div', { className: 'card-deps' });
+        item.deps.forEach(function(d) {
+          depsDiv.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+        });
+        card.appendChild(depsDiv);
+      }
+
+      cardsEl.appendChild(card);
+    });
+
+    column.appendChild(cardsEl);
+    container.appendChild(column);
+  });
+}
+
+// ─── Dependency Graph ────────────────────────────────────────────
+function renderDepGraph() {
+  var canvas = document.getElementById('depCanvas');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+
+  var rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 400 * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = '400px';
+  ctx.scale(dpr, dpr);
+
+  var W = rect.width;
+  var H = 400;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Only items with deps or that are depended upon
+  var depIds = {};
+  var sourceIds = {};
+  BACKLOG_DATA.forEach(function(item) {
+    item.deps.forEach(function(d) { depIds[d] = true; sourceIds[item.id] = true; });
+  });
+  var relevantIds = {};
+  Object.keys(depIds).forEach(function(k) { relevantIds[k] = true; });
+  Object.keys(sourceIds).forEach(function(k) { relevantIds[k] = true; });
+  var graphItems = BACKLOG_DATA.filter(function(item) { return relevantIds[item.id]; });
+
+  if (graphItems.length === 0) {
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '14px Work Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText('No dependencies to display', W / 2, H / 2);
+    return;
+  }
+
+  // Layout: topological layers
+  var idMap = {};
+  BACKLOG_DATA.forEach(function(item) { idMap[item.id] = item; });
+
+  var layers = [];
+  var placed = {};
+
+  var roots = graphItems.filter(function(item) {
+    return item.deps.length === 0 || item.deps.every(function(d) { return !relevantIds[d]; });
+  });
+
+  if (roots.length > 0) {
+    layers.push(roots.map(function(r) { return r.id; }));
+    roots.forEach(function(r) { placed[r.id] = true; });
+  }
+
+  var safety = 0;
+  var placedCount = Object.keys(placed).length;
+  while (placedCount < graphItems.length && safety++ < 20) {
+    var nextLayer = [];
+    graphItems.forEach(function(item) {
+      if (!placed[item.id] && item.deps.every(function(d) { return placed[d] || !relevantIds[d]; })) {
+        nextLayer.push(item.id);
+      }
+    });
+    if (nextLayer.length === 0) {
+      graphItems.forEach(function(item) {
+        if (!placed[item.id]) nextLayer.push(item.id);
+      });
+    }
+    layers.push(nextLayer);
+    nextLayer.forEach(function(id) { placed[id] = true; });
+    placedCount = Object.keys(placed).length;
+  }
+
+  // Position nodes
+  var nodePositions = {};
+  var nodeW = 140;
+  var nodeH = 36;
+  var layerGap = 100;
+  var totalWidth = layers.length * (nodeW + layerGap) - layerGap;
+  var startX = Math.max(30, (W - totalWidth) / 2);
+
+  layers.forEach(function(layer, li) {
+    var x = startX + li * (nodeW + layerGap);
+    var totalH = layer.length * (nodeH + 16) - 16;
+    var startY = Math.max(20, (H - totalH) / 2);
+
+    layer.forEach(function(id, ni) {
+      nodePositions[id] = {
+        x: x,
+        y: startY + ni * (nodeH + 16),
+        w: nodeW,
+        h: nodeH
+      };
+    });
+  });
+
+  // Draw edges
+  BACKLOG_DATA.forEach(function(item) {
+    if (!nodePositions[item.id]) return;
+    item.deps.forEach(function(depId) {
+      if (!nodePositions[depId]) return;
+
+      var from = nodePositions[depId];
+      var to = nodePositions[item.id];
+
+      var x1 = from.x + from.w;
+      var y1 = from.y + from.h / 2;
+      var x2 = to.x;
+      var y2 = to.y + to.h / 2;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      var cx = (x1 + x2) / 2;
+      ctx.bezierCurveTo(cx, y1, cx, y2, x2, y2);
+      ctx.strokeStyle = '#C4B5FD';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Arrowhead
+      var aSize = 6;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - aSize * 1.5, y2 - aSize);
+      ctx.lineTo(x2 - aSize * 1.5, y2 + aSize);
+      ctx.closePath();
+      ctx.fillStyle = '#C4B5FD';
+      ctx.fill();
+    });
+  });
+
+  // Draw nodes
+  var priorityColors = { 'Must Have': '#DC2626', 'Should Have': '#D97706', 'Could Have': '#3B82F6' };
+
+  Object.keys(nodePositions).forEach(function(id) {
+    var pos = nodePositions[id];
+    var item = idMap[id];
+    if (!item) return;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = priorityColors[item.priority] || '#E5E7EB';
+    ctx.lineWidth = 2;
+
+    var r = 6;
+    ctx.beginPath();
+    ctx.moveTo(pos.x + r, pos.y);
+    ctx.lineTo(pos.x + pos.w - r, pos.y);
+    ctx.quadraticCurveTo(pos.x + pos.w, pos.y, pos.x + pos.w, pos.y + r);
+    ctx.lineTo(pos.x + pos.w, pos.y + pos.h - r);
+    ctx.quadraticCurveTo(pos.x + pos.w, pos.y + pos.h, pos.x + pos.w - r, pos.y + pos.h);
+    ctx.lineTo(pos.x + r, pos.y + pos.h);
+    ctx.quadraticCurveTo(pos.x, pos.y + pos.h, pos.x, pos.y + pos.h - r);
+    ctx.lineTo(pos.x, pos.y + r);
+    ctx.quadraticCurveTo(pos.x, pos.y, pos.x + r, pos.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Left accent bar
+    ctx.fillStyle = priorityColors[item.priority] || '#E5E7EB';
+    ctx.beginPath();
+    ctx.moveTo(pos.x + r, pos.y);
+    ctx.lineTo(pos.x + 4, pos.y);
+    ctx.lineTo(pos.x + 4, pos.y + pos.h);
+    ctx.lineTo(pos.x + r, pos.y + pos.h);
+    ctx.quadraticCurveTo(pos.x, pos.y + pos.h, pos.x, pos.y + pos.h - r);
+    ctx.lineTo(pos.x, pos.y + r);
+    ctx.quadraticCurveTo(pos.x, pos.y, pos.x + r, pos.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // ID text
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '500 9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(item.id, pos.x + 10, pos.y + 13);
+
+    // Name text (truncated)
+    ctx.fillStyle = '#404B5C';
+    ctx.font = '500 11px Work Sans, sans-serif';
+    var name = item.name;
+    if (ctx.measureText(name).width > pos.w - 16) {
+      while (ctx.measureText(name + '...').width > pos.w - 16 && name.length > 0) {
+        name = name.slice(0, -1);
+      }
+      name += '...';
+    }
+    ctx.fillText(name, pos.x + 10, pos.y + 28);
+  });
+}
+
+// ─── Render ──────────────────────────────────────────────────────
+function render() {
+  renderSprintSummary();
+  renderStats(items);
+  renderTable();
+  renderKanban();
+
+  if (document.getElementById('depGraphContainer').classList.contains('open')) {
+    renderDepGraph();
+  }
+}
+
+// ─── Event Handlers ──────────────────────────────────────────────
+
+// Filter buttons
+document.querySelectorAll('#priorityFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#priorityFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.priority = btn.dataset.priority;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#statusFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#statusFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.status = btn.dataset.status;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#effortFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#effortFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.effort = btn.dataset.effort;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.sprint = btn.dataset.sprint;
+    applyFilters();
+  });
+});
+
+// View toggle
+document.querySelectorAll('.view-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.view-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentView = btn.dataset.view;
+
+    document.getElementById('tableView').style.display = currentView === 'table' ? '' : 'none';
+    var kanban = document.getElementById('kanbanView');
+    if (currentView === 'kanban') {
+      kanban.classList.add('active');
+    } else {
+      kanban.classList.remove('active');
+    }
+    render();
+  });
+});
+
+// Sort headers
+document.querySelectorAll('.backlog-table th[data-sort]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    var key = th.dataset.sort;
+    if (currentSort.key === key) {
+      currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSort.key = key;
+      currentSort.dir = 'asc';
+    }
+
+    document.querySelectorAll('.backlog-table th').forEach(function(h) {
+      h.classList.remove('sorted');
+      var icon = h.querySelector('.sort-icon');
+      if (icon) icon.textContent = '\u25B2';
+    });
+    th.classList.add('sorted');
+    var icon = th.querySelector('.sort-icon');
+    if (icon) icon.textContent = currentSort.dir === 'asc' ? '\u25B2' : '\u25BC';
+
+    applyFilters();
+  });
+});
+
+// Dependency graph toggle
+document.getElementById('depGraphToggle').addEventListener('click', function() {
+  var toggle = document.getElementById('depGraphToggle');
+  var container = document.getElementById('depGraphContainer');
+  toggle.classList.toggle('open');
+  container.classList.toggle('open');
+
+  if (container.classList.contains('open')) {
+    setTimeout(renderDepGraph, 50);
+  }
+});
+
+// Spec modal handlers
+document.getElementById('specClose').addEventListener('click', closeSpecModal);
+document.getElementById('specCloseBtn').addEventListener('click', closeSpecModal);
+document.getElementById('specOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSpecModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('specOverlay').classList.contains('open')) {
+    closeSpecModal();
+  }
+});
+
+// Copy spec to clipboard
+document.getElementById('specCopy').addEventListener('click', function() {
+  if (!currentSpecItem || !currentSpecItem.spec) return;
+  var btn = this;
+  var svgNode = btn.querySelector('svg');
+  navigator.clipboard.writeText(currentSpecItem.spec).then(function() {
+    btn.classList.add('copied');
+    while (btn.lastChild !== svgNode) btn.removeChild(btn.lastChild);
+    btn.appendChild(document.createTextNode(' Copied!'));
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      while (btn.lastChild !== svgNode) btn.removeChild(btn.lastChild);
+      btn.appendChild(document.createTextNode(' Copy Spec'));
+    }, 2000);
+  });
+});
+
+// ─── Auto-Refresh ────────────────────────────────────────────────
+var lastUpdate = new Date();
+
+function updateTimestamp() {
+  var el = document.getElementById('lastUpdated');
+  var diff = Math.floor((new Date() - lastUpdate) / 1000);
+  if (diff < 10) el.textContent = 'Updated just now';
+  else if (diff < 60) el.textContent = 'Updated ' + diff + 's ago';
+  else el.textContent = 'Updated ' + Math.floor(diff / 60) + 'm ago';
+}
+
+function fetchBacklog() {
+  fetch('/api/backlog').then(function(resp) {
+    if (resp.ok) {
+      return resp.json().then(function(data) {
+        if (Array.isArray(data) && data.length > 0) {
+          BACKLOG_DATA.length = 0;
+          data.forEach(function(d) { BACKLOG_DATA.push(d); });
+          lastUpdate = new Date();
+          applyFilters();
+        }
+      });
+    }
+  }).catch(function() {
+    // Fallback to embedded data
+  });
+  updateTimestamp();
+}
+
+setInterval(fetchBacklog, 30000);
+setInterval(updateTimestamp, 5000);
+
+// ─── Resize handler ──────────────────────────────────────────────
+window.addEventListener('resize', function() {
+  if (document.getElementById('depGraphContainer').classList.contains('open')) {
+    renderDepGraph();
+  }
+});
+
+// ─── Initial Render ──────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

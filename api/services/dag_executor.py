@@ -11,20 +11,27 @@ import threading
 import time
 import uuid as _uuid_mod
 
-from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
-from .stage_registry import STAGE_REGISTRY, get_stage, resolve_deps, topo_sort
+from .stage_registry import get_stage, resolve_deps, topo_sort
 
 logger = logging.getLogger(__name__)
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
 
 
-def record_completion(tenant_id, tag_id, pipeline_run_id, entity_type,
-                      entity_id, stage, status="completed", cost_usd=0,
-                      error=None):
+def record_completion(
+    tenant_id,
+    tag_id,
+    pipeline_run_id,
+    entity_type,
+    entity_id,
+    stage,
+    status="completed",
+    cost_usd=0,
+    error=None,
+):
     """Insert an entity_stage_completions record.
 
     This is the core dual-write function: called after every entity processing
@@ -76,15 +83,27 @@ def record_completion(tenant_id, tag_id, pipeline_run_id, entity_type,
             )
             db.session.commit()
         except Exception as e2:
-            logger.warning("Failed to record completion for %s/%s/%s: %s",
-                            entity_id, stage, status, e2)
+            logger.warning(
+                "Failed to record completion for %s/%s/%s: %s",
+                entity_id,
+                stage,
+                status,
+                e2,
+            )
             db.session.rollback()
 
 
-def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
-                            owner_id=None, tier_filter=None,
-                            soft_deps_enabled=None, entity_ids=None,
-                            re_enrich_horizon=None):
+def build_eligibility_query(
+    stage_code,
+    pipeline_run_id,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    soft_deps_enabled=None,
+    entity_ids=None,
+    re_enrich_horizon=None,
+):
     """Build SQL + params to find entities eligible for a given stage.
 
     An entity is eligible when:
@@ -111,12 +130,10 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
     if entity_type == "company":
         base_table = "companies"
         id_col = "e.id"
-        entity_type_lit = "'company'"
     else:
         # contact entity_type
         base_table = "contacts"
         id_col = "e.id"
-        entity_type_lit = "'contact'"
 
     # Base: select entities in this tenant+tag
     sql_parts = [f"SELECT {id_col} FROM {base_table} e"]
@@ -177,6 +194,7 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
     # Tier filter (company stages only)
     if tier_filter and entity_type == "company":
         from ..display import tier_db_values
+
         tier_vals = tier_db_values(tier_filter)
         if tier_vals:
             placeholders = ", ".join(f":tier_{i}" for i in range(len(tier_vals)))
@@ -227,7 +245,9 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
 
         if entity_type == "company":
             if countries:
-                c_placeholders = ", ".join(f":cg_country_{i}" for i in range(len(countries)))
+                c_placeholders = ", ".join(
+                    f":cg_country_{i}" for i in range(len(countries))
+                )
                 country_conditions.append(f"e.hq_country IN ({c_placeholders})")
                 for i, c in enumerate(countries):
                     params[f"cg_country_{i}"] = c
@@ -242,20 +262,37 @@ def build_eligibility_query(stage_code, pipeline_run_id, tenant_id, tag_id,
     sql = " ".join(sql_parts)
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
-    sql += " ORDER BY e.name" if entity_type == "company" else " ORDER BY e.last_name, e.first_name"
+    sql += (
+        " ORDER BY e.name"
+        if entity_type == "company"
+        else " ORDER BY e.last_name, e.first_name"
+    )
 
     return sql, params
 
 
-def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, tag_id,
-                         owner_id=None, tier_filter=None,
-                         soft_deps_enabled=None, entity_ids=None,
-                         re_enrich_horizon=None):
+def get_dag_eligible_ids(
+    stage_code,
+    pipeline_run_id,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    soft_deps_enabled=None,
+    entity_ids=None,
+    re_enrich_horizon=None,
+):
     """Query PG for eligible entity IDs using DAG-based eligibility."""
     sql, params = build_eligibility_query(
-        stage_code, pipeline_run_id, tenant_id, tag_id,
-        owner_id, tier_filter, soft_deps_enabled,
-        entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
+        stage_code,
+        pipeline_run_id,
+        tenant_id,
+        tag_id,
+        owner_id,
+        tier_filter,
+        soft_deps_enabled,
+        entity_ids=entity_ids,
+        re_enrich_horizon=re_enrich_horizon,
     )
     if sql is None:
         return []
@@ -264,15 +301,28 @@ def get_dag_eligible_ids(stage_code, pipeline_run_id, tenant_id, tag_id,
     return [str(row[0]) for row in rows]
 
 
-def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, tag_id,
-                       owner_id=None, tier_filter=None,
-                       soft_deps_enabled=None, entity_ids=None,
-                       re_enrich_horizon=None):
+def count_dag_eligible(
+    stage_code,
+    pipeline_run_id,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    soft_deps_enabled=None,
+    entity_ids=None,
+    re_enrich_horizon=None,
+):
     """Count eligible entities without loading IDs."""
     sql, params = build_eligibility_query(
-        stage_code, pipeline_run_id, tenant_id, tag_id,
-        owner_id, tier_filter, soft_deps_enabled,
-        entity_ids=entity_ids, re_enrich_horizon=re_enrich_horizon,
+        stage_code,
+        pipeline_run_id,
+        tenant_id,
+        tag_id,
+        owner_id,
+        tier_filter,
+        soft_deps_enabled,
+        entity_ids=entity_ids,
+        re_enrich_horizon=re_enrich_horizon,
     )
     if sql is None:
         return 0
@@ -282,9 +332,15 @@ def count_dag_eligible(stage_code, pipeline_run_id, tenant_id, tag_id,
     return row[0] if row else 0
 
 
-def count_eligible_for_estimate(stage_code, tenant_id, tag_id,
-                                owner_id=None, tier_filter=None,
-                                entity_ids=None, re_enrich_horizon=None):
+def count_eligible_for_estimate(
+    stage_code,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    entity_ids=None,
+    re_enrich_horizon=None,
+):
     """Count eligible entities for cost estimation (no pipeline_run_id needed).
 
     Simplified eligibility: entity exists in tenant+tag, matches filters,
@@ -317,6 +373,7 @@ def count_eligible_for_estimate(stage_code, tenant_id, tag_id,
     # Tier filter (company stages only)
     if tier_filter and entity_type == "company":
         from ..display import tier_db_values
+
         tier_vals = tier_db_values(tier_filter)
         if tier_vals:
             placeholders = ", ".join(f":tier_{i}" for i in range(len(tier_vals)))
@@ -352,7 +409,9 @@ def count_eligible_for_estimate(stage_code, tenant_id, tag_id,
         countries = country_gate.get("countries", [])
         tlds = country_gate.get("tlds", [])
         if countries:
-            c_placeholders = ", ".join(f":cg_country_{i}" for i in range(len(countries)))
+            c_placeholders = ", ".join(
+                f":cg_country_{i}" for i in range(len(countries))
+            )
             country_conditions.append(f"e.hq_country IN ({c_placeholders})")
             for i, c in enumerate(countries):
                 params[f"cg_country_{i}"] = c
@@ -430,8 +489,11 @@ def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, tag_id):
         db.session.commit()
         count = result.rowcount
         if count > 0:
-            logger.info("Auto-skipped %d companies for stage %s (country gate)",
-                        count, stage_code)
+            logger.info(
+                "Auto-skipped %d companies for stage %s (country gate)",
+                count,
+                stage_code,
+            )
         return count
     except Exception as e:
         logger.warning("Auto-skip failed for %s: %s", stage_code, e)
@@ -442,6 +504,7 @@ def auto_skip_country_gated(stage_code, pipeline_run_id, tenant_id, tag_id):
 # ---------------------------------------------------------------------------
 # DAG-aware reactive stage execution
 # ---------------------------------------------------------------------------
+
 
 def _check_stop_signal(run_id):
     """Check if a stage_run has been requested to stop."""
@@ -461,7 +524,9 @@ def _get_entity_name(stage_code, entity_id, tenant_id):
     try:
         if stage_def["entity_type"] == "contact":
             row = db.session.execute(
-                text("SELECT first_name, last_name FROM contacts WHERE id = :id AND tenant_id = :t"),
+                text(
+                    "SELECT first_name, last_name FROM contacts WHERE id = :id AND tenant_id = :t"
+                ),
                 {"id": str(entity_id), "t": str(tenant_id)},
             ).fetchone()
             if row:
@@ -486,7 +551,11 @@ def _update_stage_run(run_id, **kwargs):
         set_parts.append(f"{key} = :{key}")
         params[key] = value
 
-    if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
+    if "completed_at" not in kwargs and kwargs.get("status") in (
+        "completed",
+        "failed",
+        "stopped",
+    ):
         set_parts.append("completed_at = :completed_at")
         params["completed_at"] = datetime.datetime.utcnow().isoformat()
 
@@ -502,6 +571,7 @@ def _update_current_item(run_id, entity_name, status="processing"):
     """Store the current item being processed in the stage_run config."""
     try:
         import json as _json
+
         row = db.session.execute(
             text("SELECT config FROM stage_runs WHERE id = :id"),
             {"id": str(run_id)},
@@ -542,11 +612,16 @@ def _fetch_previous_data(entity_type, entity_id, stage_code):
             ).fetchone()
             if row:
                 return {
-                    "name": row[0], "domain": row[1], "industry": row[2],
-                    "business_type": row[3], "summary": row[4],
+                    "name": row[0],
+                    "domain": row[1],
+                    "industry": row[2],
+                    "business_type": row[3],
+                    "summary": row[4],
                     "revenue_eur_m": float(row[5]) if row[5] else None,
-                    "employees": row[6], "hq_city": row[7],
-                    "hq_country": row[8], "ownership_type": row[9],
+                    "employees": row[6],
+                    "hq_city": row[7],
+                    "hq_country": row[8],
+                    "ownership_type": row[9],
                     "tier": row[10],
                 }
         else:
@@ -560,19 +635,33 @@ def _fetch_previous_data(entity_type, entity_id, stage_code):
             ).fetchone()
             if row:
                 return {
-                    "first_name": row[0], "last_name": row[1],
-                    "job_title": row[2], "linkedin_url": row[3],
-                    "seniority": row[4], "department": row[5],
+                    "first_name": row[0],
+                    "last_name": row[1],
+                    "job_title": row[2],
+                    "linkedin_url": row[3],
+                    "seniority": row[4],
+                    "department": row[5],
                 }
     except Exception as e:
         logger.warning("Failed to fetch previous data for %s: %s", entity_id, e)
     return None
 
 
-def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
-                  owner_id=None, tier_filter=None, soft_deps_enabled=None,
-                  predecessor_run_ids=None, sample_size=None,
-                  entity_ids=None, re_enrich_horizons=None):
+def run_dag_stage(
+    app,
+    run_id,
+    stage_code,
+    pipeline_run_id,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    soft_deps_enabled=None,
+    predecessor_run_ids=None,
+    sample_size=None,
+    entity_ids=None,
+    re_enrich_horizons=None,
+):
     """Background thread: DAG-aware reactive stage execution.
 
     Like run_stage_reactive but uses completion-record-based eligibility
@@ -598,17 +687,32 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
         sample_remaining = sample_size
 
         _update_stage_run(run_id, status="running")
-        logger.info("DAG stage %s started (run %s, pipeline %s)", stage_code, run_id, pipeline_run_id)
+        logger.info(
+            "DAG stage %s started (run %s, pipeline %s)",
+            stage_code,
+            run_id,
+            pipeline_run_id,
+        )
 
         while True:
             if _check_stop_signal(run_id):
-                _update_stage_run(run_id, status="stopped", done=done_count,
-                                  failed=failed_count, cost_usd=total_cost)
+                _update_stage_run(
+                    run_id,
+                    status="stopped",
+                    done=done_count,
+                    failed=failed_count,
+                    cost_usd=total_cost,
+                )
                 return
 
             if sample_remaining is not None and sample_remaining <= 0:
-                _update_stage_run(run_id, status="completed", done=done_count,
-                                  failed=failed_count, cost_usd=total_cost)
+                _update_stage_run(
+                    run_id,
+                    status="completed",
+                    done=done_count,
+                    failed=failed_count,
+                    cost_usd=total_cost,
+                )
                 return
 
             # Query eligible entities using DAG-based eligibility
@@ -619,9 +723,15 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
                     stage_horizon = re_enrich_horizons[stage_code]
 
                 all_eligible = get_dag_eligible_ids(
-                    stage_code, pipeline_run_id, tenant_id, tag_id,
-                    owner_id, tier_filter, soft_deps_enabled,
-                    entity_ids=entity_ids, re_enrich_horizon=stage_horizon,
+                    stage_code,
+                    pipeline_run_id,
+                    tenant_id,
+                    tag_id,
+                    owner_id,
+                    tier_filter,
+                    soft_deps_enabled,
+                    entity_ids=entity_ids,
+                    re_enrich_horizon=stage_horizon,
                 )
             except Exception as e:
                 logger.error("DAG stage %s eligibility query failed: %s", stage_code, e)
@@ -640,8 +750,13 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
 
                 for entity_id in new_ids:
                     if _check_stop_signal(run_id):
-                        _update_stage_run(run_id, status="stopped", done=done_count,
-                                          failed=failed_count, cost_usd=total_cost)
+                        _update_stage_run(
+                            run_id,
+                            status="stopped",
+                            done=done_count,
+                            failed=failed_count,
+                            cost_usd=total_cost,
+                        )
                         return
 
                     processed_ids.add(entity_id)
@@ -653,17 +768,20 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
                         prev_data = None
                         if re_enrich_horizons and stage_code in re_enrich_horizons:
                             prev_data = _fetch_previous_data(
-                                entity_type, entity_id, stage_code)
+                                entity_type, entity_id, stage_code
+                            )
 
                         result = _process_entity(
-                            stage_code, entity_id, tenant_id,
-                            previous_data=prev_data)
+                            stage_code, entity_id, tenant_id, previous_data=prev_data
+                        )
                         cost = _extract_cost(result)
                         total_cost += cost
 
                         # Handle gate results (triage, review, etc.)
                         if isinstance(result, dict) and "gate_passed" in result:
-                            completion_status = "completed" if result["gate_passed"] else "disqualified"
+                            completion_status = (
+                                "completed" if result["gate_passed"] else "disqualified"
+                            )
                         else:
                             completion_status = "completed"
 
@@ -671,30 +789,50 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
 
                         # Record completion
                         record_completion(
-                            tenant_id, tag_id, pipeline_run_id,
-                            entity_type, entity_id, stage_code,
-                            status=completion_status, cost_usd=cost,
+                            tenant_id,
+                            tag_id,
+                            pipeline_run_id,
+                            entity_type,
+                            entity_id,
+                            stage_code,
+                            status=completion_status,
+                            cost_usd=cost,
                         )
 
                         _update_current_item(run_id, entity_name, "ok")
-                        _update_stage_run(run_id, done=done_count, cost_usd=total_cost,
-                                          failed=failed_count)
+                        _update_stage_run(
+                            run_id,
+                            done=done_count,
+                            cost_usd=total_cost,
+                            failed=failed_count,
+                        )
                     except Exception as e:
                         db.session.rollback()
                         failed_count += 1
 
                         # Record failure
                         record_completion(
-                            tenant_id, tag_id, pipeline_run_id,
-                            entity_type, entity_id, stage_code,
-                            status="failed", error=str(e),
+                            tenant_id,
+                            tag_id,
+                            pipeline_run_id,
+                            entity_type,
+                            entity_id,
+                            stage_code,
+                            status="failed",
+                            error=str(e),
                         )
 
                         _update_current_item(run_id, entity_name, "failed")
-                        logger.warning("DAG stage %s item %s failed: %s",
-                                       stage_code, entity_id, e)
-                        _update_stage_run(run_id, done=done_count, failed=failed_count,
-                                          cost_usd=total_cost, error=str(e)[:500])
+                        logger.warning(
+                            "DAG stage %s item %s failed: %s", stage_code, entity_id, e
+                        )
+                        _update_stage_run(
+                            run_id,
+                            done=done_count,
+                            failed=failed_count,
+                            cost_usd=total_cost,
+                            error=str(e)[:500],
+                        )
 
                     if sample_remaining is not None:
                         sample_remaining -= 1
@@ -704,11 +842,24 @@ def run_dag_stage(app, run_id, stage_code, pipeline_run_id, tenant_id, tag_id,
                 # No new items — check termination
                 preds_done = _predecessors_terminal(predecessor_run_ids)
                 if preds_done:
-                    final_status = "completed" if done_count > 0 or failed_count == 0 else "failed"
-                    _update_stage_run(run_id, status=final_status, done=done_count,
-                                      failed=failed_count, cost_usd=total_cost)
-                    logger.info("DAG stage %s %s: %d done, %d failed, $%.4f",
-                                stage_code, final_status, done_count, failed_count, total_cost)
+                    final_status = (
+                        "completed" if done_count > 0 or failed_count == 0 else "failed"
+                    )
+                    _update_stage_run(
+                        run_id,
+                        status=final_status,
+                        done=done_count,
+                        failed=failed_count,
+                        cost_usd=total_cost,
+                    )
+                    logger.info(
+                        "DAG stage %s %s: %d done, %d failed, $%.4f",
+                        stage_code,
+                        final_status,
+                        done_count,
+                        failed_count,
+                        total_cost,
+                    )
                     return
 
             time.sleep(REACTIVE_POLL_INTERVAL)
@@ -734,6 +885,7 @@ def _predecessors_terminal(predecessor_run_ids):
 # DAG pipeline coordinator
 # ---------------------------------------------------------------------------
 
+
 def _update_pipeline_run(pipeline_run_id, **kwargs):
     """Update a pipeline_runs record."""
     set_parts = []
@@ -742,7 +894,11 @@ def _update_pipeline_run(pipeline_run_id, **kwargs):
         set_parts.append(f"{key} = :{key}")
         params[key] = value
 
-    if "completed_at" not in kwargs and kwargs.get("status") in ("completed", "failed", "stopped"):
+    if "completed_at" not in kwargs and kwargs.get("status") in (
+        "completed",
+        "failed",
+        "stopped",
+    ):
         set_parts.append("completed_at = :completed_at")
         params["completed_at"] = datetime.datetime.utcnow().isoformat()
 
@@ -777,7 +933,9 @@ def coordinate_dag_pipeline(app, pipeline_run_id, stage_run_ids):
                         ).fetchone()
                         if row and row[0] in ("pending", "running"):
                             db.session.execute(
-                                text("UPDATE stage_runs SET status = 'stopping' WHERE id = :id"),
+                                text(
+                                    "UPDATE stage_runs SET status = 'stopping' WHERE id = :id"
+                                ),
                                 {"id": str(run_id)},
                             )
                     db.session.commit()
@@ -800,12 +958,22 @@ def coordinate_dag_pipeline(app, pipeline_run_id, stage_run_ids):
                         total_cost += float(row[1] or 0)
 
                 if all_terminal:
-                    final_status = "stopped" if (prow and prow[0] == "stopping") else \
-                                   "failed" if any_failed else "completed"
-                    _update_pipeline_run(pipeline_run_id, status=final_status,
-                                         cost_usd=total_cost)
-                    logger.info("DAG pipeline %s %s, total cost $%.4f",
-                                pipeline_run_id, final_status, total_cost)
+                    final_status = (
+                        "stopped"
+                        if (prow and prow[0] == "stopping")
+                        else "failed"
+                        if any_failed
+                        else "completed"
+                    )
+                    _update_pipeline_run(
+                        pipeline_run_id, status=final_status, cost_usd=total_cost
+                    )
+                    logger.info(
+                        "DAG pipeline %s %s, total cost $%.4f",
+                        pipeline_run_id,
+                        final_status,
+                        total_cost,
+                    )
                     return
                 else:
                     _update_pipeline_run(pipeline_run_id, cost_usd=total_cost)
@@ -814,10 +982,20 @@ def coordinate_dag_pipeline(app, pipeline_run_id, stage_run_ids):
                 logger.error("DAG pipeline coordinator error: %s", e)
 
 
-def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, tag_id,
-                       owner_id=None, tier_filter=None, stage_run_ids=None,
-                       soft_deps_enabled=None, sample_size=None,
-                       entity_ids=None, re_enrich_horizons=None):
+def start_dag_pipeline(
+    app,
+    pipeline_run_id,
+    stages_to_run,
+    tenant_id,
+    tag_id,
+    owner_id=None,
+    tier_filter=None,
+    stage_run_ids=None,
+    soft_deps_enabled=None,
+    sample_size=None,
+    entity_ids=None,
+    re_enrich_horizons=None,
+):
     """Spawn DAG-aware reactive stage threads for all stages + coordinator.
 
     Unlike start_pipeline_threads, this uses completion-record-based eligibility
@@ -831,7 +1009,9 @@ def start_dag_pipeline(app, pipeline_run_id, stages_to_run, tenant_id, tag_id,
 
         # Build predecessor run IDs from the stage's deps
         deps = resolve_deps(stage_code, soft_deps_enabled)
-        predecessor_run_ids = [stage_run_ids[dep] for dep in deps if dep in stage_run_ids]
+        predecessor_run_ids = [
+            stage_run_ids[dep] for dep in deps if dep in stage_run_ids
+        ]
 
         t = threading.Thread(
             target=run_dag_stage,

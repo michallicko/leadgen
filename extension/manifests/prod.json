@@ -1,0 +1,13 @@
+{
+  "name": "VisionVolve Leads",
+  "description": "Lead extraction and activity monitoring for VisionVolve",
+  "icons": {
+    "16": "icons/prod/16.png",
+    "48": "icons/prod/48.png",
+    "128": "icons/prod/128.png"
+  },
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://leadgen.visionvolve.com/*"
+  ]
+}

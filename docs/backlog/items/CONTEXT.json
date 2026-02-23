@@ -1,0 +1,14 @@
+{
+  "id": "CONTEXT",
+  "title": "Context Management (Doc-as-Memory + RAG)",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Spec'd",
+  "sprint": "Backlog",
+  "depends_on": [
+    "PERSIST"
+  ],
+  "spec": "## Context Management (Doc-as-Memory + RAG)\n\n### Goal\nGive the AI long-term memory by using the strategy document as persistent context, augmented with RAG for large document sets.\n\n### Scope\n- **Doc-as-memory**: Current strategy doc is always included in AI context\n- **Conversation summary**: Long conversations are auto-summarized to fit context window\n- **RAG pipeline**: For large strategies, use embeddings + vector search to find relevant sections\n- **Cross-strategy memory**: AI can reference insights from other strategies in the namespace\n\n### Technical Approach\n- Strategy doc injection: full doc for small strategies, chunked RAG for large ones\n- Embedding: `text-embedding-3-small` via OpenAI API\n- Vector store: `pgvector` extension on existing PostgreSQL\n- Chunking: 500-token overlapping chunks per strategy section\n- Conversation compaction: Summarize every 20 messages into a \"memory\" message\n- Depends on PERSIST (persistent chat) for conversation history\n\n### Acceptance Criteria\n- Given a 10-page strategy doc, the AI can answer questions about any section\n- Given a 50-message conversation, older messages are summarized without losing key context\n- Given two strategies exist, the AI can reference insights from the other when asked",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

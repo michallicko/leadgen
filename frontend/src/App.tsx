@@ -16,6 +16,8 @@ import { CampaignDetailPage } from './pages/campaigns/CampaignDetailPage'
 import { EnrichPage } from './pages/enrich/EnrichPage'
 import { ImportPage } from './pages/import/ImportPage'
 import { AdminPage } from './pages/admin/AdminPage'
+import { PreferencesPage } from './pages/preferences/PreferencesPage'
+import { PlaybookPage } from './pages/playbook/PlaybookPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,9 +51,11 @@ export default function App() {
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
               <Route path="campaigns/:campaignId/review" element={<MessageReviewPage />} />
-              <Route path="playbook" element={<PlaceholderPage title="ICP Playbook" description="Your Ideal Customer Profile definition — target segments, company signals, decision-maker titles, and disqualification criteria." />} />
+              <Route path="playbook" element={<PlaybookPage />} />
+              <Route path="playbook/:phase" element={<PlaybookPage />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
+              <Route path="preferences" element={<PreferencesPage />} />
               <Route path="llm-costs" element={<PlaceholderPage title="LLM Costs" description="AI usage tracking — cost over time, per-operation breakdown, per-tenant analysis, and call logs." />} />
             </Route>
           </Routes>

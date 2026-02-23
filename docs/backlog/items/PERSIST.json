@@ -1,0 +1,12 @@
+{
+  "id": "PERSIST",
+  "title": "Persistent App-Wide Chat (Marketing Strategist)",
+  "priority": "Must Have",
+  "effort": "L",
+  "status": "Idea",
+  "sprint": "Sprint 2",
+  "depends_on": [],
+  "spec": "## Persistent App-Wide Chat (Marketing Strategist)\n\n### Goal\nThe AI chat should persist across page navigations and be accessible from any page in the app, acting as an always-available marketing strategist.\n\n### Behavior\n- **Global sidebar**: Chat panel slides in from the right on any page\n- **Persistent history**: Conversations are stored per-strategy and loaded on revisit\n- **Context-aware**: Chat knows which page/phase the user is on and adapts\n- **Thread model**: One conversation thread per strategy, with ability to start fresh\n\n### Technical Approach\n- `ChatProvider` at app root with React Context\n- `messages` table: `id`, `strategy_id`, `role` (user/assistant/system), `content`, `created_at`\n- API: `GET/POST /api/strategies/:id/messages`\n- Sliding panel component with chat history + input\n- Keyboard shortcut: `Cmd+K` toggles chat\n\n### Acceptance Criteria\n- Given a user chats on the Strategy phase, navigates to Contacts, then returns — chat history is preserved\n- Given a user opens the app on a new device, previous conversations load from the server\n- Given `Cmd+K` is pressed on any page, the chat panel toggles open/closed",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

@@ -14,7 +14,6 @@ import re
 import time
 from datetime import datetime, timezone
 
-from flask import current_app
 from sqlalchemy import text
 
 from ..models import db
@@ -29,9 +28,23 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _to_text(val):
+    """Coerce enrichment value to string for L2 result dict."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    if isinstance(val, dict):
+        return json.dumps(val)
+    return str(val)
+
+
 PERPLEXITY_MAX_TOKENS = 1200
 PERPLEXITY_TEMPERATURE = 0.2
-ANTHROPIC_MAX_TOKENS = 2000
+ANTHROPIC_MAX_TOKENS = 4000
 ANTHROPIC_TEMPERATURE = 0.3
 ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 
@@ -153,6 +166,20 @@ RULES:
 - Quick wins MUST be achievable in 4-8 weeks with clear ROI
 - Pain hypothesis = what keeps a senior leader awake, based on evidence
 
+TONE RULES (CRITICAL — this output is shown to business owners):
+- NEVER use the word "DISQUALIFY" or similar harsh labels in any field
+- NEVER say a company "shows no verifiable business presence" or imply a company may not be real
+- When data is limited, frame it constructively: "Limited public information available" not \
+"No company information found"
+- Frame gaps as "we could not find X" or "X could not be confirmed" — never "X doesn't exist"
+- The executive_brief is read by business owners about their own prospects. Keep it professional \
+and respectful at all times
+- If research yields very little, focus on what IS known and suggest areas for further research
+- Example good tone: "A company in [industry] with limited public presence. \
+Additional research recommended to confirm company scale and identify specific AI opportunities."
+- Example bad tone: "DISQUALIFY: shows no verifiable business presence. \
+Recommend data validation before sales investment."
+
 PITCH FRAMING:
 - growth_acceleration: expansion, funding, hiring
 - efficiency_protection: cost pressure, layoffs, flat revenue
@@ -162,15 +189,19 @@ PITCH FRAMING:
 OUTPUT FORMAT: Return ONLY valid JSON. Start with {.
 
 {
-  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact",
-  "pain_hypothesis": "1-2 sentences based on evidence",
+  "ai_opportunities": "Top 3-5 AI use cases with evidence and impact. If data is limited, \
+suggest general industry-relevant opportunities and note that further research may refine these.",
+  "pain_hypothesis": "1-2 sentences based on evidence. If evidence is thin, frame as \
+'Based on industry patterns, likely challenges include...'",
   "quick_wins": [{"use_case": "...", "evidence": "...", "impact": "...", "complexity": "low|medium"}],
   "industry_pain_points": "Top 3 industry-specific pain points",
   "cross_functional_pain": "Cross-department pain points",
   "adoption_barriers": "Likely objections or blockers",
   "competitor_ai_moves": "Competitor AI activity or null",
   "pitch_framing": "growth_acceleration|efficiency_protection|competitive_catch_up|compliance_driven",
-  "executive_brief": "3-4 sentence summary for a sales rep"
+  "executive_brief": "3-4 sentence professional summary for a sales rep. Always lead with what \
+IS known about the company. If information is limited, note this neutrally and suggest next steps \
+like manual research or direct outreach. Never use dismissive or disqualifying language."
 }"""
 
 SYNTHESIS_USER_TEMPLATE = """Generate AI opportunity analysis for {company_name} ({domain}):
@@ -208,6 +239,7 @@ Employee Sentiment: {employee_sentiment}"""
 # Main entry point
 # ---------------------------------------------------------------------------
 
+
 def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
     """Run L2 deep research enrichment for a single company.
 
@@ -232,6 +264,11 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         if not company:
             return {"error": "Company not found", "enrichment_cost_usd": 0}
 
+        # Skip tenant's own company — never enrich self
+        if company.get("is_self"):
+            logger.info("Skipping self-company %s — is_self=True", company["name"])
+            return {"enrichment_cost_usd": 0, "skipped": "is_self"}
+
         if not tenant_id:
             tenant_id = company["tenant_id"]
 
@@ -243,48 +280,56 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
             total_cost += news_cost
         except Exception as e:
             logger.error("L2 news research failed for %s: %s", company_id, e)
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             return {"error": str(e), "enrichment_cost_usd": total_cost}
 
         try:
             strategic_data, strategic_cost = _research_strategic(
-                company, l1_data, model)
+                company, l1_data, model
+            )
             total_cost += strategic_cost
         except Exception as e:
             logger.error("L2 strategic research failed for %s: %s", company_id, e)
             # Save partial results from news
-            _upsert_l2_enrichment(company_id, news_data, {}, {},
-                                  total_cost, l1_data=l1_data)
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _upsert_l2_enrichment(
+                company_id, news_data, {}, {}, total_cost, l1_data=l1_data
+            )
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             return {"error": str(e), "enrichment_cost_usd": total_cost}
 
         # --- Phase 2: Anthropic synthesis ---
         try:
             synthesis_data, synthesis_cost = _synthesize(
-                company, l1_data, news_data, strategic_data)
+                company, l1_data, news_data, strategic_data
+            )
             total_cost += synthesis_cost
         except Exception as e:
-            logger.warning("L2 synthesis failed for %s: %s — saving research only",
-                           company_id, e)
+            logger.warning(
+                "L2 synthesis failed for %s: %s — saving research only", company_id, e
+            )
             # Save research without synthesis
-            _upsert_l2_enrichment(company_id, news_data, strategic_data, {},
-                                  total_cost, l1_data=l1_data)
+            _upsert_l2_enrichment(
+                company_id, news_data, strategic_data, {}, total_cost, l1_data=l1_data
+            )
             _set_company_status(company_id, "enriched_l2")
             db.session.commit()
             return {"enrichment_cost_usd": total_cost, "synthesis_failed": True}
 
         # --- Save everything ---
-        _upsert_l2_enrichment(company_id, news_data, strategic_data,
-                              synthesis_data, total_cost, l1_data=l1_data)
+        _upsert_l2_enrichment(
+            company_id,
+            news_data,
+            strategic_data,
+            synthesis_data,
+            total_cost,
+            l1_data=l1_data,
+        )
         _set_company_status(company_id, "enriched_l2")
 
         # --- Log LLM usage ---
         duration_ms = int((time.time() - start_time) * 1000)
         if log_llm_usage:
-            _log_usage(company_id, tenant_id, model, total_cost,
-                       duration_ms, boost)
+            _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost)
 
         db.session.commit()
         return {"enrichment_cost_usd": total_cost}
@@ -293,8 +338,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
         logger.exception("L2 enrichment failed for %s: %s", company_id, e)
         db.session.rollback()
         try:
-            _set_company_status(company_id, "enrichment_l2_failed",
-                                error_msg=str(e))
+            _set_company_status(company_id, "enrichment_l2_failed", error_msg=str(e))
             db.session.commit()
         except Exception:
             pass
@@ -305,6 +349,7 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False):
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def _load_company_and_l1(company_id):
     """Load company record and L1 enrichment data."""
     row = db.session.execute(
@@ -312,7 +357,8 @@ def _load_company_and_l1(company_id):
             SELECT c.id, c.tenant_id, c.name, c.domain, c.industry,
                    c.verified_revenue_eur_m, c.verified_employees,
                    c.geo_region, c.tier, c.hq_city, c.hq_country,
-                   l1.raw_response, l1.confidence, l1.qc_flags
+                   l1.raw_response, l1.confidence, l1.qc_flags,
+                   c.is_self
             FROM companies c
             LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
             WHERE c.id = :cid
@@ -335,6 +381,7 @@ def _load_company_and_l1(company_id):
         "tier": row[8] or "",
         "hq_city": row[9] or "",
         "hq_country": row[10] or "",
+        "is_self": row[14],
     }
 
     l1_raw = row[11]
@@ -351,6 +398,7 @@ def _load_company_and_l1(company_id):
 # ---------------------------------------------------------------------------
 # Phase 1: Perplexity research
 # ---------------------------------------------------------------------------
+
 
 def _research_news(company, l1_data, model):
     """Call Perplexity for news and business signals."""
@@ -404,6 +452,7 @@ def _research_strategic(company, l1_data, model):
 # Phase 2: Anthropic synthesis
 # ---------------------------------------------------------------------------
 
+
 def _synthesize(company, l1_data, news_data, strategic_data):
     """Call Anthropic Claude to synthesize research into actionable intel."""
     client = AnthropicClient()
@@ -446,6 +495,10 @@ def _synthesize(company, l1_data, news_data, strategic_data):
     )
 
     data = _parse_json(resp.content)
+    if not data:
+        raise ValueError(
+            f"Failed to parse synthesis JSON response ({len(resp.content)} chars)"
+        )
     return data, resp.cost_usd
 
 
@@ -453,8 +506,10 @@ def _synthesize(company, l1_data, news_data, strategic_data):
 # DB operations
 # ---------------------------------------------------------------------------
 
-def _upsert_l2_enrichment(company_id, news_data, strategic_data,
-                          synthesis_data, total_cost, l1_data=None):
+
+def _upsert_l2_enrichment(
+    company_id, news_data, strategic_data, synthesis_data, total_cost, l1_data=None
+):
     """Insert or update the company_enrichment_l2 record.
 
     Includes Phase 1 (data loss fix) and Phase 2 (new high-value) columns.
@@ -463,27 +518,55 @@ def _upsert_l2_enrichment(company_id, news_data, strategic_data,
     if quick_wins and not isinstance(quick_wins, str):
         quick_wins = json.dumps(quick_wins)
 
-    params = _build_l2_params(company_id, news_data, strategic_data,
-                              synthesis_data, quick_wins, total_cost,
-                              l1_data=l1_data)
+    params = _build_l2_params(
+        company_id,
+        news_data,
+        strategic_data,
+        synthesis_data,
+        quick_wins,
+        total_cost,
+        l1_data=l1_data,
+    )
 
     # Column list shared by INSERT and ON CONFLICT UPDATE
     _COLUMNS = (
-        "company_intel", "recent_news", "ai_opportunities",
-        "pain_hypothesis", "relevant_case_study", "digital_initiatives",
-        "leadership_changes", "hiring_signals", "key_products",
-        "customer_segments", "competitors", "tech_stack",
-        "funding_history", "eu_grants", "leadership_team",
-        "ai_hiring", "tech_partnerships", "certifications",
-        "quick_wins", "industry_pain_points", "cross_functional_pain",
-        "adoption_barriers", "competitor_ai_moves",
+        "company_intel",
+        "recent_news",
+        "ai_opportunities",
+        "pain_hypothesis",
+        "relevant_case_study",
+        "digital_initiatives",
+        "leadership_changes",
+        "hiring_signals",
+        "key_products",
+        "customer_segments",
+        "competitors",
+        "tech_stack",
+        "funding_history",
+        "eu_grants",
+        "leadership_team",
+        "ai_hiring",
+        "tech_partnerships",
+        "certifications",
+        "quick_wins",
+        "industry_pain_points",
+        "cross_functional_pain",
+        "adoption_barriers",
+        "competitor_ai_moves",
         # Phase 1: previously lost fields
-        "expansion", "workflow_ai_evidence", "revenue_trend",
-        "growth_signals", "regulatory_pressure", "employee_sentiment",
+        "expansion",
+        "workflow_ai_evidence",
+        "revenue_trend",
+        "growth_signals",
+        "regulatory_pressure",
+        "employee_sentiment",
         "pitch_framing",
         # Phase 2: new high-value fields
-        "ma_activity", "tech_stack_categories", "fiscal_year_end",
-        "digital_maturity_score", "it_spend_indicators",
+        "ma_activity",
+        "tech_stack_categories",
+        "fiscal_year_end",
+        "digital_maturity_score",
+        "it_spend_indicators",
     )
 
     col_list = ", ".join(_COLUMNS)
@@ -525,9 +608,15 @@ def _upsert_l2_enrichment(company_id, news_data, strategic_data,
         )
 
 
-def _build_l2_params(company_id, news_data, strategic_data,
-                     synthesis_data, quick_wins, total_cost,
-                     l1_data=None):
+def _build_l2_params(
+    company_id,
+    news_data,
+    strategic_data,
+    synthesis_data,
+    quick_wins,
+    total_cost,
+    l1_data=None,
+):
     """Build parameter dict for L2 upsert.
 
     Phase 1 fixes (data loss):
@@ -548,21 +637,24 @@ def _build_l2_params(company_id, news_data, strategic_data,
 
     return {
         "cid": company_id,
-        "company_intel": synthesis_data.get("executive_brief"),
-        "recent_news": news_data.get("recent_news"),
-        "ai_opportunities": synthesis_data.get("ai_opportunities"),
-        "pain_hypothesis": synthesis_data.get("pain_hypothesis"),
+        "company_intel": _to_text(synthesis_data.get("executive_brief")),
+        "recent_news": _to_text(news_data.get("recent_news")),
+        "ai_opportunities": _to_text(synthesis_data.get("ai_opportunities")),
+        "pain_hypothesis": _to_text(synthesis_data.get("pain_hypothesis")),
         "relevant_case_study": None,
         "digital_initiatives": news_data.get("digital_initiatives"),
         "leadership_changes": news_data.get("leadership_changes"),
         "hiring_signals": strategic_data.get("other_hiring_signals"),
         # Fix #8: key_products from L1 data instead of hardcoded None
-        "key_products": (l1.get("key_products")
-                         or l1.get("products")
-                         or synthesis_data.get("key_products")),
+        "key_products": (
+            l1.get("key_products")
+            or l1.get("products")
+            or synthesis_data.get("key_products")
+        ),
         # Fix #9: customer_segments from L1 data instead of hardcoded None
-        "customer_segments": (l1.get("customer_segments")
-                              or synthesis_data.get("customer_segments")),
+        "customer_segments": (
+            l1.get("customer_segments") or synthesis_data.get("customer_segments")
+        ),
         # Fix #10: competitors from L1 (named competitors), not synthesis ai_moves
         "competitors": l1.get("competitors") or synthesis_data.get("competitors"),
         # Fix #10: tech_stack = digital_initiatives tech detail (what they use)
@@ -624,16 +716,19 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
     try:
         log_llm_usage(
             tenant_id=tenant_id,
+            operation="l2_enrichment",
             provider="perplexity+anthropic",
             model=model,
             input_tokens=0,  # Aggregated — individual costs tracked per call
             output_tokens=0,
-            cost_usd=total_cost,
             duration_ms=duration_ms,
-            entity_type="company",
-            entity_id=company_id,
-            stage="l2",
-            metadata={"boost": boost},
+            metadata={
+                "boost": boost,
+                "cost_usd": total_cost,
+                "entity_type": "company",
+                "entity_id": company_id,
+                "stage": "l2",
+            },
         )
     except Exception as e:
         logger.warning("Failed to log L2 LLM usage: %s", e)
@@ -643,14 +738,28 @@ def _log_usage(company_id, tenant_id, model, total_cost, duration_ms, boost):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
+def _strip_code_fences(text):
+    """Strip markdown code fences from LLM response."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence (```json, ```JSON, or just ```)
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1 :]
+        else:
+            text = text[3:]
+    if text.rstrip().endswith("```"):
+        text = text.rstrip()[:-3]
+    return text.strip()
+
+
 def _parse_json(content):
     """Parse JSON from API response, handling markdown fences."""
     if not content:
         return {}
 
-    # Strip markdown code fences
-    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip())
-    cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = _strip_code_fences(content)
 
     try:
         return json.loads(cleaned)
@@ -662,6 +771,11 @@ def _parse_json(content):
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-        logger.warning("Failed to parse JSON from L2 response: %s...",
-                       content[:200])
+        truncated = not content.rstrip().endswith(("}", "]"))
+        logger.warning(
+            "Failed to parse JSON from L2 response (%d chars%s): %s...",
+            len(content),
+            ", appears truncated" if truncated else "",
+            content[:200],
+        )
         return {}

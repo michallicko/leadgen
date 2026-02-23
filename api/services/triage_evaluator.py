@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 
 # Default triage rules — conservative, lets most through
 DEFAULT_RULES = {
-    "tier_allowlist": [],           # empty = no tier filter
-    "tier_blocklist": [],           # these tiers are disqualified
-    "industry_blocklist": [],       # disqualify these industries
-    "industry_allowlist": [],       # if set, ONLY these industries pass
-    "geo_allowlist": [],            # if set, only these regions pass
-    "min_revenue_eur_m": None,      # minimum annual revenue (EUR millions)
-    "min_employees": None,          # minimum employee count
-    "require_b2b": True,            # require B2B classification
-    "max_qc_flags": 3,             # max L1 QC flags to pass
+    "tier_allowlist": [],  # empty = no tier filter
+    "tier_blocklist": [],  # these tiers are disqualified
+    "industry_blocklist": [],  # disqualify these industries
+    "industry_allowlist": [],  # if set, ONLY these industries pass
+    "geo_allowlist": [],  # if set, only these regions pass
+    "min_revenue_eur_m": None,  # minimum annual revenue (EUR millions)
+    "min_employees": None,  # minimum employee count
+    "require_b2b": True,  # require B2B classification
+    "max_qc_flags": 3,  # max L1 QC flags to pass
 }
 
 
@@ -69,32 +69,34 @@ def evaluate_triage(company_data, rules):
     if industry_allowlist:
         industry = company_data.get("industry")
         if industry not in industry_allowlist:
-            reasons.append("Industry {} not in allowlist {}".format(
-                industry, industry_allowlist))
+            reasons.append(
+                "Industry {} not in allowlist {}".format(industry, industry_allowlist)
+            )
 
     # Geo allowlist
     geo_allowlist = rules.get("geo_allowlist")
     if geo_allowlist:
         geo = company_data.get("geo_region")
         if geo not in geo_allowlist:
-            reasons.append("Geo region {} not in allowlist {}".format(
-                geo, geo_allowlist))
+            reasons.append(
+                "Geo region {} not in allowlist {}".format(geo, geo_allowlist)
+            )
 
     # Min revenue
     min_revenue = rules.get("min_revenue_eur_m")
     if min_revenue is not None:
         revenue = company_data.get("revenue_eur_m")
         if revenue is None or revenue < min_revenue:
-            reasons.append("Revenue {} below minimum {}".format(
-                revenue, min_revenue))
+            reasons.append("Revenue {} below minimum {}".format(revenue, min_revenue))
 
     # Min employees
     min_employees = rules.get("min_employees")
     if min_employees is not None:
         employees = company_data.get("employees")
         if employees is None or employees < min_employees:
-            reasons.append("Employees {} below minimum {}".format(
-                employees, min_employees))
+            reasons.append(
+                "Employees {} below minimum {}".format(employees, min_employees)
+            )
 
     # Require B2B
     if rules.get("require_b2b"):
@@ -107,7 +109,8 @@ def evaluate_triage(company_data, rules):
     if max_qc_flags is not None:
         qc_flags = company_data.get("qc_flags") or []
         if len(qc_flags) > max_qc_flags:
-            reasons.append("{} QC flags exceeds maximum {}".format(
-                len(qc_flags), max_qc_flags))
+            reasons.append(
+                "{} QC flags exceeds maximum {}".format(len(qc_flags), max_qc_flags)
+            )
 
     return {"passed": len(reasons) == 0, "reasons": reasons}

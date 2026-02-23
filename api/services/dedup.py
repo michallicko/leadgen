@@ -12,7 +12,7 @@ Strategies:
 Companies always link to existing when matched (never duplicate).
 """
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 
 from ..models import Company, Contact, db
 
@@ -24,7 +24,7 @@ def normalize_domain(url):
     url = url.strip().lower()
     for prefix in ("https://", "http://"):
         if url.startswith(prefix):
-            url = url[len(prefix):]
+            url = url[len(prefix) :]
             break
     if url.startswith("www."):
         url = url[4:]
@@ -58,8 +58,14 @@ def find_existing_company(tenant_id, name=None, domain=None):
     return None, None
 
 
-def find_existing_contact(tenant_id, linkedin_url=None, email=None,
-                          first_name=None, last_name=None, company_name=None):
+def find_existing_contact(
+    tenant_id,
+    linkedin_url=None,
+    email=None,
+    first_name=None,
+    last_name=None,
+    company_name=None,
+):
     """Find an existing contact by LinkedIn URL, email, or name+company.
 
     Returns (Contact, match_type) or (None, None).
@@ -83,13 +89,18 @@ def find_existing_contact(tenant_id, linkedin_url=None, email=None,
             return match, "email"
 
     if first_name and company_name:
-        match = Contact.query.filter(
-            Contact.tenant_id == str(tenant_id),
-            func.lower(Contact.first_name) == first_name.strip().lower(),
-            func.lower(Contact.last_name) == (last_name or "").strip().lower(),
-        ).join(Company, Contact.company_id == Company.id).filter(
-            func.lower(Company.name) == company_name.strip().lower(),
-        ).first()
+        match = (
+            Contact.query.filter(
+                Contact.tenant_id == str(tenant_id),
+                func.lower(Contact.first_name) == first_name.strip().lower(),
+                func.lower(Contact.last_name) == (last_name or "").strip().lower(),
+            )
+            .join(Company, Contact.company_id == Company.id)
+            .filter(
+                func.lower(Company.name) == company_name.strip().lower(),
+            )
+            .first()
+        )
         if match:
             return match, "name_company"
 
@@ -115,15 +126,18 @@ def update_empty_fields(existing, new_data, fields):
             setattr(existing, field, new_data[field])
             updated.append(field)
         elif str(current).strip().lower() != str(new_data[field]).strip().lower():
-            conflicts.append({
-                "field": field,
-                "existing": str(current),
-                "incoming": str(new_data[field]),
-            })
+            conflicts.append(
+                {
+                    "field": field,
+                    "existing": str(current),
+                    "incoming": str(new_data[field]),
+                }
+            )
 
     # Merge custom fields
     if "_custom_fields" in new_data and new_data["_custom_fields"]:
         import json
+
         existing_cf = getattr(existing, "custom_fields", None) or {}
         if isinstance(existing_cf, str):
             existing_cf = json.loads(existing_cf)
@@ -137,14 +151,25 @@ def update_empty_fields(existing, new_data, fields):
 
 
 CONTACT_UPDATABLE_FIELDS = [
-    "job_title", "email_address", "linkedin_url", "phone_number",
-    "location_city", "location_country", "seniority_level", "department",
-    "contact_source", "language",
+    "job_title",
+    "email_address",
+    "linkedin_url",
+    "phone_number",
+    "location_city",
+    "location_country",
+    "seniority_level",
+    "department",
+    "contact_source",
+    "language",
 ]
 
 COMPANY_UPDATABLE_FIELDS = [
-    "domain", "industry", "hq_city", "hq_country",
-    "company_size", "business_model",
+    "domain",
+    "industry",
+    "hq_city",
+    "hq_country",
+    "company_size",
+    "business_model",
 ]
 
 
@@ -166,10 +191,10 @@ def dedup_preview(tenant_id, parsed_rows):
     """
     results = []
     # Track companies/contacts seen within this import to detect intra-file dups
-    seen_domains = {}   # normalized_domain → index
-    seen_names = {}     # lower(name) → index
+    seen_domains = {}  # normalized_domain → index
+    seen_names = {}  # lower(name) → index
     seen_linkedin = {}  # lower(url) → index
-    seen_emails = {}    # lower(email) → index
+    seen_emails = {}  # lower(email) → index
 
     for i, row in enumerate(parsed_rows):
         contact_data = row.get("contact", {})
@@ -241,8 +266,9 @@ def dedup_preview(tenant_id, parsed_rows):
     return results
 
 
-def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
-                   import_job_id, strategy="skip"):
+def execute_import(
+    tenant_id, parsed_rows, tag_id, owner_id, import_job_id, strategy="skip"
+):
     """Execute the actual import of parsed rows into DB.
 
     Args:
@@ -287,13 +313,16 @@ def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
 
         if co_name or co_domain:
             # Check DB
-            existing_co, _ = find_existing_company(tenant_id, name=co_name, domain=co_domain)
+            existing_co, _ = find_existing_company(
+                tenant_id, name=co_name, domain=co_domain
+            )
 
             if existing_co:
                 company_id = existing_co.id
                 # Always fill empty fields on matched company
                 updated, _co_conflicts = update_empty_fields(
-                    existing_co, company_data, COMPANY_UPDATABLE_FIELDS)
+                    existing_co, company_data, COMPANY_UPDATABLE_FIELDS
+                )
                 if updated:
                     existing_co.import_job_id = import_job_id
                 counts["companies_linked"] += 1
@@ -340,13 +369,15 @@ def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
         first_name = contact_data.get("first_name")
         if not first_name:
             counts["contacts_skipped"] += 1
-            dedup_rows.append({
-                "row_idx": row_idx,
-                "action": "error",
-                "contact_name": contact_name,
-                "company_name": company_name_display,
-                "reason": "no_name",
-            })
+            dedup_rows.append(
+                {
+                    "row_idx": row_idx,
+                    "action": "error",
+                    "contact_name": contact_name,
+                    "company_name": company_name_display,
+                    "reason": "no_name",
+                }
+            )
             continue
 
         existing_ct, match_type = find_existing_contact(
@@ -361,18 +392,21 @@ def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
         if existing_ct:
             if strategy == "skip":
                 counts["contacts_skipped"] += 1
-                dedup_rows.append({
-                    "row_idx": row_idx,
-                    "action": "skipped",
-                    "contact_name": contact_name,
-                    "company_name": company_name_display,
-                    "match_type": match_type,
-                    "matched_contact_id": str(existing_ct.id),
-                    "matched_contact_name": existing_ct.full_name,
-                })
+                dedup_rows.append(
+                    {
+                        "row_idx": row_idx,
+                        "action": "skipped",
+                        "contact_name": contact_name,
+                        "company_name": company_name_display,
+                        "match_type": match_type,
+                        "matched_contact_id": str(existing_ct.id),
+                        "matched_contact_name": existing_ct.full_name,
+                    }
+                )
             elif strategy == "update":
                 updated, ct_conflicts = update_empty_fields(
-                    existing_ct, contact_data, CONTACT_UPDATABLE_FIELDS)
+                    existing_ct, contact_data, CONTACT_UPDATABLE_FIELDS
+                )
                 if company_id and not existing_ct.company_id:
                     existing_ct.company_id = company_id
                 if owner_id and not existing_ct.owner_id:
@@ -381,40 +415,54 @@ def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
                     existing_ct.tag_id = str(tag_id)
                 existing_ct.import_job_id = str(import_job_id)
                 counts["contacts_updated"] += 1
-                dedup_rows.append({
-                    "row_idx": row_idx,
-                    "action": "updated",
-                    "contact_name": contact_name,
-                    "company_name": company_name_display,
-                    "fields_updated": updated,
-                    "conflicts": ct_conflicts,
-                })
+                dedup_rows.append(
+                    {
+                        "row_idx": row_idx,
+                        "action": "updated",
+                        "contact_name": contact_name,
+                        "company_name": company_name_display,
+                        "fields_updated": updated,
+                        "conflicts": ct_conflicts,
+                    }
+                )
             elif strategy == "create_new":
                 _create_contact(
-                    tenant_id, contact_data, company_id, tag_id,
-                    owner_id, import_job_id,
+                    tenant_id,
+                    contact_data,
+                    company_id,
+                    tag_id,
+                    owner_id,
+                    import_job_id,
                 )
                 counts["contacts_created"] += 1
                 if not large_import:
-                    dedup_rows.append({
+                    dedup_rows.append(
+                        {
+                            "row_idx": row_idx,
+                            "action": "created",
+                            "contact_name": contact_name,
+                            "company_name": company_name_display,
+                        }
+                    )
+        else:
+            _create_contact(
+                tenant_id,
+                contact_data,
+                company_id,
+                tag_id,
+                owner_id,
+                import_job_id,
+            )
+            counts["contacts_created"] += 1
+            if not large_import:
+                dedup_rows.append(
+                    {
                         "row_idx": row_idx,
                         "action": "created",
                         "contact_name": contact_name,
                         "company_name": company_name_display,
-                    })
-        else:
-            _create_contact(
-                tenant_id, contact_data, company_id, tag_id,
-                owner_id, import_job_id,
-            )
-            counts["contacts_created"] += 1
-            if not large_import:
-                dedup_rows.append({
-                    "row_idx": row_idx,
-                    "action": "created",
-                    "contact_name": contact_name,
-                    "company_name": company_name_display,
-                })
+                    }
+                )
 
     db.session.flush()
     return {
@@ -423,8 +471,9 @@ def execute_import(tenant_id, parsed_rows, tag_id, owner_id,
     }
 
 
-def _create_contact(tenant_id, contact_data, company_id, tag_id,
-                    owner_id, import_job_id):
+def _create_contact(
+    tenant_id, contact_data, company_id, tag_id, owner_id, import_job_id
+):
     """Create a new contact record."""
     ct = Contact(
         tenant_id=str(tenant_id),

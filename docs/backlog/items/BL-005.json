@@ -1,0 +1,13 @@
+{
+  "id": "BL-005",
+  "title": "Stage Runs Tracking",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Building",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Database tables and API endpoints for tracking individual pipeline stage executions (L1, L2, Person). Records timing, status, error details, and cost per stage run. Enables pipeline observability beyond the current progress webhook.",
+  "theme": "Closed-Loop Analytics",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

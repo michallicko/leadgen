@@ -47,7 +47,7 @@ export interface Message {
   company: MessageCompany | null
 }
 
-interface MessagesResponse {
+export interface MessagesResponse {
   messages: Message[]
 }
 

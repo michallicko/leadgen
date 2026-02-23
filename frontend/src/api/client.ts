@@ -13,7 +13,7 @@ import {
 } from '../lib/auth'
 import { getRevision } from '../lib/revision'
 
-function resolveApiBase(): string {
+export function resolveApiBase(): string {
   const env = import.meta.env.VITE_API_BASE
   if (env) return env
   const rev = getRevision()
@@ -63,7 +63,7 @@ async function refreshAccessToken(): Promise<string> {
   return data.access_token
 }
 
-function buildHeaders(token: string | null): Record<string, string> {
+export function buildHeaders(token: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }

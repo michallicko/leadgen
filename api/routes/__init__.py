@@ -7,6 +7,7 @@ from .contact_routes import contacts_bp
 from .custom_field_routes import custom_fields_bp
 from .enrich_routes import enrich_bp
 from .enrichment_config_routes import enrichment_config_bp
+from .extension_routes import extension_bp
 from .gmail_routes import gmail_bp
 from .health import health_bp
 from .import_routes import imports_bp
@@ -14,6 +15,7 @@ from .llm_usage_routes import llm_usage_bp
 from .message_routes import messages_bp
 from .oauth_routes import oauth_bp
 from .pipeline_routes import pipeline_bp
+from .playbook_routes import playbook_bp
 from .tenant_routes import tenants_bp
 from .user_routes import users_bp
 
@@ -37,3 +39,5 @@ def register_blueprints(app):
     app.register_blueprint(llm_usage_bp)
     app.register_blueprint(oauth_bp)
     app.register_blueprint(gmail_bp)
+    app.register_blueprint(extension_bp)
+    app.register_blueprint(playbook_bp)

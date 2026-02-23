@@ -12,8 +12,13 @@ Usage:
 ENUM_CONFIGS = {
     "ownership_type": {
         "valid_values": {
-            "bootstrapped", "vc_backed", "pe_backed", "public",
-            "family_owned", "state_owned", "other",
+            "bootstrapped",
+            "vc_backed",
+            "pe_backed",
+            "public",
+            "family_owned",
+            "state_owned",
+            "other",
         },
         "synonyms": {
             # Private / generic
@@ -70,8 +75,14 @@ ENUM_CONFIGS = {
     },
     "geo_region": {
         "valid_values": {
-            "dach", "nordics", "benelux", "cee", "uk_ireland",
-            "southern_europe", "us", "other",
+            "dach",
+            "nordics",
+            "benelux",
+            "cee",
+            "uk_ireland",
+            "southern_europe",
+            "us",
+            "other",
         },
         "synonyms": {
             # UK/Ireland fixes (the primary bug)
@@ -133,11 +144,28 @@ ENUM_CONFIGS = {
     },
     "industry": {
         "valid_values": {
-            "software_saas", "it", "professional_services", "financial_services",
-            "healthcare", "pharma_biotech", "manufacturing", "automotive",
-            "aerospace_defense", "retail", "hospitality", "media", "energy",
-            "telecom", "transport", "construction", "real_estate", "agriculture",
-            "education", "public_sector", "creative_services", "other",
+            "software_saas",
+            "it",
+            "professional_services",
+            "financial_services",
+            "healthcare",
+            "pharma_biotech",
+            "manufacturing",
+            "automotive",
+            "aerospace_defense",
+            "retail",
+            "hospitality",
+            "media",
+            "energy",
+            "telecom",
+            "transport",
+            "construction",
+            "real_estate",
+            "agriculture",
+            "education",
+            "public_sector",
+            "creative_services",
+            "other",
         },
         "synonyms": {
             # Creative/arts (the United Arts gap)
@@ -228,8 +256,13 @@ ENUM_CONFIGS = {
     },
     "business_type": {
         "valid_values": {
-            "product_company", "saas", "service_company",
-            "manufacturer", "distributor", "platform", "hybrid",
+            "product_company",
+            "saas",
+            "service_company",
+            "manufacturer",
+            "distributor",
+            "platform",
+            "hybrid",
         },
         "synonyms": {
             "software": "saas",
@@ -261,7 +294,11 @@ ENUM_CONFIGS = {
     },
     "company_size": {
         "valid_values": {
-            "micro", "small", "medium", "mid_market", "enterprise",
+            "micro",
+            "small",
+            "medium",
+            "mid_market",
+            "enterprise",
         },
         "synonyms": {
             # Legacy → new mapping
@@ -285,8 +322,14 @@ ENUM_CONFIGS = {
     },
     "industry_category": {
         "valid_values": {
-            "technology", "services", "finance", "healthcare_life_sci",
-            "industrial", "consumer", "infrastructure", "primary_sector",
+            "technology",
+            "services",
+            "finance",
+            "healthcare_life_sci",
+            "industrial",
+            "consumer",
+            "infrastructure",
+            "primary_sector",
             "public_education",
         },
         "synonyms": {
@@ -326,7 +369,12 @@ ENUM_CONFIGS = {
     },
     "business_model": {
         "valid_values": {
-            "b2b", "b2c", "marketplace", "gov", "non_profit", "hybrid",
+            "b2b",
+            "b2c",
+            "marketplace",
+            "gov",
+            "non_profit",
+            "hybrid",
         },
         "synonyms": {
             "business to business": "b2b",

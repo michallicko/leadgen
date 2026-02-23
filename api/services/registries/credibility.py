@@ -126,8 +126,12 @@ def _score_history(date_established):
 def _score_completeness(profile_data):
     """Data completeness: 0-10 points."""
     fields = [
-        "official_name", "legal_form", "registered_address",
-        "nace_codes", "registered_capital", "date_established",
+        "official_name",
+        "legal_form",
+        "registered_address",
+        "nace_codes",
+        "registered_capital",
+        "date_established",
     ]
     filled = 0
     for f in fields:

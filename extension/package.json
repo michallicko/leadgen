@@ -1,0 +1,19 @@
+{
+  "name": "visionvolve-leads-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:prod": "vite build --watch --mode production",
+    "dev:staging": "vite build --watch --mode staging",
+    "build:prod": "vite build --mode production",
+    "build:staging": "vite build --mode staging",
+    "build:all": "npm run build:prod && npm run build:staging",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "typescript": "~5.7.0",
+    "vite": "^6.0.0"
+  }
+}

@@ -1,5 +1,6 @@
 import json
 import math
+import re
 
 from flask import Blueprint, jsonify, request
 
@@ -13,6 +14,7 @@ from ..display import (
     display_confidence,
     display_crm_status,
     display_engagement_status,
+    display_enrichment_stage,
     display_geo_region,
     display_icp_fit,
     display_industry,
@@ -25,6 +27,26 @@ from ..display import (
 from ..models import db
 
 companies_bp = Blueprint("companies", __name__)
+
+
+def _add_multi_filter(where, params, param_name, column, request_obj):
+    """Add a multi-value include/exclude filter to the WHERE clause."""
+    raw = request_obj.args.get(param_name, "").strip()
+    if not raw:
+        return
+    values = [v.strip() for v in raw.split(",") if v.strip()]
+    if not values:
+        return
+    exclude = (
+        request_obj.args.get(f"{param_name}_exclude", "").strip().lower() == "true"
+    )
+    placeholders = ", ".join(f":{param_name}_{i}" for i in range(len(values)))
+    for i, v in enumerate(values):
+        params[f"{param_name}_{i}"] = v
+    if exclude:
+        where.append(f"({column} IS NULL OR {column} NOT IN ({placeholders}))")
+    else:
+        where.append(f"{column} IN ({placeholders})")
 
 
 def _iso(v):
@@ -73,9 +95,45 @@ def _derive_stage(completions, status=None):
     # Has completions but none in our stage order (e.g., all failed)
     return {"label": "New", "stage": None}
 
+
+def _compute_enrichment_stage(status, has_l1, has_l2, has_person_enrichment):
+    """Compute enrichment_stage from company status and enrichment data.
+
+    Returns the stage key (e.g. 'imported', 'researched', 'qualified', etc.).
+    """
+    if status and ("failed" in status or "error" in status):
+        return "failed"
+    if status == "triage_disqualified":
+        return "disqualified"
+    if status == "enriched_l2" and has_person_enrichment:
+        return "contacts_ready"
+    if status in ("enriched_l2", "enriched", "synced", "needs_review") or has_l2:
+        return "enriched"
+    if status == "triage_passed":
+        return "qualified"
+    if has_l1:
+        return "researched"
+    return "imported"
+
+
 ALLOWED_SORT = {
-    "name", "domain", "status", "tier", "triage_score", "hq_country",
-    "industry", "contact_count", "created_at",
+    "name",
+    "domain",
+    "status",
+    "tier",
+    "triage_score",
+    "hq_country",
+    "industry",
+    "contact_count",
+    "created_at",
+    "company_size",
+    "geo_region",
+    "revenue_range",
+    "data_quality_score",
+    "verified_employees",
+    "verified_revenue_eur_m",
+    "credibility_score",
+    "enrichment_stage",
 }
 
 
@@ -89,8 +147,6 @@ def list_companies():
     page = max(1, request.args.get("page", 1, type=int))
     page_size = min(100, max(1, request.args.get("page_size", 25, type=int)))
     search = request.args.get("search", "").strip()
-    status = request.args.get("status", "").strip()
-    tier = request.args.get("tier", "").strip()
     tag_name = request.args.get("tag_name", "").strip()
     owner_name = request.args.get("owner_name", "").strip()
     sort = request.args.get("sort", "name").strip()
@@ -105,14 +161,10 @@ def list_companies():
     params = {"tenant_id": tenant_id}
 
     if search:
-        where.append("(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))")
+        where.append(
+            "(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))"
+        )
         params["search"] = f"%{search}%"
-    if status:
-        where.append("c.status = :status")
-        params["status"] = status
-    if tier:
-        where.append("c.tier = :tier")
-        params["tier"] = tier
     if tag_name:
         where.append("""EXISTS (
             SELECT 1 FROM company_tag_assignments cota
@@ -124,14 +176,121 @@ def list_companies():
         where.append("o.name = :owner_name")
         params["owner_name"] = owner_name
 
+    # --- Multi-value ICP filters ---
+    _add_multi_filter(where, params, "status", "c.status", request)
+    _add_multi_filter(where, params, "tier", "c.tier", request)
+    _add_multi_filter(where, params, "industry", "c.industry", request)
+    _add_multi_filter(where, params, "company_size", "c.company_size", request)
+    _add_multi_filter(where, params, "geo_region", "c.geo_region", request)
+    _add_multi_filter(where, params, "revenue_range", "c.revenue_range", request)
+
+    # --- enrichment_stage filter (computed from status + enrichment tables) ---
+    # Must match _compute_enrichment_stage() logic exactly.
+    # The function checks conditions in priority order, so each SQL clause must
+    # replicate the same precedence: failed > disqualified > contacts_ready >
+    # enriched > qualified > researched > imported.
+    es_raw = request.args.get("enrichment_stage", "").strip()
+    if es_raw:
+        es_values = [v.strip().lower() for v in es_raw.split(",") if v.strip()]
+        if es_values:
+            es_exclude = (
+                request.args.get("enrichment_stage_exclude", "").strip().lower()
+                == "true"
+            )
+            # Each clause mirrors _compute_enrichment_stage() priority order:
+            # 1. failed: status contains 'failed' or 'error'
+            # 2. disqualified: status = 'triage_disqualified'
+            # 3. contacts_ready: status = 'enriched_l2' AND has person enrichment
+            # 4. enriched: status IN (...) OR has_l2, but NOT contacts_ready
+            # 5. qualified: status = 'triage_passed'
+            # 6. researched: has_l1 but none of the above
+            # 7. imported: everything else (no L1, no special status)
+            # c.status is a PG enum — LIKE requires a text cast.
+            # COALESCE handles NULL status (NULL LIKE x → NULL, which breaks NOT).
+            # c.status is a PG enum — LIKE requires a text cast.
+            # Use COALESCE for NULL-safety (NULL comparisons yield NULL, not False).
+            _ST = "COALESCE(CAST(c.status AS TEXT), '')"
+            _FAILED_COND = f"({_ST} LIKE '%failed%' OR {_ST} LIKE '%error%')"
+            _NOT_FAILED = f"NOT {_FAILED_COND}"
+            # NULL-safe NOT IN: (c.status IS NULL OR c.status NOT IN (...))
+            _NOT_IN_SPECIAL = (
+                "(c.status IS NULL OR c.status NOT IN"
+                " ('triage_disqualified','triage_passed','enriched_l2','enriched','synced','needs_review'))"
+            )
+            _ES_STATUS_MAP = {
+                "failed": _FAILED_COND,
+                "disqualified": f"({_NOT_FAILED} AND c.status = 'triage_disqualified')",
+                "contacts_ready": (
+                    f"({_NOT_FAILED} AND c.status = 'enriched_l2'"
+                    " AND EXISTS ("
+                    "  SELECT 1 FROM contacts ct3"
+                    "  JOIN contact_enrichment ce3 ON ce3.contact_id = ct3.id"
+                    "  WHERE ct3.company_id = c.id"
+                    "))"
+                ),
+                "enriched": (
+                    f"({_NOT_FAILED}"
+                    " AND (c.status IS NULL OR c.status != 'triage_disqualified')"
+                    " AND ("
+                    "  c.status IN ('enriched_l2','enriched','synced','needs_review')"
+                    "  OR EXISTS (SELECT 1 FROM company_enrichment_profile l2f WHERE l2f.company_id = c.id)"
+                    " )"
+                    " AND NOT ("
+                    "  c.status = 'enriched_l2'"
+                    "  AND EXISTS ("
+                    "    SELECT 1 FROM contacts ct4"
+                    "    JOIN contact_enrichment ce4 ON ce4.contact_id = ct4.id"
+                    "    WHERE ct4.company_id = c.id"
+                    "  )"
+                    " ))"
+                ),
+                "qualified": (
+                    f"({_NOT_FAILED} AND c.status = 'triage_passed'"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2q WHERE l2q.company_id = c.id)"
+                    ")"
+                ),
+                "researched": (
+                    f"({_NOT_FAILED}"
+                    f" AND {_NOT_IN_SPECIAL}"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2r WHERE l2r.company_id = c.id)"
+                    " AND EXISTS (SELECT 1 FROM company_enrichment_l1 l1r WHERE l1r.company_id = c.id)"
+                    ")"
+                ),
+                "imported": (
+                    f"({_NOT_FAILED}"
+                    f" AND {_NOT_IN_SPECIAL}"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_profile l2i WHERE l2i.company_id = c.id)"
+                    " AND NOT EXISTS (SELECT 1 FROM company_enrichment_l1 l1i WHERE l1i.company_id = c.id)"
+                    ")"
+                ),
+            }
+            stage_clauses = []
+            for sv in es_values:
+                clause = _ES_STATUS_MAP.get(sv)
+                if clause:
+                    stage_clauses.append(clause)
+            if stage_clauses:
+                combined = " OR ".join(f"({sc})" for sc in stage_clauses)
+                if es_exclude:
+                    where.append(f"NOT ({combined})")
+                else:
+                    where.append(f"({combined})")
+
     # Custom field filters: cf_{key}=value
     cf_idx = 0
     for param_key, param_val in request.args.items():
         if param_key.startswith("cf_") and param_val.strip():
             field_key = param_key[3:]
+            # SECURITY: field_key is interpolated into SQLite json_extract path below.
+            # This regex whitelist is the ONLY defense against SQL injection for custom field keys.
+            # Do NOT weaken this pattern without also parameterizing the SQLite path.
+            if not re.match(r"^[a-zA-Z0-9_]+$", field_key):
+                continue
             dialect = db.engine.dialect.name
             if dialect == "sqlite":
-                where.append(f"json_extract(c.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}")
+                where.append(
+                    f"json_extract(c.custom_fields, '$.{field_key}') = :cf_val_{cf_idx}"
+                )
             else:
                 where.append(f"c.custom_fields ->> :cf_key_{cf_idx} = :cf_val_{cf_idx}")
                 params[f"cf_key_{cf_idx}"] = field_key
@@ -141,21 +300,41 @@ def list_companies():
     where_clause = " AND ".join(where)
 
     # Count query
-    total = db.session.execute(
-        db.text(f"""
+    total = (
+        db.session.execute(
+            db.text(f"""
             SELECT COUNT(*)
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
             WHERE {where_clause}
         """),
-        params,
-    ).scalar() or 0
+            params,
+        ).scalar()
+        or 0
+    )
 
     pages = max(1, math.ceil(total / page_size))
     offset = (page - 1) * page_size
 
     # Sort mapping for computed columns
-    sort_col = "contact_count" if sort == "contact_count" else f"c.{sort}"
+    if sort == "contact_count":
+        sort_col = "contact_count"
+    elif sort == "enrichment_stage":
+        # Order stages by pipeline progression
+        sort_col = """CASE c.status
+            WHEN 'triage_disqualified' THEN 0
+            WHEN 'enrichment_failed' THEN 1
+            WHEN 'enrichment_l2_failed' THEN 1
+            WHEN 'error_pushing_lemlist' THEN 1
+            WHEN 'new' THEN 2
+            WHEN 'triage_passed' THEN 4
+            WHEN 'enriched_l2' THEN 5
+            WHEN 'enriched' THEN 5
+            WHEN 'synced' THEN 5
+            WHEN 'needs_review' THEN 5
+            ELSE 3 END"""
+    else:
+        sort_col = f"c.{sort}"
     order = f"{sort_col} {'ASC' if sort_dir == 'asc' else 'DESC'} NULLS LAST"
 
     rows = db.session.execute(
@@ -165,9 +344,24 @@ def list_companies():
                 o.name AS owner_name,
                 c.industry, c.hq_country, c.triage_score,
                 (SELECT COUNT(*) FROM contacts ct WHERE ct.company_id = c.id) AS contact_count,
-                c.created_at
+                c.created_at,
+                c.company_size, c.geo_region, c.revenue_range,
+                c.business_model, c.ownership_type, c.buying_stage,
+                c.engagement_status, c.ai_adoption,
+                c.verified_employees, c.verified_revenue_eur_m,
+                c.credibility_score, c.linkedin_url, c.website_url,
+                c.data_quality_score, c.last_enriched_at,
+                CASE WHEN l1.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l1,
+                CASE WHEN l2p.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l2,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM contacts ct2
+                    JOIN contact_enrichment ce ON ce.contact_id = ct2.id
+                    WHERE ct2.company_id = c.id
+                ) THEN 1 ELSE 0 END AS has_person_enrichment
             FROM companies c
             LEFT JOIN owners o ON c.owner_id = o.id
+            LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
+            LEFT JOIN company_enrichment_profile l2p ON l2p.company_id = c.id
             WHERE {where_clause}
             ORDER BY {order}
             LIMIT :limit OFFSET :offset
@@ -217,29 +411,198 @@ def list_companies():
         cid = str(r[0])
         completions = stage_map.get(cid, [])
         tag_names = tag_map.get(cid, [])
-        companies.append({
-            "id": cid,
-            "name": r[1],
-            "domain": r[2],
-            "status": display_status(r[3]),
-            "tier": display_tier(r[4]),
-            "owner_name": r[5],
-            "tag_name": tag_names[0] if tag_names else None,
-            "tag_names": tag_names,
-            "industry": display_industry(r[6]),
-            "hq_country": r[7],
-            "triage_score": float(r[8]) if r[8] is not None else None,
-            "contact_count": r[9] or 0,
-            "derived_stage": _derive_stage(completions),
-        })
+        raw_status = r[3]
+        has_l1 = bool(r[26])
+        has_l2 = bool(r[27])
+        has_person = bool(r[28])
+        stage = _compute_enrichment_stage(raw_status, has_l1, has_l2, has_person)
+        triage_score = float(r[8]) if r[8] is not None else None
+        companies.append(
+            {
+                "id": cid,
+                "name": r[1],
+                "domain": r[2],
+                "status": display_status(raw_status),
+                "enrichment_stage": display_enrichment_stage(stage),
+                "tier": display_tier(r[4]),
+                "owner_name": r[5],
+                "tag_name": tag_names[0] if tag_names else None,
+                "tag_names": tag_names,
+                "industry": display_industry(r[6]),
+                "hq_country": r[7],
+                "score": triage_score,
+                "triage_score": triage_score,
+                "contact_count": r[9] or 0,
+                "derived_stage": _derive_stage(completions),
+                "company_size": display_company_size(r[11]),
+                "geo_region": display_geo_region(r[12]),
+                "revenue_range": display_revenue_range(r[13]),
+                "business_model": display_business_model(r[14]),
+                "ownership_type": display_ownership_type(r[15]),
+                "buying_stage": display_buying_stage(r[16]),
+                "engagement_status": display_engagement_status(r[17]),
+                "ai_adoption": display_confidence(r[18]),
+                "verified_employees": float(r[19]) if r[19] is not None else None,
+                "verified_revenue_eur_m": float(r[20]) if r[20] is not None else None,
+                "credibility_score": int(r[21]) if r[21] is not None else None,
+                "linkedin_url": r[22],
+                "website_url": r[23],
+                "data_quality_score": int(r[24]) if r[24] is not None else None,
+                "last_enriched_at": r[25].isoformat() if r[25] else None,
+            }
+        )
 
-    return jsonify({
-        "companies": companies,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": pages,
-    })
+    return jsonify(
+        {
+            "companies": companies,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+    )
+
+
+@companies_bp.route("/api/companies/filter-counts", methods=["POST"])
+@require_auth
+def company_filter_counts():
+    """Return faceted counts for all filterable company fields.
+
+    Each field's counts are computed with all OTHER active filters applied
+    (standard faceted search pattern).
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    filters = body.get("filters", {})
+    search = body.get("search", "").strip()
+    tag_name = body.get("tag_name", "").strip()
+    owner_name = body.get("owner_name", "").strip()
+
+    # Define all facet fields with their column references
+    FACET_FIELDS = {
+        "status": "c.status",
+        "tier": "c.tier",
+        "industry": "c.industry",
+        "company_size": "c.company_size",
+        "geo_region": "c.geo_region",
+        "revenue_range": "c.revenue_range",
+    }
+
+    def _build_base_where(params, exclude_facet=None):
+        """Build WHERE clause applying all filters EXCEPT exclude_facet."""
+        where = ["c.tenant_id = :tenant_id"]
+        params["tenant_id"] = tenant_id
+
+        if search:
+            where.append(
+                "(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.domain) LIKE LOWER(:search))"
+            )
+            params["search"] = f"%{search}%"
+        if tag_name:
+            where.append("""EXISTS (
+                SELECT 1 FROM company_tag_assignments cota
+                JOIN tags bt ON bt.id = cota.tag_id
+                WHERE cota.company_id = c.id AND bt.name = :tag_name
+            )""")
+            params["tag_name"] = tag_name
+        if owner_name:
+            where.append("o.name = :owner_name")
+            params["owner_name"] = owner_name
+
+        # Apply all multi-value filters EXCEPT the one being faceted
+        for field_key, column in FACET_FIELDS.items():
+            if field_key == exclude_facet:
+                continue
+            f = filters.get(field_key, {})
+            values = f.get("values", [])[:100] if isinstance(f, dict) else []
+            if not values:
+                continue
+            exclude = f.get("exclude", False) if isinstance(f, dict) else False
+            placeholders = ", ".join(f":{field_key}_{i}" for i in range(len(values)))
+            for i, v in enumerate(values):
+                params[f"{field_key}_{i}"] = v
+            if exclude:
+                where.append(f"({column} IS NULL OR {column} NOT IN ({placeholders}))")
+            else:
+                where.append(f"{column} IN ({placeholders})")
+
+        return " AND ".join(where)
+
+    joins = """
+        LEFT JOIN owners o ON c.owner_id = o.id
+    """
+
+    facets = {}
+    for field_key, column in FACET_FIELDS.items():
+        params = {}
+        where_clause = _build_base_where(params, exclude_facet=field_key)
+
+        rows = db.session.execute(
+            db.text(f"""
+                SELECT {column} AS val, COUNT(*) AS cnt
+                FROM companies c
+                {joins}
+                WHERE {where_clause}
+                  AND {column} IS NOT NULL
+                GROUP BY {column}
+                ORDER BY cnt DESC
+            """),
+            params,
+        ).fetchall()
+        facets[field_key] = [{"value": r[0], "count": r[1]} for r in rows]
+
+    # enrichment_stage facet (computed, not a direct column)
+    es_params = {}
+    es_where = _build_base_where(es_params)
+    es_rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                c.status,
+                CASE WHEN l1.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l1,
+                CASE WHEN l2p.company_id IS NOT NULL THEN 1 ELSE 0 END AS has_l2,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM contacts ct2
+                    JOIN contact_enrichment ce ON ce.contact_id = ct2.id
+                    WHERE ct2.company_id = c.id
+                ) THEN 1 ELSE 0 END AS has_person
+            FROM companies c
+            {joins}
+            LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
+            LEFT JOIN company_enrichment_profile l2p ON l2p.company_id = c.id
+            WHERE {es_where}
+        """),
+        es_params,
+    ).fetchall()
+    stage_counts = {}
+    for r in es_rows:
+        stage = _compute_enrichment_stage(r[0], bool(r[1]), bool(r[2]), bool(r[3]))
+        stage_counts[stage] = stage_counts.get(stage, 0) + 1
+    facets["enrichment_stage"] = [
+        {"value": k, "count": v}
+        for k, v in sorted(stage_counts.items(), key=lambda x: -x[1])
+    ]
+
+    # Total count with ALL filters applied
+    total_params = {}
+    total_where = _build_base_where(total_params)
+
+    total = (
+        db.session.execute(
+            db.text(f"""
+            SELECT COUNT(*)
+            FROM companies c
+            {joins}
+            WHERE {total_where}
+        """),
+            total_params,
+        ).scalar()
+        or 0
+    )
+
+    return jsonify({"total": total, "facets": facets})
 
 
 @companies_bp.route("/api/companies/<company_id>", methods=["GET"])
@@ -375,7 +738,9 @@ def get_company(company_id):
             "leadership_team": prof_row[5],
             "certifications": prof_row[6],
             "enriched_at": _iso(prof_row[7]),
-            "enrichment_cost_usd": float(prof_row[8]) if prof_row[8] is not None else None,
+            "enrichment_cost_usd": float(prof_row[8])
+            if prof_row[8] is not None
+            else None,
         }
 
     # Signals module
@@ -405,7 +770,9 @@ def get_company(company_id):
             "job_posting_count": sig_row[9],
             "hiring_departments": _parse_jsonb(sig_row[10]),
             "enriched_at": _iso(sig_row[11]),
-            "enrichment_cost_usd": float(sig_row[12]) if sig_row[12] is not None else None,
+            "enrichment_cost_usd": float(sig_row[12])
+            if sig_row[12] is not None
+            else None,
         }
 
     # Market module
@@ -428,7 +795,9 @@ def get_company(company_id):
             "press_releases": mkt_row[4],
             "thought_leadership": mkt_row[5],
             "enriched_at": _iso(mkt_row[6]),
-            "enrichment_cost_usd": float(mkt_row[7]) if mkt_row[7] is not None else None,
+            "enrichment_cost_usd": float(mkt_row[7])
+            if mkt_row[7] is not None
+            else None,
         }
 
     # Opportunity module
@@ -453,7 +822,9 @@ def get_company(company_id):
             "cross_functional_pain": opp_row[5],
             "adoption_barriers": opp_row[6],
             "enriched_at": _iso(opp_row[7]),
-            "enrichment_cost_usd": float(opp_row[8]) if opp_row[8] is not None else None,
+            "enrichment_cost_usd": float(opp_row[8])
+            if opp_row[8] is not None
+            else None,
         }
 
     # Aggregate enriched_at / cost across modules
@@ -555,7 +926,9 @@ def get_company(company_id):
                 "directors": _parse_jsonb(reg_row[14]),
                 "registration_status": reg_row[15],
                 "insolvency_flag": reg_row[16],
-                "match_confidence": float(reg_row[17]) if reg_row[17] is not None else None,
+                "match_confidence": float(reg_row[17])
+                if reg_row[17] is not None
+                else None,
                 "match_method": reg_row[18],
                 "enriched_at": _iso(reg_row[20]),
                 "registration_country": reg_row[21],
@@ -573,17 +946,22 @@ def get_company(company_id):
         """),
         {"id": company_id},
     ).fetchall()
-    company["stage_completions"] = [{
-        "stage": r[0],
-        "status": r[1],
-        "completed_at": _iso(r[2]),
-        "cost_usd": float(r[3]) if r[3] is not None else None,
-        "error": r[4],
-    } for r in sc_rows]
+    company["stage_completions"] = [
+        {
+            "stage": r[0],
+            "status": r[1],
+            "completed_at": _iso(r[2]),
+            "cost_usd": float(r[3]) if r[3] is not None else None,
+            "error": r[4],
+        }
+        for r in sc_rows
+    ]
 
     # Tags
     tag_rows = db.session.execute(
-        db.text("SELECT category, value FROM company_tags WHERE company_id = :id ORDER BY category, value"),
+        db.text(
+            "SELECT category, value FROM company_tags WHERE company_id = :id ORDER BY category, value"
+        ),
         {"id": company_id},
     ).fetchall()
     company["tags"] = [{"category": r[0], "value": r[1]} for r in tag_rows]
@@ -603,25 +981,28 @@ def get_company(company_id):
         """),
         {"id": company_id},
     ).fetchall()
-    company["contacts"] = [{
-        "id": str(r[0]),
-        "full_name": ((r[1] or "") + " " + (r[2] or "")).strip(),
-        "first_name": r[1],
-        "last_name": r[2],
-        "job_title": r[3],
-        "email_address": r[4],
-        "contact_score": r[5],
-        "icp_fit": display_icp_fit(r[6]),
-        "message_status": r[7],
-        "linkedin_url": r[8],
-        "seniority_level": r[9],
-        "department": r[10],
-        "ai_champion": r[11],
-        "ai_champion_score": r[12],
-        "authority_score": r[13],
-        "person_summary": r[14],
-        "career_trajectory": r[15],
-    } for r in contact_rows]
+    company["contacts"] = [
+        {
+            "id": str(r[0]),
+            "full_name": ((r[1] or "") + " " + (r[2] or "")).strip(),
+            "first_name": r[1],
+            "last_name": r[2],
+            "job_title": r[3],
+            "email_address": r[4],
+            "contact_score": r[5],
+            "icp_fit": display_icp_fit(r[6]),
+            "message_status": r[7],
+            "linkedin_url": r[8],
+            "seniority_level": r[9],
+            "department": r[10],
+            "ai_champion": r[11],
+            "ai_champion_score": r[12],
+            "authority_score": r[13],
+            "person_summary": r[14],
+            "career_trajectory": r[15],
+        }
+        for r in contact_rows
+    ]
 
     # Stage completions + derived stage
     sc_rows = db.session.execute(
@@ -636,15 +1017,33 @@ def get_company(company_id):
 
     completions = []
     for sc in sc_rows:
-        completions.append({
-            "stage": sc[0],
-            "status": sc[1],
-            "cost_usd": float(sc[2]) if sc[2] is not None else None,
-            "completed_at": _iso(sc[3]),
-        })
+        completions.append(
+            {
+                "stage": sc[0],
+                "status": sc[1],
+                "cost_usd": float(sc[2]) if sc[2] is not None else None,
+                "completed_at": _iso(sc[3]),
+            }
+        )
 
     company["stage_completions"] = completions
     company["derived_stage"] = _derive_stage(completions, company.get("status"))
+
+    # Compute enrichment_stage for detail endpoint
+    has_l1_detail = company.get("enrichment_l1") is not None
+    has_l2_detail = company.get("enrichment_l2") is not None
+    # Check if any contact for this company has person enrichment
+    has_person_detail = any(
+        ct.get("person_summary") is not None for ct in company.get("contacts", [])
+    )
+    raw_status_detail = row[3]
+    company["enrichment_stage"] = display_enrichment_stage(
+        _compute_enrichment_stage(
+            raw_status_detail, has_l1_detail, has_l2_detail, has_person_detail
+        )
+    )
+    # Score alias for triage_score
+    company["score"] = company.get("triage_score")
 
     return jsonify(company)
 
@@ -658,8 +1057,14 @@ def update_company(company_id):
 
     body = request.get_json(silent=True) or {}
     allowed = {
-        "status", "tier", "notes", "triage_notes",
-        "buying_stage", "engagement_status", "crm_status", "cohort",
+        "status",
+        "tier",
+        "notes",
+        "triage_notes",
+        "buying_stage",
+        "engagement_status",
+        "crm_status",
+        "cohort",
     }
     fields = {k: v for k, v in body.items() if k in allowed}
     custom_fields_update = body.get("custom_fields")
@@ -669,7 +1074,9 @@ def update_company(company_id):
 
     # Verify company belongs to tenant
     row = db.session.execute(
-        db.text("SELECT id, custom_fields FROM companies WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT id, custom_fields FROM companies WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": company_id, "t": tenant_id},
     ).fetchone()
     if not row:
@@ -706,7 +1113,9 @@ def enrich_registry(company_id):
 
     # Verify company belongs to tenant
     row = db.session.execute(
-        db.text("SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": company_id, "t": tenant_id},
     ).fetchone()
     if not row:
@@ -716,6 +1125,7 @@ def enrich_registry(company_id):
     ico_override = body.get("ico")
 
     from ..services.registries.orchestrator import RegistryOrchestrator
+
     orchestrator = RegistryOrchestrator()
     result = orchestrator.enrich_company(
         company_id=company_id,
@@ -738,7 +1148,9 @@ def confirm_registry(company_id):
         return jsonify({"error": "Tenant not found"}), 404
 
     row = db.session.execute(
-        db.text("SELECT name, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT name, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": company_id, "t": tenant_id},
     ).fetchone()
     if not row:
@@ -750,6 +1162,7 @@ def confirm_registry(company_id):
         return jsonify({"error": "ico is required"}), 400
 
     from ..services.ares import enrich_company
+
     result = enrich_company(
         company_id=company_id,
         tenant_id=str(tenant_id),
@@ -762,7 +1175,9 @@ def confirm_registry(company_id):
     return jsonify(result)
 
 
-@companies_bp.route("/api/companies/<company_id>/enrich-registry/<country>", methods=["POST"])
+@companies_bp.route(
+    "/api/companies/<company_id>/enrich-registry/<country>", methods=["POST"]
+)
 @require_auth
 def enrich_registry_country(company_id, country):
     """On-demand registry lookup for a specific country adapter."""
@@ -771,13 +1186,16 @@ def enrich_registry_country(company_id, country):
         return jsonify({"error": "Tenant not found"}), 404
 
     row = db.session.execute(
-        db.text("SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"),
+        db.text(
+            "SELECT name, ico, hq_country, domain FROM companies WHERE id = :id AND tenant_id = :t"
+        ),
         {"id": company_id, "t": tenant_id},
     ).fetchone()
     if not row:
         return jsonify({"error": "Company not found"}), 404
 
     from ..services.registries import get_adapter
+
     adapter = get_adapter(country.upper())
     if not adapter:
         return jsonify({"error": f"No registry adapter for country: {country}"}), 400

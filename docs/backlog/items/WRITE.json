@@ -1,0 +1,14 @@
+{
+  "id": "WRITE",
+  "title": "Chat Writes/Updates Strategy Doc Directly",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Sprint 2",
+  "depends_on": [
+    "AGENT"
+  ],
+  "spec": "## Chat Writes/Updates Strategy Doc Directly\n\n### Goal\nThe AI can directly edit the strategy document through chat — updating fields, adding sections, and refining content based on conversation.\n\n### Behavior\n- **Direct edits**: AI calls tools like `update_strategy_body`, `set_icp_field`, `add_pain_point`\n- **Inline diff**: User sees what changed with green/red highlighting before confirming\n- **Undo**: Each AI edit creates a version snapshot; user can undo\n- **Batch edits**: AI can make multiple field updates in one turn\n\n### Technical Approach\n- Strategy tool handlers: `update_body(section, content)`, `set_field(field, value)`, `append_section(title, content)`\n- Diff engine: `diff-match-patch` library for inline change visualization\n- Version table: `strategy_versions` with full JSON snapshot per edit\n- Real-time push: WebSocket event notifies other tabs of changes\n\n### Acceptance Criteria\n- Given user says \"update the ICP to focus on Series B fintech\", the AI calls the tool and the doc updates live\n- Given an AI edit, the user sees a diff overlay showing before/after\n- Given user clicks Undo, the previous version is restored",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

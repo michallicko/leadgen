@@ -10,6 +10,19 @@ All notable changes to the Leadgen Pipeline project.
 - **Person Signals Mapping**: `recent_activity_level` from person signals now maps to `contacts.linkedin_activity_level`
 
 ### Added
+- **Browser Extension** (BL-020): Chrome extension for LinkedIn lead extraction and activity monitoring
+  - Extension auth via email/password login (reuses existing JWT system with `chrome.storage` token persistence)
+  - `POST /api/extension/leads` — import leads from Sales Navigator with dedup by LinkedIn URL
+  - `POST /api/extension/activities` — sync activity events with dedup by `external_id`
+  - `GET /api/extension/status` — extension connection status and sync stats for dashboard
+  - Activities table in PostgreSQL (migration 028) with contact linking and stub contact creation
+  - Stub contact creation for activities referencing unknown LinkedIn URLs (`is_stub`, `import_source` fields on contacts)
+  - User dropdown menu with Preferences link in navigation header
+  - Preferences page showing extension connection status and sync statistics
+  - Dual-build Chrome extension: purple icons (prod) and orange icons (staging) for visual environment distinction
+  - Content scripts: Sales Navigator lead extraction and LinkedIn activity monitoring
+  - Service worker: background sync queue, JWT auto-refresh, badge notifications
+  - 15 new unit tests for extension API routes
 - **Enrichment Test Framework** (112 tests): Isolated tests for all 8 enrichment nodes calling real Perplexity/Anthropic APIs
   - Schema validation against expected JSON structures with type/enum/range checks
   - LLM-as-judge quality scoring (Claude Haiku rates completeness, specificity, accuracy, actionability 0-10)

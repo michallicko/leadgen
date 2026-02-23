@@ -1,0 +1,14 @@
+{
+  "id": "BL-067",
+  "title": "BUG: AI tone still harsh — uses 'Disqualifying Factors', no TODO markers for sparse data",
+  "priority": "Should Have",
+  "effort": "S",
+  "status": "Building",
+  "sprint": "Sprint 1",
+  "depends_on": [],
+  "description": "AI chat responses still use harsh, dismissive language for companies with limited data. The tone fix from PR #35 is not effective. Additionally, no TODO markers are generated when data is sparse.\n\n### Steps to Reproduce (Tone)\n1. Login to staging, navigate to /visionvolve/playbook\n2. In AI chat, ask: 'What do you think about QuietStartup as a prospect?' (with QuietStartup being a 3-person team with no website mentioned in the editor)\n3. AI responds with 'QuietStartup is not a viable prospect' and a 'Disqualifying Factors' table\n4. AI recommends: 'Remove QuietStartup from your prospect list entirely.'\n\n### Expected (Tone)\n- Collaborative tone suggesting ways to learn more about the company\n- No 'Disqualifying', 'not viable', 'remove entirely' language\n- Constructive suggestions like 'Let me help you research this company further'\n\n### Steps to Reproduce (TODOs)\n1. Ask: 'Help me analyze the competitive landscape for QuietStartup's market'\n2. AI redirects to Oscar Health instead of providing TODO markers\n\n### Expected (TODOs)\n- Response includes [TODO: ...] markers with concrete research actions\n- E.g., '[TODO: Research QuietStartup's founding team on LinkedIn]'\n\n### Actual (TODOs)\n- No TODO markers in any response\n- AI redirects conversation instead of acknowledging data gaps\n\n### What Works\n- Document awareness is good — AI references existing ICP, pain points, and strategy content from the editor\n\n### Root Cause Hypothesis\nSystem prompt tone rules and TODO generation logic from PR #35 may not be deployed. Or the prompt rules are not strong enough to override the model's default behavior of being direct/dismissive about poor-fit prospects.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "theme": "Playbook Core",
+  "pr": "#35"
+}

@@ -21,18 +21,18 @@ class BaseRegistryAdapter(ABC):
     shared name matching and result storage logic.
     """
 
-    country_code = ""           # ISO 2-letter code (CZ, NO, FI, FR)
-    country_names = []          # Accepted name variants ["Norway", "NO", "Norge"]
-    domain_tlds = []            # Country TLDs [".no"]
-    legal_suffixes = []         # Regex patterns for stripping legal form suffixes
-    request_delay = 0.3         # Seconds between API calls
-    timeout = 10                # HTTP timeout seconds
+    country_code = ""  # ISO 2-letter code (CZ, NO, FI, FR)
+    country_names = []  # Accepted name variants ["Norway", "NO", "Norge"]
+    domain_tlds = []  # Country TLDs [".no"]
+    legal_suffixes = []  # Regex patterns for stripping legal form suffixes
+    request_delay = 0.3  # Seconds between API calls
+    timeout = 10  # HTTP timeout seconds
 
     # Capability metadata for orchestrator
-    provides_fields = []        # Standardized field names this register fills
+    provides_fields = []  # Standardized field names this register fills
     requires_inputs = ["name"]  # Required inputs ("name", "ico", etc.)
-    depends_on = []             # Adapter keys that must run first (e.g. ["CZ"])
-    is_supplementary = False    # If True, augments another adapter's data
+    depends_on = []  # Adapter keys that must run first (e.g. ["CZ"])
+    is_supplementary = False  # If True, augments another adapter's data
 
     @abstractmethod
     def lookup_by_id(self, reg_id):
@@ -52,7 +52,10 @@ class BaseRegistryAdapter(ABC):
         """Check if a company matches this adapter's country."""
         if hq_country:
             c = hq_country.strip().lower()
-            if c in [n.lower() for n in self.country_names] or c == self.country_code.lower():
+            if (
+                c in [n.lower() for n in self.country_names]
+                or c == self.country_code.lower()
+            ):
                 return True
         if domain:
             d = domain.rstrip("/").lower()
@@ -61,8 +64,16 @@ class BaseRegistryAdapter(ABC):
                     return True
         return False
 
-    def enrich_company(self, company_id, tenant_id, name, reg_id=None,
-                       hq_country=None, domain=None, store=True):
+    def enrich_company(
+        self,
+        company_id,
+        tenant_id,
+        name,
+        reg_id=None,
+        hq_country=None,
+        domain=None,
+        store=True,
+    ):
         """Orchestrate registry enrichment for a single company.
 
         Args:
@@ -98,12 +109,16 @@ class BaseRegistryAdapter(ABC):
                 elif sim >= 0.60:
                     return {
                         "status": "ambiguous",
-                        "candidates": [{
-                            "ico": c.get("ico"),
-                            "official_name": c.get("official_name"),
-                            "registered_address": c.get("registered_address"),
-                            "similarity": round(c.get("similarity", 0), 2),
-                        } for c in candidates if c.get("similarity", 0) >= 0.60],
+                        "candidates": [
+                            {
+                                "ico": c.get("ico"),
+                                "official_name": c.get("official_name"),
+                                "registered_address": c.get("registered_address"),
+                                "similarity": round(c.get("similarity", 0), 2),
+                            }
+                            for c in candidates
+                            if c.get("similarity", 0) >= 0.60
+                        ],
                     }
                 else:
                     return {"status": "no_match", "reason": "similarity_too_low"}
@@ -158,7 +173,7 @@ class BaseRegistryAdapter(ABC):
 
     @staticmethod
     def _bigrams(s):
-        return [s[i:i+2] for i in range(len(s) - 1)]
+        return [s[i : i + 2] for i in range(len(s) - 1)]
 
     def store_result(self, company_id, data, method, confidence, raw_response):
         """Upsert company_registry_data row."""
@@ -198,7 +213,9 @@ class BaseRegistryAdapter(ABC):
         }
 
         existing = db.session.execute(
-            text("SELECT company_id FROM company_registry_data WHERE company_id = :company_id"),
+            text(
+                "SELECT company_id FROM company_registry_data WHERE company_id = :company_id"
+            ),
             {"company_id": str(company_id)},
         ).fetchone()
 

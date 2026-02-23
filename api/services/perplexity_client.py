@@ -17,6 +17,7 @@ Usage:
 """
 
 import logging
+import os
 import time
 
 import requests
@@ -25,10 +26,10 @@ logger = logging.getLogger(__name__)
 
 # Pricing per 1M tokens (input + output combined for sonar models)
 MODEL_PRICING = {
-    "sonar":                {"input_per_m": 1.0,  "output_per_m": 1.0},
-    "sonar-pro":            {"input_per_m": 3.0,  "output_per_m": 15.0},
-    "sonar-reasoning-pro":  {"input_per_m": 2.0,  "output_per_m": 8.0},
-    "sonar-reasoning":      {"input_per_m": 1.0,  "output_per_m": 5.0},
+    "sonar": {"input_per_m": 1.0, "output_per_m": 1.0},
+    "sonar-pro": {"input_per_m": 3.0, "output_per_m": 15.0},
+    "sonar-reasoning-pro": {"input_per_m": 2.0, "output_per_m": 8.0},
+    "sonar-reasoning": {"input_per_m": 1.0, "output_per_m": 5.0},
 }
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503}
@@ -50,19 +51,31 @@ class PerplexityResponse:
 class PerplexityClient:
     """Shared Perplexity API client."""
 
-    def __init__(self, api_key, base_url="https://api.perplexity.ai",
-                 default_model="sonar", timeout=60,
-                 max_retries=2, retry_delay=1.0):
-        self.api_key = api_key
+    def __init__(
+        self,
+        api_key=None,
+        base_url="https://api.perplexity.ai",
+        default_model="sonar",
+        timeout=60,
+        max_retries=2,
+        retry_delay=1.0,
+    ):
+        self.api_key = api_key or os.environ.get("PERPLEXITY_API_KEY", "")
         self.base_url = base_url
         self.default_model = default_model
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-    def query(self, system_prompt, user_prompt, model=None,
-              max_tokens=600, temperature=0.1,
-              search_recency_filter="month"):
+    def query(
+        self,
+        system_prompt,
+        user_prompt,
+        model=None,
+        max_tokens=600,
+        temperature=0.1,
+        search_recency_filter="month",
+    ):
         """Send a query to Perplexity sonar API.
 
         Args:
@@ -132,10 +145,13 @@ class PerplexityClient:
                     raise
 
                 if attempt < self.max_retries:
-                    delay = self.retry_delay * (2 ** attempt)
+                    delay = self.retry_delay * (2**attempt)
                     logger.warning(
                         "Perplexity API %s (attempt %d/%d), retrying in %.1fs",
-                        status, attempt + 1, 1 + self.max_retries, delay,
+                        status,
+                        attempt + 1,
+                        1 + self.max_retries,
+                        delay,
                     )
                     time.sleep(delay)
                 else:

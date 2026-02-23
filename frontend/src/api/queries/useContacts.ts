@@ -11,10 +11,23 @@ export interface ContactListItem {
   company_name: string | null
   email_address: string | null
   contact_score: number | null
+  score: number | null
   icp_fit: string | null
   message_status: string | null
   owner_name: string | null
   tag_name: string | null
+  tag_names?: string[]
+  seniority_level: string | null
+  department: string | null
+  location_city: string | null
+  location_country: string | null
+  linkedin_url: string | null
+  phone_number: string | null
+  ai_champion_score: number | null
+  authority_score: number | null
+  linkedin_activity_level: string | null
+  language: string | null
+  contact_source: string | null
 }
 
 interface ContactsPage {
@@ -134,6 +147,8 @@ export interface ContactFilters {
   sort?: string
   sort_dir?: string
   // Multi-value ICP filters (comma-separated values)
+  company_tier?: string
+  company_tier_exclude?: string
   industry?: string
   industry_exclude?: string
   company_size?: string

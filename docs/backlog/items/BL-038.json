@@ -1,0 +1,15 @@
+{
+  "id": "BL-038",
+  "title": "Clone Campaign",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-031"
+  ],
+  "description": "Clone campaign config (not contacts or messages). New campaign starts as draft.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

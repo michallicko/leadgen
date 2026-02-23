@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 RECHERCHE_BASE_URL = "https://recherche-entreprises.api.gouv.fr"
 
 FRENCH_SUFFIXES = [
-    r"\bSASU?\s*$",         # SAS, SASU
-    r"\bSARL\s*$",          # SARL
-    r"\bSA\s*$",            # SA
-    r"\bSCI\s*$",           # SCI
-    r"\bEURL\s*$",          # EURL
-    r"\bSNC\s*$",           # Société en nom collectif
-    r"\bSCA\s*$",           # Commandite par actions
-    r"\bSCS\s*$",           # Commandite simple
+    r"\bSASU?\s*$",  # SAS, SASU
+    r"\bSARL\s*$",  # SARL
+    r"\bSA\s*$",  # SA
+    r"\bSCI\s*$",  # SCI
+    r"\bEURL\s*$",  # EURL
+    r"\bSNC\s*$",  # Société en nom collectif
+    r"\bSCA\s*$",  # Commandite par actions
+    r"\bSCS\s*$",  # Commandite simple
     r"\bSEL(?:ARL|AS|AFA)?\s*$",  # Sociétés d'exercice libéral
 ]
 
@@ -49,9 +49,14 @@ class RechercheAdapter(BaseRegistryAdapter):
     timeout = 10
 
     provides_fields = [
-        "registration_id", "official_name", "legal_form",
-        "registration_status", "date_established", "registered_address",
-        "nace_codes", "directors",
+        "registration_id",
+        "official_name",
+        "legal_form",
+        "registration_status",
+        "date_established",
+        "registered_address",
+        "nace_codes",
+        "directors",
     ]
     requires_inputs = ["name"]
 
@@ -88,7 +93,8 @@ class RechercheAdapter(BaseRegistryAdapter):
             for item in data.get("results", []):
                 parsed = _parse_recherche_response(item)
                 parsed["similarity"] = self.name_similarity(
-                    name, parsed.get("official_name", ""))
+                    name, parsed.get("official_name", "")
+                )
                 candidates.append(parsed)
 
             candidates.sort(key=lambda c: c.get("similarity", 0), reverse=True)
@@ -145,11 +151,13 @@ def _parse_recherche_response(data):
                 name_parts.append(d["prenoms"])
             if d.get("nom"):
                 name_parts.append(d["nom"])
-            directors.append({
-                "name": " ".join(name_parts),
-                "role": d.get("qualite", ""),
-                "since": None,
-            })
+            directors.append(
+                {
+                    "name": " ".join(name_parts),
+                    "role": d.get("qualite", ""),
+                    "since": None,
+                }
+            )
 
     # Date
     date_est = siege.get("date_creation") or siege.get("date_debut_activite")

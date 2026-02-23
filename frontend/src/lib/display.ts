@@ -18,6 +18,16 @@ export const STATUS_DISPLAY: Record<string, string> = {
   error_pushing_lemlist: 'Error pushing to Lemlist',
 }
 
+export const ENRICHMENT_STAGE_DISPLAY: Record<string, string> = {
+  imported: 'Imported',
+  researched: 'Researched',
+  qualified: 'Qualified',
+  enriched: 'Enriched',
+  contacts_ready: 'Contacts Ready',
+  failed: 'Failed',
+  disqualified: 'Disqualified',
+}
+
 export const TIER_DISPLAY: Record<string, string> = {
   tier_1_platinum: 'Tier 1 - Platinum',
   tier_2_gold: 'Tier 2 - Gold',
@@ -249,7 +259,7 @@ export function reverseValue(map: Record<string, string>, v: string | null | und
   return map[v] ?? v
 }
 
-/** Build filter options from a display map: [{ value: displayVal, label: displayVal }] */
+/** Build filter options from a display map: [{ value: dbKey, label: displayVal }] */
 export function filterOptions(map: Record<string, string>): { value: string; label: string }[] {
-  return Object.values(map).map((v) => ({ value: v, label: v }))
+  return Object.entries(map).map(([dbVal, label]) => ({ value: dbVal, label }))
 }
