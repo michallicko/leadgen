@@ -1302,7 +1302,11 @@ def build_messages(chat_history, user_message):
         else chat_history
     )
 
-    messages = [{"role": msg.role, "content": msg.content} for msg in recent]
+    messages = [
+        {"role": msg.role, "content": msg.content}
+        for msg in recent
+        if msg.role in ("user", "assistant")
+    ]
 
     # Append the new user message
     messages.append({"role": "user", "content": user_message})

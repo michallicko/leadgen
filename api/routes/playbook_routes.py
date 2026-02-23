@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
 
+_ALLOWED_PAGE_CONTEXTS = frozenset({
+    "contacts", "companies", "messages", "campaigns",
+    "enrich", "import", "playbook",
+})
+
 
 @playbook_bp.route("/api/playbook", methods=["GET"])
 @require_auth
@@ -612,7 +617,9 @@ def get_chat_history():
     # only messages from that point onward. If no marker exists,
     # return all messages (backward compatible).
     latest_thread_start = (
-        StrategyChatMessage.query.filter_by(document_id=doc.id, thread_start=True)
+        StrategyChatMessage.query.filter_by(
+            document_id=doc.id, tenant_id=tenant_id, thread_start=True
+        )
         .order_by(StrategyChatMessage.created_at.desc())
         .first()
     )
@@ -624,6 +631,7 @@ def get_chat_history():
         messages = (
             StrategyChatMessage.query.filter(
                 StrategyChatMessage.document_id == doc.id,
+                StrategyChatMessage.tenant_id == tenant_id,
                 db.or_(
                     StrategyChatMessage.id == latest_thread_start.id,
                     StrategyChatMessage.created_at > latest_thread_start.created_at,
@@ -635,7 +643,9 @@ def get_chat_history():
         )
     else:
         messages = (
-            StrategyChatMessage.query.filter_by(document_id=doc.id)
+            StrategyChatMessage.query.filter_by(
+                document_id=doc.id, tenant_id=tenant_id
+            )
             .order_by(StrategyChatMessage.created_at.asc())
             .limit(limit)
             .all()
@@ -709,6 +719,8 @@ def post_chat_message():
         return jsonify({"error": "message is required"}), 400
 
     page_context = data.get("page_context")
+    if page_context and page_context not in _ALLOWED_PAGE_CONTEXTS:
+        page_context = None
 
     doc = _get_or_create_document(tenant_id)
     tenant = db.session.get(Tenant, tenant_id)
@@ -740,7 +752,7 @@ def post_chat_message():
     # Find latest thread_start marker to scope history
     latest_thread_start = (
         StrategyChatMessage.query.filter_by(
-            document_id=doc.id, thread_start=True
+            document_id=doc.id, tenant_id=tenant_id, thread_start=True
         )
         .order_by(StrategyChatMessage.created_at.desc())
         .first()
@@ -750,6 +762,7 @@ def post_chat_message():
         history = (
             StrategyChatMessage.query.filter(
                 StrategyChatMessage.document_id == doc.id,
+                StrategyChatMessage.tenant_id == tenant_id,
                 StrategyChatMessage.id != user_msg.id,
                 db.or_(
                     StrategyChatMessage.id == latest_thread_start.id,
@@ -762,7 +775,9 @@ def post_chat_message():
         )
     else:
         history = (
-            StrategyChatMessage.query.filter_by(document_id=doc.id)
+            StrategyChatMessage.query.filter_by(
+                document_id=doc.id, tenant_id=tenant_id
+            )
             .filter(StrategyChatMessage.id != user_msg.id)
             .order_by(StrategyChatMessage.created_at.asc())
             .all()

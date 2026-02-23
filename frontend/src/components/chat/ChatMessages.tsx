@@ -240,9 +240,9 @@ export function ChatMessages({
     )
   }
 
-  const hasContent = messages.length > 0 || isStreaming
   // Filter out system messages for display
   const displayMessages = messages.filter((m) => m.role !== 'system')
+  const hasContent = displayMessages.length > 0 || isStreaming
 
   return (
     <div

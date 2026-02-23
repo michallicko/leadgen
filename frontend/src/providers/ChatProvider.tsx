@@ -201,12 +201,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // ---------------------------------------------------------------------------
 
   const startNewThread = useCallback(() => {
-    newThreadMutation.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['playbook', 'chat'] })
-      },
-    })
-  }, [newThreadMutation, queryClient])
+    newThreadMutation.mutate(undefined)
+  }, [newThreadMutation])
 
   // ---------------------------------------------------------------------------
   // Cmd+K shortcut
