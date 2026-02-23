@@ -216,7 +216,37 @@ PHASE_INSTRUCTIONS = {
 }
 
 
-def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
+PAGE_CONTEXT_HINTS = {
+    "contacts": (
+        "The user is viewing their Contacts list. They may ask about "
+        "contact filtering, ICP matching, or which contacts to prioritize."
+    ),
+    "companies": (
+        "The user is viewing their Companies list. They may ask about "
+        "company tiers, enrichment status, or competitive analysis."
+    ),
+    "messages": (
+        "The user is reviewing outreach messages. They may ask about "
+        "tone, personalization, or message effectiveness."
+    ),
+    "campaigns": (
+        "The user is managing campaigns. They may ask about campaign "
+        "strategy, channel selection, or outreach timing."
+    ),
+    "enrich": (
+        "The user is on the Enrichment page. They may ask about data "
+        "quality, enrichment progress, or research gaps."
+    ),
+    "import": (
+        "The user is importing contacts. They may ask about data "
+        "mapping, deduplication, or import strategy."
+    ),
+}
+
+
+def build_system_prompt(
+    tenant, document, enrichment_data=None, phase=None, page_context=None
+):
     """Build the system prompt for the playbook AI assistant.
 
     Positions the AI as a GTM strategy consultant with context about the
@@ -231,6 +261,8 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
             company_intel, etc.) to include as research context.
         phase: Optional phase string to override document's phase for prompt
             construction. Does not change the stored phase.
+        page_context: Optional page name string indicating which page the
+            user is currently viewing. Used to add contextual hints.
 
     Returns:
         str: System prompt string for the Anthropic API.
@@ -396,6 +428,19 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
     phase_text = PHASE_INSTRUCTIONS.get(active_phase, "")
     if phase_text:
         parts.extend(["", "--- Phase-Specific Instructions ---", phase_text])
+
+    # Append page-context hints (for cross-page chat)
+    if page_context and page_context != "playbook":
+        hint = PAGE_CONTEXT_HINTS.get(page_context)
+        if hint:
+            parts.extend(
+                [
+                    "",
+                    "--- Current Page Context ---",
+                    "The user is currently on the '{}' page.".format(page_context),
+                    hint,
+                ]
+            )
 
     return "\n".join(parts)
 
@@ -1257,7 +1302,11 @@ def build_messages(chat_history, user_message):
         else chat_history
     )
 
-    messages = [{"role": msg.role, "content": msg.content} for msg in recent]
+    messages = [
+        {"role": msg.role, "content": msg.content}
+        for msg in recent
+        if msg.role in ("user", "assistant")
+    ]
 
     # Append the new user message
     messages.append({"role": "user", "content": user_message})

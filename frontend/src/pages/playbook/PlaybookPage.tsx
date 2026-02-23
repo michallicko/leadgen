@@ -1,13 +1,14 @@
 /**
- * PlaybookPage — split-view editor + AI chat for ICP strategy.
+ * PlaybookPage -- split-view editor + AI chat for ICP strategy.
  *
  * Left panel (~60%): Phase-specific content (StrategyEditor for strategy, placeholders for others)
- * Right panel (~40%): AI chat with SSE streaming (PlaybookChat)
+ * Right panel (~40%): AI chat — uses ChatProvider for persistent state
  *
  * Shows onboarding flow for first-time visitors (no enrichment data yet).
  *
- * Wires together: usePlaybookDocument, useSavePlaybook, usePlaybookChat,
- * useExtractStrategy, useSSE, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
+ * Wires together: usePlaybookDocument, useSavePlaybook,
+ * useExtractStrategy, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
+ * Chat state is provided by ChatProvider (app-level).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -15,18 +16,14 @@ import { useParams, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
-import { PlaybookChat, type ChatMessage } from '../../components/playbook/PlaybookChat'
+import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
 import {
   usePlaybookDocument,
   useSavePlaybook,
-  usePlaybookChat,
   useExtractStrategy,
-  type ChatMessage as APIChatMessage,
 } from '../../api/queries/usePlaybook'
-import { useSSE } from '../../hooks/useSSE'
-import { resolveApiBase, buildHeaders } from '../../api/client'
-import { getAccessToken } from '../../lib/auth'
+import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
 // ---------------------------------------------------------------------------
@@ -38,16 +35,6 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Convert API ChatMessage (with `extra`) to PlaybookChat ChatMessage format. */
-function toChatMessage(msg: APIChatMessage): ChatMessage {
-  return {
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-    created_at: msg.created_at,
-  }
-}
 
 function isValidPhase(phase: string | undefined): phase is PhaseKey {
   return PHASE_ORDER.includes(phase as PhaseKey)
@@ -81,21 +68,6 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 // Phase-specific action button labels
 // ---------------------------------------------------------------------------
 
-/**
- * Human-readable display names for tool calls.
- * Each tool spec adds entries here when its tools are registered.
- * AGENT ships with an empty map; WRITE/SEARCH/etc. add theirs.
- */
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  // Populated by tool specs (WRITE, SEARCH, etc.)
-  // Example: get_strategy: 'Reading strategy...'
-}
-
-/** Get a display-friendly name for a tool, falling back to the raw name. */
-function getToolDisplayName(toolName: string): string {
-  return TOOL_DISPLAY_NAMES[toolName] || `Running ${toolName}...`
-}
-
 const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
   strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
   contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
@@ -113,23 +85,26 @@ export function PlaybookPage() {
   const navigate = useNavigate()
   const { phase: urlPhase } = useParams<{ phase: string }>()
 
+  // Chat state from provider (persists across navigation)
+  const {
+    messages,
+    isStreaming,
+    streamingText,
+    isLoading: chatLoading,
+    sendMessage,
+    chatInputRef,
+  } = useChatContext()
+
   // Server state
   const docQuery = usePlaybookDocument()
-  const chatQuery = usePlaybookChat()
   const saveMutation = useSavePlaybook()
   const extractMutation = useExtractStrategy()
 
-  // SSE streaming
-  const sse = useSSE()
-
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
-  const [streamingText, setStreamingText] = useState('')
-  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
-  const [activeToolName, setActiveToolName] = useState<string | null>(null)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -286,74 +261,6 @@ export function PlaybookPage() {
   }, [extractMutation, toast])
 
   // ---------------------------------------------------------------------------
-  // Chat handlers
-  // ---------------------------------------------------------------------------
-
-  const handleSendMessage = useCallback(
-    (text: string) => {
-      // Add optimistic user message
-      const optimisticMsg: ChatMessage = {
-        id: `optimistic-${Date.now()}`,
-        role: 'user',
-        content: text,
-        created_at: new Date().toISOString(),
-      }
-      setOptimisticMessages((prev) => [...prev, optimisticMsg])
-      setStreamingText('')
-
-      const url = `${resolveApiBase()}/playbook/chat`
-      const token = getAccessToken()
-      const headers = buildHeaders(token)
-
-      sse.startStream(url, { message: text, phase: viewPhase }, headers, {
-        onChunk: (chunk) => {
-          setStreamingText((prev) => prev + chunk)
-        },
-        onDone: (_messageId, toolCalls) => {
-          setStreamingText('')
-          setOptimisticMessages([])
-          setActiveToolName(null)
-          // Refetch chat history from server to get persisted messages
-          chatQuery.refetch()
-
-          // If any tool calls modified data, invalidate relevant queries
-          if (toolCalls && toolCalls.length > 0) {
-            // Future tool specs define which query keys to invalidate.
-            // For now, invalidate playbook data on any successful write tool.
-            const hasWrites = toolCalls.some(
-              (tc) => tc.status === 'success' && !tc.tool_name.startsWith('get_'),
-            )
-            if (hasWrites) {
-              queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
-            }
-          }
-        },
-        onError: (error) => {
-          setStreamingText('')
-          setOptimisticMessages([])
-          setActiveToolName(null)
-          toast(error.message || 'Chat error', 'error')
-        },
-        onToolStart: (toolName) => {
-          setActiveToolName(getToolDisplayName(toolName))
-        },
-        onToolResult: () => {
-          // activeToolName is cleared by onDone — no need to clear here
-          // (clearing here caused a flash of empty state between tool calls)
-        },
-      })
-    },
-    [sse, chatQuery, toast, viewPhase, queryClient],
-  )
-
-  // ---------------------------------------------------------------------------
-  // Derived state
-  // ---------------------------------------------------------------------------
-
-  const serverMessages = (chatQuery.data?.messages ?? []).map(toChatMessage)
-  const allMessages = [...serverMessages, ...optimisticMessages]
-
-  // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
 
@@ -394,7 +301,7 @@ export function PlaybookPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Onboarding gate — show if no enrichment data and user hasn't skipped
+  // Onboarding gate -- show if no enrichment data and user hasn't skipped
   // ---------------------------------------------------------------------------
 
   const needsOnboarding = docQuery.data && !docQuery.data.enrichment_id
@@ -405,7 +312,7 @@ export function PlaybookPage() {
         onSkip={() => setSkipped(true)}
         onComplete={() => {
           // Invalidate the document query so it re-fetches with seeded content.
-          // Only invalidate ['playbook'] exactly — NOT ['playbook', 'research']
+          // Only invalidate ['playbook'] exactly -- NOT ['playbook', 'research']
           // which would cause the onboarding to skip prematurely (see 8ac309b).
           queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
         }}
@@ -488,15 +395,17 @@ export function PlaybookPage() {
           />
         </div>
 
-        {/* Right: Chat */}
+        {/* Right: Inline Chat (uses ChatProvider state) */}
         <div className="flex-[2] min-w-0 flex flex-col min-h-0">
           <PlaybookChat
-            messages={allMessages}
-            onSendMessage={handleSendMessage}
-            isStreaming={sse.isStreaming}
+            messages={messages}
+            onSendMessage={sendMessage}
+            isStreaming={isStreaming}
             streamingText={streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
-            activeToolName={activeToolName}
+            activeToolName={null}
+            isLoading={chatLoading}
+            inputRef={chatInputRef}
           />
         </div>
       </div>
