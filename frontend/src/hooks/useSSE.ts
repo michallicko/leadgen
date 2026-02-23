@@ -158,7 +158,7 @@ export function useSSE(): UseSSEReturn {
                 event.tool_calls as ToolCallSummary[] | undefined,
               )
             } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.error as string) ?? 'Stream error'))
+              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
             } else if (eventType === 'tool_start') {
               callbacks.onToolStart?.(
                 event.tool_name as string,
@@ -188,7 +188,7 @@ export function useSSE(): UseSSEReturn {
                 event.tool_calls as ToolCallSummary[] | undefined,
               )
             } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.error as string) ?? 'Stream error'))
+              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
             } else if (eventType === 'tool_start') {
               callbacks.onToolStart?.(
                 event.tool_name as string,

@@ -897,7 +897,11 @@ def _stream_agent_response(
                         document_id=doc_id,
                         chat_message_id=msg_id,
                         tool_name=tc.get("tool_name", ""),
+                        input_args=tc.get("input_args", {}),
+                        output_data=tc.get("output_data", {}),
                         is_error=tc.get("status") == "error",
+                        error_message=tc.get("error_message"),
+                        duration_ms=tc.get("duration_ms"),
                     )
                     db.session.add(tool_exec)
 
@@ -905,7 +909,7 @@ def _stream_agent_response(
                 log_llm_usage(
                     tenant_id=tenant_id,
                     operation="playbook_chat",
-                    model=client.default_model,
+                    model=done_data.get("model", client.default_model),
                     input_tokens=done_data.get("total_input_tokens", 0),
                     output_tokens=done_data.get("total_output_tokens", 0),
                     user_id=user_id,
@@ -954,7 +958,21 @@ def _stream_agent_response(
 def _sync_response(
     client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
 ):
-    """Return a non-streaming JSON response with the full LLM reply."""
+    """Return a non-streaming JSON response with the full LLM reply.
+
+    If tools are registered, consumes the agent executor loop collecting
+    all events, then persists the assistant message and tool execution
+    records. Otherwise, falls back to the simple stream_query path.
+    """
+    tools = get_tools_for_api()
+
+    if tools:
+        return _sync_agent_response(
+            client, system_prompt, messages, tools,
+            tenant_id, doc_id, user_msg, user_id,
+        )
+
+    # --- No-tools path (backward compatible) ---
     try:
         full_text = []
         for chunk in client.stream_query(
@@ -998,3 +1016,133 @@ def _sync_response(
             "assistant_message": assistant_msg.to_dict(),
         }
     ), 201
+
+
+def _sync_agent_response(
+    client, system_prompt, messages, tools,
+    tenant_id, doc_id, user_msg, user_id,
+):
+    """Sync (non-streaming) response with agent tool-use loop.
+
+    Collects all SSE events from execute_agent_turn(), persists the
+    assistant message and tool execution records, and returns JSON.
+    """
+    tool_context = ToolContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        document_id=str(doc_id) if doc_id else None,
+    )
+
+    try:
+        events = list(
+            execute_agent_turn(
+                client=client,
+                system_prompt=system_prompt,
+                messages=messages,
+                tools=tools,
+                tool_context=tool_context,
+            )
+        )
+    except Exception as e:
+        logger.exception("Agent sync execution error: %s", e)
+        assistant_msg = StrategyChatMessage(
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            role="assistant",
+            content="Sorry, I encountered an error generating a response. Please try again.",
+        )
+        db.session.add(assistant_msg)
+        db.session.commit()
+        return jsonify(
+            {
+                "user_message": user_msg.to_dict(),
+                "assistant_message": assistant_msg.to_dict(),
+            }
+        ), 201
+
+    text_parts = [
+        e.data.get("text", "") for e in events if e.type == "chunk"
+    ]
+    done_event = next((e for e in events if e.type == "done"), None)
+    done_data = done_event.data if done_event else {}
+
+    assistant_content = "".join(text_parts)
+
+    # Build metadata with tool call summary and cost totals
+    extra = {}
+    if done_data:
+        extra = {
+            "tool_calls": done_data.get("tool_calls", []),
+            "llm_calls": len(done_data.get("tool_calls", [])) + 1,
+            "total_input_tokens": done_data.get("total_input_tokens", 0),
+            "total_output_tokens": done_data.get("total_output_tokens", 0),
+            "total_cost_usd": done_data.get("total_cost_usd", "0"),
+        }
+
+    assistant_msg = StrategyChatMessage(
+        tenant_id=tenant_id,
+        document_id=doc_id,
+        role="assistant",
+        content=assistant_content,
+        extra=extra,
+    )
+    db.session.add(assistant_msg)
+    db.session.flush()
+    msg_id = assistant_msg.id
+
+    # Log tool executions to the tool_executions table
+    if done_data:
+        for tc in done_data.get("tool_calls", []):
+            tool_exec = ToolExecution(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                document_id=doc_id,
+                chat_message_id=msg_id,
+                tool_name=tc.get("tool_name", ""),
+                input_args=tc.get("input_args", {}),
+                output_data=tc.get("output_data", {}),
+                is_error=tc.get("status") == "error",
+                error_message=tc.get("error_message"),
+                duration_ms=tc.get("duration_ms"),
+            )
+            db.session.add(tool_exec)
+
+        # Log aggregated LLM usage
+        log_llm_usage(
+            tenant_id=tenant_id,
+            operation="playbook_chat",
+            model=done_data.get("model", client.default_model),
+            input_tokens=done_data.get("total_input_tokens", 0),
+            output_tokens=done_data.get("total_output_tokens", 0),
+            user_id=user_id,
+            metadata={
+                "agent_turn": True,
+                "tool_calls": len(done_data.get("tool_calls", [])),
+            },
+        )
+
+    db.session.commit()
+
+    # Log assistant chat event
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc_id,
+            event_type="chat_assistant",
+            payload={
+                "message": assistant_content[:500],
+                "tool_calls": done_data.get("tool_calls", [])
+                if done_data
+                else [],
+            },
+        )
+
+    result = {
+        "user_message": user_msg.to_dict(),
+        "assistant_message": assistant_msg.to_dict(),
+    }
+    if done_data and done_data.get("tool_calls"):
+        result["tool_calls"] = done_data["tool_calls"]
+
+    return jsonify(result), 201

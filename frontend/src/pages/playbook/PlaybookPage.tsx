@@ -338,7 +338,8 @@ export function PlaybookPage() {
           setActiveToolName(getToolDisplayName(toolName))
         },
         onToolResult: () => {
-          setActiveToolName(null)
+          // activeToolName is cleared by onDone — no need to clear here
+          // (clearing here caused a flash of empty state between tool calls)
         },
       })
     },

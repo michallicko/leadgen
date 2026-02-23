@@ -146,6 +146,7 @@ def execute_agent_turn(
     total_output_tokens = 0
     total_cost_usd = Decimal("0")
     tool_executions = []
+    model = client.default_model
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         response = client.query_with_tools(
@@ -189,10 +190,16 @@ def execute_agent_turn(
                     "tool_calls": [
                         {
                             "tool_name": e.tool_name,
+                            "tool_call_id": e.tool_call_id,
                             "status": "error" if e.is_error else "success",
+                            "input_args": e.input_args,
+                            "output_data": e.output,
+                            "error_message": e.error_message,
+                            "duration_ms": e.duration_ms,
                         }
                         for e in tool_executions
                     ],
+                    "model": model,
                     "total_input_tokens": total_input_tokens,
                     "total_output_tokens": total_output_tokens,
                     "total_cost_usd": str(total_cost_usd),
@@ -280,10 +287,16 @@ def execute_agent_turn(
             "tool_calls": [
                 {
                     "tool_name": e.tool_name,
+                    "tool_call_id": e.tool_call_id,
                     "status": "error" if e.is_error else "success",
+                    "input_args": e.input_args,
+                    "output_data": e.output,
+                    "error_message": e.error_message,
+                    "duration_ms": e.duration_ms,
                 }
                 for e in tool_executions
             ],
+            "model": model,
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
             "total_cost_usd": str(total_cost_usd),
