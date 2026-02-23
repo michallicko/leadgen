@@ -103,6 +103,9 @@ class TestUpdatePlaybook:
         db.session.commit()
         resp = client.put("/api/playbook", json={"content": "# Strategy"}, headers=headers)
         assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["version"] == 2
+        assert data["content"] == "# Strategy"
 
 
 class TestPlaybookChat:

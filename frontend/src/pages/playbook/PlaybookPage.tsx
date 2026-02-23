@@ -118,6 +118,8 @@ export function PlaybookPage() {
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef<string | null>(null)
+  // Track what was last saved to avoid saving identical content (fixes blink bug)
+  const lastSavedContentRef = useRef<string | null>(null)
 
   // Track document version for optimistic locking
   const versionRef = useRef(0)
@@ -132,12 +134,12 @@ export function PlaybookPage() {
   const viewIdx = PHASE_ORDER.indexOf(viewPhase)
   const unlockedIdx = PHASE_ORDER.indexOf(docPhase as PhaseKey)
 
-  // Keep version ref in sync with server data
+  // Seed lastSavedContentRef with server content on first load
   useEffect(() => {
-    if (docQuery.data) {
-      versionRef.current = docQuery.data.version
+    if (docQuery.data?.content && lastSavedContentRef.current === null) {
+      lastSavedContentRef.current = docQuery.data.content
     }
-  }, [docQuery.data])
+  }, [docQuery.data?.content])
 
   // Poll for content when document has enrichment_id but empty content
   // (race condition: research completed before template was seeded)
@@ -164,9 +166,16 @@ export function PlaybookPage() {
   // ---------------------------------------------------------------------------
 
   const performSave = useCallback(async (content: string) => {
+    // Skip if content hasn't changed since last save
+    if (content === lastSavedContentRef.current) {
+      setIsDirty(false)
+      return
+    }
     setSaveStatus('saving')
     try {
       await saveMutation.mutateAsync({ content })
+      lastSavedContentRef.current = content
+      setIsDirty(false)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus((s) => s === 'saved' ? 'idle' : s), 2000)
     } catch {
@@ -217,6 +226,9 @@ export function PlaybookPage() {
   // ---------------------------------------------------------------------------
 
   const handleEditorUpdate = useCallback((content: string) => {
+    // Skip if content matches what's already saved (e.g. Tiptap init firing onUpdate)
+    if (content === lastSavedContentRef.current) return
+
     setEditedContent(content)
     setIsDirty(true)
     setSaveStatus('idle')
