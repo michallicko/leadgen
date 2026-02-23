@@ -62,12 +62,22 @@ This means:
 
 ---
 
+## Display Rule
+
+> **USD amounts are NEVER shown to namespace admins or regular users.**
+> The ONLY part of the application that displays raw USD cost data is the super_admin LLM cost dashboard (this spec).
+>
+> All other cost-related UI in the application uses **credits** (BL-056). The credit-to-USD conversion (1 credit = $0.001) is an internal implementation detail — it is never exposed to users.
+>
+> This rule is absolute. No exceptions outside of the super_admin dashboard.
+
 ## Access Control
 
 **Raw USD cost data is super_admin only.** This feature is for platform operators who need to understand infrastructure spend — not for namespace admins or regular users.
 
 - The existing API endpoints (`/api/llm-usage/summary`, `/api/llm-usage/logs`) already enforce super_admin via `@require_role("admin")` + `_require_super_admin()`.
 - The cost dashboard UI must only be accessible to super_admin users.
+- Any new API endpoints added by this spec that return USD amounts must also require super_admin role.
 - Namespace admins will see **token/credit usage** (abstracted from raw USD) via a separate feature (BL-056). This spec does NOT cover namespace-visible usage.
 
 ---

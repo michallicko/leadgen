@@ -22,6 +22,26 @@ For a multi-tenant paid product, this is a critical gap. Every LLM-powered featu
 
 ---
 
+## Display Rule
+
+> **Namespace admins and regular users NEVER see USD amounts.**
+> All cost displays in the application use **credits** as the unit. The single exception is the super_admin LLM cost dashboard (BL-055), which is not visible to namespace admins.
+>
+> This applies to:
+> - Budget meters and gauges → show credits
+> - Usage charts (by operation, by user, over time) → show credits
+> - Operation cost estimates shown before enrichment/generation → show credits
+> - Budget warning banners → show credits ("80% of budget used")
+> - Error messages when budget is exceeded → show credits remaining
+>
+> **Never display:**
+> - `cost_usd`, `total_cost_usd`, or any dollar/cent amounts to namespace admins or users
+> - The internal conversion rate (1 credit = $0.001)
+> - Provider names or model names (Anthropic, Perplexity, claude-sonnet-4-5)
+> - Raw token counts (input_tokens, output_tokens)
+>
+> The credit-to-USD conversion is an internal implementation detail used only by the backend and the super_admin dashboard.
+
 ## Token Conversion Model
 
 ### Recommendation: Cost-Based Credits (Option B)
