@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-055
+**Next ID**: BL-056
 
 ## Must Have
 
@@ -315,6 +315,12 @@ Import contacts from Microsoft 365 / Outlook (Microsoft Graph API). OAuth2 via M
 **Depends on**: AGENT (agent-ready chat) | **Theme**: Closed-Loop Analytics
 
 The Echo tab becomes a living, constantly-prioritized task list. Tasks from three sources: (1) manual user tasks captured from chat or UI, (2) AI-generated tasks from strategy analysis, enrichment results, and campaign performance, (3) system alerts from pipeline events, send failures, and import completions. Chat tools: `add_task`, `update_task`, `complete_task`, `get_prioritized_tasks`, `suggest_tasks`. Dedup prevents duplicate AI/system tasks. Priority sort: overdue first, then by priority level and due date. Snooze, dismiss, and complete lifecycle. Linked entities navigate to company/campaign/contact detail views.
+
+### BL-055: LLM Cost Logging & Breakdown Dashboard
+**Status**: Spec'd | **Effort**: M | **Spec**: `docs/specs/llm-cost-tracking.md`
+**Depends on**: — | **Theme**: Closed-Loop Analytics
+
+Instrument all untracked LLM call sites (playbook chat, strategy extraction, person enrichment) and break L2 enrichment logging into per-call granularity. Add missing model pricing (sonar-reasoning). Build a cost dashboard UI for super_admins consuming the existing `/api/llm-usage/summary` endpoint — summary cards, breakdown tables by operation/model, and daily cost trend chart.
 
 ## Could Have
 
