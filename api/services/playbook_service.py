@@ -260,7 +260,7 @@ def build_system_prompt(tenant, document, enrichment_data=None):
             '"minimal digital footprint", "insufficient data", '
             '"poor online presence", "no evidence of".',
             "- When research data is limited or missing, reframe constructively: "
-            '"I found limited information online — let\'s fill in the details '
+            "\"I found limited information online — let's fill in the details "
             'together" or "This section needs your input to be accurate."',
             "- Be encouraging and collaborative, never evaluative or dismissive.",
             "- You are the strategist; the user is the CEO. A strategist never "
