@@ -1268,6 +1268,35 @@ class StrategyChatMessage(db.Model):
         }
 
 
+class ToolExecution(db.Model):
+    __tablename__ = "tool_executions"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+    document_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
+    )
+    chat_message_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_chat_messages.id")
+    )
+    tool_name = db.Column(db.String(100), nullable=False)
+    input_args = db.Column(JSONB, nullable=False, server_default=db.text("'{}'::jsonb"))
+    output_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    is_error = db.Column(db.Boolean, nullable=False, default=False)
+    error_message = db.Column(db.Text)
+    duration_ms = db.Column(db.Integer)
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()"), nullable=False
+    )
+
+
 class PlaybookLog(db.Model):
     __tablename__ = "playbook_logs"
 

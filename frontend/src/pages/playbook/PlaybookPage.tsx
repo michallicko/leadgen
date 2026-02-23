@@ -81,6 +81,21 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 // Phase-specific action button labels
 // ---------------------------------------------------------------------------
 
+/**
+ * Human-readable display names for tool calls.
+ * Each tool spec adds entries here when its tools are registered.
+ * AGENT ships with an empty map; WRITE/SEARCH/etc. add theirs.
+ */
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  // Populated by tool specs (WRITE, SEARCH, etc.)
+  // Example: get_strategy: 'Reading strategy...'
+}
+
+/** Get a display-friendly name for a tool, falling back to the raw name. */
+function getToolDisplayName(toolName: string): string {
+  return TOOL_DISPLAY_NAMES[toolName] || `Running ${toolName}...`
+}
+
 const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
   strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
   contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
@@ -114,6 +129,7 @@ export function PlaybookPage() {
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
+  const [activeToolName, setActiveToolName] = useState<string | null>(null)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -293,20 +309,40 @@ export function PlaybookPage() {
         onChunk: (chunk) => {
           setStreamingText((prev) => prev + chunk)
         },
-        onDone: () => {
+        onDone: (_messageId, toolCalls) => {
           setStreamingText('')
           setOptimisticMessages([])
+          setActiveToolName(null)
           // Refetch chat history from server to get persisted messages
           chatQuery.refetch()
+
+          // If any tool calls modified data, invalidate relevant queries
+          if (toolCalls && toolCalls.length > 0) {
+            // Future tool specs define which query keys to invalidate.
+            // For now, invalidate playbook data on any successful write tool.
+            const hasWrites = toolCalls.some(
+              (tc) => tc.status === 'success' && !tc.tool_name.startsWith('get_'),
+            )
+            if (hasWrites) {
+              queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
+            }
+          }
         },
         onError: (error) => {
           setStreamingText('')
           setOptimisticMessages([])
+          setActiveToolName(null)
           toast(error.message || 'Chat error', 'error')
+        },
+        onToolStart: (toolName) => {
+          setActiveToolName(getToolDisplayName(toolName))
+        },
+        onToolResult: () => {
+          setActiveToolName(null)
         },
       })
     },
-    [sse, chatQuery, toast, viewPhase],
+    [sse, chatQuery, toast, viewPhase, queryClient],
   )
 
   // ---------------------------------------------------------------------------
@@ -459,6 +495,7 @@ export function PlaybookPage() {
             isStreaming={sse.isStreaming}
             streamingText={streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
+            activeToolName={activeToolName}
           />
         </div>
       </div>

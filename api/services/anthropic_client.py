@@ -158,6 +158,95 @@ class AnthropicClient:
 
         raise last_error
 
+    def query_with_tools(
+        self,
+        messages,
+        system_prompt,
+        tools,
+        max_tokens=4096,
+        model=None,
+        temperature=0.4,
+    ):
+        """Send a query with tool definitions. Returns the full API response.
+
+        Unlike stream_query, this returns the complete response as a dict
+        (not streamed). Used for tool-loop iterations where we need to
+        inspect content blocks for tool_use.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys.
+            system_prompt: System instruction (top-level 'system' field).
+            tools: List of tool definitions in Claude API format.
+            max_tokens: Max output tokens (default 4096).
+            model: Model name (default: self.default_model).
+            temperature: Sampling temperature (default 0.4).
+
+        Returns:
+            dict with keys: content (list of blocks), model, usage,
+            stop_reason.
+
+        Raises:
+            requests.HTTPError: On non-retryable errors or after retries
+                exhausted.
+        """
+        model = model or self.default_model
+
+        payload = {
+            "model": model,
+            "system": system_prompt,
+            "messages": messages,
+            "tools": tools,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "Content-Type": "application/json",
+        }
+
+        last_error = None
+        for attempt in range(1 + self.max_retries):
+            try:
+                resp = requests.post(
+                    "{}/v1/messages".format(self.base_url),
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+
+                data = resp.json()
+                return {
+                    "content": data.get("content", []),
+                    "model": data.get("model", model),
+                    "usage": data.get("usage", {}),
+                    "stop_reason": data.get("stop_reason"),
+                }
+
+            except requests.HTTPError as e:
+                last_error = e
+                status = getattr(resp, "status_code", 0)
+
+                if status not in RETRYABLE_STATUS_CODES:
+                    raise
+
+                if attempt < self.max_retries:
+                    delay = self.retry_delay * (2**attempt)
+                    logger.warning(
+                        "Anthropic API %s (attempt %d/%d), retrying in %.1fs",
+                        status,
+                        attempt + 1,
+                        1 + self.max_retries,
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    raise
+
+        raise last_error
+
     def stream_query(
         self, messages, system_prompt, max_tokens=4096, model=None, temperature=0.3
     ):
