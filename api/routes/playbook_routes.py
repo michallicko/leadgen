@@ -608,12 +608,38 @@ def get_chat_history():
     if not doc:
         return jsonify({"messages": []}), 200
 
-    messages = (
-        StrategyChatMessage.query.filter_by(document_id=doc.id)
-        .order_by(StrategyChatMessage.created_at.asc())
-        .limit(limit)
-        .all()
+    # Thread-aware: find the latest thread_start marker and return
+    # only messages from that point onward. If no marker exists,
+    # return all messages (backward compatible).
+    latest_thread_start = (
+        StrategyChatMessage.query.filter_by(document_id=doc.id, thread_start=True)
+        .order_by(StrategyChatMessage.created_at.desc())
+        .first()
     )
+
+    if latest_thread_start:
+        # Use a subquery to get messages created at or after the marker.
+        # We compare by created_at and also include the marker by id to
+        # handle edge cases with timestamp precision across databases.
+        messages = (
+            StrategyChatMessage.query.filter(
+                StrategyChatMessage.document_id == doc.id,
+                db.or_(
+                    StrategyChatMessage.id == latest_thread_start.id,
+                    StrategyChatMessage.created_at > latest_thread_start.created_at,
+                ),
+            )
+            .order_by(StrategyChatMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+    else:
+        messages = (
+            StrategyChatMessage.query.filter_by(document_id=doc.id)
+            .order_by(StrategyChatMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )
 
     return jsonify({"messages": [m.to_dict() for m in messages]}), 200
 
@@ -634,6 +660,42 @@ def _get_anthropic_client():
     return AnthropicClient(api_key=api_key)
 
 
+@playbook_bp.route("/api/playbook/chat/new-thread", methods=["POST"])
+@require_auth
+def new_chat_thread():
+    """Create a new conversation thread.
+
+    Inserts a system-role marker message with thread_start=True.
+    Old messages before this point are retained but not shown in the active thread.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    user_id = getattr(request, "user_id", None)
+
+    marker = StrategyChatMessage(
+        tenant_id=tenant_id,
+        document_id=doc.id,
+        role="system",
+        content="--- New conversation started ---",
+        thread_start=True,
+        created_by=user_id,
+    )
+    db.session.add(marker)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "thread_id": marker.id,
+            "created_at": marker.created_at.isoformat()
+            if marker.created_at
+            else None,
+        }
+    ), 201
+
+
 @playbook_bp.route("/api/playbook/chat", methods=["POST"])
 @require_auth
 def post_chat_message():
@@ -646,6 +708,8 @@ def post_chat_message():
     if not message_text:
         return jsonify({"error": "message is required"}), 400
 
+    page_context = data.get("page_context")
+
     doc = _get_or_create_document(tenant_id)
     tenant = db.session.get(Tenant, tenant_id)
     user_id = getattr(request, "user_id", None)
@@ -656,6 +720,7 @@ def post_chat_message():
         document_id=doc.id,
         role="user",
         content=message_text,
+        page_context=page_context,
         created_by=user_id,
     )
     db.session.add(user_msg)
@@ -671,13 +736,37 @@ def post_chat_message():
             payload={"message": message_text},
         )
 
-    # Load chat history for context
-    history = (
-        StrategyChatMessage.query.filter_by(document_id=doc.id)
-        .filter(StrategyChatMessage.id != user_msg.id)
-        .order_by(StrategyChatMessage.created_at.asc())
-        .all()
+    # Load chat history for context — thread-aware
+    # Find latest thread_start marker to scope history
+    latest_thread_start = (
+        StrategyChatMessage.query.filter_by(
+            document_id=doc.id, thread_start=True
+        )
+        .order_by(StrategyChatMessage.created_at.desc())
+        .first()
     )
+
+    if latest_thread_start:
+        history = (
+            StrategyChatMessage.query.filter(
+                StrategyChatMessage.document_id == doc.id,
+                StrategyChatMessage.id != user_msg.id,
+                db.or_(
+                    StrategyChatMessage.id == latest_thread_start.id,
+                    StrategyChatMessage.created_at
+                    > latest_thread_start.created_at,
+                ),
+            )
+            .order_by(StrategyChatMessage.created_at.asc())
+            .all()
+        )
+    else:
+        history = (
+            StrategyChatMessage.query.filter_by(document_id=doc.id)
+            .filter(StrategyChatMessage.id != user_msg.id)
+            .order_by(StrategyChatMessage.created_at.asc())
+            .all()
+        )
 
     # Load enrichment data if research has been done
     enrichment_data = None
@@ -689,7 +778,11 @@ def post_chat_message():
 
     # Build prompt and messages
     system_prompt = build_system_prompt(
-        tenant, doc, enrichment_data=enrichment_data, phase=phase
+        tenant,
+        doc,
+        enrichment_data=enrichment_data,
+        phase=phase,
+        page_context=page_context,
     )
     messages = build_messages(history, message_text)
 

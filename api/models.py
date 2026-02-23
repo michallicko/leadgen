@@ -1253,6 +1253,8 @@ class StrategyChatMessage(db.Model):
         nullable=False,
         default=dict,
     )
+    page_context = db.Column(db.String(50), nullable=True)
+    thread_start = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     created_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
 
@@ -1263,6 +1265,8 @@ class StrategyChatMessage(db.Model):
             "role": self.role,
             "content": self.content,
             "metadata": self.extra or {},
+            "page_context": self.page_context,
+            "thread_start": self.thread_start,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "created_by": self.created_by,
         }

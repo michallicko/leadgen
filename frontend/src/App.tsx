@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './hooks/useAuth'
 import { ToastProvider } from './components/ui/Toast'
+import { ChatProvider } from './providers/ChatProvider'
 import { AppShell } from './components/layout/AppShell'
 import { LoginPage } from './components/layout/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
@@ -34,6 +35,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
         <BrowserRouter>
+          <ChatProvider>
           <Routes>
             {/* Login — root page */}
             <Route path="/" element={<LoginPage />} />
@@ -59,6 +61,7 @@ export default function App() {
               <Route path="llm-costs" element={<PlaceholderPage title="LLM Costs" description="AI usage tracking — cost over time, per-operation breakdown, per-tenant analysis, and call logs." />} />
             </Route>
           </Routes>
+          </ChatProvider>
         </BrowserRouter>
         </ToastProvider>
       </AuthProvider>
