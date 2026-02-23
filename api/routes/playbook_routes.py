@@ -752,7 +752,6 @@ def _stream_response(
     from flask import current_app
 
     app = current_app._get_current_object()
-    start_time = time.time()
 
     # Check if any tools are registered
     tools = get_tools_for_api()
@@ -773,6 +772,7 @@ def _stream_simple_response(
     client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id, app
 ):
     """Backward-compatible simple streaming (no tools)."""
+    start_time = time.time()
 
     def generate():
         full_text = []
