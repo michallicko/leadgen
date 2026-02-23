@@ -310,6 +310,12 @@ Scan Gmail inbox/sent for contacts not in the database. Extract contact info fro
 
 Import contacts from Microsoft 365 / Outlook (Microsoft Graph API). OAuth2 via Microsoft identity platform. Pulls contacts, email history scan (similar to BL-026 for Gmail). Covers users in Microsoft-centric orgs. Shares extraction logic with Gmail scan where possible.
 
+### BL-053: Echo Task List — Living Prioritized Task Board
+**Status**: Spec'd | **Effort**: L | **Spec**: `docs/specs/echo-task-list.md`
+**Depends on**: AGENT (agent-ready chat) | **Theme**: Closed-Loop Analytics
+
+The Echo tab becomes a living, constantly-prioritized task list. Tasks from three sources: (1) manual user tasks captured from chat or UI, (2) AI-generated tasks from strategy analysis, enrichment results, and campaign performance, (3) system alerts from pipeline events, send failures, and import completions. Chat tools: `add_task`, `update_task`, `complete_task`, `get_prioritized_tasks`, `suggest_tasks`. Dedup prevents duplicate AI/system tasks. Priority sort: overdue first, then by priority level and due date. Snooze, dismiss, and complete lifecycle. Linked entities navigate to company/campaign/contact detail views.
+
 ## Could Have
 
 ### BL-028: Influencer Signal Ingest
