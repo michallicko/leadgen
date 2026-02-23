@@ -39,13 +39,9 @@ export function usePlaybookDocument() {
 }
 
 export function useSavePlaybook() {
-  const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { content: string; version: number }) =>
+    mutationFn: (data: { content: string }) =>
       apiFetch<StrategyDocument>('/playbook', { method: 'PUT', body: data }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['playbook'] })
-    },
   })
 }
 

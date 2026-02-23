@@ -28,6 +28,12 @@ import { getAccessToken } from '../../lib/auth'
 import { useToast } from '../../components/ui/Toast'
 
 // ---------------------------------------------------------------------------
+// Auto-save status type
+// ---------------------------------------------------------------------------
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -44,16 +50,6 @@ function toChatMessage(msg: APIChatMessage): ChatMessage {
 // ---------------------------------------------------------------------------
 // Icons
 // ---------------------------------------------------------------------------
-
-function SaveIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h7l3 3v9a1 1 0 0 1-1 1z" />
-      <path d="M11 14V9H5v5" />
-      <path d="M5 2v3h5" />
-    </svg>
-  )
-}
 
 function ExtractIcon() {
   return (
@@ -86,18 +82,12 @@ export function PlaybookPage() {
   const [streamingText, setStreamingText] = useState('')
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isDirty, setIsDirty] = useState(false)
-  const [savedIndicator, setSavedIndicator] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
 
-  // Track document version for optimistic locking
-  const versionRef = useRef(0)
-
-  // Keep version ref in sync with server data
-  useEffect(() => {
-    if (docQuery.data) {
-      versionRef.current = docQuery.data.version
-    }
-  }, [docQuery.data])
+  // Refs for debounced auto-save
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestContentRef = useRef<string | null>(null)
 
   // Poll for content when document has enrichment_id but empty content
   // (race condition: research completed before template was seeded)
@@ -119,48 +109,71 @@ export function PlaybookPage() {
     : (docQuery.data?.content ?? null)
 
   // ---------------------------------------------------------------------------
+  // Auto-save logic
+  // ---------------------------------------------------------------------------
+
+  const performSave = useCallback(async (content: string) => {
+    setSaveStatus('saving')
+    try {
+      await saveMutation.mutateAsync({ content })
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus((s) => s === 'saved' ? 'idle' : s), 2000)
+    } catch {
+      setSaveStatus('error')
+      toast('Failed to save', 'error')
+    }
+  }, [saveMutation, toast])
+
+  const scheduleSave = useCallback((content: string) => {
+    latestContentRef.current = content
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      const c = latestContentRef.current
+      if (c !== null) {
+        performSave(c)
+      }
+    }, 1500)
+  }, [performSave])
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
+  // ---------------------------------------------------------------------------
   // Editor handlers
   // ---------------------------------------------------------------------------
 
   const handleEditorUpdate = useCallback((content: string) => {
     setEditedContent(content)
     setIsDirty(true)
-    setSavedIndicator(false)
-  }, [])
+    setSaveStatus('idle')
+    scheduleSave(content)
+  }, [scheduleSave])
 
-  const handleSave = useCallback(async () => {
-    if (!localContent) return
-
-    try {
-      const result = await saveMutation.mutateAsync({
-        content: localContent,
-        version: versionRef.current,
-      })
-      versionRef.current = result.version
-      setIsDirty(false)
-      setSavedIndicator(true)
-      setTimeout(() => setSavedIndicator(false), 2000)
-    } catch (err: unknown) {
-      const error = err as { status?: number }
-      if (error.status === 409) {
-        toast('Conflict: someone else edited this document. Refresh to see their changes.', 'error')
-      } else {
-        toast('Failed to save document', 'error')
-      }
-    }
-  }, [localContent, saveMutation, toast])
-
-  // Cmd/Ctrl+S keyboard shortcut
+  // Cmd/Ctrl+S: flush pending save immediately
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+        }
+        const c = latestContentRef.current
+        if (c !== null) {
+          performSave(c)
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [handleSave])
+  }, [performSave])
 
   // ---------------------------------------------------------------------------
   // Extract handler
@@ -294,41 +307,31 @@ export function PlaybookPage() {
           ICP Playbook
         </h1>
 
-        {/* Save status */}
+        {/* Auto-save status */}
         <div className="flex items-center gap-1.5 ml-2">
-          {savedIndicator && (
+          {saveStatus === 'saving' && (
+            <span className="text-xs text-text-muted animate-pulse">
+              Saving...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
             <span className="text-xs text-success font-medium animate-[fadeIn_0.2s_ease-out]">
               Saved
             </span>
           )}
-          {isDirty && !savedIndicator && (
-            <span className="text-xs text-text-dim">
-              Unsaved changes
-            </span>
-          )}
-          {docQuery.data && (
-            <span className="text-xs text-text-dim ml-1">
-              v{docQuery.data.version}
+          {saveStatus === 'error' && (
+            <span className="text-xs text-error font-medium">
+              Save failed
             </span>
           )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            disabled={saveMutation.isPending || !isDirty}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent/30 text-accent hover:bg-accent/10"
-          >
-            <SaveIcon />
-            {saveMutation.isPending ? 'Saving...' : 'Save'}
-          </button>
-
           {/* Extract button */}
           <button
             onClick={handleExtract}
-            disabled={extractMutation.isPending || isDirty}
-            title={isDirty ? 'Save before extracting' : 'Extract structured data from strategy'}
+            disabled={extractMutation.isPending || saveStatus === 'saving'}
+            title={saveStatus === 'saving' ? 'Waiting for save...' : 'Extract structured data from strategy'}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/10"
           >
             <ExtractIcon />
@@ -345,7 +348,6 @@ export function PlaybookPage() {
             <StrategyEditor
               content={localContent}
               onUpdate={handleEditorUpdate}
-              editable={!saveMutation.isPending}
             />
           </div>
         </div>
