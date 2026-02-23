@@ -52,6 +52,7 @@ export default function App() {
               <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
               <Route path="campaigns/:campaignId/review" element={<MessageReviewPage />} />
               <Route path="playbook" element={<PlaybookPage />} />
+              <Route path="playbook/:phase" element={<PlaybookPage />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="preferences" element={<PreferencesPage />} />

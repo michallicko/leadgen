@@ -1,18 +1,20 @@
 /**
  * PlaybookPage — split-view editor + AI chat for ICP strategy.
  *
- * Left panel (~60%): Tiptap rich-text editor (StrategyEditor)
+ * Left panel (~60%): Phase-specific content (StrategyEditor for strategy, placeholders for others)
  * Right panel (~40%): AI chat with SSE streaming (PlaybookChat)
  *
  * Shows onboarding flow for first-time visitors (no enrichment data yet).
  *
  * Wires together: usePlaybookDocument, useSavePlaybook, usePlaybookChat,
- * useExtractStrategy, useSSE, StrategyEditor, PlaybookChat, PlaybookOnboarding.
+ * useExtractStrategy, useSSE, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useNavigate, Navigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { StrategyEditor } from '../../components/playbook/StrategyEditor'
+import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
+import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat, type ChatMessage } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
 import {
@@ -47,6 +49,10 @@ function toChatMessage(msg: APIChatMessage): ChatMessage {
   }
 }
 
+function isValidPhase(phase: string | undefined): phase is PhaseKey {
+  return PHASE_ORDER.includes(phase as PhaseKey)
+}
+
 // ---------------------------------------------------------------------------
 // Icons
 // ---------------------------------------------------------------------------
@@ -61,12 +67,36 @@ function ExtractIcon() {
 }
 
 // ---------------------------------------------------------------------------
+// Phase-specific placeholder text for chat input
+// ---------------------------------------------------------------------------
+
+const PHASE_PLACEHOLDERS: Record<string, string> = {
+  strategy: 'Ask about your ICP strategy...',
+  contacts: 'Which contacts should we target?',
+  messages: "Let's craft your outreach messages...",
+  campaign: 'Configure your campaign...',
+}
+
+// ---------------------------------------------------------------------------
+// Phase-specific action button labels
+// ---------------------------------------------------------------------------
+
+const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
+  strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
+  contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
+  messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
+  campaign: { label: 'Launch Campaign', pendingLabel: 'Launching...' },
+}
+
+// ---------------------------------------------------------------------------
 // PlaybookPage
 // ---------------------------------------------------------------------------
 
 export function PlaybookPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { phase: urlPhase } = useParams<{ phase: string }>()
 
   // Server state
   const docQuery = usePlaybookDocument()
@@ -89,19 +119,40 @@ export function PlaybookPage() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef<string | null>(null)
 
+  // Track document version for optimistic locking
+  const versionRef = useRef(0)
+
+  // Determine view phase from URL or doc's phase
+  const docPhase = docQuery.data?.phase || 'strategy'
+  const viewPhase: PhaseKey = isValidPhase(urlPhase)
+    ? urlPhase
+    : isValidPhase(docPhase) ? docPhase : 'strategy'
+
+  // Guard: redirect if URL phase is ahead of unlocked phase
+  const viewIdx = PHASE_ORDER.indexOf(viewPhase)
+  const unlockedIdx = PHASE_ORDER.indexOf(docPhase as PhaseKey)
+
+  // Keep version ref in sync with server data
+  useEffect(() => {
+    if (docQuery.data) {
+      versionRef.current = docQuery.data.version
+    }
+  }, [docQuery.data])
+
   // Poll for content when document has enrichment_id but empty content
   // (race condition: research completed before template was seeded)
+  const docRefetch = docQuery.refetch
   useEffect(() => {
     if (!docQuery.data) return
     const hasEnrichment = !!docQuery.data.enrichment_id
     const hasContent = !!(docQuery.data.content && docQuery.data.content.trim().length > 0)
     if (hasEnrichment && !hasContent && !isDirty) {
       const interval = setInterval(() => {
-        docQuery.refetch()
+        docRefetch()
       }, 2000)
       return () => clearInterval(interval)
     }
-  }, [docQuery.data?.enrichment_id, docQuery.data?.content, isDirty])
+  }, [docQuery.data, isDirty, docRefetch])
 
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
@@ -145,6 +196,21 @@ export function PlaybookPage() {
       }
     }
   }, [])
+
+  // ---------------------------------------------------------------------------
+  // Phase navigation
+  // ---------------------------------------------------------------------------
+
+  const handlePhaseNavigate = useCallback(
+    (phase: string) => {
+      // Build the current namespace prefix from URL
+      const pathParts = window.location.pathname.split('/')
+      // URL pattern: /:namespace/playbook/:phase
+      const namespace = pathParts[1]
+      navigate(`/${namespace}/playbook/${phase}`)
+    },
+    [navigate],
+  )
 
   // ---------------------------------------------------------------------------
   // Editor handlers
@@ -208,7 +274,7 @@ export function PlaybookPage() {
       const token = getAccessToken()
       const headers = buildHeaders(token)
 
-      sse.startStream(url, { message: text }, headers, {
+      sse.startStream(url, { message: text, phase: viewPhase }, headers, {
         onChunk: (chunk) => {
           setStreamingText((prev) => prev + chunk)
         },
@@ -225,7 +291,7 @@ export function PlaybookPage() {
         },
       })
     },
-    [sse, chatQuery, toast],
+    [sse, chatQuery, toast, viewPhase],
   )
 
   // ---------------------------------------------------------------------------
@@ -275,6 +341,13 @@ export function PlaybookPage() {
     )
   }
 
+  // Guard: redirect if URL phase is ahead of unlocked phase
+  if (docQuery.data && viewIdx > unlockedIdx && unlockedIdx >= 0) {
+    const pathParts = window.location.pathname.split('/')
+    const namespace = pathParts[1]
+    return <Navigate to={`/${namespace}/playbook/${docPhase}`} replace />
+  }
+
   // ---------------------------------------------------------------------------
   // Onboarding gate — show if no enrichment data and user hasn't skipped
   // ---------------------------------------------------------------------------
@@ -299,10 +372,12 @@ export function PlaybookPage() {
   // Render
   // ---------------------------------------------------------------------------
 
+  const phaseAction = PHASE_ACTIONS[viewPhase] || PHASE_ACTIONS.strategy
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Top bar */}
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
+      <div className="flex items-center gap-3 mb-2 flex-shrink-0">
         <h1 className="font-title text-[1.3rem] font-semibold tracking-tight">
           ICP Playbook
         </h1>
@@ -327,29 +402,45 @@ export function PlaybookPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Extract button */}
-          <button
-            onClick={handleExtract}
-            disabled={extractMutation.isPending || saveStatus === 'saving'}
-            title={saveStatus === 'saving' ? 'Waiting for save...' : 'Extract structured data from strategy'}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/10"
-          >
-            <ExtractIcon />
-            {extractMutation.isPending ? 'Extracting...' : 'Extract'}
-          </button>
+          {/* Phase-specific action button */}
+          {viewPhase === 'strategy' ? (
+            <button
+              onClick={handleExtract}
+              disabled={extractMutation.isPending || saveStatus === 'saving'}
+              title={saveStatus === 'saving' ? 'Waiting for save...' : 'Extract structured data from strategy'}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/10"
+            >
+              <ExtractIcon />
+              {extractMutation.isPending ? phaseAction.pendingLabel : phaseAction.label}
+            </button>
+          ) : (
+            <button
+              disabled
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan"
+            >
+              {phaseAction.label}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Phase indicator */}
+      <PhaseIndicator
+        current={viewPhase}
+        unlocked={docPhase}
+        onNavigate={handlePhaseNavigate}
+      />
+
       {/* Split layout */}
       <div className="flex gap-4 flex-1 min-h-0">
-        {/* Left: Editor */}
+        {/* Left: Phase-specific panel */}
         <div className="flex-[3] min-w-0 flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <StrategyEditor
-              content={localContent}
-              onUpdate={handleEditorUpdate}
-            />
-          </div>
+          <PhasePanel
+            phase={viewPhase}
+            content={localContent}
+            onEditorUpdate={handleEditorUpdate}
+            editable={saveStatus !== 'saving'}
+          />
         </div>
 
         {/* Right: Chat */}
@@ -359,6 +450,7 @@ export function PlaybookPage() {
             onSendMessage={handleSendMessage}
             isStreaming={sse.isStreaming}
             streamingText={streamingText}
+            placeholder={PHASE_PLACEHOLDERS[viewPhase]}
           />
         </div>
       </div>
