@@ -26,4 +26,4 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
-      - run: pytest tests/unit/ -v --tb=short -p no:testmon
+      - run: pytest tests/unit/ -v --tb=short
