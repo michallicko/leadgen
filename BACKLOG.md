@@ -304,12 +304,6 @@ Scan Gmail inbox/sent for contacts not in the database. Extract contact info fro
 
 Import contacts from Microsoft 365 / Outlook (Microsoft Graph API). OAuth2 via Microsoft identity platform. Pulls contacts, email history scan (similar to BL-026 for Gmail). Covers users in Microsoft-centric orgs. Shares extraction logic with Gmail scan where possible.
 
-### BL-051: Playbook Intelligent Auto-Extraction
-**Status**: Idea | **Effort**: M | **Spec**: —
-**Depends on**: BL-049 | **Theme**: Outreach Engine
-
-AI detects when meaningful edits have been made to the strategy document and re-extracts structured data (ICP, personas, value propositions) in the background. No explicit "extract" button — the system determines when extraction is warranted by tracking the document diff from the last extraction (>5% change threshold). Runs asynchronously without blocking the user. Supersedes the old manual extract pattern. Enhances the AI-as-strategist experience by removing mechanical steps. Playbook backlog: PB-037.
-
 ## Could Have
 
 ### BL-028: Influencer Signal Ingest
