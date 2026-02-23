@@ -114,6 +114,31 @@ def _format_enrichment_for_prompt(enrichment_data):
             parts.append("  Quick Wins: " + wins)
         parts.append("")
 
+    # Strategic positioning (BL-054 Phase 1)
+    pitch = _to_str(enrichment_data.get("pitch_framing"))
+    rev_trend = _to_str(enrichment_data.get("revenue_trend"))
+    if pitch or rev_trend:
+        parts.append("STRATEGIC POSITIONING:")
+        if pitch:
+            parts.append("  Recommended Pitch: " + pitch)
+        if rev_trend:
+            parts.append("  Revenue Trend: " + rev_trend)
+        parts.append("")
+
+    # Industry context (BL-054 Phase 1)
+    ind_pain = _to_str(enrichment_data.get("industry_pain_points"))
+    if ind_pain:
+        parts.append("INDUSTRY CONTEXT:")
+        parts.append("  Industry Pain Points: " + ind_pain)
+        parts.append("")
+
+    # Proof points (BL-054 Phase 1)
+    case_study = _to_str(enrichment_data.get("relevant_case_study"))
+    if case_study:
+        parts.append("PROOF POINTS:")
+        parts.append("  Relevant Case Studies: " + case_study)
+        parts.append("")
+
     # Signals
     digital = _to_str(enrichment_data.get("digital_initiatives"))
     hiring = _to_str(enrichment_data.get("hiring_signals"))
@@ -162,6 +187,34 @@ def _format_enrichment_for_prompt(enrichment_data):
             parts.append("  Triage Notes: " + triage)
         if score is not None:
             parts.append("  Pre-Score: {}/100".format(score))
+        parts.append("")
+
+    # Enrichment status awareness (BL-054 Phase 1)
+    enriched_at = enrichment_data.get("enriched_at")
+    if enriched_at:
+        parts.append("RESEARCH STATUS:")
+        parts.append("  Data collected: {}".format(enriched_at))
+        # Check staleness (>90 days)
+        try:
+            from datetime import datetime, timezone
+
+            if isinstance(enriched_at, str):
+                # Parse ISO format timestamp
+                dt = datetime.fromisoformat(enriched_at.replace("Z", "+00:00"))
+            else:
+                dt = enriched_at
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            age_days = (datetime.now(timezone.utc) - dt).days
+            if age_days > 90:
+                parts.append(
+                    "  WARNING: Research data is {} days old. Some findings "
+                    "may be outdated. Consider suggesting fresh research.".format(
+                        age_days
+                    )
+                )
+        except (ValueError, TypeError, AttributeError):
+            pass
         parts.append("")
 
     parts.append("--- End of Research Data ---")
@@ -317,9 +370,22 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
         ]
     )
 
-    # Include enrichment/research data as structured sections
+    # Include enrichment/research data as structured sections (BL-054)
     if enrichment_data:
         parts.extend(_format_enrichment_for_prompt(enrichment_data))
+    else:
+        parts.extend(
+            [
+                "",
+                "--- Company Research Status ---",
+                "No company research data is available yet. The user has not "
+                "completed the onboarding research step. When questions would "
+                "benefit from company-specific data (industry analysis, competitive "
+                "landscape, pain points), mention that research hasn't been done "
+                "yet and suggest triggering it from the Playbook setup.",
+                "--- End of Research Status ---",
+            ]
+        )
 
     parts.extend(
         [

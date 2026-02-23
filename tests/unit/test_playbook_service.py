@@ -547,3 +547,221 @@ class TestBuildSeededTemplate:
         result = build_seeded_template(objective="Scale outbound")
         assert "Scale outbound" in result
         assert "Executive Summary" in result
+
+
+class TestEnrichmentExpansionBL054:
+    """Tests for BL-054 Phase 1: expanded enrichment data in chat context."""
+
+    def _make_full_enrichment(self):
+        """Create enrichment data with all BL-054 Phase 1 fields."""
+        return {
+            "company": {
+                "name": "TechCorp",
+                "industry": "SaaS",
+                "industry_category": "Enterprise Software",
+                "company_size": "200",
+                "revenue_range": "$10M-$50M",
+                "hq_city": "Berlin",
+                "hq_country": "Germany",
+            },
+            "company_intel": "Enterprise SaaS platform for workflow automation",
+            "company_overview": "Leading workflow automation provider",
+            "key_products": "WorkflowEngine, AutomatePro",
+            "customer_segments": "Mid-market enterprises",
+            "competitors": "Zapier, Make, n8n",
+            "tech_stack": "Python, React, PostgreSQL",
+            "leadership_team": "Alice Smith (CEO), Bob Jones (CTO)",
+            "certifications": "SOC 2, ISO 27001",
+            "pain_hypothesis": "Manual processes slow down deployment cycles",
+            "ai_opportunities": "AI-powered workflow suggestions",
+            "quick_wins": "Template marketplace",
+            "digital_initiatives": "API-first platform",
+            "hiring_signals": "Hiring ML engineers",
+            "ai_adoption_level": "Early adopter",
+            "growth_indicators": "50% YoY growth",
+            "recent_news": "Raised Series B",
+            "funding_history": "$30M total raised",
+            "triage_notes": "Strong fit for AI integration",
+            "pre_score": 85.0,
+            "confidence": 0.92,
+            # BL-054 Phase 1 new fields
+            "pitch_framing": "Position as AI-augmented workflow automation partner",
+            "revenue_trend": "growing",
+            "industry_pain_points": "Manual compliance checks, legacy integrations",
+            "relevant_case_study": "Similar SaaS company reduced manual work by 60%",
+            "enriched_at": "2026-02-20T14:30:00+00:00",
+        }
+
+    def test_format_includes_strategic_positioning(self):
+        """Prompt includes STRATEGIC POSITIONING section with pitch and revenue."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "STRATEGIC POSITIONING:" in result
+        assert "Recommended Pitch:" in result
+        assert "AI-augmented workflow automation partner" in result
+        assert "Revenue Trend: growing" in result
+
+    def test_format_includes_industry_context(self):
+        """Prompt includes INDUSTRY CONTEXT section with pain points."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "INDUSTRY CONTEXT:" in result
+        assert "Industry Pain Points:" in result
+        assert "Manual compliance checks" in result
+
+    def test_format_includes_proof_points(self):
+        """Prompt includes PROOF POINTS section with case studies."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "PROOF POINTS:" in result
+        assert "Relevant Case Studies:" in result
+        assert "reduced manual work by 60%" in result
+
+    def test_format_includes_enrichment_timestamp(self):
+        """Prompt includes RESEARCH STATUS with enriched_at timestamp."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "RESEARCH STATUS:" in result
+        assert "Data collected:" in result
+        assert "2026-02-20" in result
+
+    def test_format_stale_data_warning(self):
+        """Prompt warns when enrichment data is older than 90 days."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        # Set enriched_at to 120 days ago
+        data["enriched_at"] = "2025-10-01T10:00:00+00:00"
+
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "WARNING:" in result
+        assert "outdated" in result
+        assert "fresh research" in result
+
+    def test_format_recent_data_no_warning(self):
+        """No staleness warning for data less than 90 days old."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        # Keep the default enriched_at (recent)
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "WARNING:" not in result
+
+    def test_format_no_enriched_at_omits_status(self):
+        """When enriched_at is not present, RESEARCH STATUS is omitted."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = self._make_full_enrichment()
+        del data["enriched_at"]
+
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "RESEARCH STATUS:" not in result
+
+    def test_format_partial_enrichment_only_filled_sections(self):
+        """Only sections with data are included; missing fields omit sections."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = {
+            "company": {"name": "Partial Corp"},
+            "pitch_framing": "Lead with cost savings",
+            # No revenue_trend, industry_pain_points, relevant_case_study
+        }
+
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "STRATEGIC POSITIONING:" in result
+        assert "Recommended Pitch: Lead with cost savings" in result
+        # These sections should NOT appear since data is missing
+        assert "INDUSTRY CONTEXT:" not in result
+        assert "PROOF POINTS:" not in result
+
+    def test_format_no_new_fields_omits_new_sections(self):
+        """When none of the BL-054 fields are present, new sections are omitted."""
+        from api.services.playbook_service import _format_enrichment_for_prompt
+
+        data = {
+            "company": {"name": "Basic Corp", "industry": "Retail"},
+            "company_intel": "A retail company",
+        }
+
+        result = "\n".join(_format_enrichment_for_prompt(data))
+
+        assert "STRATEGIC POSITIONING:" not in result
+        assert "INDUSTRY CONTEXT:" not in result
+        assert "PROOF POINTS:" not in result
+        assert "RESEARCH STATUS:" not in result
+        # But existing sections should still work
+        assert "COMPANY OVERVIEW:" in result
+
+    def test_system_prompt_no_enrichment_shows_missing_notice(self):
+        """When no enrichment data is provided, system prompt notes research is missing."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "NoCorp"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc, enrichment_data=None)
+
+        assert "No company research data is available" in prompt
+        assert "onboarding research" in prompt.lower() or "Playbook setup" in prompt
+
+    def test_system_prompt_with_enrichment_no_missing_notice(self):
+        """When enrichment data IS provided, the missing research notice is absent."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        enrichment = self._make_full_enrichment()
+        prompt = build_system_prompt(tenant, doc, enrichment_data=enrichment)
+
+        assert "No company research data is available" not in prompt
+        # Should have research data sections instead
+        assert "--- Company Research Data ---" in prompt
+
+    def test_full_enrichment_all_new_sections_in_prompt(self):
+        """Full enrichment data produces all BL-054 sections in system prompt."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "TechCorp"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        enrichment = self._make_full_enrichment()
+        prompt = build_system_prompt(tenant, doc, enrichment_data=enrichment)
+
+        # All new BL-054 sections present
+        assert "STRATEGIC POSITIONING:" in prompt
+        assert "INDUSTRY CONTEXT:" in prompt
+        assert "PROOF POINTS:" in prompt
+        assert "RESEARCH STATUS:" in prompt
+        # Existing sections still present
+        assert "COMPANY PROFILE:" in prompt
+        assert "COMPANY OVERVIEW:" in prompt
+        assert "PAIN POINTS & OPPORTUNITIES:" in prompt
