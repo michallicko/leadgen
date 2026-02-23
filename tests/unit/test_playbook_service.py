@@ -164,6 +164,41 @@ class TestBuildSystemPrompt:
         # Must mention never leaving sections empty
         assert "Never leave a section completely empty" in prompt
 
+    def test_contains_document_awareness_instruction(self):
+        """System prompt instructs AI to reference existing document content."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = "## ICP\n\nMid-market SaaS companies in DACH."
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        # Must contain document awareness section
+        assert "DOCUMENT AWARENESS" in prompt
+        # Must instruct not to re-ask for existing info
+        assert "Never ask the user to repeat information" in prompt
+        # Must also include the actual document content
+        assert "Mid-market SaaS companies in DACH" in prompt
+
+    def test_document_awareness_present_even_when_empty(self):
+        """Document awareness instruction is present even with empty document."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "DOCUMENT AWARENESS" in prompt
+        # When empty, should guide user to start filling sections
+        assert "proactively guide" in prompt
+
     def test_no_harsh_language_in_any_prompt_template(self):
         """No prompt template in playbook_service contains harsh language patterns."""
         import inspect

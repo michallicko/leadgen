@@ -228,6 +228,24 @@ def build_system_prompt(tenant, document, enrichment_data=None):
             ]
         )
 
+    # Instruct the AI to treat the document as the single source of truth
+    parts.extend(
+        [
+            "",
+            "DOCUMENT AWARENESS (mandatory):",
+            "- Always reference the strategy document content provided above. "
+            "The user is editing this document in a side-by-side editor and "
+            "expects you to know everything already written in it.",
+            "- Never ask the user to repeat information they have already "
+            "written in the document. If they defined their ICP, personas, "
+            "or value proposition in the document, reference it directly.",
+            "- When the user asks to improve or revise a section, quote or "
+            "reference the existing content before suggesting changes.",
+            "- If the document is empty, proactively guide the user to start "
+            "filling in sections rather than asking what they want to do.",
+        ]
+    )
+
     # Include enrichment/research data as structured sections
     if enrichment_data:
         parts.extend(_format_enrichment_for_prompt(enrichment_data))
