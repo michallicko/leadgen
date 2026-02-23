@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playbook Backlog — VisionVolve</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --purple: #6E2C8B;
+  --purple-dark: #4A1D5E;
+  --purple-light: #9B59B6;
+  --cyan: #00B8CF;
+  --cyan-dark: #008B9A;
+  --cyan-light: #67E8F9;
+  --text: #404B5C;
+  --text-secondary: #6B7280;
+  --bg: #F8F9FC;
+  --border: #E5E7EB;
+  --white: #FFFFFF;
+  --success: #059669;
+  --success-light: #D1FAE5;
+  --warning: #D97706;
+  --warning-light: #FEF3C7;
+  --danger: #DC2626;
+  --danger-light: #FEE2E2;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+  --transition: 0.2s ease;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(90deg, #6E2C8B 0%, #00B8CF 100%);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--white);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(110, 44, 139, 0.3);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  height: 28px;
+  opacity: 0.95;
+}
+
+.header h1 {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.last-updated {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.refresh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  display: inline-block;
+  animation: pulse-dot 2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Summary Stats */
+.stats-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stat-card .stat-number {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stat-card.must .stat-number { color: var(--danger); }
+.stat-card.should .stat-number { color: var(--warning); }
+.stat-card.could .stat-number { color: #3B82F6; }
+.stat-card.total .stat-number { color: var(--purple); }
+
+/* Toolbar */
+.toolbar {
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  border-right: 1px solid var(--border);
+}
+
+.filter-btn:last-child { border-right: none; }
+
+.filter-btn:hover { background: var(--bg); }
+
+.filter-btn.active {
+  background: var(--purple);
+  color: var(--white);
+}
+
+.filter-btn.active.priority-must { background: var(--danger); }
+.filter-btn.active.priority-should { background: var(--warning); }
+.filter-btn.active.priority-could { background: #3B82F6; }
+
+.view-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.view-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-right: 1px solid var(--border);
+}
+
+.view-btn:last-child { border-right: none; }
+.view-btn:hover { background: var(--bg); }
+
+.view-btn.active {
+  background: var(--purple);
+  color: var(--white);
+}
+
+/* Main content */
+.main {
+  padding: 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Table View */
+.table-container {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.backlog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.backlog-table thead {
+  background: var(--bg);
+  position: sticky;
+  top: 68px;
+  z-index: 10;
+}
+
+.backlog-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.backlog-table th:hover { color: var(--purple); }
+
+.backlog-table th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.3;
+}
+
+.backlog-table th.sorted .sort-icon { opacity: 1; color: var(--purple); }
+
+.backlog-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.backlog-table tbody tr {
+  transition: background var(--transition);
+}
+
+.backlog-table tbody tr:hover {
+  background: #F3F0FF;
+}
+
+.backlog-table tbody tr:last-child td { border-bottom: none; }
+
+.feature-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.feature-name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.feature-name a {
+  color: var(--purple);
+  text-decoration: none;
+  font-weight: 600;
+}
+.feature-name a:hover { text-decoration: underline; }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Priority badges */
+.priority-must { background: var(--danger-light); color: var(--danger); }
+.priority-should { background: var(--warning-light); color: var(--warning); }
+.priority-could { background: #DBEAFE; color: #2563EB; }
+
+/* Status badges */
+.status-idea { background: #F3F4F6; color: #6B7280; }
+.status-specd { background: #DBEAFE; color: #2563EB; }
+.status-building { background: var(--warning-light); color: var(--warning); }
+.status-pr-open { background: #FED7AA; color: #C2410C; }
+.status-in-review { background: #EDE9FE; color: #7C3AED; }
+.status-merged { background: #CFFAFE; color: var(--cyan-dark); }
+.status-done { background: var(--success-light); color: var(--success); }
+
+/* Effort badges */
+.effort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-title);
+}
+
+.effort-s { background: var(--success-light); color: var(--success); }
+.effort-m { background: #DBEAFE; color: #2563EB; }
+.effort-l { background: var(--warning-light); color: var(--warning); }
+.effort-xl { background: var(--danger-light); color: var(--danger); }
+
+/* Sprint badges */
+.sprint-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-title);
+  white-space: nowrap;
+}
+
+.sprint-1 { background: #EDE9FE; color: #7C3AED; }
+.sprint-2 { background: #CFFAFE; color: var(--cyan-dark); }
+.sprint-3 { background: #FEF3C7; color: #92400E; }
+.sprint-backlog { background: #F3F4F6; color: #6B7280; }
+
+/* Sprint Summary Cards */
+.sprint-summary {
+  display: flex;
+  gap: 12px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.sprint-card {
+  flex: 1;
+  min-width: 200px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.sprint-card:hover {
+  border-color: var(--purple-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.sprint-card.active {
+  border-color: var(--purple);
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.sprint-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sprint-card-name {
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.sprint-card-count {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--purple);
+}
+
+.sprint-card-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.sprint-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.sprint-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.sprint-progress-fill.sprint-1-fill { background: #7C3AED; }
+.sprint-progress-fill.sprint-2-fill { background: var(--cyan); }
+.sprint-progress-fill.sprint-3-fill { background: var(--warning); }
+.sprint-progress-fill.sprint-backlog-fill { background: #9CA3AF; }
+
+.sprint-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Sprint group headers in table */
+.sprint-group-header td {
+  padding: 8px 14px;
+  background: var(--bg);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--purple-dark);
+  border-bottom: 2px solid var(--border);
+  letter-spacing: 0.02em;
+}
+
+.sprint-group-header:hover { background: transparent !important; }
+
+/* Kanban sprint divider */
+.kanban-sprint-label {
+  padding: 4px 8px;
+  margin: 4px 0 2px;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.deps-list {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.dep-tag {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--cyan-dark);
+  background: #ECFEFF;
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.dep-tag:hover {
+  background: var(--cyan);
+  color: var(--white);
+}
+
+.no-deps {
+  color: #D1D5DB;
+  font-size: 11px;
+}
+
+.pr-link {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--purple);
+  text-decoration: none;
+}
+
+.pr-link:hover { text-decoration: underline; }
+
+/* Kanban View */
+.kanban-container {
+  display: none;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.kanban-container.active {
+  display: flex;
+}
+
+.kanban-column {
+  min-width: 220px;
+  max-width: 260px;
+  flex: 1;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  padding: 12px 14px;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-column-header .count {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.kanban-cards {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 80px;
+}
+
+.kanban-card {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--white);
+  cursor: default;
+  transition: all var(--transition);
+  animation: card-in 0.3s ease both;
+}
+
+.kanban-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--purple-light);
+  transform: translateY(-1px);
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kanban-card .card-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.kanban-card .card-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0 8px;
+  line-height: 1.3;
+}
+
+.kanban-card .card-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kanban-card .card-deps {
+  margin-top: 6px;
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+/* Dependency Graph */
+.dep-graph-section {
+  margin-top: 24px;
+}
+
+.dep-graph-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  user-select: none;
+}
+
+.dep-graph-toggle .chevron {
+  transition: transform var(--transition);
+  font-size: 12px;
+}
+
+.dep-graph-toggle.open .chevron {
+  transform: rotate(90deg);
+}
+
+.dep-graph-container {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.4s ease;
+}
+
+.dep-graph-container.open {
+  max-height: 600px;
+}
+
+.dep-graph-canvas {
+  width: 100%;
+  height: 400px;
+  display: block;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+}
+
+/* Animations */
+.fade-enter {
+  animation: fadeIn 0.25s ease both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.table-container tbody tr { animation: row-in 0.2s ease both; }
+@keyframes row-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header { padding: 14px 16px; }
+  .header h1 { font-size: 16px; }
+  .stats-bar { padding: 12px 16px; }
+  .toolbar { padding: 10px 16px; }
+  .main { padding: 16px; }
+  .backlog-table { font-size: 12px; }
+  .backlog-table th, .backlog-table td { padding: 8px 8px; }
+  .kanban-column { min-width: 200px; }
+  .filters { gap: 6px; }
+
+  .hide-mobile { display: none; }
+  .sprint-summary { padding: 12px 16px; gap: 8px; }
+  .sprint-card { min-width: 160px; padding: 10px 12px; }
+}
+
+@media (max-width: 480px) {
+  .header-right { display: none; }
+  .stats-bar { gap: 8px; }
+  .stat-card { padding: 6px 10px; font-size: 12px; }
+  .stat-card .stat-number { font-size: 16px; }
+}
+
+/* ─── Spec Modal ──────────────────────────────────────────────── */
+.spec-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.spec-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.spec-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 580px;
+  max-width: 92vw;
+  background: var(--white);
+  z-index: 201;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+}
+
+.spec-overlay.open .spec-panel {
+  transform: translateX(0);
+}
+
+.spec-panel-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.spec-panel-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.spec-panel-title {
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.spec-panel-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+.spec-panel-close {
+  width: 32px; height: 32px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--white);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.spec-panel-close:hover {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--text-secondary);
+}
+
+.spec-panel-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.spec-panel-deps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.spec-panel-deps-label {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.spec-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.spec-panel-body .spec-content {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.spec-content h1 { font-family: var(--font-title); font-size: 18px; font-weight: 700; margin: 24px 0 8px; color: var(--text); }
+.spec-content h2 { font-family: var(--font-title); font-size: 16px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.spec-content h3 { font-family: var(--font-title); font-size: 14px; font-weight: 600; margin: 16px 0 6px; color: var(--text); }
+.spec-content h1:first-child, .spec-content h2:first-child, .spec-content h3:first-child { margin-top: 0; }
+
+.spec-content p { margin: 0 0 12px; }
+
+.spec-content ul, .spec-content ol { margin: 0 0 12px; padding-left: 24px; }
+.spec-content li { margin-bottom: 4px; }
+
+.spec-content strong { font-weight: 600; color: var(--text); }
+
+.spec-content code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  background: var(--bg);
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: var(--purple-dark);
+}
+
+.spec-content pre {
+  background: #1E1E2E;
+  color: #CDD6F4;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.spec-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.spec-content blockquote {
+  border-left: 3px solid var(--purple-light);
+  padding: 8px 16px;
+  margin: 0 0 12px;
+  background: #F8F5FF;
+  color: var(--text-secondary);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.spec-panel-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.spec-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spec-btn-copy {
+  background: var(--purple);
+  color: var(--white);
+  border: none;
+}
+
+.spec-btn-copy:hover { background: var(--purple-dark); }
+
+.spec-btn-copy.copied {
+  background: var(--success);
+}
+
+.spec-btn-close {
+  background: var(--white);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.spec-btn-close:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Clickable rows/cards */
+.backlog-table tbody tr:not(.sprint-group-header) { cursor: pointer; }
+.kanban-card { cursor: pointer; }
+
+@media (max-width: 480px) {
+  .spec-panel { width: 100vw; max-width: 100vw; }
+  .spec-panel-header { padding: 16px; }
+  .spec-panel-body { padding: 16px; }
+  .spec-panel-footer { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <img src="https://ds.visionvolve.com/assets/logos/visionvolve-logo-white.svg" alt="VisionVolve" class="header-logo">
+    <h1>Playbook Backlog</h1>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">Updated just now</span>
+    <span class="refresh-dot" title="Auto-refreshing every 30s"></span>
+  </div>
+</header>
+
+<!-- Sprint Summary -->
+<div class="sprint-summary" id="sprintSummary"></div>
+
+<!-- Summary Stats -->
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="filters">
+    <div class="filter-group" id="priorityFilter">
+      <button class="filter-btn active" data-priority="all">All</button>
+      <button class="filter-btn priority-must" data-priority="Must Have">Must</button>
+      <button class="filter-btn priority-should" data-priority="Should Have">Should</button>
+      <button class="filter-btn priority-could" data-priority="Could Have">Could</button>
+    </div>
+    <div class="filter-group" id="statusFilter">
+      <button class="filter-btn active" data-status="all">All</button>
+      <button class="filter-btn" data-status="Idea">Idea</button>
+      <button class="filter-btn" data-status="Spec'd">Spec'd</button>
+      <button class="filter-btn" data-status="PR Open">PR Open</button>
+      <button class="filter-btn" data-status="Done">Done</button>
+    </div>
+    <div class="filter-group" id="sprintFilter">
+      <button class="filter-btn active" data-sprint="all">All</button>
+      <button class="filter-btn" data-sprint="Sprint 1">S1</button>
+      <button class="filter-btn" data-sprint="Sprint 2">S2</button>
+      <button class="filter-btn" data-sprint="Sprint 3">S3</button>
+      <button class="filter-btn" data-sprint="Backlog">BL</button>
+    </div>
+    <div class="filter-group" id="effortFilter">
+      <button class="filter-btn active" data-effort="all">All</button>
+      <button class="filter-btn" data-effort="S">S</button>
+      <button class="filter-btn" data-effort="M">M</button>
+      <button class="filter-btn" data-effort="L">L</button>
+      <button class="filter-btn" data-effort="XL">XL</button>
+    </div>
+  </div>
+
+  <div class="view-toggle">
+    <button class="view-btn active" data-view="table">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a1 1 0 011-1h14a1 1 0 011 1v1H0V2zm0 3h16v2H0V5zm0 4h16v2H0V9zm0 4h16v1a1 1 0 01-1 1H1a1 1 0 01-1-1v-1z"/></svg>
+      Table
+    </button>
+    <button class="view-btn" data-view="kanban">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h4v14H1V1zm5 0h4v10H6V1zm5 0h4v12h-4V1z"/></svg>
+      Kanban
+    </button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <!-- Table View -->
+  <div class="table-container" id="tableView">
+    <table class="backlog-table">
+      <thead>
+        <tr>
+          <th data-sort="id">ID <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="name">Feature <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="sprint">Sprint <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="priority">Priority <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="effort">Effort <span class="sort-icon">&#9650;</span></th>
+          <th data-sort="status">Status <span class="sort-icon">&#9650;</span></th>
+          <th class="hide-mobile">PR</th>
+          <th class="hide-mobile">Deps</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Kanban View -->
+  <div class="kanban-container" id="kanbanView"></div>
+
+  <!-- Dependency Graph -->
+  <div class="dep-graph-section">
+    <div class="dep-graph-toggle" id="depGraphToggle">
+      <span class="chevron">&#9654;</span>
+      Dependency Graph
+    </div>
+    <div class="dep-graph-container" id="depGraphContainer">
+      <canvas class="dep-graph-canvas" id="depCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Spec Modal -->
+<div class="spec-overlay" id="specOverlay">
+  <div class="spec-panel" id="specPanel">
+    <div class="spec-panel-header">
+      <div class="spec-panel-header-top">
+        <div>
+          <div class="spec-panel-id" id="specId"></div>
+          <div class="spec-panel-title" id="specTitle"></div>
+        </div>
+        <button class="spec-panel-close" id="specClose" title="Close">&times;</button>
+      </div>
+      <div class="spec-panel-badges" id="specBadges"></div>
+      <div class="spec-panel-deps" id="specDeps"></div>
+    </div>
+    <div class="spec-panel-body">
+      <div class="spec-content" id="specContent"></div>
+    </div>
+    <div class="spec-panel-footer">
+      <button class="spec-btn spec-btn-copy" id="specCopy">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/></svg>
+        Copy Spec
+      </button>
+      <button class="spec-btn spec-btn-close" id="specCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Backlog Data ────────────────────────────────────────────────
+const BACKLOG_DATA = [
+  {"id": "PB-035", "name": "Auto-Save (Debounced)", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#36", "deps": [], "assignee": "", "sprint": "Sprint 1"},
+  {"id": "PB-036", "name": "Real-Time Collaboration (Yjs)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
+  {"id": "PB-037", "name": "Intelligent Auto-Extraction", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
+  {"id": "PB-001", "name": "Phase Infrastructure (Migration+Model+API)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#37", "deps": [], "assignee": "", "sprint": "Sprint 1"},
+  {"id": "PB-006", "name": "Phase UI (Routing+Stepper+TopBar)", "priority": "Must Have", "effort": "M", "status": "PR Open", "pr": "#39", "deps": ["PB-001"], "assignee": "", "sprint": "Sprint 1"},
+  {"id": "TONE", "name": "AI Tone Fix + TODOs + Doc Awareness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#35", "deps": [], "assignee": "", "sprint": "Sprint 1"},
+  {"id": "CHAT-MD", "name": "Chat Markdown Rendering + Conciseness", "priority": "Must Have", "effort": "S", "status": "PR Open", "pr": "#38", "deps": [], "assignee": "", "sprint": "Sprint 1"},
+  {"id": "PERSIST", "name": "Persistent App-Wide Chat (Marketing Strategist)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2"},
+  {"id": "AGENT", "name": "Agent-Ready Chat (Tool Use Architecture)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": [], "assignee": "", "sprint": "Sprint 2"},
+  {"id": "THINK", "name": "Transparent AI Thinking (Tool Calls, Reasoning)", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2"},
+  {"id": "WRITE", "name": "Chat Writes/Updates Strategy Doc Directly", "priority": "Must Have", "effort": "M", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 2"},
+  {"id": "ONBOARD", "name": "Smart Onboarding (Discovery Qs Before Draft)", "priority": "Must Have", "effort": "S", "status": "Idea", "deps": ["WRITE"], "assignee": "", "sprint": "Sprint 3"},
+  {"id": "N8N-RM", "name": "Remove n8n \u2192 Python Orchestration", "priority": "Must Have", "effort": "XL", "status": "Spec'd", "deps": [], "assignee": "", "sprint": "Backlog"},
+  {"id": "COLLAB", "name": "Real-Time Collaboration (Yjs/Hocuspocus)", "priority": "Must Have", "effort": "L", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
+  {"id": "VOICE", "name": "Voice Interface (ElevenLabs MVP)", "priority": "Should Have", "effort": "L", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Backlog"},
+  {"id": "TMPL", "name": "GTM Strategy Templates (Hybrid)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["ONBOARD"], "assignee": "", "sprint": "Sprint 3"},
+  {"id": "ANALYZE", "name": "Contacts/Companies Analyzer Tool", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3"},
+  {"id": "LANG", "name": "Namespace Language Settings", "priority": "Should Have", "effort": "L", "status": "Idea", "deps": [], "assignee": "", "sprint": "Backlog"},
+  {"id": "VERSION", "name": "Strategy Version History + AI Revert", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-035"], "assignee": "", "sprint": "Backlog"},
+  {"id": "MULTI", "name": "Multi-Strategy + Campaign Linking", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["PB-001"], "assignee": "", "sprint": "Backlog"},
+  {"id": "TABS", "name": "Strategy Tabs (Sub-Documents)", "priority": "Should Have", "effort": "M", "status": "Idea", "deps": ["MULTI"], "assignee": "", "sprint": "Backlog"},
+  {"id": "SEARCH", "name": "Chat Internet Access (Perplexity Research)", "priority": "Should Have", "effort": "S", "status": "Idea", "deps": ["AGENT"], "assignee": "", "sprint": "Sprint 3"},
+  {"id": "CONTEXT", "name": "Context Management (Doc-as-Memory + RAG)", "priority": "Should Have", "effort": "M", "status": "Spec'd", "deps": ["PERSIST"], "assignee": "", "sprint": "Backlog"}
+];
+
+let items = [...BACKLOG_DATA];
+let currentFilters = { priority: 'all', status: 'all', effort: 'all', sprint: 'all' };
+let currentSort = { key: null, dir: 'asc' };
+let currentView = 'table';
+
+// ─── Sprint Config ───────────────────────────────────────────────
+var SPRINT_ORDER = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Backlog'];
+var SPRINT_LABELS = { 'Sprint 1': 'S1', 'Sprint 2': 'S2', 'Sprint 3': 'S3', 'Backlog': 'BL' };
+var SPRINT_CLASS = { 'Sprint 1': 'sprint-1', 'Sprint 2': 'sprint-2', 'Sprint 3': 'sprint-3', 'Backlog': 'sprint-backlog' };
+var SPRINT_FILL_CLASS = { 'Sprint 1': 'sprint-1-fill', 'Sprint 2': 'sprint-2-fill', 'Sprint 3': 'sprint-3-fill', 'Backlog': 'sprint-backlog-fill' };
+var SPRINT_SORT_ORDER = { 'Sprint 1': 0, 'Sprint 2': 1, 'Sprint 3': 2, 'Backlog': 3 };
+var DONE_STATUSES = ['Done', 'Merged', 'PR Open'];
+
+// ─── Status Config ───────────────────────────────────────────────
+const STATUS_ORDER = ['Idea', "Spec'd", 'Building', 'PR Open', 'In Review', 'Merged', 'Done'];
+const STATUS_CLASS = {
+  'Idea': 'status-idea',
+  "Spec'd": 'status-specd',
+  'Building': 'status-building',
+  'PR Open': 'status-pr-open',
+  'In Review': 'status-in-review',
+  'Merged': 'status-merged',
+  'Done': 'status-done'
+};
+
+const PRIORITY_ORDER = { 'Must Have': 0, 'Should Have': 1, 'Could Have': 2 };
+const PRIORITY_CLASS = {
+  'Must Have': 'priority-must',
+  'Should Have': 'priority-should',
+  'Could Have': 'priority-could'
+};
+
+const EFFORT_ORDER = { 'S': 0, 'M': 1, 'L': 2, 'XL': 3 };
+const EFFORT_CLASS = { 'S': 'effort-s', 'M': 'effort-m', 'L': 'effort-l', 'XL': 'effort-xl' };
+
+// ─── Safe DOM Helpers ────────────────────────────────────────────
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+function clearChildren(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function createEl(tag, attrs, children) {
+  var el = document.createElement(tag);
+  if (attrs) {
+    Object.keys(attrs).forEach(function(k) {
+      if (k === 'className') el.className = attrs[k];
+      else if (k === 'textContent') el.textContent = attrs[k];
+      else if (k === 'style') el.setAttribute('style', attrs[k]);
+      else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else el.setAttribute(k, attrs[k]);
+    });
+  }
+  if (children) {
+    children.forEach(function(child) {
+      if (typeof child === 'string') el.appendChild(document.createTextNode(child));
+      else if (child) el.appendChild(child);
+    });
+  }
+  return el;
+}
+
+// ─── Render Sprint Summary ───────────────────────────────────────
+function renderSprintSummary() {
+  var container = document.getElementById('sprintSummary');
+  clearChildren(container);
+
+  SPRINT_ORDER.forEach(function(sprint) {
+    var sprintItems = BACKLOG_DATA.filter(function(d) { return d.sprint === sprint; });
+    var total = sprintItems.length;
+    var done = sprintItems.filter(function(d) { return DONE_STATUSES.indexOf(d.status) !== -1; }).length;
+    var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    var isActive = currentFilters.sprint === sprint;
+    var card = createEl('div', {
+      className: 'sprint-card' + (isActive ? ' active' : ''),
+      onClick: function() {
+        currentFilters.sprint = currentFilters.sprint === sprint ? 'all' : sprint;
+        // Sync sprint filter buttons
+        document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(b) {
+          b.classList.remove('active');
+          if (b.dataset.sprint === currentFilters.sprint) b.classList.add('active');
+        });
+        applyFilters();
+      }
+    });
+
+    var header = createEl('div', { className: 'sprint-card-header' });
+    var nameEl = createEl('div', {}, [
+      createEl('div', { className: 'sprint-card-label', textContent: sprint === 'Backlog' ? 'UNSCHEDULED' : 'CURRENT SPRINT'.replace('CURRENT', sprint === 'Sprint 1' ? 'CURRENT' : sprint === 'Sprint 2' ? 'NEXT' : 'PLANNED') }),
+      createEl('div', { className: 'sprint-card-name' }, [
+        createEl('span', { className: 'sprint-badge ' + (SPRINT_CLASS[sprint] || ''), style: 'margin-right:6px', textContent: sprint })
+      ])
+    ]);
+    var countEl = createEl('div', { className: 'sprint-card-count', textContent: String(total) });
+    header.appendChild(nameEl);
+    header.appendChild(countEl);
+    card.appendChild(header);
+
+    var progressBar = createEl('div', { className: 'sprint-progress' });
+    var fill = createEl('div', {
+      className: 'sprint-progress-fill ' + (SPRINT_FILL_CLASS[sprint] || ''),
+      style: 'width:' + pct + '%'
+    });
+    progressBar.appendChild(fill);
+    card.appendChild(progressBar);
+
+    var meta = createEl('div', { className: 'sprint-card-meta' });
+    meta.appendChild(createEl('span', { textContent: done + '/' + total + ' done' }));
+    meta.appendChild(createEl('span', { textContent: pct + '%' }));
+    card.appendChild(meta);
+
+    container.appendChild(card);
+  });
+}
+
+// ─── Render Stats ────────────────────────────────────────────────
+function renderStats(data) {
+  var must = data.filter(function(d){ return d.priority === 'Must Have'; }).length;
+  var should = data.filter(function(d){ return d.priority === 'Should Have'; }).length;
+  var could = data.filter(function(d){ return d.priority === 'Could Have'; }).length;
+  var prOpen = data.filter(function(d){ return d.status === 'PR Open'; }).length;
+  var done = data.filter(function(d){ return d.status === 'Done' || d.status === 'Merged'; }).length;
+
+  var bar = document.getElementById('statsBar');
+  clearChildren(bar);
+
+  var stats = [
+    { cls: 'stat-card total', num: data.length, label: 'Total' },
+    { cls: 'stat-card must', num: must, label: 'Must Have' },
+    { cls: 'stat-card should', num: should, label: 'Should Have' },
+    { cls: 'stat-card could', num: could, label: 'Could Have' },
+    { cls: 'stat-card', num: prOpen, label: 'PRs Open', numStyle: 'color:#C2410C' },
+    { cls: 'stat-card', num: done, label: 'Done', numStyle: 'color:var(--success)' }
+  ];
+
+  stats.forEach(function(s) {
+    var numEl = createEl('span', { className: 'stat-number', style: s.numStyle || '' }, [String(s.num)]);
+    var card = createEl('div', { className: s.cls }, [numEl, document.createTextNode(' ' + s.label)]);
+    bar.appendChild(card);
+  });
+}
+
+// ─── Filter + Sort ───────────────────────────────────────────────
+function applyFilters() {
+  var filtered = BACKLOG_DATA.slice();
+
+  if (currentFilters.priority !== 'all') {
+    filtered = filtered.filter(function(d) { return d.priority === currentFilters.priority; });
+  }
+  if (currentFilters.status !== 'all') {
+    filtered = filtered.filter(function(d) { return d.status === currentFilters.status; });
+  }
+  if (currentFilters.effort !== 'all') {
+    filtered = filtered.filter(function(d) { return d.effort === currentFilters.effort; });
+  }
+  if (currentFilters.sprint !== 'all') {
+    filtered = filtered.filter(function(d) { return d.sprint === currentFilters.sprint; });
+  }
+
+  if (currentSort.key) {
+    filtered.sort(function(a, b) {
+      var va, vb;
+      switch (currentSort.key) {
+        case 'priority':
+          va = PRIORITY_ORDER[a.priority] !== undefined ? PRIORITY_ORDER[a.priority] : 9;
+          vb = PRIORITY_ORDER[b.priority] !== undefined ? PRIORITY_ORDER[b.priority] : 9;
+          break;
+        case 'effort':
+          va = EFFORT_ORDER[a.effort] !== undefined ? EFFORT_ORDER[a.effort] : 9;
+          vb = EFFORT_ORDER[b.effort] !== undefined ? EFFORT_ORDER[b.effort] : 9;
+          break;
+        case 'sprint':
+          va = SPRINT_SORT_ORDER[a.sprint] !== undefined ? SPRINT_SORT_ORDER[a.sprint] : 9;
+          vb = SPRINT_SORT_ORDER[b.sprint] !== undefined ? SPRINT_SORT_ORDER[b.sprint] : 9;
+          break;
+        case 'status':
+          va = STATUS_ORDER.indexOf(a.status);
+          vb = STATUS_ORDER.indexOf(b.status);
+          if (va < 0) va = 99;
+          if (vb < 0) vb = 99;
+          break;
+        default:
+          va = (a[currentSort.key] || '').toString().toLowerCase();
+          vb = (b[currentSort.key] || '').toString().toLowerCase();
+      }
+      if (va < vb) return currentSort.dir === 'asc' ? -1 : 1;
+      if (va > vb) return currentSort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  items = filtered;
+  render();
+}
+
+// ─── Build Table Row ─────────────────────────────────────────────
+function buildTableRow(item, i) {
+  var tr = createEl('tr', { style: 'animation-delay: ' + (i * 0.03) + 's' });
+
+  // ID cell
+  tr.appendChild(createEl('td', {}, [createEl('span', { className: 'feature-id', textContent: item.id })]));
+
+  // Feature name cell
+  var nameSpan = createEl('span', { className: 'feature-name' });
+  if (item.pr) {
+    var link = createEl('a', {
+      href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+      target: '_blank',
+      textContent: item.name
+    });
+    nameSpan.appendChild(link);
+  } else {
+    nameSpan.textContent = item.name;
+  }
+  tr.appendChild(createEl('td', {}, [nameSpan]));
+
+  // Sprint cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'), textContent: item.sprint || 'Backlog' })
+  ]));
+
+  // Priority cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''), textContent: item.priority })
+  ]));
+
+  // Effort cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'effort ' + (EFFORT_CLASS[item.effort] || ''), textContent: item.effort })
+  ]));
+
+  // Status cell
+  tr.appendChild(createEl('td', {}, [
+    createEl('span', { className: 'badge ' + (STATUS_CLASS[item.status] || ''), textContent: item.status })
+  ]));
+
+  // PR cell
+  var prTd = createEl('td', { className: 'hide-mobile' });
+  if (item.pr) {
+    prTd.appendChild(createEl('a', {
+      className: 'pr-link',
+      href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+      target: '_blank',
+      textContent: item.pr
+    }));
+  } else {
+    prTd.appendChild(createEl('span', { className: 'no-deps' }, [document.createTextNode('\u2014')]));
+  }
+  tr.appendChild(prTd);
+
+  // Deps cell
+  var depsTd = createEl('td', { className: 'hide-mobile' });
+  if (item.deps.length > 0) {
+    var depsList = createEl('div', { className: 'deps-list' });
+    item.deps.forEach(function(d) {
+      depsList.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+    });
+    depsTd.appendChild(depsList);
+  } else {
+    depsTd.appendChild(createEl('span', { className: 'no-deps' }, [document.createTextNode('\u2014')]));
+  }
+  tr.appendChild(depsTd);
+
+  return tr;
+}
+
+// ─── Render Table ────────────────────────────────────────────────
+function renderTable() {
+  var tbody = document.getElementById('tableBody');
+  clearChildren(tbody);
+
+  if (items.length === 0) {
+    var emptyTd = createEl('td', { colspan: '8' }, [
+      createEl('div', { className: 'empty-state', textContent: 'No items match the current filters.' })
+    ]);
+    tbody.appendChild(createEl('tr', {}, [emptyTd]));
+    return;
+  }
+
+  // Group items by sprint for display (only when no sort active)
+  var groupBySprint = !currentSort.key;
+  var displayItems = groupBySprint ? [] : items;
+
+  if (groupBySprint) {
+    var sprintGroups = {};
+    SPRINT_ORDER.forEach(function(s) { sprintGroups[s] = []; });
+    items.forEach(function(item) {
+      var sp = item.sprint || 'Backlog';
+      if (!sprintGroups[sp]) sprintGroups[sp] = [];
+      sprintGroups[sp].push(item);
+    });
+
+    var rowIndex = 0;
+    SPRINT_ORDER.forEach(function(sprint) {
+      var group = sprintGroups[sprint];
+      if (group.length === 0) return;
+
+      // Sprint group header row
+      var headerTr = createEl('tr', { className: 'sprint-group-header' });
+      var headerTd = createEl('td', { colspan: '8' });
+      var sprintBadge = createEl('span', {
+        className: 'sprint-badge ' + (SPRINT_CLASS[sprint] || ''),
+        style: 'margin-right:8px',
+        textContent: sprint
+      });
+      headerTd.appendChild(sprintBadge);
+      headerTd.appendChild(document.createTextNode(group.length + ' item' + (group.length !== 1 ? 's' : '')));
+      headerTr.appendChild(headerTd);
+      tbody.appendChild(headerTr);
+
+      group.forEach(function(item) {
+        tbody.appendChild(buildTableRow(item, rowIndex++));
+      });
+    });
+    return;
+  }
+
+  items.forEach(function(item, i) {
+    tbody.appendChild(buildTableRow(item, i));
+  });
+}
+
+// ─── Render Kanban ───────────────────────────────────────────────
+function renderKanban() {
+  var container = document.getElementById('kanbanView');
+  clearChildren(container);
+
+  var statusGroups = {};
+  STATUS_ORDER.forEach(function(s) { statusGroups[s] = []; });
+  items.forEach(function(item) {
+    if (statusGroups[item.status]) {
+      statusGroups[item.status].push(item);
+    } else {
+      statusGroups['Idea'].push(item);
+    }
+  });
+
+  var visibleStatuses = STATUS_ORDER.filter(function(s) {
+    return statusGroups[s].length > 0 || ['Idea', "Spec'd", 'PR Open', 'Done'].indexOf(s) !== -1;
+  });
+
+  visibleStatuses.forEach(function(status) {
+    var cards = statusGroups[status];
+    var column = createEl('div', { className: 'kanban-column' });
+
+    // Header
+    var headerLeft = createEl('span', {}, [
+      createEl('span', { className: 'badge ' + (STATUS_CLASS[status] || ''), style: 'margin-right:6px', textContent: status })
+    ]);
+    var headerCount = createEl('span', { className: 'count', textContent: String(cards.length) });
+    column.appendChild(createEl('div', { className: 'kanban-column-header' }, [headerLeft, headerCount]));
+
+    // Cards container
+    var cardsEl = createEl('div', { className: 'kanban-cards' });
+
+    if (cards.length === 0) {
+      cardsEl.appendChild(createEl('div', {
+        style: 'color:#D1D5DB;font-size:12px;text-align:center;padding:16px',
+        textContent: 'No items'
+      }));
+    }
+
+    cards.forEach(function(item, i) {
+      var card = createEl('div', { className: 'kanban-card', style: 'animation-delay: ' + (i * 0.05) + 's' });
+      card.appendChild(createEl('div', { className: 'card-id', textContent: item.id }));
+      card.appendChild(createEl('div', { className: 'card-name', textContent: item.name }));
+
+      var meta = createEl('div', { className: 'card-meta' });
+      meta.appendChild(createEl('span', {
+        className: 'badge ' + (PRIORITY_CLASS[item.priority] || ''),
+        style: 'font-size:10px;padding:1px 6px',
+        textContent: item.priority.replace(' Have', '')
+      }));
+      meta.appendChild(createEl('span', {
+        className: 'effort ' + (EFFORT_CLASS[item.effort] || ''),
+        style: 'width:22px;height:18px;font-size:9px',
+        textContent: item.effort
+      }));
+      meta.appendChild(createEl('span', {
+        className: 'sprint-badge ' + (SPRINT_CLASS[item.sprint] || 'sprint-backlog'),
+        style: 'font-size:9px;padding:1px 5px',
+        textContent: SPRINT_LABELS[item.sprint] || 'BL'
+      }));
+      if (item.pr) {
+        meta.appendChild(createEl('a', {
+          className: 'pr-link',
+          href: 'https://github.com/visionvolve/leadgen-pipeline/pull/' + item.pr.replace('#', ''),
+          target: '_blank',
+          style: 'font-size:10px',
+          textContent: item.pr
+        }));
+      }
+      card.appendChild(meta);
+
+      if (item.deps.length > 0) {
+        var depsDiv = createEl('div', { className: 'card-deps' });
+        item.deps.forEach(function(d) {
+          depsDiv.appendChild(createEl('span', { className: 'dep-tag', textContent: d }));
+        });
+        card.appendChild(depsDiv);
+      }
+
+      cardsEl.appendChild(card);
+    });
+
+    column.appendChild(cardsEl);
+    container.appendChild(column);
+  });
+}
+
+// ─── Dependency Graph ────────────────────────────────────────────
+function renderDepGraph() {
+  var canvas = document.getElementById('depCanvas');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+
+  var rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 400 * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = '400px';
+  ctx.scale(dpr, dpr);
+
+  var W = rect.width;
+  var H = 400;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Only items with deps or that are depended upon
+  var depIds = {};
+  var sourceIds = {};
+  BACKLOG_DATA.forEach(function(item) {
+    item.deps.forEach(function(d) { depIds[d] = true; sourceIds[item.id] = true; });
+  });
+  var relevantIds = {};
+  Object.keys(depIds).forEach(function(k) { relevantIds[k] = true; });
+  Object.keys(sourceIds).forEach(function(k) { relevantIds[k] = true; });
+  var graphItems = BACKLOG_DATA.filter(function(item) { return relevantIds[item.id]; });
+
+  if (graphItems.length === 0) {
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '14px Work Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText('No dependencies to display', W / 2, H / 2);
+    return;
+  }
+
+  // Layout: topological layers
+  var idMap = {};
+  BACKLOG_DATA.forEach(function(item) { idMap[item.id] = item; });
+
+  var layers = [];
+  var placed = {};
+
+  var roots = graphItems.filter(function(item) {
+    return item.deps.length === 0 || item.deps.every(function(d) { return !relevantIds[d]; });
+  });
+
+  if (roots.length > 0) {
+    layers.push(roots.map(function(r) { return r.id; }));
+    roots.forEach(function(r) { placed[r.id] = true; });
+  }
+
+  var safety = 0;
+  var placedCount = Object.keys(placed).length;
+  while (placedCount < graphItems.length && safety++ < 20) {
+    var nextLayer = [];
+    graphItems.forEach(function(item) {
+      if (!placed[item.id] && item.deps.every(function(d) { return placed[d] || !relevantIds[d]; })) {
+        nextLayer.push(item.id);
+      }
+    });
+    if (nextLayer.length === 0) {
+      graphItems.forEach(function(item) {
+        if (!placed[item.id]) nextLayer.push(item.id);
+      });
+    }
+    layers.push(nextLayer);
+    nextLayer.forEach(function(id) { placed[id] = true; });
+    placedCount = Object.keys(placed).length;
+  }
+
+  // Position nodes
+  var nodePositions = {};
+  var nodeW = 140;
+  var nodeH = 36;
+  var layerGap = 100;
+  var totalWidth = layers.length * (nodeW + layerGap) - layerGap;
+  var startX = Math.max(30, (W - totalWidth) / 2);
+
+  layers.forEach(function(layer, li) {
+    var x = startX + li * (nodeW + layerGap);
+    var totalH = layer.length * (nodeH + 16) - 16;
+    var startY = Math.max(20, (H - totalH) / 2);
+
+    layer.forEach(function(id, ni) {
+      nodePositions[id] = {
+        x: x,
+        y: startY + ni * (nodeH + 16),
+        w: nodeW,
+        h: nodeH
+      };
+    });
+  });
+
+  // Draw edges
+  BACKLOG_DATA.forEach(function(item) {
+    if (!nodePositions[item.id]) return;
+    item.deps.forEach(function(depId) {
+      if (!nodePositions[depId]) return;
+
+      var from = nodePositions[depId];
+      var to = nodePositions[item.id];
+
+      var x1 = from.x + from.w;
+      var y1 = from.y + from.h / 2;
+      var x2 = to.x;
+      var y2 = to.y + to.h / 2;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      var cx = (x1 + x2) / 2;
+      ctx.bezierCurveTo(cx, y1, cx, y2, x2, y2);
+      ctx.strokeStyle = '#C4B5FD';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Arrowhead
+      var aSize = 6;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - aSize * 1.5, y2 - aSize);
+      ctx.lineTo(x2 - aSize * 1.5, y2 + aSize);
+      ctx.closePath();
+      ctx.fillStyle = '#C4B5FD';
+      ctx.fill();
+    });
+  });
+
+  // Draw nodes
+  var priorityColors = { 'Must Have': '#DC2626', 'Should Have': '#D97706', 'Could Have': '#3B82F6' };
+
+  Object.keys(nodePositions).forEach(function(id) {
+    var pos = nodePositions[id];
+    var item = idMap[id];
+    if (!item) return;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = priorityColors[item.priority] || '#E5E7EB';
+    ctx.lineWidth = 2;
+
+    var r = 6;
+    ctx.beginPath();
+    ctx.moveTo(pos.x + r, pos.y);
+    ctx.lineTo(pos.x + pos.w - r, pos.y);
+    ctx.quadraticCurveTo(pos.x + pos.w, pos.y, pos.x + pos.w, pos.y + r);
+    ctx.lineTo(pos.x + pos.w, pos.y + pos.h - r);
+    ctx.quadraticCurveTo(pos.x + pos.w, pos.y + pos.h, pos.x + pos.w - r, pos.y + pos.h);
+    ctx.lineTo(pos.x + r, pos.y + pos.h);
+    ctx.quadraticCurveTo(pos.x, pos.y + pos.h, pos.x, pos.y + pos.h - r);
+    ctx.lineTo(pos.x, pos.y + r);
+    ctx.quadraticCurveTo(pos.x, pos.y, pos.x + r, pos.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Left accent bar
+    ctx.fillStyle = priorityColors[item.priority] || '#E5E7EB';
+    ctx.beginPath();
+    ctx.moveTo(pos.x + r, pos.y);
+    ctx.lineTo(pos.x + 4, pos.y);
+    ctx.lineTo(pos.x + 4, pos.y + pos.h);
+    ctx.lineTo(pos.x + r, pos.y + pos.h);
+    ctx.quadraticCurveTo(pos.x, pos.y + pos.h, pos.x, pos.y + pos.h - r);
+    ctx.lineTo(pos.x, pos.y + r);
+    ctx.quadraticCurveTo(pos.x, pos.y, pos.x + r, pos.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // ID text
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '500 9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(item.id, pos.x + 10, pos.y + 13);
+
+    // Name text (truncated)
+    ctx.fillStyle = '#404B5C';
+    ctx.font = '500 11px Work Sans, sans-serif';
+    var name = item.name;
+    if (ctx.measureText(name).width > pos.w - 16) {
+      while (ctx.measureText(name + '...').width > pos.w - 16 && name.length > 0) {
+        name = name.slice(0, -1);
+      }
+      name += '...';
+    }
+    ctx.fillText(name, pos.x + 10, pos.y + 28);
+  });
+}
+
+// ─── Render ──────────────────────────────────────────────────────
+function render() {
+  renderSprintSummary();
+  renderStats(items);
+  renderTable();
+  renderKanban();
+
+  if (document.getElementById('depGraphContainer').classList.contains('open')) {
+    renderDepGraph();
+  }
+}
+
+// ─── Event Handlers ──────────────────────────────────────────────
+
+// Filter buttons
+document.querySelectorAll('#priorityFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#priorityFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.priority = btn.dataset.priority;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#statusFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#statusFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.status = btn.dataset.status;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#effortFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#effortFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.effort = btn.dataset.effort;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#sprintFilter .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentFilters.sprint = btn.dataset.sprint;
+    applyFilters();
+  });
+});
+
+// View toggle
+document.querySelectorAll('.view-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.view-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentView = btn.dataset.view;
+
+    document.getElementById('tableView').style.display = currentView === 'table' ? '' : 'none';
+    var kanban = document.getElementById('kanbanView');
+    if (currentView === 'kanban') {
+      kanban.classList.add('active');
+    } else {
+      kanban.classList.remove('active');
+    }
+    render();
+  });
+});
+
+// Sort headers
+document.querySelectorAll('.backlog-table th[data-sort]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    var key = th.dataset.sort;
+    if (currentSort.key === key) {
+      currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSort.key = key;
+      currentSort.dir = 'asc';
+    }
+
+    document.querySelectorAll('.backlog-table th').forEach(function(h) {
+      h.classList.remove('sorted');
+      var icon = h.querySelector('.sort-icon');
+      if (icon) icon.textContent = '\u25B2';
+    });
+    th.classList.add('sorted');
+    var icon = th.querySelector('.sort-icon');
+    if (icon) icon.textContent = currentSort.dir === 'asc' ? '\u25B2' : '\u25BC';
+
+    applyFilters();
+  });
+});
+
+// Dependency graph toggle
+document.getElementById('depGraphToggle').addEventListener('click', function() {
+  var toggle = document.getElementById('depGraphToggle');
+  var container = document.getElementById('depGraphContainer');
+  toggle.classList.toggle('open');
+  container.classList.toggle('open');
+
+  if (container.classList.contains('open')) {
+    setTimeout(renderDepGraph, 50);
+  }
+});
+
+// ─── Auto-Refresh ────────────────────────────────────────────────
+var lastUpdate = new Date();
+
+function updateTimestamp() {
+  var el = document.getElementById('lastUpdated');
+  var diff = Math.floor((new Date() - lastUpdate) / 1000);
+  if (diff < 10) el.textContent = 'Updated just now';
+  else if (diff < 60) el.textContent = 'Updated ' + diff + 's ago';
+  else el.textContent = 'Updated ' + Math.floor(diff / 60) + 'm ago';
+}
+
+function fetchBacklog() {
+  fetch('/api/backlog').then(function(resp) {
+    if (resp.ok) {
+      return resp.json().then(function(data) {
+        if (Array.isArray(data) && data.length > 0) {
+          BACKLOG_DATA.length = 0;
+          data.forEach(function(d) { BACKLOG_DATA.push(d); });
+          lastUpdate = new Date();
+          applyFilters();
+        }
+      });
+    }
+  }).catch(function() {
+    // Fallback to embedded data
+  });
+  updateTimestamp();
+}
+
+setInterval(fetchBacklog, 30000);
+setInterval(updateTimestamp, 5000);
+
+// ─── Resize handler ──────────────────────────────────────────────
+window.addEventListener('resize', function() {
+  if (document.getElementById('depGraphContainer').classList.contains('open')) {
+    renderDepGraph();
+  }
+});
+
+// ─── Initial Render ──────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
