@@ -26,30 +26,33 @@ For a multi-tenant paid product, this is a critical gap. Every LLM-powered featu
 
 ### Recommendation: Cost-Based Credits (Option B)
 
-**1 credit = $0.001 USD worth of LLM usage**
+**Internal conversion: 1 credit = $0.001 USD worth of LLM usage**
+
+This conversion is an **internal implementation detail** — namespace admins and users never see USD amounts. They only interact with credits as an abstract unit.
 
 This is the recommended approach because:
 
 - **Provider-agnostic**: Works the same whether the call goes to Anthropic, Perplexity, or future providers
-- **Simple mental model**: 1,000 credits = $1.00 of LLM usage
+- **Abstracted from cost**: Users see "credits" not dollars — allows pricing flexibility without confusing users
 - **Already computed**: `llm_logger.py` already computes `cost_usd` per call — credits are `cost_usd * 1000`
-- **Transparent**: Users can verify credits match actual costs
 - **Future-proof**: Adding new models/providers requires only updating `MODEL_PRICING`, not the credit scheme
+- **Pricing freedom**: Since users don't see the USD mapping, we can adjust credit-to-USD ratio per plan tier without breaking expectations
 
 ### Why Not the Alternatives
 
 - **Option A (1 credit = 1 LLM token)**: Misleading — 1 token on Claude Opus costs 19x more than 1 token on Claude Haiku. Users would see wildly different credit consumption for similar tasks depending on which model was used internally.
 - **Option C (operation-based credits)**: Rigid — requires redefining credit values whenever we add a new operation or change the underlying model. Also hides cost efficiency improvements from users.
 
-### Credit Display
+### Credit Display (User-Facing)
 
-| Credits | USD Equivalent | Example Usage |
-|---------|----------------|---------------|
-| 1 | $0.001 | ~1 token on Claude Haiku |
-| 10 | $0.01 | Short chat response |
-| 100 | $0.10 | Typical chat turn with context |
-| 1,000 | $1.00 | Full L2 company enrichment |
-| 10,000 | $10.00 | Campaign message generation (50 contacts) |
+Users see credits as abstract units with example operations — never USD equivalents.
+
+| Credits | Example Usage |
+|---------|---------------|
+| 10 | Short chat response |
+| 100 | Typical chat turn with context |
+| 1,000 | Full L2 company enrichment |
+| 10,000 | Campaign message generation (50 contacts) |
 
 ---
 
@@ -304,11 +307,62 @@ These estimates are shown in the UI before execution and used for reservation.
 
 ---
 
+## Access Control
+
+A strict separation exists between what namespace admins see and what super admins see:
+
+### Namespace Admin View (Credits Only)
+
+Namespace admins (`admin` role on the namespace) see:
+
+- **Token/credit balance**: total budget, used credits, remaining credits, usage percentage
+- **Usage by operation**: credits consumed per operation type (chat, enrichment, messages) — in credit units only
+- **Usage by user**: per-user credit consumption within the namespace
+- **Usage over time**: daily/weekly credit consumption history — in credit units only
+- **Budget status**: enforcement mode, reset period, next reset date, alert threshold
+
+Namespace admins **never** see:
+
+- USD amounts (cost_usd, total_cost_usd, etc.)
+- Provider names (Anthropic, Perplexity)
+- Model names (claude-sonnet-4-5, sonar-pro)
+- Raw token counts (input_tokens, output_tokens)
+- Cross-namespace data
+
+Credits are an **opaque unit** to namespace admins. They don't know the internal conversion rate.
+
+### Super Admin View (Full Cost Transparency)
+
+Super admins see everything namespace admins see, plus:
+
+- **USD costs**: raw provider costs per namespace, per operation, per model
+- **Provider/model breakdown**: which models are consuming what, cost per provider
+- **Raw token counts**: input/output tokens per call for cost optimization
+- **Cross-namespace comparison**: usage across all namespaces
+- **Margin analysis**: credits charged vs actual USD cost (supports future tiered pricing)
+- **Budget management**: set/update budgets, top up credits, change enforcement modes
+
+This is served by the existing `GET /api/llm-usage/summary` (BL-055) enhanced with credit data.
+
+### Role Hierarchy Recap
+
+| Data | Viewer | Editor | Namespace Admin | Super Admin |
+|------|--------|--------|-----------------|-------------|
+| Own credit balance | -- | -- | Read | Read + Write |
+| Usage by operation (credits) | -- | -- | Read | Read |
+| Usage by user (credits) | -- | -- | Read | Read |
+| USD costs | -- | -- | -- | Read |
+| Provider/model breakdown | -- | -- | -- | Read |
+| Budget management | -- | -- | -- | Write |
+| Cross-namespace data | -- | -- | -- | Read |
+
+---
+
 ## API Endpoints
 
 ### Namespace Admin Endpoints
 
-These are accessible to users with `admin` role on the namespace (not just super_admin).
+These are accessible to users with `admin` role on the namespace (not just super_admin). All responses use **credits only** — no USD, no provider/model details.
 
 #### `GET /api/admin/tokens`
 
@@ -330,8 +384,7 @@ Current budget status and usage summary.
     "start": "2026-02-01T00:00:00Z",
     "end": "2026-02-28T23:59:59Z",
     "total_calls": 847,
-    "total_credits": 12340,
-    "total_cost_usd": 12.34
+    "total_credits": 12340
   },
   "by_operation": [
     {"operation": "playbook_chat", "calls": 312, "credits": 4200, "pct": 34.0},
@@ -359,16 +412,24 @@ Usage over time for charts.
 {
   "period": "day",
   "data": [
-    {"date": "2026-02-20", "credits": 1200, "calls": 89, "cost_usd": 1.20},
-    {"date": "2026-02-21", "credits": 980, "calls": 72, "cost_usd": 0.98},
-    {"date": "2026-02-22", "credits": 1500, "calls": 110, "cost_usd": 1.50}
+    {"date": "2026-02-20", "credits": 1200, "calls": 89},
+    {"date": "2026-02-21", "credits": 980, "calls": 72},
+    {"date": "2026-02-22", "credits": 1500, "calls": 110}
   ]
 }
 ```
 
-#### `GET /api/admin/tokens/breakdown`
+### Super Admin Endpoints
 
-Detailed breakdown by operation + model for cost analysis.
+These require `is_super_admin = True`. They see full cost transparency including USD, providers, models, and cross-namespace data.
+
+#### `GET /api/llm-usage/summary` (Enhanced — existing BL-055 endpoint)
+
+The existing super admin endpoint is enhanced with credit data. Already returns `cost_usd`, `by_tenant`, `by_operation`, `by_model`, `time_series`. Add `credits` field alongside existing `cost` fields.
+
+#### `GET /api/admin/tokens/cost-breakdown`
+
+Detailed breakdown by operation + provider + model with USD costs. **Super admin only.**
 
 ```json
 {
@@ -380,6 +441,7 @@ Detailed breakdown by operation + model for cost analysis.
       "calls": 90,
       "input_tokens": 45000,
       "output_tokens": 72000,
+      "cost_usd": 2.10,
       "credits": 2100,
       "avg_credits_per_call": 23
     },
@@ -390,8 +452,28 @@ Detailed breakdown by operation + model for cost analysis.
       "calls": 45,
       "input_tokens": 180000,
       "output_tokens": 90000,
+      "cost_usd": 1.70,
       "credits": 1700,
       "avg_credits_per_call": 38
+    }
+  ]
+}
+```
+
+#### `GET /api/admin/tokens/margin`
+
+Margin analysis across namespaces. **Super admin only.** Useful for pricing decisions.
+
+```json
+{
+  "namespaces": [
+    {
+      "tenant_slug": "visionvolve",
+      "total_budget_credits": 50000,
+      "used_credits": 12340,
+      "actual_cost_usd": 12.34,
+      "credits_per_usd": 1000,
+      "effective_margin_pct": 0.0
     }
   ]
 }
