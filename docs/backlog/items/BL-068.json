@@ -1,5 +1,5 @@
 {
-  "id": "BL-062",
+  "id": "BL-068",
   "title": "BUG: AI chat responses excessively verbose — 3000+ words for simple questions",
   "priority": "Should Have",
   "effort": "S",

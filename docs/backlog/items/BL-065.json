@@ -1,5 +1,5 @@
 {
-  "id": "BL-059",
+  "id": "BL-065",
   "title": "BUG: Chat markdown not rendered — raw **, ##, |, --- visible in AI responses",
   "priority": "Must Have",
   "effort": "M",
