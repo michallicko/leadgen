@@ -1,0 +1,14 @@
+{
+  "id": "BL-062",
+  "title": "BUG: AI chat responses excessively verbose — 3000+ words for simple questions",
+  "priority": "Should Have",
+  "effort": "S",
+  "status": "Building",
+  "sprint": "Sprint 1",
+  "depends_on": [],
+  "description": "AI chat responses are extremely long and verbose. Simple factual questions like 'What is account-based marketing?' produce 3000+ word essays with 10+ sections, multiple tables, and exhaustive breakdowns. Responses also start with filler phrases.\n\n### Steps to Reproduce\n1. Login to staging, navigate to /visionvolve/playbook\n2. In AI chat, ask: 'What is account-based marketing?'\n3. AI produces ~3000+ word response with 10+ sections, multiple tables, 4-phase plan, metrics table, playbook revision suggestions\n4. Response starts with: 'Great question—and **highly relevant to your strategy**.'\n\n### Expected\n- 2-4 sentences or a short bullet list for a simple definitional question\n- No filler phrases like 'Great question!', 'That's a really interesting topic!', 'Absolutely!'\n- Concise, actionable responses\n\n### Actual\n- Massive multi-section essays for every question\n- Filler phrases at the start of responses\n- Every response tries to be a comprehensive guide\n\n### Root Cause Hypothesis\nSystem prompt conciseness instructions from PR #38 not deployed or not strong enough. The max_tokens parameter may be too high, or the system prompt lacks clear length constraints.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "theme": "Playbook Core",
+  "pr": "#38"
+}

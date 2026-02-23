@@ -1,0 +1,14 @@
+{
+  "id": "BL-058",
+  "title": "BUG: Phase infrastructure not deployed — API missing phase fields, /api/playbook/phase returns 404",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Building",
+  "sprint": "Sprint 1",
+  "depends_on": [],
+  "description": "Phase infrastructure from PR #37 is completely absent from the staging deployment. The GET /api/playbook response contains no 'phase' or 'playbook_selections' fields, and the PUT /api/playbook/phase endpoint returns 404.\n\n### Steps to Reproduce\n1. Login to staging, open DevTools Network tab\n2. Navigate to /visionvolve/playbook\n3. Inspect GET /api/playbook response\n4. Response keys are: content, created_at, enrichment_id, extracted_data, id, objective, status, tenant_id, updated_at, updated_by, version\n5. No 'phase' or 'playbook_selections' fields\n6. PUT /api/playbook/phase with body {\"target_phase\": \"contacts\"} returns HTTP 404\n\n### Expected\n- GET /api/playbook includes \"phase\": \"strategy\" and \"playbook_selections\": {}\n- PUT /api/playbook/phase endpoint exists and handles phase transitions\n\n### Actual\n- No phase fields in API response\n- Phase endpoint returns 404 'Not found'\n\n### Root Cause Hypothesis\nDatabase migration for phase column was never applied to staging. The API route for /api/playbook/phase was not deployed. PR #37 code may not be in the deployed Docker image.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "theme": "Playbook Core",
+  "pr": "#37"
+}
