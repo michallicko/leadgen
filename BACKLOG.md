@@ -2,7 +2,7 @@
 
 Structured backlog for the leadgen-pipeline project. Items are prioritized using MoSCoW and tracked with sequential IDs.
 
-**Next ID**: BL-056
+**Next ID**: BL-057
 
 ## Must Have
 
@@ -107,6 +107,12 @@ Users can filter/select contacts and create or assign them to campaigns through 
 **Depends on**: AGENT (agent-ready chat) | **Theme**: Outreach Engine
 
 Give the playbook chat full access to the tenant's own company enrichment data (L1, L2, profile, signals, market, legal). Phase 1 (no deps): expand `_load_enrichment_data()` to include pitch_framing, revenue_trend, industry_pain_points, relevant_case_study in the system prompt; add fallback self-company lookup when strategy doc has no enrichment_id. Phase 2 (requires AGENT): `get_company_research(section)` tool for on-demand access to detailed signals, market, legal, and opportunity data. Achieves parity between onboarding and chat contexts.
+
+### BL-056: Token Credit System with Per-Namespace Budgets
+**Status**: Spec'd | **Effort**: L | **Spec**: `docs/specs/token-credit-system.md`
+**Depends on**: BL-055 | **Theme**: Platform Foundation
+
+Unified token credit system for metering all LLM usage per namespace. 1 credit = $0.001 USD. Per-namespace budgets with configurable enforcement (monitor/soft/hard). Credit reservation for concurrent operations. Admin dashboard showing usage gauge, time series, operation breakdown, and per-user consumption. Auto-reset on monthly/quarterly schedule. Integrates with existing `LlmUsageLog` infrastructure. Budget checks at all LLM call sites (chat, enrichment, generation, extraction).
 
 ### BL-031: Campaign CRUD + Data Model
 **Status**: Done | **Effort**: M | **Spec**: `docs/specs/campaign-crud.md`
