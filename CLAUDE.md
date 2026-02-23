@@ -15,6 +15,7 @@
 - **Lead agent NEVER does work** — In delegation mode, the lead coordinator NEVER reads source files, writes code, calls MCP tools for data gathering, runs bash commands, or does any extensive work (more than 1 tool call). ALL work is delegated to spawned agents. "Let me just read this first" is building. Delegate it.
 - **Start every session from the backlog dashboard** — `docs/backlog/index.html` is the source of truth for the development plan. Open it first, check sprint status, see where we left off, then pick up from there. Never start work without consulting the dashboard.
 - **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Create a JSON file in `docs/backlog/items/BL-XXX.json` and add the ID to `docs/backlog/config.json`, (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). This ensures nothing is lost, work is prioritized, and the dashboard stays the single source of truth.
+- **Agents must self-test before handoff** — Before notifying the user or asking them to test anything, agents MUST: (1) Run ALL tests in the current sprint test script (`docs/testing/sprint-{N}-manual-tests.md`), (2) Mark each test PASS or FAIL, (3) Fix any FAIL and redeploy before proceeding, (4) Only notify the user after ALL tests pass or after documenting unfixable issues with a clear explanation. **Never ask the user to test something you haven't tested yourself first.**
 
 ## Branch Model
 
@@ -207,6 +208,8 @@ Forbidden commands:
 | `feature/*` | BLOCKED | Run locally with `make dev` |
 | `staging` | Staging VPS | All committed, tests pass |
 | `main` | Production | All committed, tests pass, user confirms |
+
+**Testing requirement**: After every staging deployment, agents MUST run the sprint test script before notifying the user. See Hard Rules — "Agents must self-test before handoff."
 
 ### Staging Rev Deployments
 
