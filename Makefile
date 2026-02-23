@@ -1,4 +1,4 @@
-.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-e2e test-all lint
+.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-e2e test-all lint backlog
 
 # Slot computation from DEV_SLOT env var (default 0)
 SLOT       ?= $(or $(DEV_SLOT),0)
@@ -84,6 +84,12 @@ test-e2e:
 
 ## Run all tests
 test-all: test test-enrich test-e2e
+
+## Open backlog dashboard in browser (serves docs/backlog/ via HTTP)
+backlog:
+	@echo "Opening backlog dashboard at http://localhost:8090"
+	@(sleep 0.5 && open http://localhost:8090 2>/dev/null || xdg-open http://localhost:8090 2>/dev/null || true) &
+	@cd docs/backlog && python3 -m http.server 8090
 
 ## Run linters
 lint:

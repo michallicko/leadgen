@@ -1136,6 +1136,20 @@ window.addEventListener('resize', function() {
 });
 
 // ─── Data Loading ────────────────────────────────────────────────
+function showFileProtocolError() {
+  var tbody = document.getElementById('tableBody');
+  clearChildren(tbody);
+  var msgDiv = createEl('div', {
+    className: 'empty-state',
+    style: 'padding:32px;line-height:1.7'
+  });
+  msgDiv.appendChild(document.createTextNode('Cannot load data over '));
+  msgDiv.appendChild(createEl('code', { textContent: 'file://' }));
+  msgDiv.appendChild(document.createTextNode(' protocol. Run a local server instead:'));
+  msgDiv.appendChild(createEl('pre', { textContent: 'make backlog\n\n# or manually:\ncd docs/backlog && python3 -m http.server 8090' }));
+  tbody.appendChild(createEl('tr', {}, [createEl('td', { colspan: '8' }, [msgDiv])]));
+}
+
 function normalizeItem(raw) {
   return {
     id: raw.id || '',
@@ -1155,6 +1169,11 @@ function normalizeItem(raw) {
 }
 
 function loadData() {
+  if (window.location.protocol === 'file:') {
+    showFileProtocolError();
+    return;
+  }
+
   Promise.all([
     fetch('config.json').then(function(r) { return r.json(); }),
     fetch('sprints.json').then(function(r) { return r.json(); }),
