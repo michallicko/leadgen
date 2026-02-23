@@ -9,6 +9,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _to_str(val):
+    """Coerce enrichment value to string. Lists become comma-joined, dicts become JSON."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    if isinstance(val, dict):
+        return json.dumps(val)
+    return str(val)
+
 # Maximum number of historical messages to include in context
 MAX_HISTORY_MESSAGES = 20
 
@@ -54,8 +67,8 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Company overview & intel
-    overview = enrichment_data.get("company_overview") or ""
-    intel = enrichment_data.get("company_intel") or ""
+    overview = _to_str(enrichment_data.get("company_overview"))
+    intel = _to_str(enrichment_data.get("company_intel"))
     if overview or intel:
         parts.append("COMPANY OVERVIEW:")
         if overview:
@@ -65,8 +78,8 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Products & tech
-    products = enrichment_data.get("key_products") or ""
-    tech = enrichment_data.get("tech_stack") or ""
+    products = _to_str(enrichment_data.get("key_products"))
+    tech = _to_str(enrichment_data.get("tech_stack"))
     if products or tech:
         parts.append("PRODUCTS & TECHNOLOGY:")
         if products:
@@ -76,8 +89,8 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Market & competition
-    competitors = enrichment_data.get("competitors") or ""
-    segments = enrichment_data.get("customer_segments") or ""
+    competitors = _to_str(enrichment_data.get("competitors"))
+    segments = _to_str(enrichment_data.get("customer_segments"))
     if competitors or segments:
         parts.append("MARKET & COMPETITION:")
         if segments:
@@ -87,9 +100,9 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Pain points & opportunities (L2)
-    pain = enrichment_data.get("pain_hypothesis") or ""
-    opps = enrichment_data.get("ai_opportunities") or ""
-    wins = enrichment_data.get("quick_wins") or ""
+    pain = _to_str(enrichment_data.get("pain_hypothesis"))
+    opps = _to_str(enrichment_data.get("ai_opportunities"))
+    wins = _to_str(enrichment_data.get("quick_wins"))
     if pain or opps or wins:
         parts.append("PAIN POINTS & OPPORTUNITIES:")
         if pain:
@@ -101,10 +114,10 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Signals
-    digital = enrichment_data.get("digital_initiatives") or ""
-    hiring = enrichment_data.get("hiring_signals") or ""
-    ai_level = enrichment_data.get("ai_adoption_level") or ""
-    growth = enrichment_data.get("growth_indicators") or ""
+    digital = _to_str(enrichment_data.get("digital_initiatives"))
+    hiring = _to_str(enrichment_data.get("hiring_signals"))
+    ai_level = _to_str(enrichment_data.get("ai_adoption_level"))
+    growth = _to_str(enrichment_data.get("growth_indicators"))
     if digital or hiring or ai_level or growth:
         parts.append("MARKET SIGNALS:")
         if digital:
@@ -118,8 +131,8 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Leadership & certs
-    leaders = enrichment_data.get("leadership_team") or ""
-    certs = enrichment_data.get("certifications") or ""
+    leaders = _to_str(enrichment_data.get("leadership_team"))
+    certs = _to_str(enrichment_data.get("certifications"))
     if leaders or certs:
         parts.append("LEADERSHIP & COMPLIANCE:")
         if leaders:
@@ -129,8 +142,8 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # Market events
-    news = enrichment_data.get("recent_news") or ""
-    funding = enrichment_data.get("funding_history") or ""
+    news = _to_str(enrichment_data.get("recent_news"))
+    funding = _to_str(enrichment_data.get("funding_history"))
     if news or funding:
         parts.append("RECENT EVENTS:")
         if news:
@@ -140,7 +153,7 @@ def _format_enrichment_for_prompt(enrichment_data):
         parts.append("")
 
     # L1 triage
-    triage = enrichment_data.get("triage_notes") or ""
+    triage = _to_str(enrichment_data.get("triage_notes"))
     score = enrichment_data.get("pre_score")
     if triage or score:
         parts.append("QUALIFICATION:")
