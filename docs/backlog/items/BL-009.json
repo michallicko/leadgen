@@ -1,0 +1,15 @@
+{
+  "id": "BL-009",
+  "title": "Pipedrive CRM Integration",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-007"
+  ],
+  "description": "Bi-directional sync with Pipedrive via REST API. Import persons, organizations, and deals. Push enriched contact/company data back. Map custom fields and activity notes. Pipedrive is the go-to CRM for small outbound sales teams — strong fit with our \"GTM engineering for small companies\" positioning.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

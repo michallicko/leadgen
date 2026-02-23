@@ -1,0 +1,13 @@
+{
+  "id": "BL-013",
+  "title": "Email Validation",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Validate contact email addresses: format check, MX record verification, disposable domain detection, and optional SMTP deliverability probe. Flag invalid/risky emails in the contact record. Run at import time and on-demand from the dashboard. Reduces bounce rates and improves sender reputation for outreach.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

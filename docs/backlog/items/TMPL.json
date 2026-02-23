@@ -1,0 +1,14 @@
+{
+  "id": "TMPL",
+  "title": "GTM Strategy Templates (Hybrid)",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Spec'd",
+  "sprint": "Sprint 3",
+  "depends_on": [
+    "ONBOARD"
+  ],
+  "spec": "## GTM Strategy Templates (Hybrid)\n\n### Goal\nProvide pre-built GTM strategy templates that combine structured fields with AI-generated content, so users can start with a proven framework and customize.\n\n### Templates\n- **SaaS PLG**: Product-led growth for B2B SaaS\n- **Enterprise ABM**: Account-based marketing for high-ACV deals\n- **SMB Outbound**: Cold outreach for SMB market\n- **Startup Launch**: First GTM motion for pre-seed/seed startups\n- **Expansion Play**: Upsell/cross-sell to existing customers\n\n### Behavior\n- **Template gallery**: Visual cards with preview and description\n- **Hybrid generation**: Template provides structure; AI fills in company-specific content\n- **Customizable**: All template fields are editable after generation\n- **Smart selection**: AI recommends templates based on onboarding answers\n\n### Acceptance Criteria\n- Given a user selects \"SaaS PLG\" template, a strategy is created with PLG-specific sections pre-filled\n- Given onboarding reveals enterprise sales motion, the AI recommends \"Enterprise ABM\" template\n- Given a template is applied, all fields are editable (not locked)",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

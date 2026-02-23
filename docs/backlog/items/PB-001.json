@@ -1,0 +1,13 @@
+{
+  "id": "PB-001",
+  "title": "Phase Infrastructure (Migration+Model+API)",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "PR Open",
+  "sprint": "Sprint 1",
+  "depends_on": [],
+  "pr": "#37",
+  "spec": "## Phase Infrastructure (Migration+Model+API)\n\n### Goal\nAdd the database schema, models, and API endpoints to support multi-phase playbook workflows (Strategy, Contacts, Messages, Campaign).\n\n### Scope\n- **Migration 005**: `phases` table with `id`, `strategy_id`, `phase_type` (enum), `status`, `config` (JSONB), `created_at`, `updated_at`\n- **Model**: `Phase` SQLAlchemy model with relationships to Strategy\n- **API endpoints**:\n  - `GET /api/strategies/:id/phases` — list phases for a strategy\n  - `POST /api/strategies/:id/phases` — create a phase\n  - `PATCH /api/phases/:id` — update phase status/config\n  - `GET /api/phases/:id` — get phase detail\n- **Phase types**: `strategy`, `contacts`, `messages`, `campaign`\n- **Phase statuses**: `not_started`, `in_progress`, `completed`, `skipped`\n\n### Acceptance Criteria\n- Given a new strategy, when created, then 4 default phases are auto-created in order\n- Given a phase is completed, when the next phase is queried, its status can be set to in_progress\n- Given phase config is updated via PATCH, then only provided fields are merged (JSONB merge)",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

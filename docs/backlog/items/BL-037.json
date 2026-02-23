@@ -1,0 +1,15 @@
+{
+  "id": "BL-037",
+  "title": "Template Library",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-031"
+  ],
+  "description": "Save current campaign config as reusable template. Load template into new campaign.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

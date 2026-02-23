@@ -1,0 +1,15 @@
+{
+  "id": "BL-039",
+  "title": "Lemlist CSV Export",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-036"
+  ],
+  "description": "Export approved messages as Lemlist-compatible CSV. Columns: email, firstName, lastName, companyName, + custom columns per step.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

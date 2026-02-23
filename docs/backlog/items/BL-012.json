@@ -1,0 +1,13 @@
+{
+  "id": "BL-012",
+  "title": "XLSX Import Support",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Add XLSX file parsing alongside existing CSV support in the import pipeline. Reuse the existing AI column mapper and dedup engine. Many small teams export from Excel, Google Sheets, or CRMs in XLSX format. Minimal new code — swap the parser, keep everything else.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

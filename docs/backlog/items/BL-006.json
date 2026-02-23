@@ -1,0 +1,12 @@
+{
+  "id": "BL-006",
+  "title": "Contact List Import & Cleanup — Phase 1",
+  "effort": "M",
+  "status": "Done",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "CSV upload with AI column mapping, dedup preview, batch import. 80 unit tests. ADR-002.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "priority": "Should Have"
+}

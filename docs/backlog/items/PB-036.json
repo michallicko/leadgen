@@ -1,0 +1,14 @@
+{
+  "id": "PB-036",
+  "title": "Real-Time Collaboration (Yjs)",
+  "priority": "Must Have",
+  "effort": "L",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "PB-035"
+  ],
+  "spec": "## Real-Time Collaboration (Yjs)\n\n### Goal\nAllow multiple users to edit the same strategy document simultaneously with live cursors and presence awareness.\n\n### Behavior\n- **Live cursors**: Each collaborator sees others' cursor positions with colored name labels\n- **Presence**: Avatar pills in top bar show who is viewing/editing\n- **Sync**: Sub-second convergence using CRDT (Yjs)\n- **Offline**: Local edits queue and merge automatically on reconnect\n\n### Technical Approach\n- Yjs + y-websocket provider (or Hocuspocus for auth)\n- Y.Doc per strategy document, Y.Text for rich-text body\n- WebSocket endpoint: `/ws/collab/:docId`\n- Awareness protocol for cursor/selection sharing\n- Requires PB-035 (auto-save) as the persistence layer\n\n### Acceptance Criteria\n- Given two users on the same doc, when one types, the other sees changes within 500ms\n- Given a user goes offline and types, when they reconnect, their changes merge without data loss\n- Given three concurrent editors, all cursors and selections are visible and labeled",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

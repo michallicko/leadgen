@@ -1,0 +1,13 @@
+{
+  "id": "PB-035",
+  "title": "Auto-Save (Debounced)",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "PR Open",
+  "sprint": "Sprint 1",
+  "depends_on": [],
+  "pr": "#36",
+  "spec": "## Auto-Save (Debounced)\n\n### Goal\nAutomatically save the strategy document as the user types, eliminating manual save actions and preventing data loss.\n\n### Behavior\n- **Debounce interval**: 1.5 seconds after last keystroke\n- **Visual feedback**: Subtle \"Saving...\" indicator in top bar, transitions to \"Saved\" with checkmark\n- **Conflict handling**: If server returns 409 (concurrent edit), show merge dialog\n- **Offline queue**: Store pending saves in localStorage; flush when reconnected\n- **Scope**: Strategy doc fields (title, body, ICP, pain points, etc.)\n\n### Technical Approach\n- `useAutoSave(docId, fields, delay)` custom hook\n- PATCH `/api/strategies/:id` with changed fields only (delta save)\n- ETag-based optimistic concurrency on the API\n- localStorage key: `autosave:{tenantId}:{docId}`\n\n### Acceptance Criteria\n- Given a user editing the strategy doc, when they pause typing for 1.5s, then changes are persisted without clicking Save\n- Given a network failure, when connectivity returns, then queued saves are flushed automatically\n- Given two users editing the same doc, when a conflict is detected, then a merge dialog appears",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

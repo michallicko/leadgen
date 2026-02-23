@@ -1,0 +1,12 @@
+{
+  "id": "BL-046",
+  "title": "Contact ICP Filters",
+  "effort": "M",
+  "status": "Done",
+  "sprint": "Backlog",
+  "depends_on": [],
+  "description": "Faceted multi-value filtering on the Contacts page. 8 filter dimensions (industry, company_size, geo_region, revenue_range, seniority_level, department, job_titles, linkedin_activity), each with include/exclude toggle. Faceted count endpoint (`POST /api/contacts/filter-counts`), job title typeahead (`GET /api/contacts/job-titles`). Frontend: `MultiSelectFilter`, `JobTitleFilter`, `useAdvancedFilters` hook with URL serialization. Spec: `docs/specs/contact-icp-filters/`.",
+  "created": "2026-02-23",
+  "updated": "2026-02-23",
+  "priority": "Should Have"
+}

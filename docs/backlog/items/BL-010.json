@@ -1,0 +1,15 @@
+{
+  "id": "BL-010",
+  "title": "Notion CRM Integration",
+  "priority": "Should Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-007"
+  ],
+  "description": "Bi-directional sync with Notion databases via Notion API. User connects their Notion workspace, selects the database used as a CRM, and maps properties to our contact/company schema. Push enriched data back as property updates. Many startups and freelancers use Notion databases as a lightweight CRM — this meets them where they already work.",
+  "theme": "Contact Intelligence",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

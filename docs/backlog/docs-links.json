@@ -1,0 +1,37 @@
+[
+  {
+    "icon": "🎯",
+    "label": "Product Vision",
+    "href": "plans/2026-02-22-playbook-vision.html"
+  },
+  {
+    "icon": "🔍",
+    "label": "Gap Analysis",
+    "href": "plans/2026-02-22-gap-analysis.md"
+  },
+  {
+    "icon": "📈",
+    "label": "GTM Strategy",
+    "href": "plans/2026-02-22-gtm-strategy.md"
+  },
+  {
+    "icon": "💼",
+    "label": "Business Model",
+    "href": "plans/2026-02-22-business-model-analysis.md"
+  },
+  {
+    "icon": "📐",
+    "label": "Playbook Design",
+    "href": "plans/2026-02-22-playbook-multi-phase-design.md"
+  },
+  {
+    "icon": "📋",
+    "label": "Implementation Backlog",
+    "href": "plans/2026-02-22-playbook-implementation-backlog.md"
+  },
+  {
+    "icon": "🚀",
+    "label": "Vision Microsite",
+    "href": "vision/index.html"
+  }
+]

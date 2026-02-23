@@ -1,0 +1,15 @@
+{
+  "id": "BL-041",
+  "title": "PDF Template Upload",
+  "priority": "Must Have",
+  "effort": "M",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-031"
+  ],
+  "description": "HTML template upload with {{variable}} placeholders. Variable picker shows available enrichment fields. Templates stored per tenant.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

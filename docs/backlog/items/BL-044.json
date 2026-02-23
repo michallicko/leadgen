@@ -1,0 +1,15 @@
+{
+  "id": "BL-044",
+  "title": "Custom Prompt Instructions",
+  "priority": "Must Have",
+  "effort": "S",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-035"
+  ],
+  "description": "Per-campaign instruction text appended to generation prompts. Max 2000 chars.",
+  "theme": "Outreach Engine",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "BL-003",
+  "title": "Full Workflow Migration (L2/Person/Orchestrator)",
+  "priority": "Must Have",
+  "effort": "XL",
+  "status": "Idea",
+  "sprint": "Backlog",
+  "depends_on": [
+    "BL-002"
+  ],
+  "description": "Migrate remaining enrichment workflows (L2 Company, L2 Person, Orchestrator) to write to PostgreSQL. Completes the Airtable-to-Postgres transition. Cannot start until L1 migration (BL-002) is proven stable.",
+  "theme": "Platform Foundation",
+  "created": "2026-02-23",
+  "updated": "2026-02-23"
+}
