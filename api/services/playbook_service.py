@@ -325,10 +325,19 @@ def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
             "- Never leave a section completely empty. Either populate it from "
             "research data or provide a TODO with an example.",
             "",
-            "Keep responses focused and actionable. Use markdown formatting "
-            "(headers, bullet points, bold) for readability. When suggesting "
-            "changes to the playbook, be specific about which section and what "
-            "content to add or modify.",
+            "RESPONSE STYLE RULES:",
+            "- Be concise: 2-4 sentences by default. Only go longer when the "
+            "user explicitly asks for detail or the content genuinely requires it.",
+            "- Use bullet points over long paragraphs.",
+            "- Lead with the insight or recommendation, not the reasoning.",
+            "- Never pad with filler phrases like 'Great question!', "
+            "'That's a really interesting point', or 'Absolutely!'.",
+            "- When presenting options, use a compact format: bullets with "
+            "1-line descriptions.",
+            "- Use markdown formatting (headers, bullet points, bold, code "
+            "blocks) for readability.",
+            "- When suggesting changes to the playbook, be specific about "
+            "which section and what content to add or modify.",
         ]
     )
 

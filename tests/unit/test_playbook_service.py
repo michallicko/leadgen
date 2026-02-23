@@ -164,6 +164,28 @@ class TestBuildSystemPrompt:
         # Must mention never leaving sections empty
         assert "Never leave a section completely empty" in prompt
 
+    def test_includes_conciseness_instructions(self):
+        """System prompt contains rules for concise, actionable responses."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Test"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+
+        prompt = build_system_prompt(tenant, doc)
+        lower = prompt.lower()
+        # Must instruct conciseness
+        assert "concise" in lower or "2-4 sentences" in lower
+        # Must prohibit filler phrases
+        assert "great question" in lower
+        # Must instruct bullet points
+        assert "bullet" in lower
+        # Must instruct leading with insight
+        assert "lead with" in lower
+
     def test_contains_document_awareness_instruction(self):
         """System prompt instructs AI to reference existing document content."""
         from api.services.playbook_service import build_system_prompt
