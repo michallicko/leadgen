@@ -21,15 +21,19 @@ from ..models import (
     StrategyDocument,
     StrategyChatMessage,
     Tenant,
+    ToolExecution,
     db,
 )
+from ..services.agent_executor import execute_agent_turn
 from ..services.anthropic_client import AnthropicClient
+from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
     build_seeded_template,
     build_system_prompt,
 )
+from ..services.tool_registry import ToolContext, get_tools_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -718,6 +722,10 @@ def _stream_response(
 ):
     """Return an SSE streaming response with LLM chunks.
 
+    If tools are registered, uses the agent executor (agentic loop with
+    tool_start/tool_result events). Otherwise, falls back to simple
+    stream_query for backward compatibility.
+
     DB operations (saving the assistant message) happen inside the generator
     using the app context, since the generator runs outside the request context.
     """
@@ -725,6 +733,26 @@ def _stream_response(
     from flask import current_app
 
     app = current_app._get_current_object()
+
+    # Check if any tools are registered
+    tools = get_tools_for_api()
+
+    if tools:
+        return _stream_agent_response(
+            client, system_prompt, messages, tools,
+            tenant_id, doc_id, user_msg, user_id, app,
+        )
+    else:
+        return _stream_simple_response(
+            client, system_prompt, messages,
+            tenant_id, doc_id, user_msg, user_id, app,
+        )
+
+
+def _stream_simple_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id, app
+):
+    """Backward-compatible simple streaming (no tools)."""
 
     def generate():
         full_text = []
@@ -785,10 +813,166 @@ def _stream_response(
     )
 
 
+def _stream_agent_response(
+    client, system_prompt, messages, tools,
+    tenant_id, doc_id, user_msg, user_id, app
+):
+    """Agent-mode streaming with tool-use loop.
+
+    Uses execute_agent_turn() generator to handle tool calls. Yields SSE
+    events for tool_start, tool_result, chunk, and done. Saves assistant
+    message and tool execution records to the database.
+    """
+
+    tool_context = ToolContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        document_id=str(doc_id) if doc_id else None,
+    )
+
+    def generate():
+        full_text = []
+        msg_id = None
+        done_data = None
+
+        try:
+            for sse_event in execute_agent_turn(
+                client=client,
+                system_prompt=system_prompt,
+                messages=messages,
+                tools=tools,
+                tool_context=tool_context,
+            ):
+                if sse_event.type == "chunk":
+                    full_text.append(sse_event.data.get("text", ""))
+                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "chunk"}))
+
+                elif sse_event.type == "tool_start":
+                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_start"}))
+
+                elif sse_event.type == "tool_result":
+                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_result"}))
+
+                elif sse_event.type == "done":
+                    done_data = sse_event.data
+
+        except Exception as e:
+            logger.exception("Agent execution error: %s", e)
+            yield "data: {}\n\n".format(
+                json.dumps({"type": "error", "message": str(e)})
+            )
+            return
+
+        # Save the assistant message after the agent turn completes
+        assistant_content = "".join(full_text)
+        with app.app_context():
+            # Build metadata with tool call summary and cost totals
+            extra = {}
+            if done_data:
+                extra = {
+                    "tool_calls": done_data.get("tool_calls", []),
+                    "llm_calls": len(done_data.get("tool_calls", [])) + 1,
+                    "total_input_tokens": done_data.get("total_input_tokens", 0),
+                    "total_output_tokens": done_data.get("total_output_tokens", 0),
+                    "total_cost_usd": done_data.get("total_cost_usd", "0"),
+                }
+
+            assistant_msg = StrategyChatMessage(
+                tenant_id=tenant_id,
+                document_id=doc_id,
+                role="assistant",
+                content=assistant_content,
+                extra=extra,
+            )
+            db.session.add(assistant_msg)
+            db.session.flush()
+            msg_id = assistant_msg.id
+
+            # Log tool executions to the tool_executions table
+            if done_data:
+                for tc in done_data.get("tool_calls", []):
+                    tool_exec = ToolExecution(
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        document_id=doc_id,
+                        chat_message_id=msg_id,
+                        tool_name=tc.get("tool_name", ""),
+                        input_args=tc.get("input_args", {}),
+                        output_data=tc.get("output_data", {}),
+                        is_error=tc.get("status") == "error",
+                        error_message=tc.get("error_message"),
+                        duration_ms=tc.get("duration_ms"),
+                    )
+                    db.session.add(tool_exec)
+
+                # Log aggregated LLM usage
+                log_llm_usage(
+                    tenant_id=tenant_id,
+                    operation="playbook_chat",
+                    model=done_data.get("model", client.default_model),
+                    input_tokens=done_data.get("total_input_tokens", 0),
+                    output_tokens=done_data.get("total_output_tokens", 0),
+                    user_id=user_id,
+                    metadata={
+                        "agent_turn": True,
+                        "tool_calls": len(done_data.get("tool_calls", [])),
+                    },
+                )
+
+            db.session.commit()
+
+            # Log assistant chat event
+            if user_id:
+                _log_event(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    doc_id=doc_id,
+                    event_type="chat_assistant",
+                    payload={
+                        "message": assistant_content[:500],
+                        "tool_calls": done_data.get("tool_calls", [])
+                        if done_data
+                        else [],
+                    },
+                )
+
+        # Emit done event with message_id and tool call summary
+        done_payload = {"type": "done", "message_id": msg_id}
+        if done_data and done_data.get("tool_calls"):
+            done_payload["tool_calls"] = done_data["tool_calls"]
+        yield "data: {}\n\n".format(json.dumps(done_payload))
+
+    # Commit the user message before entering the generator
+    db.session.commit()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 def _sync_response(
     client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
 ):
-    """Return a non-streaming JSON response with the full LLM reply."""
+    """Return a non-streaming JSON response with the full LLM reply.
+
+    If tools are registered, consumes the agent executor loop collecting
+    all events, then persists the assistant message and tool execution
+    records. Otherwise, falls back to the simple stream_query path.
+    """
+    tools = get_tools_for_api()
+
+    if tools:
+        return _sync_agent_response(
+            client, system_prompt, messages, tools,
+            tenant_id, doc_id, user_msg, user_id,
+        )
+
+    # --- No-tools path (backward compatible) ---
     try:
         full_text = []
         for chunk in client.stream_query(
@@ -832,3 +1016,133 @@ def _sync_response(
             "assistant_message": assistant_msg.to_dict(),
         }
     ), 201
+
+
+def _sync_agent_response(
+    client, system_prompt, messages, tools,
+    tenant_id, doc_id, user_msg, user_id,
+):
+    """Sync (non-streaming) response with agent tool-use loop.
+
+    Collects all SSE events from execute_agent_turn(), persists the
+    assistant message and tool execution records, and returns JSON.
+    """
+    tool_context = ToolContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        document_id=str(doc_id) if doc_id else None,
+    )
+
+    try:
+        events = list(
+            execute_agent_turn(
+                client=client,
+                system_prompt=system_prompt,
+                messages=messages,
+                tools=tools,
+                tool_context=tool_context,
+            )
+        )
+    except Exception as e:
+        logger.exception("Agent sync execution error: %s", e)
+        assistant_msg = StrategyChatMessage(
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            role="assistant",
+            content="Sorry, I encountered an error generating a response. Please try again.",
+        )
+        db.session.add(assistant_msg)
+        db.session.commit()
+        return jsonify(
+            {
+                "user_message": user_msg.to_dict(),
+                "assistant_message": assistant_msg.to_dict(),
+            }
+        ), 201
+
+    text_parts = [
+        e.data.get("text", "") for e in events if e.type == "chunk"
+    ]
+    done_event = next((e for e in events if e.type == "done"), None)
+    done_data = done_event.data if done_event else {}
+
+    assistant_content = "".join(text_parts)
+
+    # Build metadata with tool call summary and cost totals
+    extra = {}
+    if done_data:
+        extra = {
+            "tool_calls": done_data.get("tool_calls", []),
+            "llm_calls": len(done_data.get("tool_calls", [])) + 1,
+            "total_input_tokens": done_data.get("total_input_tokens", 0),
+            "total_output_tokens": done_data.get("total_output_tokens", 0),
+            "total_cost_usd": done_data.get("total_cost_usd", "0"),
+        }
+
+    assistant_msg = StrategyChatMessage(
+        tenant_id=tenant_id,
+        document_id=doc_id,
+        role="assistant",
+        content=assistant_content,
+        extra=extra,
+    )
+    db.session.add(assistant_msg)
+    db.session.flush()
+    msg_id = assistant_msg.id
+
+    # Log tool executions to the tool_executions table
+    if done_data:
+        for tc in done_data.get("tool_calls", []):
+            tool_exec = ToolExecution(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                document_id=doc_id,
+                chat_message_id=msg_id,
+                tool_name=tc.get("tool_name", ""),
+                input_args=tc.get("input_args", {}),
+                output_data=tc.get("output_data", {}),
+                is_error=tc.get("status") == "error",
+                error_message=tc.get("error_message"),
+                duration_ms=tc.get("duration_ms"),
+            )
+            db.session.add(tool_exec)
+
+        # Log aggregated LLM usage
+        log_llm_usage(
+            tenant_id=tenant_id,
+            operation="playbook_chat",
+            model=done_data.get("model", client.default_model),
+            input_tokens=done_data.get("total_input_tokens", 0),
+            output_tokens=done_data.get("total_output_tokens", 0),
+            user_id=user_id,
+            metadata={
+                "agent_turn": True,
+                "tool_calls": len(done_data.get("tool_calls", [])),
+            },
+        )
+
+    db.session.commit()
+
+    # Log assistant chat event
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc_id,
+            event_type="chat_assistant",
+            payload={
+                "message": assistant_content[:500],
+                "tool_calls": done_data.get("tool_calls", [])
+                if done_data
+                else [],
+            },
+        )
+
+    result = {
+        "user_message": user_msg.to_dict(),
+        "assistant_message": assistant_msg.to_dict(),
+    }
+    if done_data and done_data.get("tool_calls"):
+        result["tool_calls"] = done_data["tool_calls"]
+
+    return jsonify(result), 201

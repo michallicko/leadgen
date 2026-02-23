@@ -8,10 +8,28 @@
 
 import { useState, useRef, useCallback } from 'react'
 
+/** Summary of a single tool call returned in the `done` event. */
+export interface ToolCallSummary {
+  tool_name: string
+  status: 'success' | 'error'
+}
+
+/** Payload from a `tool_result` SSE event. */
+export interface ToolResultEvent {
+  toolCallId: string
+  status: 'success' | 'error'
+  summary: string
+  durationMs: number
+}
+
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
-  onDone: (messageId: string) => void
+  onDone: (messageId: string, toolCalls?: ToolCallSummary[]) => void
   onError: (error: Error) => void
+  /** Fired when the AI starts executing a tool. */
+  onToolStart?: (toolName: string, toolCallId: string) => void
+  /** Fired when a tool execution completes (success or error). */
+  onToolResult?: (result: ToolResultEvent) => void
 }
 
 interface UseSSEReturn {
@@ -135,9 +153,24 @@ export function useSSE(): UseSSEReturn {
             if (eventType === 'chunk') {
               callbacks.onChunk(event.text as string)
             } else if (eventType === 'done') {
-              callbacks.onDone(event.message_id as string)
+              callbacks.onDone(
+                event.message_id as string,
+                event.tool_calls as ToolCallSummary[] | undefined,
+              )
             } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.error as string) ?? 'Stream error'))
+              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
+            } else if (eventType === 'tool_start') {
+              callbacks.onToolStart?.(
+                event.tool_name as string,
+                event.tool_call_id as string,
+              )
+            } else if (eventType === 'tool_result') {
+              callbacks.onToolResult?.({
+                toolCallId: event.tool_call_id as string,
+                status: event.status as 'success' | 'error',
+                summary: event.summary as string,
+                durationMs: event.duration_ms as number,
+              })
             }
           }
         }
@@ -150,9 +183,24 @@ export function useSSE(): UseSSEReturn {
             if (eventType === 'chunk') {
               callbacks.onChunk(event.text as string)
             } else if (eventType === 'done') {
-              callbacks.onDone(event.message_id as string)
+              callbacks.onDone(
+                event.message_id as string,
+                event.tool_calls as ToolCallSummary[] | undefined,
+              )
             } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.error as string) ?? 'Stream error'))
+              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
+            } else if (eventType === 'tool_start') {
+              callbacks.onToolStart?.(
+                event.tool_name as string,
+                event.tool_call_id as string,
+              )
+            } else if (eventType === 'tool_result') {
+              callbacks.onToolResult?.({
+                toolCallId: event.tool_call_id as string,
+                status: event.status as 'success' | 'error',
+                summary: event.summary as string,
+                durationMs: event.duration_ms as number,
+              })
             }
           }
         }

@@ -27,6 +27,8 @@ interface PlaybookChatProps {
   streamingText: string
   /** Phase-specific placeholder text for the input */
   placeholder?: string
+  /** When set, shows the active tool name below "Thinking..." (e.g., "Reading strategy...") */
+  activeToolName?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +208,7 @@ export function PlaybookChat({
   isStreaming,
   streamingText,
   placeholder = 'Ask about your strategy...',
+  activeToolName = null,
 }: PlaybookChatProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -258,9 +261,16 @@ export function PlaybookChat({
         <div className="w-2 h-2 rounded-full bg-accent-cyan" />
         <h3 className="text-sm font-semibold font-title text-text">AI Chat</h3>
         {isStreaming && (
-          <span className="ml-auto text-[11px] text-accent-cyan animate-pulse">
-            Thinking...
-          </span>
+          <div className="ml-auto flex flex-col items-end">
+            <span className="text-[11px] text-accent-cyan animate-pulse">
+              Thinking...
+            </span>
+            {activeToolName && (
+              <span className="text-[10px] text-text-dim">
+                {activeToolName}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
