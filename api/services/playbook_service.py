@@ -160,11 +160,54 @@ def _format_enrichment_for_prompt(enrichment_data):
     return parts
 
 
-def build_system_prompt(tenant, document, enrichment_data=None):
+PHASE_INSTRUCTIONS = {
+    "strategy": (
+        "You are in the STRATEGY phase. Focus on helping the user define their "
+        "GTM strategy: ICP, buyer personas, value proposition, competitive "
+        "positioning, channel strategy, messaging framework, and success metrics.\n\n"
+        "When the strategy feels specific enough (ICP has concrete disqualifiers, "
+        "personas have real title patterns, metrics have numbers), suggest moving "
+        'to the Contacts phase by saying: "Your strategy looks ready. Want to '
+        'move to the Contacts phase to select your target contacts?"'
+    ),
+    "contacts": (
+        "You are in the CONTACTS phase. The user's ICP and personas have been "
+        "defined. Help them select and filter contacts that match their strategy.\n\n"
+        "Guide the user to:\n"
+        "- Review the pre-applied ICP filters\n"
+        "- Adjust filters based on their priorities\n"
+        "- Select specific contacts for outreach\n"
+        "- Consider contact quality and engagement signals\n\n"
+        "When contacts are selected, suggest moving to Messages phase."
+    ),
+    "messages": (
+        "You are in the MESSAGES phase. The user has selected contacts and now "
+        "needs to generate and review personalized outreach messages.\n\n"
+        "Help the user:\n"
+        "- Review generated messages for quality and personalization\n"
+        "- Adjust tone, length, and angle based on their preferences\n"
+        "- Approve or regenerate individual messages\n"
+        "- Ensure messaging aligns with the strategy's messaging framework\n\n"
+        "When messages are reviewed, suggest launching the campaign."
+    ),
+    "campaign": (
+        "You are in the CAMPAIGN phase. Messages have been reviewed and the user "
+        "is ready to launch their outreach campaign.\n\n"
+        "Help the user:\n"
+        "- Configure campaign settings (channels, cadence, timing)\n"
+        "- Review the final contact list and message assignments\n"
+        "- Set expectations for response rates and follow-up\n"
+        "- Launch the campaign or schedule it for later"
+    ),
+}
+
+
+def build_system_prompt(tenant, document, enrichment_data=None, phase=None):
     """Build the system prompt for the playbook AI assistant.
 
     Positions the AI as a GTM strategy consultant with context about the
     tenant's company, their current strategy document, and any enrichment data.
+    Appends phase-specific instructions when phase is given.
 
     Args:
         tenant: Tenant model instance (has .name, .slug).
@@ -172,6 +215,8 @@ def build_system_prompt(tenant, document, enrichment_data=None):
             .objective str).
         enrichment_data: Optional dict of company enrichment data (industry,
             company_intel, etc.) to include as research context.
+        phase: Optional phase string to override document's phase for prompt
+            construction. Does not change the stored phase.
 
     Returns:
         str: System prompt string for the Anthropic API.
@@ -286,6 +331,12 @@ def build_system_prompt(tenant, document, enrichment_data=None):
             "content to add or modify.",
         ]
     )
+
+    # Append phase-specific instructions
+    active_phase = phase or getattr(document, "phase", "strategy") or "strategy"
+    phase_text = PHASE_INSTRUCTIONS.get(active_phase, "")
+    if phase_text:
+        parts.extend(["", "--- Phase-Specific Instructions ---", phase_text])
 
     return "\n".join(parts)
 

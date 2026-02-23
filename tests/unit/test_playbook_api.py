@@ -426,6 +426,155 @@ class TestPlaybookExtract:
         assert data["extracted_data"]["icp"]["industries"] == ["SaaS"]
 
 
+class TestPlaybookPhaseTransition:
+    """Tests for PUT /api/playbook/phase endpoint."""
+
+    def test_forward_blocked_without_extracted_data(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="strategy")
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "contacts"}, headers=headers
+        )
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert "icp" in data["error"].lower() or "extract" in data["error"].lower()
+
+    def test_forward_allowed_with_icp(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            phase="strategy",
+            extracted_data={"icp": {"industries": ["SaaS"]}},
+        )
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "contacts"}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["phase"] == "contacts"
+
+    def test_backward_always_allowed(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="messages")
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "strategy"}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["phase"] == "strategy"
+
+    def test_invalid_phase_rejected(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id)
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "invalid"}, headers=headers
+        )
+        assert resp.status_code == 400
+
+    def test_same_phase_allowed(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="strategy")
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "strategy"}, headers=headers
+        )
+        assert resp.status_code == 200
+
+    def test_contacts_to_messages_blocked_without_selections(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="contacts")
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "messages"}, headers=headers
+        )
+        assert resp.status_code == 422
+
+    def test_skip_phase_requires_all_gates(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        """Skipping from strategy directly to messages should fail (no ICP, no contacts)."""
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(tenant_id=seed_tenant.id, phase="strategy")
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "messages"}, headers=headers
+        )
+        assert resp.status_code == 422
+
+    def test_no_document_returns_404(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.put(
+            "/api/playbook/phase", json={"phase": "contacts"}, headers=headers
+        )
+        assert resp.status_code == 404
+
+    def test_phase_included_in_get_playbook(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
+        """GET /api/playbook response includes phase and playbook_selections."""
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            phase="contacts",
+            playbook_selections={"contacts": {"selected_ids": ["abc"]}},
+        )
+        db.session.add(doc)
+        db.session.commit()
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.get("/api/playbook", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["phase"] == "contacts"
+        assert "playbook_selections" in data
+
+
 class TestPlaybookResearch:
     """Tests for POST/GET /api/playbook/research endpoints."""
 

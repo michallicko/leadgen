@@ -223,6 +223,107 @@ class TestBuildSystemPrompt:
             )
 
 
+class TestPhaseAwarePrompt:
+    def test_default_phase_is_strategy(self):
+        """When no phase is provided, uses strategy phase instructions."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "strategy"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "STRATEGY phase" in prompt
+
+    def test_explicit_phase_overrides_document(self):
+        """Phase parameter overrides the document's stored phase."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "strategy"
+
+        prompt = build_system_prompt(tenant, doc, phase="contacts")
+        assert "CONTACTS phase" in prompt
+        assert "STRATEGY phase" not in prompt
+
+    def test_contacts_phase_instructions(self):
+        """Contacts phase includes ICP filter and contact selection guidance."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "contacts"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "CONTACTS phase" in prompt
+        assert "filter" in prompt.lower() or "select" in prompt.lower()
+
+    def test_messages_phase_instructions(self):
+        """Messages phase includes message review guidance."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "messages"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "MESSAGES phase" in prompt
+
+    def test_campaign_phase_instructions(self):
+        """Campaign phase includes launch guidance."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "campaign"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "CAMPAIGN phase" in prompt
+
+    def test_all_phases_have_instructions(self):
+        """Every phase in PHASE_INSTRUCTIONS produces a non-empty section."""
+        from api.services.playbook_service import PHASE_INSTRUCTIONS
+
+        for phase_name, text in PHASE_INSTRUCTIONS.items():
+            assert len(text) > 50, f"Phase {phase_name} has insufficient instructions"
+
+    def test_unknown_phase_omits_instructions(self):
+        """An unknown phase value does not crash, just omits phase section."""
+        from api.services.playbook_service import build_system_prompt
+        from unittest.mock import MagicMock
+
+        tenant = MagicMock()
+        tenant.name = "Acme"
+        doc = MagicMock()
+        doc.content = ""
+        doc.objective = None
+        doc.phase = "nonexistent"
+
+        prompt = build_system_prompt(tenant, doc)
+        assert "Phase-Specific Instructions" not in prompt
+
+
 class TestBuildMessages:
     def test_formats_correctly(self):
         """Converts chat history to Anthropic API format."""
