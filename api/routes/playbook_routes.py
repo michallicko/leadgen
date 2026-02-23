@@ -336,6 +336,12 @@ def _load_enrichment_data(company_id):
         result["ai_opportunities"] = l2.ai_opportunities
         result["pain_hypothesis"] = l2.pain_hypothesis
         result["quick_wins"] = l2.quick_wins
+        # Phase 1 (BL-054): Add high-value L2 fields for chat context
+        result["pitch_framing"] = l2.pitch_framing
+        result["revenue_trend"] = l2.revenue_trend
+        result["industry_pain_points"] = l2.industry_pain_points
+        result["relevant_case_study"] = l2.relevant_case_study
+        result["enriched_at"] = l2.enriched_at.isoformat() if l2.enriched_at else None
 
     profile = db.session.get(CompanyEnrichmentProfile, company_id)
     if profile:
@@ -806,6 +812,20 @@ def post_chat_message():
     enrichment_data = None
     if doc.enrichment_id:
         enrichment_data = _load_enrichment_data(doc.enrichment_id)
+    else:
+        # BL-054: Fallback — find self-company for the tenant
+        self_company = Company.query.filter_by(
+            tenant_id=tenant_id, is_self=True
+        ).first()
+        if self_company:
+            doc.enrichment_id = self_company.id
+            db.session.commit()
+            enrichment_data = _load_enrichment_data(self_company.id)
+            logger.info(
+                "Self-company fallback: linked company %s to strategy doc %s",
+                self_company.id,
+                doc.id,
+            )
 
     # Determine phase for system prompt (request param overrides doc phase)
     phase = data.get("phase") or doc.phase or "strategy"
