@@ -25,6 +25,8 @@ interface PlaybookChatProps {
   onSendMessage: (message: string) => void
   isStreaming: boolean
   streamingText: string
+  /** Phase-specific placeholder text for the input */
+  placeholder?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +205,7 @@ export function PlaybookChat({
   onSendMessage,
   isStreaming,
   streamingText,
+  placeholder = 'Ask about your strategy...',
 }: PlaybookChatProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -283,7 +286,7 @@ export function PlaybookChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your strategy..."
+            placeholder={placeholder}
             rows={1}
             disabled={isStreaming}
             className="flex-1 resize-none rounded-lg bg-surface-alt border border-border-solid px-3 py-2 text-sm text-text placeholder:text-text-dim focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-colors disabled:opacity-50"

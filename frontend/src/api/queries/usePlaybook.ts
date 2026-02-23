@@ -7,6 +7,8 @@ export interface StrategyDocument {
   objective: string | null
   enrichment_id: string | null
   extracted_data: Record<string, unknown>
+  playbook_selections: Record<string, unknown>
+  phase: string
   status: string
   version: number
   created_at: string
@@ -94,6 +96,17 @@ export function useTriggerResearch() {
       apiFetch<ResearchStatus>('/playbook/research', { method: 'POST', body: data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook', 'research'] })
+    },
+  })
+}
+
+export function useAdvancePhase() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { phase: string }) =>
+      apiFetch<StrategyDocument>('/playbook/phase', { method: 'PUT', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook'] })
     },
   })
 }
