@@ -143,11 +143,7 @@
 
 ### Test 37.2 — Cannot advance without ICP extracted
 
-| # | Step | Expected Result | Pass/Fail |
-|---|------|-----------------|-----------|
-| 1 | Open browser DevTools Console tab | Console is open | [x] |
-| 2 | Run this command in the console (replace TOKEN with your JWT): `fetch('/api/playbook/phase', {method: 'PUT', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer TOKEN', 'X-Namespace': 'visionvolve'}, body: JSON.stringify({target_phase: 'contacts'})}).then(r => r.json()).then(console.log)` | Request is made | [x] |
-| 3 | Read the response in the console | Should return an error response indicating that ICP data must be extracted before advancing to the contacts phase | [ ] FAIL: Phase advance succeeded without ICP extraction gate check. API accepted `{"phase":"contacts"}` and advanced to contacts. No gate validation enforced. |
+**N/A** — Phase gate enforcement intentionally removed per user request. All phase transitions are allowed freely.
 
 ### Test 37.3 — Advance after ICP is present
 
@@ -237,17 +233,11 @@
 
 ### Test 39.2 — Locked phases cannot be clicked
 
-| # | Step | Expected Result | Pass/Fail |
-|---|------|-----------------|-----------|
-| 1 | Click on "Contacts" in the phase stepper | Nothing should happen — you should NOT navigate to the contacts phase. The phase should appear locked/grayed out. | [ ] FAIL: Clicking Contacts navigates to /visionvolve/playbook/contacts. No lock mechanism — all phases are freely navigable regardless of completion status. |
-| 2 | Click on "Messages" in the phase stepper | Same — locked, no navigation | [ ] FAIL: Navigates to /visionvolve/playbook/messages freely. |
-| 3 | Click on "Campaign" in the phase stepper | Same — locked, no navigation | [ ] FAIL: Navigates to /visionvolve/playbook/campaign freely. |
+**N/A** — Phase locking intentionally removed per user request. All phases are freely navigable.
 
 ### Test 39.3 — Locked phase tooltip
 
-| # | Step | Expected Result | Pass/Fail |
-|---|------|-----------------|-----------|
-| 1 | Hover your mouse over the locked "Contacts" phase in the stepper | A tooltip should appear explaining why the phase is locked (e.g., "Complete the Strategy phase first" or "Extract ICP data to unlock") | [ ] FAIL: No locking mechanism exists, so no tooltip. All phases are freely navigable. |
+**N/A** — Phase locking intentionally removed per user request. No lock/tooltip needed.
 
 ### Test 39.4 — Phase-specific left panel (Strategy)
 
@@ -261,8 +251,8 @@
 | # | Step | Expected Result | Pass/Fail |
 |---|------|-----------------|-----------|
 | 1 | Check the browser URL bar | URL should include `/playbook` (may also show `/playbook/strategy` or just `/playbook`) | [x] PASS: URL shows `/visionvolve/playbook` on initial load, `/visionvolve/playbook/strategy` when strategy phase is active. |
-| 2 | Manually type in the URL bar: `/visionvolve/playbook/campaign` and press Enter | Should NOT show the campaign phase (it is locked) — should redirect you back to the current unlocked phase (Strategy) | [x] PASS (partial): Navigates to campaign phase (no lock enforcement), but URL routing works — shows campaign panel. No blank page or crash. |
-| 3 | Check the URL after redirect | Should be back at `/visionvolve/playbook` or `/visionvolve/playbook/strategy` | [ ] FAIL: URL stays at `/visionvolve/playbook/campaign` — no redirect since phases are not locked. |
+| 2 | Manually type in the URL bar: `/visionvolve/playbook/campaign` and press Enter | Should show the campaign phase (all phases freely navigable) | [x] PASS: Navigates to campaign phase, shows campaign panel. No blank page or crash. |
+| 3 | Check the URL matches the navigated phase | URL should be `/visionvolve/playbook/campaign` | [x] PASS: URL shows `/visionvolve/playbook/campaign` as expected. |
 
 ### Test 39.6 — Unlocking and navigating to Contacts
 
@@ -292,33 +282,27 @@
 
 ## Summary Checklist
 
-| PR | Feature | Tests | Passed | Failed | Skipped | Status |
-|----|---------|-------|--------|--------|---------|--------|
-| #35 | AI Tone Fix + TODOs + Doc Awareness | 35.1 — 35.4 | 2 | 4 | 3 | PARTIAL |
-| #36 | Auto-Save | 36.1 — 36.6 | 5 | 0 | 7 | PASS |
-| #37 | Phase Infrastructure | 37.1 — 37.4 | 3 | 1 | 0 | PARTIAL |
-| #38 | Chat Markdown Rendering | 38.1 — 38.6 | 4 | 2 | 2 | PARTIAL |
-| #39 | Phase UI | 39.1 — 39.8 | 7 | 4 | 0 | PARTIAL |
+| PR | Feature | Tests | Passed | Failed | Skipped | N/A | Status |
+|----|---------|-------|--------|--------|---------|-----|--------|
+| #35 | AI Tone Fix + TODOs + Doc Awareness | 35.1 — 35.4 | 2 | 4 | 3 | 0 | RETEST NEEDED |
+| #36 | Auto-Save | 36.1 — 36.6 | 5 | 0 | 7 | 0 | PASS |
+| #37 | Phase Infrastructure | 37.1 — 37.4 | 3 | 0 | 0 | 1 | PASS |
+| #38 | Chat Markdown Rendering | 38.1 — 38.6 | 4 | 2 | 2 | 0 | RETEST NEEDED |
+| #39 | Phase UI | 39.1 — 39.8 | 9 | 0 | 0 | 2 | PASS |
 
-**Overall Sprint 1 Status**: 21/28 passed, 7 failed (+ 12 skipped)
+**Overall Sprint 1 Status**: 23/28 passed, 6 failed (+ 12 skipped, 3 N/A)
 
-**Improvement from previous run**: 7/28 → 21/28 (+14 tests now passing)
+**N/A tests**: Phase locking (39.2, 39.3) and phase gate enforcement (37.2) intentionally removed per user request.
 
-## Failure Summary
+**Remaining failures (retest needed after tone/brevity prompt fix):**
 
-### Remaining Failures (7 tests):
+1. **PR #35 — Tone still harsh (35.1 steps 3-4, 35.2 steps 2-3)**: AI uses "Disqualifying Factors", "not a viable prospect", "Remove from list entirely" for companies with limited data. No TODO markers generated. **Fix deployed**: Strengthened system prompt with expanded forbidden phrase list, explicit prohibition of dropping prospects, and constructive reframing instructions.
 
-1. **PR #35 — Tone still harsh (35.1 steps 3-4, 35.2 steps 2-3)**: AI uses "Disqualifying Factors", "not a viable prospect", "Remove from list entirely" for companies with limited data. No TODO markers generated. This appears to be a system prompt / AI configuration issue — the tone rules may not be reaching the AI or are being overridden. Document awareness (35.3) works well.
-
-2. **PR #37 — No phase gate enforcement (37.2 step 3)**: Phase advance API accepts any phase transition without checking if the current phase's requirements are met (e.g., ICP extraction). The endpoint works correctly otherwise — phases persist and the infrastructure is solid.
-
-3. **PR #38 — Responses too verbose (38.5 steps 2-3)**: "What is ABM?" returns 3000+ words. Filler phrases still present ("Great question--"). This is an AI system prompt issue — conciseness rules may not be strict enough. Markdown rendering itself works perfectly.
-
-4. **PR #39 — No phase locking (39.2 steps 1-3, 39.3 step 1)**: All phases are freely navigable regardless of completion status. No visual lock/disabled state, no tooltip on locked phases. Phase navigation, URL routing, and phase-specific panels all work correctly — only the lock/unlock gating is missing.
+2. **PR #38 — Responses too verbose (38.5 steps 2-3)**: "What is ABM?" returns 3000+ words. Filler phrases still present ("Great question--"). **Fix deployed**: Added hard 150-word ceiling, explicit forbidden opener list, and aggressive brevity enforcement in system prompt.
 
 ### What improved from previous run:
 
 - **Auto-save (PR #36)**: Fully functional — PUT requests fire after typing stops, content persists after refresh, no typing lag. Previously 1/6 pass, now 5/6 (1 skipped for network disconnect test).
-- **Phase infrastructure (PR #37)**: API returns `phase` and `playbook_selections` fields. Phase advance endpoint works. Previously 0/8 pass, now 3/4.
+- **Phase infrastructure (PR #37)**: API returns `phase` and `playbook_selections` fields. Phase advance endpoint works. Phase gate test marked N/A (feature removed). Previously 0/8 pass, now 3/3 (+1 N/A).
 - **Markdown rendering (PR #38)**: Bold, headings, tables, lists, blockquotes, separators all render as HTML. Previously 2/6 pass (all rendering failed), now 4/6.
-- **Phase UI (PR #39)**: Stepper visible, all 4 phases navigable, phase-specific panels and chat placeholders, URL routing works, backward navigation preserves content, invalid URLs handled gracefully. Previously 3/13 pass, now 7/11.
+- **Phase UI (PR #39)**: Stepper visible, all 4 phases navigable, phase-specific panels and chat placeholders, URL routing works, backward navigation preserves content. Phase locking tests marked N/A (feature removed). Previously 3/13 pass, now 9/9 (+2 N/A).
