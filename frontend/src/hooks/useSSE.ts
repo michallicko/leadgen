@@ -14,22 +14,41 @@ export interface ToolCallSummary {
   status: 'success' | 'error'
 }
 
+/** Payload from a `tool_start` SSE event. */
+export interface ToolStartEvent {
+  toolCallId: string
+  toolName: string
+  input: Record<string, unknown>
+}
+
 /** Payload from a `tool_result` SSE event. */
 export interface ToolResultEvent {
   toolCallId: string
+  toolName?: string
   status: 'success' | 'error'
   summary: string
+  output?: Record<string, unknown>
   durationMs: number
+}
+
+/** Payload from the enhanced `done` event. */
+export interface DoneEventData {
+  messageId: string
+  toolCalls?: ToolCallSummary[]
+  documentChanged?: boolean
+  changesSummary?: string | null
 }
 
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
-  onDone: (messageId: string, toolCalls?: ToolCallSummary[]) => void
+  onDone: (data: DoneEventData) => void
   onError: (error: Error) => void
   /** Fired when the AI starts executing a tool. */
-  onToolStart?: (toolName: string, toolCallId: string) => void
+  onToolStart?: (event: ToolStartEvent) => void
   /** Fired when a tool execution completes (success or error). */
   onToolResult?: (result: ToolResultEvent) => void
+  /** Fired when the AI emits a thinking/reasoning block (v2/optional). */
+  onThinking?: (text: string) => void
 }
 
 interface UseSSEReturn {
@@ -66,6 +85,43 @@ function parseSSEEvent(block: string): Record<string, unknown> | null {
     return JSON.parse(data) as Record<string, unknown>
   } catch {
     return null
+  }
+}
+
+/**
+ * Dispatch a parsed SSE event to the appropriate callback.
+ */
+function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallbacks): void {
+  const eventType = event.type as string | undefined
+
+  if (eventType === 'chunk') {
+    callbacks.onChunk(event.text as string)
+  } else if (eventType === 'done') {
+    callbacks.onDone({
+      messageId: event.message_id as string,
+      toolCalls: event.tool_calls as ToolCallSummary[] | undefined,
+      documentChanged: event.document_changed as boolean | undefined,
+      changesSummary: event.changes_summary as string | null | undefined,
+    })
+  } else if (eventType === 'error') {
+    callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
+  } else if (eventType === 'tool_start') {
+    callbacks.onToolStart?.({
+      toolCallId: event.tool_call_id as string,
+      toolName: event.tool_name as string,
+      input: (event.input as Record<string, unknown>) ?? {},
+    })
+  } else if (eventType === 'tool_result') {
+    callbacks.onToolResult?.({
+      toolCallId: event.tool_call_id as string,
+      toolName: event.tool_name as string | undefined,
+      status: event.status as 'success' | 'error',
+      summary: event.summary as string,
+      output: event.output as Record<string, unknown> | undefined,
+      durationMs: event.duration_ms as number,
+    })
+  } else if (eventType === 'thinking') {
+    callbacks.onThinking?.((event.text as string) ?? '')
   }
 }
 
@@ -148,30 +204,7 @@ export function useSSE(): UseSSEReturn {
             const event = parseSSEEvent(trimmed)
             if (!event) continue
 
-            const eventType = event.type as string | undefined
-
-            if (eventType === 'chunk') {
-              callbacks.onChunk(event.text as string)
-            } else if (eventType === 'done') {
-              callbacks.onDone(
-                event.message_id as string,
-                event.tool_calls as ToolCallSummary[] | undefined,
-              )
-            } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
-            } else if (eventType === 'tool_start') {
-              callbacks.onToolStart?.(
-                event.tool_name as string,
-                event.tool_call_id as string,
-              )
-            } else if (eventType === 'tool_result') {
-              callbacks.onToolResult?.({
-                toolCallId: event.tool_call_id as string,
-                status: event.status as 'success' | 'error',
-                summary: event.summary as string,
-                durationMs: event.duration_ms as number,
-              })
-            }
+            dispatchEvent(event, callbacks)
           }
         }
 
@@ -179,29 +212,7 @@ export function useSSE(): UseSSEReturn {
         if (buffer.trim()) {
           const event = parseSSEEvent(buffer.trim())
           if (event) {
-            const eventType = event.type as string | undefined
-            if (eventType === 'chunk') {
-              callbacks.onChunk(event.text as string)
-            } else if (eventType === 'done') {
-              callbacks.onDone(
-                event.message_id as string,
-                event.tool_calls as ToolCallSummary[] | undefined,
-              )
-            } else if (eventType === 'error') {
-              callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
-            } else if (eventType === 'tool_start') {
-              callbacks.onToolStart?.(
-                event.tool_name as string,
-                event.tool_call_id as string,
-              )
-            } else if (eventType === 'tool_result') {
-              callbacks.onToolResult?.({
-                toolCallId: event.tool_call_id as string,
-                status: event.status as 'success' | 'error',
-                summary: event.summary as string,
-                durationMs: event.duration_ms as number,
-              })
-            }
+            dispatchEvent(event, callbacks)
           }
         }
       } catch (err: unknown) {

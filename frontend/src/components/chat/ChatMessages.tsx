@@ -3,11 +3,18 @@
  * and the global sliding ChatPanel.
  *
  * Contains: MessageBubble, StreamingBubble, EmptyState, ChatSkeleton.
+ *
+ * THINK feature: MessageBubble renders ToolCallCards above the
+ * message text when message.extra.tool_calls is present (AC-6).
+ * In-flight tool calls and thinking indicator are rendered between
+ * persisted messages and the streaming bubble.
  */
 
 import { useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
+import { ThinkingIndicator } from '../playbook/ThinkingIndicator'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +24,7 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  extra?: Record<string, unknown>
   created_at: string
   page_context?: string | null
   thread_start?: boolean
@@ -27,6 +35,10 @@ interface ChatMessagesProps {
   isStreaming: boolean
   streamingText: string
   isLoading?: boolean
+  /** THINK: in-flight tool calls from the current agent turn */
+  toolCalls?: ToolCallEvent[]
+  /** THINK: show thinking indicator before first tool_start or chunk */
+  isThinking?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +99,27 @@ function formatTime(iso: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Extract persisted tool calls from message extra/metadata (AC-6)
+// ---------------------------------------------------------------------------
+
+function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
+  const extra = message.extra
+  if (!extra || !Array.isArray(extra.tool_calls) || extra.tool_calls.length === 0) {
+    return null
+  }
+
+  return (extra.tool_calls as Array<Record<string, unknown>>).map((tc, idx) => ({
+    tool_call_id: (tc.tool_call_id as string) || (tc.id as string) || `persisted-${idx}`,
+    tool_name: (tc.tool_name as string) || (tc.name as string) || 'unknown',
+    input: (tc.input_args as Record<string, unknown>) || (tc.input as Record<string, unknown>) || {},
+    status: ((tc.status as string) === 'error' ? 'error' : 'success') as 'success' | 'error',
+    summary: (tc.summary as string) || undefined,
+    output: (tc.output_data as Record<string, unknown>) || (tc.output as Record<string, unknown>) || undefined,
+    duration_ms: (tc.duration_ms as number) || undefined,
+  }))
+}
+
+// ---------------------------------------------------------------------------
 // Message bubble
 // ---------------------------------------------------------------------------
 
@@ -95,6 +128,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
   // Don't render system messages (thread boundaries)
   if (message.role === 'system') return null
+
+  // AC-6: Render persisted tool calls from message metadata
+  const persistedToolCalls = !isUser ? getPersistedToolCalls(message) : null
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -110,28 +146,38 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
 
       {/* Content */}
-      <div
-        className={`max-w-[80%] rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
-          isUser
-            ? 'bg-accent/15 text-text border border-accent/20'
-            : 'bg-surface-alt text-text border border-border-solid'
-        }`}
-      >
-        {isUser ? (
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
-        ) : (
-          <div className="chat-markdown break-words">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content}
-            </ReactMarkdown>
+      <div className="max-w-[80%] flex flex-col gap-1.5">
+        {/* Tool call cards (above the text, for assistant messages) */}
+        {persistedToolCalls && (
+          <div className="mb-1">
+            <ToolCallCardList toolCalls={persistedToolCalls} />
           </div>
         )}
+
+        {/* Text bubble */}
         <div
-          className={`text-[11px] mt-1.5 ${
-            isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+          className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
+            isUser
+              ? 'bg-accent/15 text-text border border-accent/20'
+              : 'bg-surface-alt text-text border border-border-solid'
           }`}
         >
-          {formatTime(message.created_at)}
+          {isUser ? (
+            <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          ) : (
+            <div className="chat-markdown break-words">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
+          <div
+            className={`text-[11px] mt-1.5 ${
+              isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+            }`}
+          >
+            {formatTime(message.created_at)}
+          </div>
         </div>
       </div>
     </div>
@@ -221,16 +267,18 @@ export function ChatMessages({
   isStreaming,
   streamingText,
   isLoading = false,
+  toolCalls = [],
+  isThinking = false,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom on new messages or streaming text changes
+  // Auto-scroll to bottom on new messages, streaming text, or tool call changes
   useEffect(() => {
     const el = scrollRef.current
     if (el) {
       el.scrollTop = el.scrollHeight
     }
-  }, [messages, streamingText])
+  }, [messages, streamingText, toolCalls, isThinking])
 
   if (isLoading) {
     return (
@@ -242,7 +290,7 @@ export function ChatMessages({
 
   // Filter out system messages for display
   const displayMessages = messages.filter((m) => m.role !== 'system')
-  const hasContent = displayMessages.length > 0 || isStreaming
+  const hasContent = displayMessages.length > 0 || isStreaming || isThinking || toolCalls.length > 0
 
   return (
     <div
@@ -255,6 +303,17 @@ export function ChatMessages({
         <MessageBubble key={msg.id} message={msg} />
       ))}
 
+      {/* THINK: Thinking indicator (AC-1: before first tool_start or chunk) */}
+      {isThinking && <ThinkingIndicator />}
+
+      {/* THINK: In-flight tool call cards (AC-2, AC-4) */}
+      {toolCalls.length > 0 && (
+        <div className="ml-10">
+          <ToolCallCardList toolCalls={toolCalls} />
+        </div>
+      )}
+
+      {/* Streaming text bubble */}
       {isStreaming && streamingText && <StreamingBubble text={streamingText} />}
     </div>
   )

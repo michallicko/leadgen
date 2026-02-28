@@ -48,7 +48,7 @@ class ToolExecutionRecord:
     duration_ms: Optional[int] = None
 
 
-def _truncate(text, max_len=500):
+def _truncate(text, max_len=2048):
     """Truncate a string with an ellipsis marker."""
     if len(text) <= max_len:
         return text
@@ -229,12 +229,13 @@ def execute_agent_turn(
             tool_id = tool_block["id"]
             tool_input = tool_block.get("input", {})
 
-            # Yield tool_start event
+            # Yield tool_start event (includes input for THINK UI)
             yield SSEEvent(
                 type="tool_start",
                 data={
                     "tool_name": tool_name,
                     "tool_call_id": tool_id,
+                    "input": tool_input,
                 },
             )
 
@@ -255,11 +256,12 @@ def execute_agent_turn(
                 type="tool_result",
                 data={
                     "tool_call_id": tool_id,
+                    "tool_name": tool_name,
                     "status": "error" if exec_record.is_error else "success",
                     "summary": exec_record.error_message
                     if exec_record.is_error
                     else _summarize_output(tool_name, exec_record.output),
-                    "output": _truncate(output_str, 500),
+                    "output": _truncate(output_str, 2048),
                     "duration_ms": exec_record.duration_ms,
                 },
             )
