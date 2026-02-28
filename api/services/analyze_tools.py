@@ -216,13 +216,15 @@ def list_contacts(args: dict, ctx: ToolContext) -> dict:
         name_parts = [row[0] or ""]
         if row[1]:
             name_parts.append(row[1])
-        contacts.append({
-            "name": " ".join(name_parts).strip(),
-            "email": row[2] or None,
-            "company_name": row[3] or None,
-            "tags": [row[4]] if row[4] else [],
-            "enrichment_status": row[5] or None,
-        })
+        contacts.append(
+            {
+                "name": " ".join(name_parts).strip(),
+                "email": row[2] or None,
+                "company_name": row[3] or None,
+                "tags": [row[4]] if row[4] else [],
+                "enrichment_status": row[5] or None,
+            }
+        )
 
     return {
         "contacts": contacts,
@@ -275,14 +277,16 @@ def list_companies(args: dict, ctx: ToolContext) -> dict:
 
     companies = []
     for row in rows:
-        companies.append({
-            "name": row[0] or "",
-            "status": row[1] or None,
-            "tier": row[2] or None,
-            "industry": row[3] or None,
-            "tags": [row[4]] if row[4] else [],
-            "contact_count": row[5] or 0,
-        })
+        companies.append(
+            {
+                "name": row[0] or "",
+                "status": row[1] or None,
+                "tier": row[2] or None,
+                "industry": row[3] or None,
+                "tags": [row[4]] if row[4] else [],
+                "contact_count": row[5] or 0,
+            }
+        )
 
     return {
         "companies": companies,
