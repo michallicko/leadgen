@@ -2,6 +2,7 @@ import { useMemo, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { FilterBar, type FilterConfig } from '../../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../../api/queries/useMessages'
+import { apiDownload } from '../../../api/client'
 import { useToast } from '../../../components/ui/Toast'
 import { ContactGroup } from '../../messages/ContactGroup'
 import { CampaignMessagesGrid } from '../../../components/campaign/CampaignMessagesGrid'
@@ -138,6 +139,19 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
     }
   }, [])
 
+  const [isExporting, setIsExporting] = useState(false)
+  const handleExportCsv = useCallback(async () => {
+    setIsExporting(true)
+    try {
+      await apiDownload(`/campaigns/${campaignId}/messages/export-csv`, { status: 'approved' })
+      toast('CSV exported', 'success')
+    } catch {
+      toast('Export failed', 'error')
+    } finally {
+      setIsExporting(false)
+    }
+  }, [campaignId, toast])
+
   const filterConfigs: FilterConfig[] = useMemo(() => [
     { key: 'status', label: 'Status', type: 'select' as const, options: filterOptions(REVIEW_STATUS_DISPLAY) },
     { key: 'channel', label: 'Channel', type: 'select' as const, options: CHANNEL_OPTIONS },
@@ -167,6 +181,14 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
                 </button>
               </>
             )}
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting || totalMessages === 0}
+              className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt disabled:opacity-50 transition-colors"
+              title="Export approved messages as CSV"
+            >
+              {isExporting ? 'Exporting...' : 'Export CSV'}
+            </button>
           </div>
         </div>
 
@@ -227,6 +249,14 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
                 Approve All A ({allDraftAIds.length})
               </button>
             )}
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting || totalMessages === 0}
+              className="px-3 py-1.5 text-xs bg-surface border border-border text-text rounded-md hover:bg-surface-alt disabled:opacity-50 transition-colors"
+              title="Export approved messages as CSV"
+            >
+              {isExporting ? 'Exporting...' : 'Export CSV'}
+            </button>
           </div>
         }
       />

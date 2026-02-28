@@ -252,6 +252,61 @@ export async function apiUpload<T = unknown>(
 }
 
 /**
+ * Download a file from the API. Handles auth and triggers browser download.
+ */
+export async function apiDownload(
+  path: string,
+  params?: Record<string, string>,
+): Promise<void> {
+  let url = `${API_BASE}${path}`
+  if (params) {
+    const qs = new URLSearchParams(params)
+    url += `?${qs.toString()}`
+  }
+
+  let token = getAccessToken()
+  if (token && isTokenExpired(token)) {
+    try {
+      token = await refreshAccessToken()
+    } catch {
+      clearTokens()
+      window.location.href = '/'
+      throw new ApiError('Session expired', 401)
+    }
+  }
+
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const ns = getNamespaceFromPath()
+  if (ns) {
+    headers['X-Namespace'] = ns
+  }
+
+  const resp = await fetch(url, { headers })
+  if (!resp.ok) {
+    throw new ApiError(`Download failed (${resp.status})`, resp.status)
+  }
+
+  const blob = await resp.blob()
+  const disposition = resp.headers.get('Content-Disposition')
+  let filename = 'download'
+  if (disposition) {
+    const match = disposition.match(/filename="?([^"]+)"?/)
+    if (match) filename = match[1]
+  }
+
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(a.href)
+}
+
+/**
  * Login — returns user data and stores tokens.
  */
 export async function login(

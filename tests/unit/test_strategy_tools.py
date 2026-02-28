@@ -90,6 +90,21 @@ def strategy_doc(db, seed_tenant):
 
 
 @pytest.fixture
+def blank_doc(db, seed_tenant):
+    """Create a strategy document with blank/empty content."""
+    doc = StrategyDocument(
+        tenant_id=seed_tenant.id,
+        content="",
+        extracted_data=json.dumps({}),
+        status="draft",
+        version=1,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    return doc
+
+
+@pytest.fixture
 def tool_ctx(seed_tenant, seed_super_admin):
     """Create a ToolContext for tool handler tests."""
     return ToolContext(
@@ -282,6 +297,79 @@ class TestUpdateStrategySection:
             ).first()
             assert snap.turn_id == tool_ctx.turn_id
 
+    def test_creates_section_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-089: update_strategy_section on blank doc creates the section."""
+        with app.app_context():
+            result = update_strategy_section(
+                {"section": "Executive Summary", "content": "Brand new summary."},
+                tool_ctx,
+            )
+            assert result.get("success") is True
+            assert result["version"] == 2
+
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            assert "## Executive Summary" in doc.content
+            assert "Brand new summary." in doc.content
+
+    def test_creates_multiple_sections_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-089: multiple sections can be added to an initially blank doc."""
+        with app.app_context():
+            update_strategy_section(
+                {"section": "Executive Summary", "content": "Summary here."},
+                tool_ctx,
+            )
+            update_strategy_section(
+                {"section": "Channel Strategy", "content": "LinkedIn outreach."},
+                tool_ctx,
+            )
+
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            assert "## Executive Summary" in doc.content
+            assert "Summary here." in doc.content
+            assert "## Channel Strategy" in doc.content
+            assert "LinkedIn outreach." in doc.content
+
+    def test_creates_section_on_doc_with_partial_content(self, app, db, blank_doc, tool_ctx):
+        """BL-089: add a missing section to a doc that already has some sections."""
+        with app.app_context():
+            # Seed doc with one section
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            doc.content = "## Executive Summary\n\nExisting summary.\n"
+            db.session.commit()
+
+            # Add a section that doesn't exist yet
+            result = update_strategy_section(
+                {"section": "Channel Strategy", "content": "Email and LinkedIn."},
+                tool_ctx,
+            )
+            assert result.get("success") is True
+
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            assert "Existing summary." in doc.content
+            assert "## Channel Strategy" in doc.content
+            assert "Email and LinkedIn." in doc.content
+
+    def test_creates_snapshot_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-089: snapshot is created even when appending to blank doc."""
+        with app.app_context():
+            update_strategy_section(
+                {"section": "Executive Summary", "content": "New content."},
+                tool_ctx,
+            )
+            snap = StrategyVersion.query.filter_by(
+                document_id=blank_doc.id
+            ).first()
+            assert snap is not None
+            assert snap.content == ""  # snapshot of the blank state
+
 
 # ---------------------------------------------------------------------------
 # set_extracted_field tests
@@ -366,6 +454,39 @@ class TestAppendToSection:
             ).first()
             assert snap is not None
             assert snap.version == 1
+
+    def test_creates_section_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-089: append_to_section on blank doc creates the section."""
+        with app.app_context():
+            result = append_to_section(
+                {"section": "Buyer Personas", "content": "**CTO**: Drives tech decisions."},
+                tool_ctx,
+            )
+            assert result.get("success") is True
+
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            assert "## Buyer Personas" in doc.content
+            assert "CTO" in doc.content
+
+    def test_append_creates_then_appends(self, app, blank_doc, tool_ctx):
+        """BL-089: first append creates section, second append adds to it."""
+        with app.app_context():
+            append_to_section(
+                {"section": "Buyer Personas", "content": "**CTO**: Tech leader."},
+                tool_ctx,
+            )
+            append_to_section(
+                {"section": "Buyer Personas", "content": "**VP Sales**: Revenue driver."},
+                tool_ctx,
+            )
+
+            doc = StrategyDocument.query.filter_by(
+                tenant_id=tool_ctx.tenant_id
+            ).first()
+            assert "CTO" in doc.content
+            assert "VP Sales" in doc.content
 
 
 # ---------------------------------------------------------------------------

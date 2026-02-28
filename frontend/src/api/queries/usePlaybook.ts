@@ -45,7 +45,7 @@ export function usePlaybookDocument() {
 
 export function useSavePlaybook() {
   return useMutation({
-    mutationFn: (data: { content: string }) =>
+    mutationFn: (data: { content?: string; objective?: string }) =>
       apiFetch<StrategyDocument>('/playbook', { method: 'PUT', body: data }),
   })
 }

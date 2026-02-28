@@ -197,23 +197,30 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
             )
         }
 
-    bounds = _find_section(doc_content, section)
-    if bounds is None:
-        return {
-            "error": "Section '{}' heading not found in document. "
-            "The document may have a different structure.".format(section)
-        }
-
-    start, end = bounds
-
     # Create snapshot before edit
     _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
 
     previous_version = doc.version
 
-    # Replace section body
-    new_body = "\n" + new_content.strip() + "\n\n"
-    doc.content = doc_content[:start] + new_body + doc_content[end:]
+    bounds = _find_section(doc_content, section)
+    if bounds is None:
+        # Section heading not found — append new section to end of document
+        separator = "\n\n" if doc_content.strip() else ""
+        doc.content = (
+            doc_content.rstrip()
+            + separator
+            + "## "
+            + section
+            + "\n\n"
+            + new_content.strip()
+            + "\n"
+        )
+    else:
+        start, end = bounds
+        # Replace section body
+        new_body = "\n" + new_content.strip() + "\n\n"
+        doc.content = doc_content[:start] + new_body + doc_content[end:]
+
     doc.version += 1
     doc.updated_by = ctx.user_id
     db.session.commit()
@@ -289,21 +296,31 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
             )
         }
 
-    bounds = _find_section(doc_content, section)
-    if bounds is None:
-        return {"error": "Section '{}' heading not found in document.".format(section)}
-
-    start, end = bounds
-
     # Create snapshot before edit
     _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
 
     previous_version = doc.version
 
-    # Append to section (after existing content, before trailing whitespace)
-    existing = doc_content[start:end].rstrip()
-    new_body = existing + "\n\n" + new_content.strip() + "\n\n"
-    doc.content = doc_content[:start] + new_body + doc_content[end:]
+    bounds = _find_section(doc_content, section)
+    if bounds is None:
+        # Section heading not found — append new section to end of document
+        separator = "\n\n" if doc_content.strip() else ""
+        doc.content = (
+            doc_content.rstrip()
+            + separator
+            + "## "
+            + section
+            + "\n\n"
+            + new_content.strip()
+            + "\n"
+        )
+    else:
+        start, end = bounds
+        # Append to section (after existing content, before trailing whitespace)
+        existing = doc_content[start:end].rstrip()
+        new_body = existing + "\n\n" + new_content.strip() + "\n\n"
+        doc.content = doc_content[:start] + new_body + doc_content[end:]
+
     doc.version += 1
     doc.updated_by = ctx.user_id
     db.session.commit()

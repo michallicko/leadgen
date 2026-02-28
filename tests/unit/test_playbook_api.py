@@ -107,6 +107,44 @@ class TestUpdatePlaybook:
         assert data["version"] == 2
         assert data["content"] == "# Strategy"
 
+    def test_save_objective_only(self, client, seed_tenant, seed_super_admin, db):
+        """PUT /api/playbook with only objective saves it without changing content."""
+        from api.models import StrategyDocument
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id, content="existing content", version=1
+        )
+        db.session.add(doc)
+        db.session.commit()
+        resp = client.put("/api/playbook", json={
+            "objective": "Generate leads in DACH",
+        }, headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["objective"] == "Generate leads in DACH"
+        assert data["content"] == "existing content"
+        # Version should NOT increment when only objective changes
+        assert data["version"] == 1
+
+    def test_save_content_and_objective(self, client, seed_tenant, seed_super_admin, db):
+        """PUT /api/playbook with both content and objective saves both."""
+        from api.models import StrategyDocument
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        doc = StrategyDocument(tenant_id=seed_tenant.id, version=1)
+        db.session.add(doc)
+        db.session.commit()
+        resp = client.put("/api/playbook", json={
+            "content": "# New content",
+            "objective": "Generate leads in DACH",
+        }, headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["content"] == "# New content"
+        assert data["objective"] == "Generate leads in DACH"
+        assert data["version"] == 2
+
 
 class TestPlaybookChat:
     def test_get_empty_chat_history(self, client, seed_tenant, seed_super_admin):

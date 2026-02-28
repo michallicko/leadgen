@@ -20,7 +20,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat } from '../../components/playbook/PlaybookChat'
-import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
+import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -125,6 +125,7 @@ export function PlaybookPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -344,6 +345,58 @@ export function PlaybookPage() {
   }, [undoMutation, docQuery, toast])
 
   // ---------------------------------------------------------------------------
+  // Onboarding: generate strategy via AI chat
+  // ---------------------------------------------------------------------------
+
+  const handleOnboardGenerate = useCallback(
+    async (payload: OnboardingPayload) => {
+      // Save objective to the document
+      try {
+        await saveMutation.mutateAsync({ objective: payload.objective })
+      } catch {
+        // Objective save failed — continue anyway, AI will still work
+      }
+
+      // Build a crafted prompt for the AI to generate the strategy
+      const parts = [
+        `Generate a complete GTM strategy playbook for my company (${payload.domain}).`,
+        `Our primary objective: ${payload.objective}.`,
+      ]
+      if (payload.icp) {
+        parts.push(`Our ideal customer: ${payload.icp}.`)
+      }
+      parts.push(
+        'Draft all sections of the strategy document using the update_strategy_section tool. ' +
+          'Fill in each section with specific, actionable content based on the information I provided.',
+      )
+
+      sendMessage(parts.join(' '))
+
+      // Exit onboarding gate immediately — the chat panel is visible in the
+      // main split view so the user can follow the AI's progress there
+      setSkipped(true)
+      setShowSuggestions(true)
+    },
+    [sendMessage, saveMutation],
+  )
+
+  // Wrap sendMessage to dismiss suggestions on first user follow-up
+  const handleSendWithSuggestionDismiss = useCallback(
+    (text: string) => {
+      setShowSuggestions(false)
+      sendMessage(text)
+    },
+    [sendMessage],
+  )
+
+  const ONBOARDING_SUGGESTIONS = [
+    'Refine my ICP criteria',
+    'Add more buyer personas',
+    'Strengthen the value proposition',
+    'Suggest outreach channels',
+  ]
+
+  // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
 
@@ -384,21 +437,18 @@ export function PlaybookPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Onboarding gate -- show if no enrichment data and user hasn't skipped
+  // Onboarding gate -- show if doc is blank (no content) and user hasn't skipped
   // ---------------------------------------------------------------------------
 
-  const needsOnboarding = docQuery.data && !docQuery.data.enrichment_id
+  const docContent = docQuery.data?.content || ''
+  const needsOnboarding = docQuery.data && !docContent.trim()
 
   if (needsOnboarding && !skipped) {
     return (
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
-        onComplete={() => {
-          // Invalidate the document query so it re-fetches with seeded content.
-          // Only invalidate ['playbook'] exactly -- NOT ['playbook', 'research']
-          // which would cause the onboarding to skip prematurely (see 8ac309b).
-          queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
-        }}
+        onGenerate={handleOnboardGenerate}
+        isGenerating={isStreaming}
       />
     )
   }
@@ -521,7 +571,7 @@ export function PlaybookPage() {
         <div className="flex-[2] min-w-0 flex flex-col min-h-0">
           <PlaybookChat
             messages={messages}
-            onSendMessage={sendMessage}
+            onSendMessage={handleSendWithSuggestionDismiss}
             isStreaming={isStreaming}
             streamingText={streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
@@ -530,6 +580,7 @@ export function PlaybookPage() {
             inputRef={chatInputRef}
             toolCalls={toolCalls}
             isThinking={isThinking}
+            suggestions={showSuggestions ? ONBOARDING_SUGGESTIONS : []}
           />
         </div>
       </div>
