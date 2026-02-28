@@ -1,7 +1,9 @@
+import csv
+import io
 import json
 import logging
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
@@ -964,6 +966,60 @@ def generation_cost_estimate(campaign_id):
         return jsonify({"error": "No enabled message steps"}), 400
 
     estimate = estimate_generation_cost(template_config, total_contacts)
+
+    # Enrichment gap analysis — find contacts missing key stages
+    gap_rows = db.session.execute(
+        db.text("""
+            SELECT
+                cc.contact_id,
+                ct.first_name, ct.last_name, ct.company_id,
+                (SELECT COUNT(*) FROM entity_stage_completions esc
+                 WHERE esc.entity_id = ct.company_id
+                   AND esc.entity_type = 'company'
+                   AND esc.stage = 'l2_deep_research'
+                   AND esc.status = 'completed'
+                   AND esc.tenant_id = :t
+                ) AS l2_done,
+                (SELECT COUNT(*) FROM entity_stage_completions esc
+                 WHERE esc.entity_id = cc.contact_id
+                   AND esc.entity_type = 'contact'
+                   AND esc.stage = 'person_enrichment'
+                   AND esc.status = 'completed'
+                   AND esc.tenant_id = :t
+                ) AS person_done
+            FROM campaign_contacts cc
+            JOIN contacts ct ON cc.contact_id = ct.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+              AND cc.status NOT IN ('excluded')
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    unenriched = []
+    for r in gap_rows:
+        missing = []
+        if r[4] == 0:
+            missing.append("l2_deep_research")
+        if r[5] == 0:
+            missing.append("person_enrichment")
+        if missing:
+            name = f"{r[1] or ''} {r[2] or ''}".strip() or "Unknown"
+            unenriched.append(
+                {
+                    "contact_id": str(r[0]),
+                    "name": name,
+                    "missing_stages": missing,
+                }
+            )
+
+    enriched_count = len(gap_rows) - len(unenriched)
+    estimate["enrichment_gaps"] = {
+        "total_contacts": len(gap_rows),
+        "enriched_contacts": enriched_count,
+        "unenriched_contacts": len(unenriched),
+        "gap_details": unenriched,
+    }
+
     return jsonify(estimate)
 
 
@@ -1003,6 +1059,55 @@ def start_campaign_generation(campaign_id):
     enabled = [s for s in template_config if s.get("enabled")]
     if not enabled:
         return jsonify({"error": "No enabled message steps"}), 400
+
+    # Handle skip_unenriched flag
+    body = request.get_json(silent=True) or {}
+    skip_unenriched = body.get("skip_unenriched", False)
+
+    if skip_unenriched:
+        # Exclude contacts without completed enrichment stages
+        enriched_ids = db.session.execute(
+            db.text("""
+                SELECT cc.contact_id
+                FROM campaign_contacts cc
+                JOIN contacts ct ON cc.contact_id = ct.id
+                WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+                  AND cc.status NOT IN ('excluded')
+                  AND EXISTS (
+                      SELECT 1 FROM entity_stage_completions esc
+                      WHERE esc.entity_id = cc.contact_id
+                        AND esc.entity_type = 'contact'
+                        AND esc.stage = 'person_enrichment'
+                        AND esc.status = 'completed'
+                        AND esc.tenant_id = :t
+                  )
+            """),
+            {"cid": campaign_id, "t": tenant_id},
+        ).fetchall()
+
+        enriched_contact_ids = [str(r[0]) for r in enriched_ids]
+
+        if not enriched_contact_ids:
+            return jsonify({"error": "No enriched contacts to generate for"}), 400
+
+        # Exclude unenriched contacts
+        db.session.execute(
+            db.text("""
+                UPDATE campaign_contacts
+                SET status = 'excluded'
+                WHERE campaign_id = :cid AND tenant_id = :t
+                  AND contact_id NOT IN (SELECT unnest(string_to_array(:ids, ',')))
+                  AND status NOT IN ('excluded')
+            """),
+            {"cid": campaign_id, "t": tenant_id, "ids": ",".join(enriched_contact_ids)},
+        )
+
+        # Update total_contacts
+        total_contacts = len(enriched_contact_ids)
+        db.session.execute(
+            db.text("UPDATE campaigns SET total_contacts = :tc WHERE id = :id"),
+            {"tc": total_contacts, "id": campaign_id},
+        )
 
     # Transition to generating
     db.session.execute(
@@ -2072,4 +2177,125 @@ def campaign_analytics(campaign_id):
                 "last_send_at": _format_ts(last_send_at),
             },
         }
+    )
+
+
+def _sanitize_csv_cell(value):
+    """Sanitize a cell value to prevent CSV formula injection.
+
+    Dangerous prefixes (=, +, -, @, \\t, \\r) at the start of a cell
+    can trigger formula execution in spreadsheet applications.
+    """
+    if value is None:
+        return ""
+    s = str(value)
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/messages/export-csv", methods=["GET"])
+@require_auth
+def export_messages_csv(campaign_id):
+    """Export approved campaign messages as CSV with formula injection sanitization."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign belongs to tenant
+    campaign_row = db.session.execute(
+        db.text("SELECT name FROM campaigns WHERE id = :id AND tenant_id = :t"),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+    if not campaign_row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    campaign_name = campaign_row[0] or "campaign"
+
+    # Optional status filter (default: approved only)
+    status_filter = request.args.get("status", "approved")
+
+    where = ["cc.campaign_id = :cid", "cc.tenant_id = :t", "cc.status != 'excluded'"]
+    params = {"cid": campaign_id, "t": tenant_id}
+    if status_filter != "all":
+        where.append("m.status = :status")
+        params["status"] = status_filter
+
+    where_clause = " AND ".join(where)
+
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                ct.first_name, ct.last_name, ct.email_address,
+                ct.linkedin_url, ct.job_title,
+                co.name AS company_name, co.domain,
+                m.channel, m.sequence_step, m.label,
+                m.subject, m.body, m.status, m.tone,
+                m.generation_cost_usd, m.approved_at
+            FROM messages m
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            JOIN contacts ct ON m.contact_id = ct.id
+            LEFT JOIN companies co ON ct.company_id = co.id
+            WHERE {where_clause}
+            ORDER BY ct.last_name, ct.first_name, m.sequence_step
+        """),
+        params,
+    ).fetchall()
+
+    # Build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    headers = [
+        "First Name",
+        "Last Name",
+        "Email",
+        "LinkedIn URL",
+        "Job Title",
+        "Company",
+        "Domain",
+        "Channel",
+        "Step",
+        "Label",
+        "Subject",
+        "Body",
+        "Status",
+        "Tone",
+        "Cost (USD)",
+        "Approved At",
+    ]
+    writer.writerow(headers)
+
+    for r in rows:
+        writer.writerow(
+            [
+                _sanitize_csv_cell(r[0]),  # first_name
+                _sanitize_csv_cell(r[1]),  # last_name
+                _sanitize_csv_cell(r[2]),  # email_address
+                _sanitize_csv_cell(r[3]),  # linkedin_url
+                _sanitize_csv_cell(r[4]),  # job_title
+                _sanitize_csv_cell(r[5]),  # company_name
+                _sanitize_csv_cell(r[6]),  # domain
+                _sanitize_csv_cell(r[7]),  # channel
+                r[8],  # sequence_step
+                _sanitize_csv_cell(r[9]),  # label
+                _sanitize_csv_cell(r[10]),  # subject
+                _sanitize_csv_cell(r[11]),  # body
+                _sanitize_csv_cell(r[12]),  # status
+                _sanitize_csv_cell(r[13]),  # tone
+                f"{r[14]:.4f}" if r[14] else "",  # cost
+                _format_ts(r[15]),  # approved_at
+            ]
+        )
+
+    csv_content = output.getvalue()
+    output.close()
+
+    safe_name = "".join(c for c in campaign_name if c.isalnum() or c in " -_").strip()
+    filename = f"{safe_name}-messages.csv" if safe_name else "messages.csv"
+
+    return Response(
+        csv_content,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

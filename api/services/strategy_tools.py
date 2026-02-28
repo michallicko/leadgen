@@ -206,7 +206,15 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
     if bounds is None:
         # Section heading not found — append new section to end of document
         separator = "\n\n" if doc_content.strip() else ""
-        doc.content = doc_content.rstrip() + separator + "## " + section + "\n\n" + new_content.strip() + "\n"
+        doc.content = (
+            doc_content.rstrip()
+            + separator
+            + "## "
+            + section
+            + "\n\n"
+            + new_content.strip()
+            + "\n"
+        )
     else:
         start, end = bounds
         # Replace section body
@@ -297,7 +305,15 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
     if bounds is None:
         # Section heading not found — append new section to end of document
         separator = "\n\n" if doc_content.strip() else ""
-        doc.content = doc_content.rstrip() + separator + "## " + section + "\n\n" + new_content.strip() + "\n"
+        doc.content = (
+            doc_content.rstrip()
+            + separator
+            + "## "
+            + section
+            + "\n\n"
+            + new_content.strip()
+            + "\n"
+        )
     else:
         start, end = bounds
         # Append to section (after existing content, before trailing whitespace)
