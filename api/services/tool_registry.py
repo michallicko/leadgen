@@ -21,6 +21,7 @@ class ToolContext:
     tenant_id: str
     user_id: Optional[str] = None
     document_id: Optional[str] = None
+    turn_id: Optional[str] = None
 
 
 @dataclass

@@ -21,6 +21,7 @@ from ..models import (
     PlaybookLog,
     StrategyDocument,
     StrategyChatMessage,
+    StrategyVersion,
     Tenant,
     ToolExecution,
     db,
@@ -59,7 +60,15 @@ def get_playbook():
         db.session.add(doc)
         db.session.commit()
 
-    return jsonify(doc.to_dict()), 200
+    result = doc.to_dict()
+
+    # Check for undoable AI edits
+    has_ai_edits = StrategyVersion.query.filter_by(
+        document_id=doc.id, edit_source="ai_tool"
+    ).first() is not None
+    result["has_ai_edits"] = has_ai_edits
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook", methods=["PUT"])
@@ -86,6 +95,89 @@ def update_playbook():
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
+
+
+@playbook_bp.route("/api/playbook/undo", methods=["POST"])
+@require_auth
+def undo_ai_edit():
+    """Undo the most recent AI edit(s) to the strategy document.
+
+    Finds the most recent turn_id (batch of edits from one AI turn) and
+    restores the document to the snapshot taken before the first edit of
+    that turn.  If no turn_id is set, reverts to the most recent snapshot.
+
+    The undo itself creates a snapshot (with edit_source='user_undo') so
+    it can be un-undone.  After restoring, the AI-tool snapshots from the
+    undone turn are deleted.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Find the latest ai_tool snapshot for this document
+    latest_snap = (
+        StrategyVersion.query.filter_by(
+            document_id=doc.id, edit_source="ai_tool"
+        )
+        .order_by(StrategyVersion.created_at.desc())
+        .first()
+    )
+
+    if not latest_snap:
+        return jsonify({"error": "No AI edits to undo"}), 404
+
+    # Batch undo: if the latest snapshot has a turn_id, find the
+    # earliest snapshot from that turn to restore the state from
+    # *before* the first tool call of the turn.
+    if latest_snap.turn_id:
+        restore_snap = (
+            StrategyVersion.query.filter_by(
+                document_id=doc.id,
+                edit_source="ai_tool",
+                turn_id=latest_snap.turn_id,
+            )
+            .order_by(StrategyVersion.created_at.asc())
+            .first()
+        )
+    else:
+        restore_snap = latest_snap
+
+    # Save a snapshot of current state (so undo is undoable)
+    from ..services.strategy_tools import _snapshot
+
+    _snapshot(doc, edit_source="user_undo")
+
+    restored_version = restore_snap.version
+
+    # Restore content and extracted_data from the snapshot
+    doc.content = restore_snap.content
+    doc.extracted_data = restore_snap.extracted_data
+    doc.version += 1
+    doc.updated_by = getattr(request, "user_id", None)
+
+    # Delete the ai_tool snapshots that were undone
+    if latest_snap.turn_id:
+        StrategyVersion.query.filter_by(
+            document_id=doc.id,
+            edit_source="ai_tool",
+            turn_id=latest_snap.turn_id,
+        ).delete()
+    else:
+        db.session.delete(latest_snap)
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "restored_version": restored_version,
+            "current_version": doc.version,
+        }
+    ), 200
 
 
 @playbook_bp.route("/api/playbook/phase", methods=["PUT"])
@@ -991,11 +1083,15 @@ def _stream_agent_response(
     events for tool_start, tool_result, chunk, and done. Saves assistant
     message and tool execution records to the database.
     """
+    import uuid as _uuid
+
+    turn_id = str(_uuid.uuid4())
 
     tool_context = ToolContext(
         tenant_id=str(tenant_id),
         user_id=str(user_id) if user_id else None,
         document_id=str(doc_id) if doc_id else None,
+        turn_id=turn_id,
     )
 
     def generate():
@@ -1105,9 +1201,44 @@ def _stream_agent_response(
                 )
 
         # Emit done event with message_id and tool call summary
+        # Build done payload with document_changed signal for frontend
         done_payload = {"type": "done", "message_id": msg_id}
         if done_data and done_data.get("tool_calls"):
             done_payload["tool_calls"] = done_data["tool_calls"]
+
+            # Check if any tool calls modified the strategy document
+            strategy_edit_tools = {
+                "update_strategy_section",
+                "set_extracted_field",
+                "append_to_section",
+            }
+            doc_changes = []
+            for tc in done_data["tool_calls"]:
+                tn = tc.get("tool_name", "")
+                if tn in strategy_edit_tools and tc.get("status") == "success":
+                    output = tc.get("output_data") or {}
+                    if tn in ("update_strategy_section", "append_to_section"):
+                        doc_changes.append(output.get("section", tn))
+                    elif tn == "set_extracted_field":
+                        doc_changes.append(
+                            "data: {}".format(
+                                (tc.get("input_args") or {}).get("path", "")
+                            )
+                        )
+
+            if doc_changes:
+                done_payload["document_changed"] = True
+                if len(doc_changes) == 1:
+                    done_payload["changes_summary"] = (
+                        "Strategy updated: {}".format(doc_changes[0])
+                    )
+                else:
+                    done_payload["changes_summary"] = (
+                        "Strategy updated: {} ({} changes)".format(
+                            ", ".join(doc_changes), len(doc_changes)
+                        )
+                    )
+
         yield "data: {}\n\n".format(json.dumps(done_payload))
 
     # Commit the user message before entering the generator
@@ -1220,10 +1351,13 @@ def _sync_agent_response(
     Collects all SSE events from execute_agent_turn(), persists the
     assistant message and tool execution records, and returns JSON.
     """
+    import uuid as _uuid
+
     tool_context = ToolContext(
         tenant_id=str(tenant_id),
         user_id=str(user_id) if user_id else None,
         document_id=str(doc_id) if doc_id else None,
+        turn_id=str(_uuid.uuid4()),
     )
 
     try:

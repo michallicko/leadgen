@@ -9,6 +9,9 @@
  * Wires together: usePlaybookDocument, useSavePlaybook,
  * useExtractStrategy, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
  * Chat state is provided by ChatProvider (app-level).
+ *
+ * WRITE feature: handles document_changed signals from AI tool calls,
+ * refreshes editor content, and provides undo for AI edits.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -22,6 +25,7 @@ import {
   usePlaybookDocument,
   useSavePlaybook,
   useExtractStrategy,
+  useUndoAIEdit,
 } from '../../api/queries/usePlaybook'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
@@ -49,6 +53,15 @@ function ExtractIcon() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 2v8M5 7l3 3 3-3" />
       <path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+    </svg>
+  )
+}
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7h6a4 4 0 0 1 0 8H9" />
+      <path d="M3 7l3-3M3 7l3 3" />
     </svg>
   )
 }
@@ -93,18 +106,22 @@ export function PlaybookPage() {
     isLoading: chatLoading,
     sendMessage,
     chatInputRef,
+    documentChanged,
+    clearDocumentChanged,
   } = useChatContext()
 
   // Server state
   const docQuery = usePlaybookDocument()
   const saveMutation = useSavePlaybook()
   const extractMutation = useExtractStrategy()
+  const undoMutation = useUndoAIEdit()
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -150,10 +167,48 @@ export function PlaybookPage() {
     }
   }, [docQuery.data, isDirty, docRefetch])
 
+  // ---------------------------------------------------------------------------
+  // Handle AI document changes (from ChatProvider)
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!documentChanged?.changed) return
+
+    if (saveStatus !== 'saved' && isDirty) {
+      // User has unsaved changes -- don't auto-replace, show toast
+      toast(
+        documentChanged.summary ?? 'Strategy updated by AI',
+        'info',
+      )
+    } else {
+      // No unsaved changes -- safe to auto-refresh the editor
+      // Update lastSavedContentRef so the debounced save sees no diff and skips
+      queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true }).then(() => {
+        // After refetch, update the saved content ref to match server state
+        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook'])
+        if (newContent?.content) {
+          lastSavedContentRef.current = newContent.content
+          setEditedContent(null)
+          setIsDirty(false)
+        }
+      })
+
+      // Show toast summarizing changes
+      if (documentChanged.summary) {
+        toast(documentChanged.summary, 'info')
+      }
+    }
+
+    clearDocumentChanged()
+  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged])
+
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
     ? editedContent
     : (docQuery.data?.content ?? null)
+
+  // Derive whether undo is available
+  const hasUndoableEdits = docQuery.data?.has_ai_edits ?? false
 
   // ---------------------------------------------------------------------------
   // Auto-save logic
@@ -261,6 +316,31 @@ export function PlaybookPage() {
   }, [extractMutation, toast])
 
   // ---------------------------------------------------------------------------
+  // Undo AI edit handler
+  // ---------------------------------------------------------------------------
+
+  const handleUndoClick = useCallback(() => {
+    setShowUndoConfirm(true)
+  }, [])
+
+  const handleUndoConfirmed = useCallback(async () => {
+    setShowUndoConfirm(false)
+    try {
+      await undoMutation.mutateAsync()
+      // Refetch doc after undo and update refs
+      const result = await docQuery.refetch()
+      if (result.data?.content) {
+        lastSavedContentRef.current = result.data.content
+        setEditedContent(null)
+        setIsDirty(false)
+      }
+      toast('Reverted to previous version', 'success')
+    } catch {
+      toast('Undo failed', 'error')
+    }
+  }, [undoMutation, docQuery, toast])
+
+  // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
 
@@ -354,6 +434,18 @@ export function PlaybookPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Undo AI edit button */}
+          {hasUndoableEdits && (
+            <button
+              onClick={handleUndoClick}
+              disabled={undoMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer disabled:opacity-40"
+            >
+              <UndoIcon />
+              {undoMutation.isPending ? 'Reverting...' : 'Undo AI edit'}
+            </button>
+          )}
+
           {/* Phase-specific action button */}
           {viewPhase === 'strategy' ? (
             <button
@@ -375,6 +467,33 @@ export function PlaybookPage() {
           )}
         </div>
       </div>
+
+      {/* Undo confirmation dialog */}
+      {showUndoConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-surface border border-border-solid rounded-lg shadow-lg p-6 max-w-sm mx-4">
+            <h3 className="text-sm font-semibold mb-2">Undo AI edit?</h3>
+            <p className="text-xs text-text-muted mb-4">
+              This will revert the strategy document to its state before the last AI edit.
+              Any manual changes made since then will be lost.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowUndoConfirm(false)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUndoConfirmed}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer"
+              >
+                Undo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Phase indicator */}
       <PhaseIndicator

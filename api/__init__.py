@@ -16,6 +16,16 @@ def create_app():
     db.init_app(app)
     register_blueprints(app)
 
+    # Register strategy tools with the agent tool registry
+    from .services.strategy_tools import STRATEGY_TOOLS
+    from .services.tool_registry import register_tool
+
+    for tool in STRATEGY_TOOLS:
+        try:
+            register_tool(tool)
+        except ValueError:
+            pass  # Already registered (e.g. during testing)
+
     # Clean up orphaned pipeline/stage runs left by container restarts
     with app.app_context():
         try:
