@@ -750,3 +750,340 @@ def job_title_suggestions():
     ).fetchall()
 
     return jsonify({"titles": [{"title": r[0], "count": r[1]} for r in rows]})
+
+
+# ── Contact Search API ──────────────────────────────────
+
+
+@contacts_bp.route("/api/contacts/search", methods=["POST"])
+@require_auth
+def search_contacts():
+    """Faceted contact search with counts per filter dimension."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    filters = body.get("filters", {})
+    text_search = (body.get("text_search") or "").strip()
+    page = max(1, body.get("page", 1))
+    page_size = min(100, max(1, body.get("page_size", 25)))
+    sort_by = body.get("sort_by", "contact_score")
+    sort_dir = body.get("sort_dir", "desc").lower()
+    include_facets = body.get("include_facets", True)
+
+    ALLOWED_SORT = {
+        "contact_score",
+        "ai_champion_score",
+        "first_name",
+        "last_name",
+        "company_name",
+        "created_at",
+    }
+    if sort_by not in ALLOWED_SORT:
+        sort_by = "contact_score"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
+
+    SEARCH_FACETS = {
+        "seniority_level": "ct.seniority_level",
+        "department": "ct.department",
+        "industry": "co.industry",
+        "tier": "co.tier",
+        "company_size": "co.company_size",
+        "geo_region": "co.geo_region",
+        "icp_fit": "ct.icp_fit",
+    }
+
+    def _search_where(params, exclude_facet=None):
+        where = ["ct.tenant_id = :tenant_id"]
+        params["tenant_id"] = tenant_id
+
+        if text_search:
+            where.append(
+                "(LOWER(ct.first_name) LIKE LOWER(:q)"
+                " OR LOWER(ct.last_name) LIKE LOWER(:q)"
+                " OR LOWER(ct.email_address) LIKE LOWER(:q)"
+                " OR LOWER(ct.job_title) LIKE LOWER(:q)"
+                " OR LOWER(co.name) LIKE LOWER(:q))"
+            )
+            params["q"] = f"%{text_search}%"
+
+        for key, col in SEARCH_FACETS.items():
+            if key == exclude_facet:
+                continue
+            vals = filters.get(key)
+            if not vals:
+                continue
+            if not isinstance(vals, list):
+                vals = [vals]
+            vals = vals[:50]
+            placeholders = ", ".join(f":sf_{key}_{i}" for i in range(len(vals)))
+            for i, v in enumerate(vals):
+                params[f"sf_{key}_{i}"] = v
+            where.append(f"{col} IN ({placeholders})")
+
+        if filters.get("min_contact_score") is not None:
+            where.append("ct.contact_score >= :min_score")
+            params["min_score"] = filters["min_contact_score"]
+
+        if filters.get("enrichment_ready"):
+            where.append(
+                """EXISTS (
+                SELECT 1 FROM entity_stage_completions esc
+                WHERE esc.entity_id = ct.id
+                  AND esc.stage = 'person'
+                  AND esc.status = 'completed'
+            )"""
+            )
+
+        if filters.get("exclude_in_campaigns"):
+            where.append(
+                """NOT EXISTS (
+                SELECT 1 FROM campaign_contacts cc2
+                JOIN campaigns cmp ON cmp.id = cc2.campaign_id
+                WHERE cc2.contact_id = ct.id
+                  AND cmp.status NOT IN ('archived', 'draft')
+            )"""
+            )
+
+        return " AND ".join(where)
+
+    joins = """
+        LEFT JOIN companies co ON ct.company_id = co.id
+        LEFT JOIN owners o ON ct.owner_id = o.id
+    """
+
+    sort_col_map = {
+        "contact_score": "ct.contact_score",
+        "ai_champion_score": "ct.ai_champion_score",
+        "first_name": "ct.first_name",
+        "last_name": "ct.last_name",
+        "company_name": "co.name",
+        "created_at": "ct.created_at",
+    }
+    order_col = sort_col_map.get(sort_by, "ct.contact_score")
+
+    # Main query
+    main_params = {}
+    main_where = _search_where(main_params)
+
+    total = (
+        db.session.execute(
+            db.text(
+                f"""
+            SELECT COUNT(*)
+            FROM contacts ct {joins}
+            WHERE {main_where}
+        """
+            ),
+            main_params,
+        ).scalar()
+        or 0
+    )
+
+    offset = (page - 1) * page_size
+    main_params["limit"] = page_size
+    main_params["offset"] = offset
+
+    rows = db.session.execute(
+        db.text(
+            f"""
+            SELECT
+                ct.id, ct.first_name, ct.last_name, ct.email_address,
+                ct.job_title, ct.linkedin_url, ct.seniority_level,
+                ct.department, ct.contact_score, ct.ai_champion_score,
+                ct.icp_fit, ct.created_at,
+                co.id AS company_id, co.name AS company_name,
+                co.industry, co.tier, co.company_size, co.geo_region
+            FROM contacts ct {joins}
+            WHERE {main_where}
+            ORDER BY {order_col} {sort_dir} NULLS LAST
+            LIMIT :limit OFFSET :offset
+        """
+        ),
+        main_params,
+    ).fetchall()
+
+    # Enrichment readiness + active campaigns for returned contacts
+    contact_ids = [r[0] for r in rows]
+    enrichment_map = {}
+    campaign_map = {}
+    if contact_ids:
+        id_placeholders = ", ".join(
+            f":cid_{i}" for i in range(len(contact_ids))
+        )
+        id_params = {f"cid_{i}": cid for i, cid in enumerate(contact_ids)}
+
+        enrich_rows = db.session.execute(
+            db.text(
+                f"""
+                SELECT entity_id, stage, status
+                FROM entity_stage_completions
+                WHERE entity_id IN ({id_placeholders})
+            """
+            ),
+            id_params,
+        ).fetchall()
+        for er in enrich_rows:
+            enrichment_map.setdefault(str(er[0]), []).append(
+                {"stage": er[1], "status": er[2]}
+            )
+
+        camp_rows = db.session.execute(
+            db.text(
+                f"""
+                SELECT cc2.contact_id, cmp.id, cmp.name, cmp.status
+                FROM campaign_contacts cc2
+                JOIN campaigns cmp ON cmp.id = cc2.campaign_id
+                WHERE cc2.contact_id IN ({id_placeholders})
+                  AND cmp.status NOT IN ('archived')
+            """
+            ),
+            id_params,
+        ).fetchall()
+        for cr in camp_rows:
+            campaign_map.setdefault(str(cr[0]), []).append(
+                {"id": str(cr[1]), "name": cr[2], "status": cr[3]}
+            )
+
+    contacts = []
+    for r in rows:
+        cid = str(r[0])
+        created = r[11]
+        contacts.append(
+            {
+                "id": cid,
+                "first_name": r[1],
+                "last_name": r[2],
+                "email_address": r[3],
+                "job_title": r[4],
+                "linkedin_url": r[5],
+                "seniority_level": display_seniority(r[6]),
+                "department": display_department(r[7]),
+                "contact_score": float(r[8]) if r[8] else None,
+                "ai_champion_score": float(r[9]) if r[9] else None,
+                "icp_fit": r[10],
+                "created_at": (
+                    created.isoformat()
+                    if hasattr(created, "isoformat")
+                    else created
+                ),
+                "company": {
+                    "id": str(r[12]) if r[12] else None,
+                    "name": r[13],
+                    "industry": r[14],
+                    "tier": display_tier(r[15]),
+                    "company_size": r[16],
+                    "geo_region": r[17],
+                },
+                "enrichment_stages": enrichment_map.get(cid, []),
+                "active_campaigns": campaign_map.get(cid, []),
+            }
+        )
+
+    result = {
+        "contacts": contacts,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": math.ceil(total / page_size) if total else 0,
+    }
+
+    if include_facets:
+        facets = {}
+        for key, col in SEARCH_FACETS.items():
+            if key == "icp_fit":
+                continue
+            fp = {}
+            fw = _search_where(fp, exclude_facet=key)
+            frows = db.session.execute(
+                db.text(
+                    f"""
+                    SELECT {col} AS val, COUNT(*) AS cnt
+                    FROM contacts ct {joins}
+                    WHERE {fw} AND {col} IS NOT NULL
+                    GROUP BY {col}
+                    ORDER BY cnt DESC
+                """
+                ),
+                fp,
+            ).fetchall()
+            facets[key] = [{"value": fr[0], "count": fr[1]} for fr in frows]
+        result["facets"] = facets
+
+    return jsonify(result)
+
+
+@contacts_bp.route("/api/contacts/search/summary", methods=["POST"])
+@require_auth
+def search_contacts_summary():
+    """Lightweight aggregate stats for current filter criteria."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    filters = body.get("filters", {})
+    text_search = (body.get("text_search") or "").strip()
+
+    where = ["ct.tenant_id = :tenant_id"]
+    params = {"tenant_id": tenant_id}
+
+    if text_search:
+        where.append(
+            "(LOWER(ct.first_name) LIKE LOWER(:q)"
+            " OR LOWER(ct.last_name) LIKE LOWER(:q)"
+            " OR LOWER(ct.email_address) LIKE LOWER(:q)"
+            " OR LOWER(ct.job_title) LIKE LOWER(:q)"
+            " OR LOWER(co.name) LIKE LOWER(:q))"
+        )
+        params["q"] = f"%{text_search}%"
+
+    for key, col in {
+        "seniority_level": "ct.seniority_level",
+        "department": "ct.department",
+        "industry": "co.industry",
+        "tier": "co.tier",
+        "company_size": "co.company_size",
+        "geo_region": "co.geo_region",
+    }.items():
+        vals = filters.get(key)
+        if not vals:
+            continue
+        if not isinstance(vals, list):
+            vals = [vals]
+        vals = vals[:50]
+        ph_list = ", ".join(f":ss_{key}_{i}" for i in range(len(vals)))
+        for i, v in enumerate(vals):
+            params[f"ss_{key}_{i}"] = v
+        where.append(f"{col} IN ({ph_list})")
+
+    where_str = " AND ".join(where)
+    joins = "LEFT JOIN companies co ON ct.company_id = co.id"
+
+    row = db.session.execute(
+        db.text(
+            f"""
+            SELECT
+                COUNT(*) AS total,
+                AVG(ct.contact_score) AS avg_score,
+                COUNT(CASE WHEN ct.email_address IS NOT NULL
+                    THEN 1 END) AS with_email,
+                COUNT(CASE WHEN ct.linkedin_url IS NOT NULL
+                    THEN 1 END) AS with_linkedin
+            FROM contacts ct {joins}
+            WHERE {where_str}
+        """
+        ),
+        params,
+    ).fetchone()
+
+    return jsonify(
+        {
+            "total": row[0] or 0,
+            "avg_contact_score": round(float(row[1]), 2) if row[1] else None,
+            "with_email": row[2] or 0,
+            "with_linkedin": row[3] or 0,
+        }
+    )

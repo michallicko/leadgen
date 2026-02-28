@@ -987,6 +987,13 @@ class Campaign(db.Model):
     generation_completed_at = db.Column(db.DateTime(timezone=True))
     # Outreach sender configuration (migration 032)
     sender_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    # Campaign targeting (migration 037)
+    strategy_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
+    )
+    target_criteria = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    conflict_report = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    contact_cooldown_days = db.Column(db.Integer, default=30)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     airtable_record_id = db.Column(db.Text)
@@ -1039,6 +1046,34 @@ class CampaignTemplate(db.Model):
     is_system = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CampaignOverlapLog(db.Model):
+    __tablename__ = "campaign_overlap_log"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False
+    )
+    campaign_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaigns.id"), nullable=False
+    )
+    overlapping_campaign_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaigns.id"), nullable=False
+    )
+    overlap_type = db.Column(db.Text, nullable=False)
+    resolved = db.Column(db.Boolean, default=False)
+    resolved_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
 
 
 class EntityStageCompletion(db.Model):

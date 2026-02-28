@@ -2299,3 +2299,157 @@ def export_messages_csv(campaign_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Conflict Check ──────────────────────────────────
+
+
+@campaigns_bp.route(
+    "/api/campaigns/<campaign_id>/conflict-check", methods=["POST"]
+)
+@require_role("editor")
+def conflict_check(campaign_id):
+    """Check a campaign's contacts for ICP mismatches and overlaps."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign = db.session.execute(
+        db.text("""
+            SELECT id, name, strategy_id, target_criteria,
+                   contact_cooldown_days, status, template_config,
+                   created_at
+            FROM campaigns
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    strategy_id = campaign[2]
+    cooldown_days = campaign[4] or 30
+
+    icp = {}
+    if strategy_id:
+        strat_row = db.session.execute(
+            db.text("""
+                SELECT extracted_data FROM strategy_documents
+                WHERE id = :sid AND tenant_id = :t
+            """),
+            {"sid": strategy_id, "t": tenant_id},
+        ).fetchone()
+        if strat_row:
+            extracted = _parse_jsonb(strat_row[0]) or {}
+            icp = extracted.get("icp", {})
+
+    # Get campaign contacts with company details
+    contacts = db.session.execute(
+        db.text("""
+            SELECT ct.id, ct.first_name, ct.last_name,
+                   ct.email_address, ct.linkedin_url,
+                   ct.seniority_level, ct.department,
+                   co.industry, co.geo_region, co.company_size, co.name
+            FROM campaign_contacts cc
+            JOIN contacts ct ON ct.id = cc.contact_id
+            LEFT JOIN companies co ON co.id = ct.company_id
+            WHERE cc.campaign_id = :cid AND ct.tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    issues = []
+
+    icp_industries = [ind.lower() for ind in icp.get("industries", [])]
+    icp_geos = [g.lower() for g in icp.get("geographies", [])]
+    icp_sizes = [s.lower() for s in icp.get("company_sizes", [])]
+
+    for c in contacts:
+        contact_id = str(c[0])
+        contact_name = f"{c[1] or ''} {c[2] or ''}".strip()
+
+        # ICP industry mismatch
+        if icp_industries and c[7]:
+            if c[7].lower() not in icp_industries:
+                issues.append({
+                    "type": "icp_mismatch",
+                    "field": "industry",
+                    "contact_id": contact_id,
+                    "contact_name": contact_name,
+                    "value": c[7],
+                    "expected": icp_industries,
+                })
+
+        # ICP geography mismatch
+        if icp_geos and c[8]:
+            if c[8].lower() not in icp_geos:
+                issues.append({
+                    "type": "icp_mismatch",
+                    "field": "geo_region",
+                    "contact_id": contact_id,
+                    "contact_name": contact_name,
+                    "value": c[8],
+                    "expected": icp_geos,
+                })
+
+        # ICP company size mismatch
+        if icp_sizes and c[9]:
+            if c[9].lower() not in icp_sizes:
+                issues.append({
+                    "type": "icp_mismatch",
+                    "field": "company_size",
+                    "contact_id": contact_id,
+                    "contact_name": contact_name,
+                    "value": c[9],
+                    "expected": icp_sizes,
+                })
+
+        # Channel gaps
+        if not c[3] and not c[4]:
+            issues.append({
+                "type": "channel_gap",
+                "contact_id": contact_id,
+                "contact_name": contact_name,
+                "detail": "No email or LinkedIn URL",
+            })
+
+    # Cooldown violations
+    cooldown_rows = db.session.execute(
+        db.text("""
+            SELECT cc2.contact_id, ct.first_name, ct.last_name,
+                   cmp2.id, cmp2.name, cmp2.status
+            FROM campaign_contacts cc2
+            JOIN contacts ct ON ct.id = cc2.contact_id
+            JOIN campaigns cmp2 ON cmp2.id = cc2.campaign_id
+            WHERE cc2.contact_id IN (
+                SELECT contact_id FROM campaign_contacts
+                WHERE campaign_id = :cid
+            )
+            AND cc2.campaign_id != :cid
+            AND cmp2.status NOT IN ('archived', 'draft')
+            AND cmp2.tenant_id = :t
+            AND cmp2.created_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * :cooldown
+        """),
+        {"cid": campaign_id, "t": tenant_id, "cooldown": cooldown_days},
+    ).fetchall()
+
+    for cr in cooldown_rows:
+        issues.append({
+            "type": "cooldown_violation",
+            "contact_id": str(cr[0]),
+            "contact_name": f"{cr[1] or ''} {cr[2] or ''}".strip(),
+            "overlapping_campaign": {
+                "id": str(cr[3]),
+                "name": cr[4],
+                "status": cr[5],
+            },
+            "cooldown_days": cooldown_days,
+        })
+
+    return jsonify({
+        "campaign_id": campaign_id,
+        "total_contacts": len(contacts),
+        "total_issues": len(issues),
+        "issues": issues,
+    })
