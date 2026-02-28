@@ -11,6 +11,7 @@ import {
   useDeleteConfig,
   type EnrichConfigData,
 } from '../../api/queries/useEnrichConfigs'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface ConfigManagerProps {
   onLoad: (config: Record<string, unknown>) => void
@@ -27,6 +28,7 @@ export function ConfigManager({ onLoad, getSnapshot }: ConfigManagerProps) {
   const [showSave, setShowSave] = useState(false)
   const [saveName, setSaveName] = useState('')
   const [saveDesc, setSaveDesc] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<EnrichConfigData | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -65,9 +67,13 @@ export function ConfigManager({ onLoad, getSnapshot }: ConfigManagerProps) {
   }
 
   const handleDelete = (cfg: EnrichConfigData) => {
-    if (confirm(`Delete "${cfg.name}"?`)) {
-      deleteConfig.mutate(cfg.id)
-    }
+    setDeleteTarget(cfg)
+  }
+
+  const executeDelete = () => {
+    if (!deleteTarget) return
+    deleteConfig.mutate(deleteTarget.id)
+    setDeleteTarget(null)
   }
 
   return (
@@ -178,6 +184,16 @@ export function ConfigManager({ onLoad, getSnapshot }: ConfigManagerProps) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete config"
+        message={`Delete "${deleteTarget?.name ?? ''}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

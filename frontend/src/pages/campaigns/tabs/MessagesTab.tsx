@@ -4,6 +4,8 @@ import { FilterBar, type FilterConfig } from '../../../components/ui/FilterBar'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../../api/queries/useMessages'
 import { apiDownload } from '../../../api/client'
 import { useToast } from '../../../components/ui/Toast'
+import { EmptyState } from '../../../components/ui/EmptyState'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { ContactGroup } from '../../messages/ContactGroup'
 import { CampaignMessagesGrid } from '../../../components/campaign/CampaignMessagesGrid'
 import { MessageReviewQueue } from '../../../components/campaign/MessageReviewQueue'
@@ -44,6 +46,7 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
 
   // Review queue overlay state
   const [showReviewQueue, setShowReviewQueue] = useState(false)
+  const [showBulkApproveConfirm, setShowBulkApproveConfirm] = useState(false)
 
   // Persist view preference in localStorage
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -115,12 +118,16 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
     [data],
   )
 
-  const handleBulkApprove = useCallback(async () => {
+  const handleBulkApprove = useCallback(() => {
     if (allDraftAIds.length === 0) {
       toast('No draft A variants to approve', 'info')
       return
     }
-    if (!confirm(`Approve ${allDraftAIds.length} variant A message(s)?`)) return
+    setShowBulkApproveConfirm(true)
+  }, [allDraftAIds, toast])
+
+  const executeBulkApprove = useCallback(async () => {
+    setShowBulkApproveConfirm(false)
     try {
       await batchMutation.mutateAsync({
         ids: allDraftAIds,
@@ -270,19 +277,20 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
       )}
 
       <div className="flex-1 overflow-y-auto space-y-4 min-h-0 px-6 pb-4">
-        {isLoading || isRefetching ? (
+        {isLoading && !data ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-border border-t-accent rounded-full animate-spin" />
           </div>
         ) : groups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-text-dim">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-3 opacity-50">
-              <path d="M3 7h18M3 12h18M3 17h18" />
-            </svg>
-            <div className="text-sm">
-              {data ? 'No messages match your filters.' : 'Loading messages...'}
-            </div>
-          </div>
+          <EmptyState
+            icon={
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            }
+            title="No messages yet"
+            description={status || channel ? 'No messages match your filters. Try adjusting your filters.' : 'Generate messages from the Message Gen tab to get started.'}
+          />
         ) : (
           groups.map((g) => (
             <ContactGroup
@@ -309,6 +317,15 @@ export function MessagesTab({ campaignId, onNavigate }: Props) {
           onClose={() => setShowReviewQueue(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={showBulkApproveConfirm}
+        title="Bulk approve messages"
+        message={`Approve ${allDraftAIds.length} variant A message(s)? This will mark them as ready for outreach.`}
+        confirmLabel="Approve All"
+        onConfirm={executeBulkApprove}
+        onCancel={() => setShowBulkApproveConfirm(false)}
+      />
     </div>
   )
 }
