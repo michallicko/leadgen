@@ -13,8 +13,8 @@
 - **Sync before starting work** — If SessionStart shows "N commits behind origin/staging", run `make sync` before writing any code.
 - **Verify before handoff** — Use `/validate` after implementation. Work is not done until the validation report says READY.
 - **Lead agent NEVER does work** — In delegation mode, the lead coordinator NEVER reads source files, writes code, calls MCP tools for data gathering, runs bash commands, or does any extensive work (more than 1 tool call). ALL work is delegated to spawned agents. "Let me just read this first" is building. Delegate it.
-- **Start every session from the backlog dashboard** — `docs/backlog/index.html` is the source of truth for the development plan. Open it first, check sprint status, see where we left off, then pick up from there. Never start work without consulting the dashboard.
-- **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Create a JSON file in `docs/backlog/items/BL-XXX.json` and add the ID to `docs/backlog/config.json`, (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). This ensures nothing is lost, work is prioritized, and the dashboard stays the single source of truth.
+- **Start every session from the backlog** — The backlog service at `https://backlog.visionvolve.com/leadgen-pipeline/` is the source of truth. Use `backlog_onboard` MCP tool or check the dashboard to see sprint status, then pick up from there. Never start work without consulting the backlog.
+- **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Use `backlog_create_item` MCP tool (or `/backlog <idea>`), (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). The backlog service is the single source of truth.
 - **Agents must self-test before handoff** — Before notifying the user or asking them to test anything, agents MUST: (1) Run ALL tests in the current sprint test script (`docs/testing/sprint-{N}-manual-tests.md`), (2) Mark each test PASS or FAIL, (3) Fix any FAIL and redeploy before proceeding, (4) Only notify the user after ALL tests pass or after documenting unfixable issues with a clear explanation. **Never ask the user to test something you haven't tested yourself first.**
 
 ## Branch Model
@@ -97,8 +97,8 @@ leadgen-pipeline/
     ARCHITECTURE.md       # System architecture and data flow
     adr/                  # Architecture Decision Records (append-only)
     specs/                # Feature specifications (created per feature)
-  docs/backlog/           # Backlog dashboard + JSON items (source of truth)
-  BACKLOG.md              # DEPRECATED — see docs/backlog/
+  docs/backlog/           # DEPRECATED — migrated to backlog.visionvolve.com
+  BACKLOG.md              # DEPRECATED — use backlog service MCP tools
   CLAUDE.md               # This file — project rules
   CHANGELOG.md            # Release log
   README.md               # Project overview and quick start
@@ -338,7 +338,7 @@ Lead decides N (engineers) based on how many items can run in parallel. PM, EM, 
 
 ### Live Backlog Dashboard
 
-The backlog dashboard at `docs/backlog/index.html` shows:
+The backlog dashboard at `https://backlog.visionvolve.com/leadgen-pipeline/` shows:
 - All items with priority, effort, status, dependencies, assignee
 - Sprint groupings with progress tracking
 - Kanban and table views with filters
