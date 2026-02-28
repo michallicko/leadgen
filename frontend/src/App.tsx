@@ -20,6 +20,7 @@ import { AdminPage } from './pages/admin/AdminPage'
 import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
 import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
+import { TokensPage } from './pages/tokens/TokensPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="playbook/:phase" element={<PlaybookPage />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
+              <Route path="admin/tokens" element={<TokensPage />} />
               <Route path="preferences" element={<PreferencesPage />} />
               <Route path="llm-costs" element={<LlmCostsPage />} />
             </Route>

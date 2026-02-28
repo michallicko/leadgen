@@ -810,6 +810,7 @@ class LlmUsageLog(db.Model):
     cost_usd = db.Column(db.Numeric(10, 6), nullable=False, default=0)
     duration_ms = db.Column(db.Integer)
     extra = db.Column("metadata", JSONB, server_default=db.text("'{}'::jsonb"))
+    credits_consumed = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     def to_dict(self):
@@ -823,9 +824,70 @@ class LlmUsageLog(db.Model):
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cost_usd": float(self.cost_usd) if self.cost_usd else 0,
+            "credits_consumed": self.credits_consumed,
             "duration_ms": self.duration_ms,
             "metadata": self.extra or {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+
+class NamespaceTokenBudget(db.Model):
+    __tablename__ = "namespace_token_budgets"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    total_budget = db.Column(db.Integer, nullable=False, default=0)
+    used_credits = db.Column(db.Integer, nullable=False, default=0)
+    reserved_credits = db.Column(db.Integer, nullable=False, default=0)
+    reset_period = db.Column(db.Text)
+    reset_day = db.Column(db.Integer, default=1)
+    last_reset_at = db.Column(db.DateTime(timezone=True))
+    next_reset_at = db.Column(db.DateTime(timezone=True))
+    enforcement_mode = db.Column(db.Text, nullable=False, default="soft")
+    alert_threshold_pct = db.Column(db.Integer, default=80)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    @property
+    def remaining_credits(self):
+        return max(0, self.total_budget - self.used_credits - self.reserved_credits)
+
+    @property
+    def usage_pct(self):
+        if self.total_budget == 0:
+            return 0
+        return round((self.used_credits / self.total_budget) * 100, 1)
+
+    def to_dict(self):
+        return {
+            "tenant_id": str(self.tenant_id),
+            "total_budget": self.total_budget,
+            "used_credits": self.used_credits,
+            "reserved_credits": self.reserved_credits,
+            "remaining_credits": self.remaining_credits,
+            "usage_pct": self.usage_pct,
+            "reset_period": self.reset_period,
+            "reset_day": self.reset_day,
+            "enforcement_mode": self.enforcement_mode,
+            "alert_threshold_pct": self.alert_threshold_pct,
+            "last_reset_at": self.last_reset_at.isoformat()
+            if self.last_reset_at
+            else None,
+            "next_reset_at": self.next_reset_at.isoformat()
+            if self.next_reset_at
+            else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
@@ -987,6 +1049,13 @@ class Campaign(db.Model):
     generation_completed_at = db.Column(db.DateTime(timezone=True))
     # Outreach sender configuration (migration 032)
     sender_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    # Campaign targeting (migration 037)
+    strategy_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
+    )
+    target_criteria = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    conflict_report = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    contact_cooldown_days = db.Column(db.Integer, default=30)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     airtable_record_id = db.Column(db.Text)
@@ -1039,6 +1108,34 @@ class CampaignTemplate(db.Model):
     is_system = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CampaignOverlapLog(db.Model):
+    __tablename__ = "campaign_overlap_log"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    contact_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("contacts.id"), nullable=False
+    )
+    campaign_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaigns.id"), nullable=False
+    )
+    overlapping_campaign_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaigns.id"), nullable=False
+    )
+    overlap_type = db.Column(db.Text, nullable=False)
+    resolved = db.Column(db.Boolean, default=False)
+    resolved_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
 
 
 class EntityStageCompletion(db.Model):
@@ -1303,6 +1400,64 @@ class StrategyVersion(db.Model):
     edit_source = db.Column(db.String(20), nullable=False, default="ai_tool")
     turn_id = db.Column(UUID(as_uuid=False), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class StrategyTemplate(db.Model):
+    """Reusable GTM strategy template (system or user-created)."""
+
+    __tablename__ = "strategy_templates"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=True
+    )
+    name = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.Text)
+    content_template = db.Column(db.Text, nullable=False)
+    extracted_data_template = db.Column(
+        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
+    )
+    extra = db.Column(
+        "metadata",
+        JSONB,
+        server_default=db.text("'{}'::jsonb"),
+        nullable=False,
+        default=dict,
+    )
+    is_system = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self, include_content=False):
+        result = {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "is_system": self.is_system,
+            "metadata": self.extra or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_content:
+            result["content_template"] = self.content_template
+            result["extracted_data_template"] = self.extracted_data_template
+        return result
+
+    @property
+    def section_headers(self):
+        """Extract H2 section headers from the content template."""
+        import re
+
+        if not self.content_template:
+            return []
+        return re.findall(r"^## (.+)$", self.content_template, re.MULTILINE)
 
 
 class ToolExecution(db.Model):
