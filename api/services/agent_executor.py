@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
-from flask import current_app
 
 from .tool_registry import get_tool
 

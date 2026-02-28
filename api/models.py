@@ -1302,9 +1302,7 @@ class StrategyVersion(db.Model):
     extracted_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     edit_source = db.Column(db.String(20), nullable=False, default="ai_tool")
     turn_id = db.Column(UUID(as_uuid=False), nullable=True)
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
 class ToolExecution(db.Model):
@@ -1319,9 +1317,7 @@ class ToolExecution(db.Model):
         UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
     )
     user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
-    document_id = db.Column(
-        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
-    )
+    document_id = db.Column(UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"))
     chat_message_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("strategy_chat_messages.id")
     )

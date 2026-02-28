@@ -41,10 +41,17 @@ logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
 
-_ALLOWED_PAGE_CONTEXTS = frozenset({
-    "contacts", "companies", "messages", "campaigns",
-    "enrich", "import", "playbook",
-})
+_ALLOWED_PAGE_CONTEXTS = frozenset(
+    {
+        "contacts",
+        "companies",
+        "messages",
+        "campaigns",
+        "enrich",
+        "import",
+        "playbook",
+    }
+)
 
 
 @playbook_bp.route("/api/playbook", methods=["GET"])
@@ -63,9 +70,12 @@ def get_playbook():
     result = doc.to_dict()
 
     # Check for undoable AI edits
-    has_ai_edits = StrategyVersion.query.filter_by(
-        document_id=doc.id, edit_source="ai_tool"
-    ).first() is not None
+    has_ai_edits = (
+        StrategyVersion.query.filter_by(
+            document_id=doc.id, edit_source="ai_tool"
+        ).first()
+        is not None
+    )
     result["has_ai_edits"] = has_ai_edits
 
     return jsonify(result), 200
@@ -120,9 +130,7 @@ def undo_ai_edit():
 
     # Find the latest ai_tool snapshot for this document
     latest_snap = (
-        StrategyVersion.query.filter_by(
-            document_id=doc.id, edit_source="ai_tool"
-        )
+        StrategyVersion.query.filter_by(document_id=doc.id, edit_source="ai_tool")
         .order_by(StrategyVersion.created_at.desc())
         .first()
     )
@@ -760,9 +768,7 @@ def get_chat_history():
         )
     else:
         messages = (
-            StrategyChatMessage.query.filter_by(
-                document_id=doc.id, tenant_id=tenant_id
-            )
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
             .order_by(StrategyChatMessage.created_at.asc())
             .limit(limit)
             .all()
@@ -816,9 +822,7 @@ def new_chat_thread():
     return jsonify(
         {
             "thread_id": marker.id,
-            "created_at": marker.created_at.isoformat()
-            if marker.created_at
-            else None,
+            "created_at": marker.created_at.isoformat() if marker.created_at else None,
         }
     ), 201
 
@@ -883,8 +887,7 @@ def post_chat_message():
                 StrategyChatMessage.id != user_msg.id,
                 db.or_(
                     StrategyChatMessage.id == latest_thread_start.id,
-                    StrategyChatMessage.created_at
-                    > latest_thread_start.created_at,
+                    StrategyChatMessage.created_at > latest_thread_start.created_at,
                 ),
             )
             .order_by(StrategyChatMessage.created_at.asc())
@@ -892,9 +895,7 @@ def post_chat_message():
         )
     else:
         history = (
-            StrategyChatMessage.query.filter_by(
-                document_id=doc.id, tenant_id=tenant_id
-            )
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
             .filter(StrategyChatMessage.id != user_msg.id)
             .order_by(StrategyChatMessage.created_at.asc())
             .all()
@@ -978,13 +979,26 @@ def _stream_response(
 
     if tools:
         return _stream_agent_response(
-            client, system_prompt, messages, tools,
-            tenant_id, doc_id, user_msg, user_id, app,
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
         )
     else:
         return _stream_simple_response(
-            client, system_prompt, messages,
-            tenant_id, doc_id, user_msg, user_id, app,
+            client,
+            system_prompt,
+            messages,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
         )
 
 
@@ -1074,8 +1088,7 @@ def _stream_simple_response(
 
 
 def _stream_agent_response(
-    client, system_prompt, messages, tools,
-    tenant_id, doc_id, user_msg, user_id, app
+    client, system_prompt, messages, tools, tenant_id, doc_id, user_msg, user_id, app
 ):
     """Agent-mode streaming with tool-use loop.
 
@@ -1110,13 +1123,19 @@ def _stream_agent_response(
             ):
                 if sse_event.type == "chunk":
                     full_text.append(sse_event.data.get("text", ""))
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "chunk"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "chunk"})
+                    )
 
                 elif sse_event.type == "tool_start":
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_start"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_start"})
+                    )
 
                 elif sse_event.type == "tool_result":
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_result"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_result"})
+                    )
 
                 elif sse_event.type == "done":
                     done_data = sse_event.data
@@ -1230,8 +1249,8 @@ def _stream_agent_response(
             if doc_changes:
                 done_payload["document_changed"] = True
                 if len(doc_changes) == 1:
-                    done_payload["changes_summary"] = (
-                        "Strategy updated: {}".format(doc_changes[0])
+                    done_payload["changes_summary"] = "Strategy updated: {}".format(
+                        doc_changes[0]
                     )
                 else:
                     done_payload["changes_summary"] = (
@@ -1268,8 +1287,14 @@ def _sync_response(
 
     if tools:
         return _sync_agent_response(
-            client, system_prompt, messages, tools,
-            tenant_id, doc_id, user_msg, user_id,
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
         )
 
     # --- No-tools path (backward compatible) ---
@@ -1344,8 +1369,14 @@ def _sync_response(
 
 
 def _sync_agent_response(
-    client, system_prompt, messages, tools,
-    tenant_id, doc_id, user_msg, user_id,
+    client,
+    system_prompt,
+    messages,
+    tools,
+    tenant_id,
+    doc_id,
+    user_msg,
+    user_id,
 ):
     """Sync (non-streaming) response with agent tool-use loop.
 
@@ -1388,9 +1419,7 @@ def _sync_agent_response(
             }
         ), 201
 
-    text_parts = [
-        e.data.get("text", "") for e in events if e.type == "chunk"
-    ]
+    text_parts = [e.data.get("text", "") for e in events if e.type == "chunk"]
     done_event = next((e for e in events if e.type == "done"), None)
     done_data = done_event.data if done_event else {}
 
@@ -1460,9 +1489,7 @@ def _sync_agent_response(
             event_type="chat_assistant",
             payload={
                 "message": assistant_content[:500],
-                "tool_calls": done_data.get("tool_calls", [])
-                if done_data
-                else [],
+                "tool_calls": done_data.get("tool_calls", []) if done_data else [],
             },
         )
 

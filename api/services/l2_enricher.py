@@ -240,7 +240,9 @@ Employee Sentiment: {employee_sentiment}"""
 # ---------------------------------------------------------------------------
 
 
-def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False, user_id=None):
+def enrich_l2(
+    company_id, tenant_id=None, previous_data=None, boost=False, user_id=None
+):
     """Run L2 deep research enrichment for a single company.
 
     Args:
@@ -276,7 +278,9 @@ def enrich_l2(company_id, tenant_id=None, previous_data=None, boost=False, user_
 
         # --- Phase 1: Two Perplexity research calls ---
         try:
-            news_data, news_cost = _research_news(company, l1_data, model, user_id=user_id)
+            news_data, news_cost = _research_news(
+                company, l1_data, model, user_id=user_id
+            )
             total_cost += news_cost
         except Exception as e:
             logger.error("L2 news research failed for %s: %s", company_id, e)
@@ -773,7 +777,6 @@ def _set_company_status(company_id, status, error_msg=None):
             """),
             {"cid": company_id, "status": status},
         )
-
 
 
 # ---------------------------------------------------------------------------

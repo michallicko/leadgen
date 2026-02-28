@@ -56,9 +56,7 @@ def register_tool(tool: ToolDefinition) -> None:
         ValueError: If a tool with the same name is already registered.
     """
     if tool.name in TOOL_REGISTRY:
-        raise ValueError(
-            "Tool '{}' is already registered".format(tool.name)
-        )
+        raise ValueError("Tool '{}' is already registered".format(tool.name))
     TOOL_REGISTRY[tool.name] = tool
 
 

@@ -129,9 +129,7 @@ def _set_nested(obj, path, value):
         if token.isdigit():
             idx = int(token)
             if not isinstance(current, list) or idx >= len(current):
-                raise KeyError(
-                    "Invalid index [{}] at path position {}".format(idx, i)
-                )
+                raise KeyError("Invalid index [{}] at path position {}".format(idx, i))
             current = current[idx]
         else:
             if token not in current:
@@ -293,11 +291,7 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
 
     bounds = _find_section(doc_content, section)
     if bounds is None:
-        return {
-            "error": "Section '{}' heading not found in document.".format(
-                section
-            )
-        }
+        return {"error": "Section '{}' heading not found in document.".format(section)}
 
     start, end = bounds
 
