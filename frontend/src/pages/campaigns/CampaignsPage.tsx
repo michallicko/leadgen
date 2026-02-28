@@ -5,10 +5,12 @@ import {
   useCampaignTemplates,
   useCreateCampaign,
   useDeleteCampaign,
+  useCloneCampaign,
   type Campaign,
 } from '../../api/queries/useCampaigns'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { useToast } from '../../components/ui/Toast'
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
@@ -37,6 +39,8 @@ export function CampaignsPage() {
   const { data: templateData } = useCampaignTemplates()
   const createCampaign = useCreateCampaign()
   const deleteCampaign = useDeleteCampaign()
+  const cloneCampaign = useCloneCampaign()
+  const { toast } = useToast()
 
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
@@ -59,6 +63,16 @@ export function CampaignsPage() {
     setNewTemplateId('')
     setShowCreate(false)
   }, [newName, newDesc, newTemplateId, createCampaign])
+
+  const handleClone = useCallback(async (id: string) => {
+    try {
+      const result = await cloneCampaign.mutateAsync(id)
+      toast(`Campaign cloned as '${result.name}'`, 'success')
+      navigate(result.id)
+    } catch {
+      toast('Failed to clone campaign', 'error')
+    }
+  }, [cloneCampaign, toast, navigate])
 
   const handleDelete = useCallback((id: string) => {
     setDeleteTarget(id)
@@ -136,23 +150,40 @@ export function CampaignsPage() {
       {
         key: 'actions',
         label: '',
-        width: '60px',
-        render: (c) =>
-          c.status === 'Draft' ? (
+        width: '90px',
+        render: (c) => (
+          <div className="flex items-center gap-1">
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                handleDelete(c.id)
+                handleClone(c.id)
               }}
-              className="text-text-muted hover:text-error text-xs bg-transparent border-none cursor-pointer"
-              title="Delete draft campaign"
+              disabled={cloneCampaign.isPending}
+              className="text-text-muted hover:text-accent text-xs bg-transparent border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Clone campaign"
             >
-              Delete
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                <path d="M3 10.5H2.5a1 1 0 01-1-1v-7a1 1 0 011-1h7a1 1 0 011 1V3" />
+              </svg>
             </button>
-          ) : null,
+            {c.status === 'Draft' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(c.id)
+                }}
+                className="text-text-muted hover:text-error text-xs bg-transparent border-none cursor-pointer"
+                title="Delete draft campaign"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        ),
       },
     ],
-    [handleDelete],
+    [handleDelete, handleClone, cloneCampaign.isPending],
   )
 
   return (

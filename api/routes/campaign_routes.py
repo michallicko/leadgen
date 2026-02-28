@@ -332,6 +332,83 @@ def delete_campaign(campaign_id):
     return jsonify({"ok": True})
 
 
+# ── Clone Campaign ─────────────────────────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/clone", methods=["POST"])
+@require_role("editor")
+def clone_campaign(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    original = db.session.execute(
+        db.text("""
+            SELECT id, name, description, owner_id,
+                   template_config, generation_config, sender_config
+            FROM campaigns
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not original:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    base_name = body.get("name") or f"{original[1]} (Copy)"
+
+    # Deduplicate name: append " (2)", " (3)" etc. if name exists
+    clone_name = base_name
+    counter = 1
+    while True:
+        exists = db.session.execute(
+            db.text("""
+                SELECT 1 FROM campaigns
+                WHERE tenant_id = :t AND name = :n AND is_active = true
+            """),
+            {"t": tenant_id, "n": clone_name},
+        ).fetchone()
+        if not exists:
+            break
+        counter += 1
+        clone_name = f"{base_name} ({counter})"
+
+    # Parse JSONB fields
+    gen_config = _parse_jsonb(original[5]) or {}
+    # Strip runtime keys from generation_config
+    for key in ("strategy_snapshot", "cancelled"):
+        gen_config.pop(key, None)
+
+    campaign = Campaign(
+        tenant_id=tenant_id,
+        name=clone_name,
+        description=original[2],
+        owner_id=original[3],
+        status="draft",
+        template_config=json.dumps(_parse_jsonb(original[4]) or [])
+        if isinstance(_parse_jsonb(original[4]), (dict, list))
+        else original[4],
+        generation_config=json.dumps(gen_config),
+        sender_config=json.dumps(_parse_jsonb(original[6]) or {})
+        if isinstance(_parse_jsonb(original[6]), (dict, list))
+        else original[6],
+        total_contacts=0,
+        generated_count=0,
+        generation_cost=0,
+    )
+    db.session.add(campaign)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": str(campaign.id),
+            "name": clone_name,
+            "status": "Draft",
+        }
+    ), 201
+
+
 # ── Campaign Templates ────────────────────────────────────────
 
 

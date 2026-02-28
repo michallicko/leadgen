@@ -119,6 +119,20 @@ export function useDeleteCampaign() {
   })
 }
 
+export function useCloneCampaign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ id: string; name: string; status: string }>(
+        `/campaigns/${id}/clone`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
 // ── Campaign Contacts ──────────────────────────────────
 
 export interface CampaignContactItem {
