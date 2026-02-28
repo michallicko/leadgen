@@ -11,8 +11,6 @@ import pytest
 
 from api.services.agent_executor import (
     DEFAULT_TOOL_RATE_LIMIT,
-    TOOL_RATE_LIMITS,
-    SSEEvent,
     execute_agent_turn,
 )
 from api.services.tool_registry import (
