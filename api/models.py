@@ -1398,8 +1398,6 @@ class StrategyVersion(db.Model):
 
 
 class StrategyTemplate(db.Model):
-    """Reusable GTM strategy template (system or user-created)."""
-
     __tablename__ = "strategy_templates"
 
     id = db.Column(
@@ -1415,7 +1413,10 @@ class StrategyTemplate(db.Model):
     category = db.Column(db.Text)
     content_template = db.Column(db.Text, nullable=False)
     extracted_data_template = db.Column(
-        JSONB, server_default=db.text("'{}'::jsonb"), nullable=False, default=dict
+        JSONB,
+        server_default=db.text("'{}'::jsonb"),
+        nullable=False,
+        default=dict,
     )
     extra = db.Column(
         "metadata",
@@ -1425,29 +1426,38 @@ class StrategyTemplate(db.Model):
         default=dict,
     )
     is_system = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
-    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        server_default=db.text("now()"),
+        onupdate=db.func.now(),
+    )
 
     def to_dict(self, include_content=False):
-        result = {
+        d = {
             "id": self.id,
-            "tenant_id": self.tenant_id,
             "name": self.name,
             "description": self.description,
             "category": self.category,
             "is_system": self.is_system,
-            "metadata": self.extra or {},
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
+            "updated_at": (
+                self.updated_at.isoformat() if self.updated_at else None
+            ),
         }
         if include_content:
-            result["content_template"] = self.content_template
-            result["extracted_data_template"] = self.extracted_data_template
-        return result
+            d["content_template"] = self.content_template
+            d["extracted_data_template"] = self.extracted_data_template
+            d["metadata"] = self.extra
+        return d
 
     @property
     def section_headers(self):
-        """Extract H2 section headers from the content template."""
+        """Extract H2 headers from content_template."""
         import re
 
         if not self.content_template:
