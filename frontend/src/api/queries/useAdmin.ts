@@ -1,11 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../client'
 
+interface TenantSettings {
+  language?: string
+  enrichment_language?: string
+  [key: string]: unknown
+}
+
 interface Namespace {
   id: string
   name: string
   slug: string
   domain: string | null
+  settings: TenantSettings
   is_active: boolean
   created_at: string
 }
@@ -117,3 +124,27 @@ export function useRemoveUserRole() {
     },
   })
 }
+
+/** Find the current namespace's tenant object from the namespaces list. */
+export function useTenantBySlug(slug: string | undefined) {
+  const { data: namespaces, ...rest } = useNamespaces()
+  const tenant = slug ? namespaces?.find((n) => n.slug === slug) : undefined
+  return { tenant, ...rest }
+}
+
+/** PATCH /tenants/:id/settings — merge-patch tenant settings. */
+export function usePatchTenantSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ tenantId, settings }: { tenantId: string; settings: Partial<TenantSettings> }) =>
+      apiFetch<Namespace>(`/tenants/${tenantId}/settings`, {
+        method: 'PATCH',
+        body: settings,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['namespaces'] })
+    },
+  })
+}
+
+export type { TenantSettings }

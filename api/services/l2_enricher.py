@@ -274,12 +274,26 @@ def enrich_l2(
         if not tenant_id:
             tenant_id = company["tenant_id"]
 
+        # Resolve enrichment language from tenant settings
+        enrichment_lang = None
+        try:
+            from ..models import Tenant
+
+            tenant_obj = db.session.get(Tenant, tenant_id)
+            if tenant_obj:
+                from .language import get_enrichment_language
+
+                enrichment_lang = get_enrichment_language(tenant_obj)
+        except Exception:
+            pass  # Fall back to English
+
         model = get_model_for_stage("l2", boost=boost)
 
         # --- Phase 1: Two Perplexity research calls ---
         try:
             news_data, news_cost = _research_news(
-                company, l1_data, model, user_id=user_id
+                company, l1_data, model, user_id=user_id,
+                enrichment_language=enrichment_lang,
             )
             total_cost += news_cost
         except Exception as e:
@@ -289,7 +303,8 @@ def enrich_l2(
 
         try:
             strategic_data, strategic_cost = _research_strategic(
-                company, l1_data, model, user_id=user_id
+                company, l1_data, model, user_id=user_id,
+                enrichment_language=enrichment_lang,
             )
             total_cost += strategic_cost
         except Exception as e:
@@ -304,7 +319,8 @@ def enrich_l2(
         # --- Phase 2: Anthropic synthesis ---
         try:
             synthesis_data, synthesis_cost = _synthesize(
-                company, l1_data, news_data, strategic_data, user_id=user_id
+                company, l1_data, news_data, strategic_data, user_id=user_id,
+                enrichment_language=enrichment_lang,
             )
             total_cost += synthesis_cost
         except Exception as e:
@@ -402,7 +418,7 @@ def _load_company_and_l1(company_id):
 # ---------------------------------------------------------------------------
 
 
-def _research_news(company, l1_data, model, user_id=None):
+def _research_news(company, l1_data, model, user_id=None, enrichment_language=None):
     """Call Perplexity for news and business signals."""
     client = PerplexityClient()
     user_prompt = NEWS_USER_TEMPLATE.format(
@@ -413,9 +429,19 @@ def _research_news(company, l1_data, model, user_id=None):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    # Inject language instruction
+    effective_prompt = NEWS_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_prompt += (
+            f"\n\nIMPORTANT: Conduct research and write all output in {lang_name}."
+        )
+
     start_time = time.time()
     resp = client.query(
-        system_prompt=NEWS_SYSTEM_PROMPT,
+        system_prompt=effective_prompt,
         user_prompt=user_prompt,
         model=model,
         max_tokens=PERPLEXITY_MAX_TOKENS,
@@ -448,7 +474,7 @@ def _research_news(company, l1_data, model, user_id=None):
     return data, resp.cost_usd
 
 
-def _research_strategic(company, l1_data, model, user_id=None):
+def _research_strategic(company, l1_data, model, user_id=None, enrichment_language=None):
     """Call Perplexity for strategic signals."""
     client = PerplexityClient()
     user_prompt = STRATEGIC_USER_TEMPLATE.format(
@@ -460,9 +486,19 @@ def _research_strategic(company, l1_data, model, user_id=None):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    # Inject language instruction
+    effective_prompt = STRATEGIC_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_prompt += (
+            f"\n\nIMPORTANT: Conduct research and write all output in {lang_name}."
+        )
+
     start_time = time.time()
     resp = client.query(
-        system_prompt=STRATEGIC_SYSTEM_PROMPT,
+        system_prompt=effective_prompt,
         user_prompt=user_prompt,
         model=model,
         max_tokens=PERPLEXITY_MAX_TOKENS,
@@ -499,7 +535,7 @@ def _research_strategic(company, l1_data, model, user_id=None):
 # ---------------------------------------------------------------------------
 
 
-def _synthesize(company, l1_data, news_data, strategic_data, user_id=None):
+def _synthesize(company, l1_data, news_data, strategic_data, user_id=None, enrichment_language=None):
     """Call Anthropic Claude to synthesize research into actionable intel."""
     client = AnthropicClient()
 
@@ -532,9 +568,19 @@ def _synthesize(company, l1_data, news_data, strategic_data, user_id=None):
         employee_sentiment=strategic_data.get("employee_sentiment") or "Not found",
     )
 
+    # Inject language instruction
+    effective_prompt = SYNTHESIS_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_prompt += (
+            f"\n\nIMPORTANT: Write all analysis and output in {lang_name}."
+        )
+
     start_time = time.time()
     resp = client.query(
-        system_prompt=SYNTHESIS_SYSTEM_PROMPT,
+        system_prompt=effective_prompt,
         user_prompt=user_prompt,
         model=ANTHROPIC_MODEL,
         max_tokens=ANTHROPIC_MAX_TOKENS,

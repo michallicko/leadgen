@@ -251,6 +251,19 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
         else:
             logger.debug("No website content obtained for %s", domain)
 
+    # 2d. Resolve enrichment language from tenant settings
+    enrichment_lang = None
+    try:
+        from ..models import Tenant
+
+        tenant_obj = db.session.get(Tenant, tenant_id)
+        if tenant_obj:
+            from .language import get_enrichment_language
+
+            enrichment_lang = get_enrichment_language(tenant_obj)
+    except Exception:
+        pass  # Fall back to English
+
     # 3. Call Perplexity
     model = get_model_for_stage("l1", boost=boost)
     try:
@@ -264,6 +277,7 @@ def enrich_l1(company_id, tenant_id=None, previous_data=None, boost=False):
             previous_data=previous_data,
             model=model,
             website_content=website_content,
+            enrichment_language=enrichment_lang,
         )
         raw_response = pplx_response.content
         usage = {
@@ -489,11 +503,13 @@ def _call_perplexity(
     previous_data=None,
     model=None,
     website_content=None,
+    enrichment_language=None,
 ):
     """Call Perplexity sonar API for company research.
 
     Args:
         model: Perplexity model name (default: PERPLEXITY_MODEL constant)
+        enrichment_language: Two-letter language code for output language
         website_content: Scraped text from the company's website (optional)
 
     Returns:
@@ -577,8 +593,21 @@ def _call_perplexity(
         default_model=model,
     )
 
+    # Inject language instruction into system prompt
+    effective_system_prompt = SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_system_prompt += (
+            f"\n\nIMPORTANT: Conduct research and write all output "
+            f"in {lang_name}. Field names and enum values must remain "
+            f"in English, but descriptive text (summary, markets, hq, etc.) "
+            f"should be in {lang_name}."
+        )
+
     return client.query(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=effective_system_prompt,
         user_prompt=user_prompt,
         model=model,
         max_tokens=PERPLEXITY_MAX_TOKENS,
