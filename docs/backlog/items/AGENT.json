@@ -3,7 +3,7 @@
   "title": "Agent-Ready Chat (Tool Use Architecture)",
   "priority": "Must Have",
   "effort": "M",
-  "status": "Idea",
+  "status": "Done",
   "sprint": "Sprint 2",
   "depends_on": [],
   "spec": "## Agent-Ready Chat (Tool Use Architecture)\n\n### Goal\nUpgrade the chat backend to support AI tool use (function calling), enabling the AI to take actions like updating the strategy doc, searching contacts, or triggering workflows.\n\n### Behavior\n- **Tool definitions**: Registered set of tools the AI can invoke (read_strategy, update_field, search_contacts, etc.)\n- **Tool execution**: Backend executes tool calls and returns results to the AI\n- **Multi-turn**: AI can chain multiple tool calls in a single response\n- **Safety**: All tool calls are logged; destructive actions require user confirmation\n\n### Technical Approach\n- Claude API `tools` parameter with JSON schema definitions\n- Tool registry: Python dict mapping tool names to handler functions\n- Execution loop: send message -> if tool_use -> execute -> send result -> repeat\n- Tool handlers: `strategy_tools.py`, `contact_tools.py`, `workflow_tools.py`\n- Audit log: every tool call logged to `tool_executions` table\n\n### Acceptance Criteria\n- Given the AI decides to update ICP, it calls `update_strategy_field` and the doc updates in real-time\n- Given a tool call fails, the AI receives the error and explains to the user\n- Given a destructive tool call, the user sees a confirmation dialog before execution",

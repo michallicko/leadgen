@@ -3,7 +3,7 @@
   "title": "Smart Onboarding (Discovery Qs Before Draft)",
   "priority": "Must Have",
   "effort": "S",
-  "status": "Idea",
+  "status": "Done",
   "sprint": "Sprint 3",
   "depends_on": [
     "WRITE"

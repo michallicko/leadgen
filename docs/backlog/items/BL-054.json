@@ -3,7 +3,7 @@
   "title": "Chat Access to Self-Company Enrichment Data",
   "priority": "Must Have",
   "effort": "M",
-  "status": "Spec'd",
+  "status": "Done",
   "sprint": "Sprint 2",
   "depends_on": [],
   "sprint_note": "Phase 1 only (no AGENT dependency). Phase 2 deferred to Sprint 3.",

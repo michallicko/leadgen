@@ -3,7 +3,7 @@
   "title": "Transparent AI Thinking (Tool Calls, Reasoning)",
   "priority": "Must Have",
   "effort": "M",
-  "status": "Idea",
+  "status": "Done",
   "sprint": "Sprint 2",
   "depends_on": [
     "AGENT"

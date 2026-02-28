@@ -3,7 +3,7 @@
   "title": "Chat Writes/Updates Strategy Doc Directly",
   "priority": "Must Have",
   "effort": "M",
-  "status": "Idea",
+  "status": "Done",
   "sprint": "Sprint 2",
   "depends_on": [
     "AGENT"
