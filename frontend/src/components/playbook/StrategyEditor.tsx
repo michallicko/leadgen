@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
@@ -145,6 +145,14 @@ export function StrategyEditor({
   onUpdate,
   editable = true,
 }: StrategyEditorProps) {
+  // Track the last content we set from props to avoid cyclic updates.
+  // When server pushes new content (e.g. after AI edit), we compare
+  // against this ref to decide whether to force-update the editor.
+  const lastServerContentRef = useRef<string | null>(null)
+  // Flag to skip the next onUpdate callback (set when we programmatically
+  // update the editor content to prevent triggering auto-save).
+  const skipNextUpdateRef = useRef(false)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -167,6 +175,10 @@ export function StrategyEditor({
     content: content ?? STRATEGY_TEMPLATE,
     editable,
     onUpdate({ editor: ed }) {
+      if (skipNextUpdateRef.current) {
+        skipNextUpdateRef.current = false
+        return
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onUpdate((ed.storage as any).markdown.getMarkdown())
     },
@@ -179,16 +191,27 @@ export function StrategyEditor({
     }
   }, [editor, editable])
 
-  // Sync content prop when it changes (e.g. after research seeds template)
+  // Sync content prop when it changes (e.g. after research seeds template
+  // or after AI tool edits refetch the document from the server).
   // Tiptap only uses `content` during initialization, so we must push updates manually.
   useEffect(() => {
-    if (editor && content && content.length > 0) {
-      // Only update if editor is empty/placeholder — don't overwrite user edits
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const currentMd = (editor.storage as any).markdown?.getMarkdown() || ''
-      if (!currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')) {
-        editor.commands.setContent(content)
-      }
+    if (!editor || !content || content.length === 0) return
+
+    // Skip if this is the same content we already set
+    if (content === lastServerContentRef.current) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentMd = (editor.storage as any).markdown?.getMarkdown() || ''
+
+    // Update if editor is empty/placeholder OR if server content differs
+    // from what the editor currently has (AI edit case)
+    const isEmpty = !currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')
+    const serverDiffers = currentMd !== content
+
+    if (isEmpty || serverDiffers) {
+      skipNextUpdateRef.current = true
+      lastServerContentRef.current = content
+      editor.commands.setContent(content)
     }
   }, [editor, content])
 

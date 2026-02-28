@@ -107,6 +107,44 @@ class TestUpdatePlaybook:
         assert data["version"] == 2
         assert data["content"] == "# Strategy"
 
+    def test_save_objective_only(self, client, seed_tenant, seed_super_admin, db):
+        """PUT /api/playbook with only objective saves it without changing content."""
+        from api.models import StrategyDocument
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id, content="existing content", version=1
+        )
+        db.session.add(doc)
+        db.session.commit()
+        resp = client.put("/api/playbook", json={
+            "objective": "Generate leads in DACH",
+        }, headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["objective"] == "Generate leads in DACH"
+        assert data["content"] == "existing content"
+        # Version should NOT increment when only objective changes
+        assert data["version"] == 1
+
+    def test_save_content_and_objective(self, client, seed_tenant, seed_super_admin, db):
+        """PUT /api/playbook with both content and objective saves both."""
+        from api.models import StrategyDocument
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        doc = StrategyDocument(tenant_id=seed_tenant.id, version=1)
+        db.session.add(doc)
+        db.session.commit()
+        resp = client.put("/api/playbook", json={
+            "content": "# New content",
+            "objective": "Generate leads in DACH",
+        }, headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["content"] == "# New content"
+        assert data["objective"] == "Generate leads in DACH"
+        assert data["version"] == 2
+
 
 class TestPlaybookChat:
     def test_get_empty_chat_history(self, client, seed_tenant, seed_super_admin):
@@ -124,6 +162,8 @@ class TestPlaybookChat:
         # Mock the AnthropicClient.stream_query to yield text chunks
         mock_client = MagicMock()
         mock_client.stream_query.return_value = iter(["Your ICP ", "should focus on ", "enterprise SaaS."])
+        mock_client.last_stream_usage = {"input_tokens": 100, "output_tokens": 50, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -153,6 +193,8 @@ class TestPlaybookChat:
         """POST /api/playbook/chat with Accept: text/event-stream returns SSE."""
         mock_client = MagicMock()
         mock_client.stream_query.return_value = iter(["Hello ", "world!"])
+        mock_client.last_stream_usage = {"input_tokens": 80, "output_tokens": 30, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -192,6 +234,8 @@ class TestPlaybookChat:
         """POST /api/playbook/chat handles LLM errors gracefully in non-streaming mode."""
         mock_client = MagicMock()
         mock_client.stream_query.side_effect = Exception("API rate limited")
+        mock_client.last_stream_usage = {"input_tokens": 0, "output_tokens": 0, "model": "claude-haiku-4-5-20251001"}
+        mock_client.default_model = "claude-haiku-4-5-20251001"
         mock_get_client.return_value = mock_client
 
         headers = auth_header(client)
@@ -325,6 +369,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = json.dumps(extracted)
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 200
+        mock_response.output_tokens = 150
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 
@@ -376,6 +423,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "This is not valid JSON at all!"
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 100
+        mock_response.output_tokens = 50
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 
@@ -417,6 +467,9 @@ class TestPlaybookExtract:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = fenced_json
+        mock_response.model = "claude-haiku-4-5-20251001"
+        mock_response.input_tokens = 100
+        mock_response.output_tokens = 80
         mock_client.query.return_value = mock_response
         mock_get_client.return_value = mock_client
 

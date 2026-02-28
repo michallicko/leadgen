@@ -8,6 +8,7 @@ import {
 } from '../../api/queries/useAdmin'
 import { useAuth } from '../../hooks/useAuth'
 import { AddUserModal } from './AddUserModal'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface UsersCardProps {
   isSuperAdmin: boolean
@@ -19,6 +20,7 @@ export function UsersCard({ isSuperAdmin, refreshKey }: UsersCardProps) {
   const { data: namespaces } = useNamespaces()
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<NamespaceUser | null>(null)
 
   const { data: users, isLoading } = useNamespaceUsers(selectedTenantId)
   const updateRole = useUpdateUserRole()
@@ -47,9 +49,13 @@ export function UsersCard({ isSuperAdmin, refreshKey }: UsersCardProps) {
 
   function handleRemove(u: NamespaceUser) {
     if (!selectedTenantId) return
-    const name = u.display_name || u.email
-    if (!window.confirm(`Remove ${name} from this namespace?`)) return
-    removeRole.mutate({ userId: u.id, tenantId: selectedTenantId })
+    setRemoveTarget(u)
+  }
+
+  function executeRemove() {
+    if (!removeTarget || !selectedTenantId) return
+    removeRole.mutate({ userId: removeTarget.id, tenantId: selectedTenantId })
+    setRemoveTarget(null)
   }
 
   return (
@@ -165,6 +171,16 @@ export function UsersCard({ isSuperAdmin, refreshKey }: UsersCardProps) {
           tenantId={selectedTenantId}
         />
       )}
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title="Remove user"
+        message={`Remove ${removeTarget?.display_name || removeTarget?.email || 'this user'} from this namespace? They will lose access immediately.`}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={executeRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   )
 }

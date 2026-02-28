@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -20,20 +21,37 @@ from ..models import (
     PlaybookLog,
     StrategyDocument,
     StrategyChatMessage,
+    StrategyVersion,
     Tenant,
+    ToolExecution,
     db,
 )
+from ..services.agent_executor import execute_agent_turn
 from ..services.anthropic_client import AnthropicClient
+from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
     build_seeded_template,
     build_system_prompt,
 )
+from ..services.tool_registry import ToolContext, get_tools_for_api
 
 logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
+
+_ALLOWED_PAGE_CONTEXTS = frozenset(
+    {
+        "contacts",
+        "companies",
+        "messages",
+        "campaigns",
+        "enrich",
+        "import",
+        "playbook",
+    }
+)
 
 
 @playbook_bp.route("/api/playbook", methods=["GET"])
@@ -49,7 +67,18 @@ def get_playbook():
         db.session.add(doc)
         db.session.commit()
 
-    return jsonify(doc.to_dict()), 200
+    result = doc.to_dict()
+
+    # Check for undoable AI edits
+    has_ai_edits = (
+        StrategyVersion.query.filter_by(
+            document_id=doc.id, edit_source="ai_tool"
+        ).first()
+        is not None
+    )
+    result["has_ai_edits"] = has_ai_edits
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook", methods=["PUT"])
@@ -61,21 +90,106 @@ def update_playbook():
 
     data = request.get_json(silent=True) or {}
 
-    content = data.get("content", "")
+    content = data.get("content")
     status = data.get("status")
+    objective = data.get("objective")
 
     doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
-    doc.content = content
-    doc.version = doc.version + 1
+    if content is not None:
+        doc.content = content
+        doc.version = doc.version + 1
     doc.updated_by = getattr(request, "user_id", None)
     if status:
         doc.status = status
+    if objective is not None:
+        doc.objective = objective
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
+
+
+@playbook_bp.route("/api/playbook/undo", methods=["POST"])
+@require_auth
+def undo_ai_edit():
+    """Undo the most recent AI edit(s) to the strategy document.
+
+    Finds the most recent turn_id (batch of edits from one AI turn) and
+    restores the document to the snapshot taken before the first edit of
+    that turn.  If no turn_id is set, reverts to the most recent snapshot.
+
+    The undo itself creates a snapshot (with edit_source='user_undo') so
+    it can be un-undone.  After restoring, the AI-tool snapshots from the
+    undone turn are deleted.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Find the latest ai_tool snapshot for this document
+    latest_snap = (
+        StrategyVersion.query.filter_by(document_id=doc.id, edit_source="ai_tool")
+        .order_by(StrategyVersion.created_at.desc())
+        .first()
+    )
+
+    if not latest_snap:
+        return jsonify({"error": "No AI edits to undo"}), 404
+
+    # Batch undo: if the latest snapshot has a turn_id, find the
+    # earliest snapshot from that turn to restore the state from
+    # *before* the first tool call of the turn.
+    if latest_snap.turn_id:
+        restore_snap = (
+            StrategyVersion.query.filter_by(
+                document_id=doc.id,
+                edit_source="ai_tool",
+                turn_id=latest_snap.turn_id,
+            )
+            .order_by(StrategyVersion.created_at.asc())
+            .first()
+        )
+    else:
+        restore_snap = latest_snap
+
+    # Save a snapshot of current state (so undo is undoable)
+    from ..services.strategy_tools import _snapshot
+
+    _snapshot(doc, edit_source="user_undo")
+
+    restored_version = restore_snap.version
+
+    # Restore content and extracted_data from the snapshot
+    doc.content = restore_snap.content
+    doc.extracted_data = restore_snap.extracted_data
+    doc.version += 1
+    doc.updated_by = getattr(request, "user_id", None)
+
+    # Delete the ai_tool snapshots that were undone
+    if latest_snap.turn_id:
+        StrategyVersion.query.filter_by(
+            document_id=doc.id,
+            edit_source="ai_tool",
+            turn_id=latest_snap.turn_id,
+        ).delete()
+    else:
+        db.session.delete(latest_snap)
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "restored_version": restored_version,
+            "current_version": doc.version,
+        }
+    ), 200
 
 
 @playbook_bp.route("/api/playbook/phase", methods=["PUT"])
@@ -203,7 +317,9 @@ def extract_strategy():
     system_prompt, user_prompt = build_extraction_prompt(doc.content or "")
 
     client = _get_anthropic_client()
+    user_id = getattr(request, "user_id", None)
 
+    start_time = time.time()
     try:
         result = client.query(
             system_prompt=system_prompt,
@@ -216,6 +332,21 @@ def extract_strategy():
         logger.exception("LLM extraction error: %s", e)
         return jsonify({"error": "LLM extraction failed: {}".format(str(e))}), 502
 
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Log LLM usage for strategy extraction
+    log_llm_usage(
+        tenant_id=tenant_id,
+        operation="strategy_extraction",
+        model=result.model,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        provider="anthropic",
+        user_id=user_id,
+        duration_ms=duration_ms,
+        metadata={"document_id": str(doc.id)},
+    )
+
     # Strip markdown code fences if the LLM wraps the JSON
     stripped = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", raw_text, flags=re.DOTALL)
 
@@ -223,6 +354,7 @@ def extract_strategy():
         extracted_data = json.loads(stripped)
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("LLM returned invalid JSON: %s", raw_text[:200])
+        db.session.commit()  # Commit the LLM usage log even on parse failure
         return jsonify(
             {
                 "error": "Failed to parse extraction result as JSON",
@@ -308,6 +440,12 @@ def _load_enrichment_data(company_id):
         result["ai_opportunities"] = l2.ai_opportunities
         result["pain_hypothesis"] = l2.pain_hypothesis
         result["quick_wins"] = l2.quick_wins
+        # Phase 1 (BL-054): Add high-value L2 fields for chat context
+        result["pitch_framing"] = l2.pitch_framing
+        result["revenue_trend"] = l2.revenue_trend
+        result["industry_pain_points"] = l2.industry_pain_points
+        result["relevant_case_study"] = l2.relevant_case_study
+        result["enriched_at"] = l2.enriched_at.isoformat() if l2.enriched_at else None
 
     profile = db.session.get(CompanyEnrichmentProfile, company_id)
     if profile:
@@ -604,12 +742,41 @@ def get_chat_history():
     if not doc:
         return jsonify({"messages": []}), 200
 
-    messages = (
-        StrategyChatMessage.query.filter_by(document_id=doc.id)
-        .order_by(StrategyChatMessage.created_at.asc())
-        .limit(limit)
-        .all()
+    # Thread-aware: find the latest thread_start marker and return
+    # only messages from that point onward. If no marker exists,
+    # return all messages (backward compatible).
+    latest_thread_start = (
+        StrategyChatMessage.query.filter_by(
+            document_id=doc.id, tenant_id=tenant_id, thread_start=True
+        )
+        .order_by(StrategyChatMessage.created_at.desc())
+        .first()
     )
+
+    if latest_thread_start:
+        # Use a subquery to get messages created at or after the marker.
+        # We compare by created_at and also include the marker by id to
+        # handle edge cases with timestamp precision across databases.
+        messages = (
+            StrategyChatMessage.query.filter(
+                StrategyChatMessage.document_id == doc.id,
+                StrategyChatMessage.tenant_id == tenant_id,
+                db.or_(
+                    StrategyChatMessage.id == latest_thread_start.id,
+                    StrategyChatMessage.created_at > latest_thread_start.created_at,
+                ),
+            )
+            .order_by(StrategyChatMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+    else:
+        messages = (
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
+            .order_by(StrategyChatMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )
 
     return jsonify({"messages": [m.to_dict() for m in messages]}), 200
 
@@ -630,6 +797,40 @@ def _get_anthropic_client():
     return AnthropicClient(api_key=api_key)
 
 
+@playbook_bp.route("/api/playbook/chat/new-thread", methods=["POST"])
+@require_auth
+def new_chat_thread():
+    """Create a new conversation thread.
+
+    Inserts a system-role marker message with thread_start=True.
+    Old messages before this point are retained but not shown in the active thread.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    user_id = getattr(request, "user_id", None)
+
+    marker = StrategyChatMessage(
+        tenant_id=tenant_id,
+        document_id=doc.id,
+        role="system",
+        content="--- New conversation started ---",
+        thread_start=True,
+        created_by=user_id,
+    )
+    db.session.add(marker)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "thread_id": marker.id,
+            "created_at": marker.created_at.isoformat() if marker.created_at else None,
+        }
+    ), 201
+
+
 @playbook_bp.route("/api/playbook/chat", methods=["POST"])
 @require_auth
 def post_chat_message():
@@ -642,6 +843,10 @@ def post_chat_message():
     if not message_text:
         return jsonify({"error": "message is required"}), 400
 
+    page_context = data.get("page_context")
+    if page_context and page_context not in _ALLOWED_PAGE_CONTEXTS:
+        page_context = None
+
     doc = _get_or_create_document(tenant_id)
     tenant = db.session.get(Tenant, tenant_id)
     user_id = getattr(request, "user_id", None)
@@ -652,6 +857,7 @@ def post_chat_message():
         document_id=doc.id,
         role="user",
         content=message_text,
+        page_context=page_context,
         created_by=user_id,
     )
     db.session.add(user_msg)
@@ -667,25 +873,67 @@ def post_chat_message():
             payload={"message": message_text},
         )
 
-    # Load chat history for context
-    history = (
-        StrategyChatMessage.query.filter_by(document_id=doc.id)
-        .filter(StrategyChatMessage.id != user_msg.id)
-        .order_by(StrategyChatMessage.created_at.asc())
-        .all()
+    # Load chat history for context — thread-aware
+    # Find latest thread_start marker to scope history
+    latest_thread_start = (
+        StrategyChatMessage.query.filter_by(
+            document_id=doc.id, tenant_id=tenant_id, thread_start=True
+        )
+        .order_by(StrategyChatMessage.created_at.desc())
+        .first()
     )
+
+    if latest_thread_start:
+        history = (
+            StrategyChatMessage.query.filter(
+                StrategyChatMessage.document_id == doc.id,
+                StrategyChatMessage.tenant_id == tenant_id,
+                StrategyChatMessage.id != user_msg.id,
+                db.or_(
+                    StrategyChatMessage.id == latest_thread_start.id,
+                    StrategyChatMessage.created_at > latest_thread_start.created_at,
+                ),
+            )
+            .order_by(StrategyChatMessage.created_at.asc())
+            .all()
+        )
+    else:
+        history = (
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
+            .filter(StrategyChatMessage.id != user_msg.id)
+            .order_by(StrategyChatMessage.created_at.asc())
+            .all()
+        )
 
     # Load enrichment data if research has been done
     enrichment_data = None
     if doc.enrichment_id:
         enrichment_data = _load_enrichment_data(doc.enrichment_id)
+    else:
+        # BL-054: Fallback — find self-company for the tenant
+        self_company = Company.query.filter_by(
+            tenant_id=tenant_id, is_self=True
+        ).first()
+        if self_company:
+            doc.enrichment_id = self_company.id
+            db.session.commit()
+            enrichment_data = _load_enrichment_data(self_company.id)
+            logger.info(
+                "Self-company fallback: linked company %s to strategy doc %s",
+                self_company.id,
+                doc.id,
+            )
 
     # Determine phase for system prompt (request param overrides doc phase)
     phase = data.get("phase") or doc.phase or "strategy"
 
     # Build prompt and messages
     system_prompt = build_system_prompt(
-        tenant, doc, enrichment_data=enrichment_data, phase=phase
+        tenant,
+        doc,
+        enrichment_data=enrichment_data,
+        phase=phase,
+        page_context=page_context,
     )
     messages = build_messages(history, message_text)
 
@@ -718,6 +966,10 @@ def _stream_response(
 ):
     """Return an SSE streaming response with LLM chunks.
 
+    If tools are registered, uses the agent executor (agentic loop with
+    tool_start/tool_result events). Otherwise, falls back to simple
+    stream_query for backward compatibility.
+
     DB operations (saving the assistant message) happen inside the generator
     using the app context, since the generator runs outside the request context.
     """
@@ -725,6 +977,40 @@ def _stream_response(
     from flask import current_app
 
     app = current_app._get_current_object()
+
+    # Check if any tools are registered
+    tools = get_tools_for_api()
+
+    if tools:
+        return _stream_agent_response(
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
+        )
+    else:
+        return _stream_simple_response(
+            client,
+            system_prompt,
+            messages,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
+        )
+
+
+def _stream_simple_response(
+    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id, app
+):
+    """Backward-compatible simple streaming (no tools)."""
+    start_time = time.time()
 
     def generate():
         full_text = []
@@ -749,6 +1035,7 @@ def _stream_response(
 
         # Save the assistant message after streaming completes
         assistant_content = "".join(full_text)
+        duration_ms = int((time.time() - start_time) * 1000)
         with app.app_context():
             assistant_msg = StrategyChatMessage(
                 tenant_id=tenant_id,
@@ -757,6 +1044,25 @@ def _stream_response(
                 content=assistant_content,
             )
             db.session.add(assistant_msg)
+
+            # Log LLM usage from streaming token data
+            usage = client.last_stream_usage
+            log_llm_usage(
+                tenant_id=tenant_id,
+                operation="playbook_chat",
+                model=usage.get("model", client.default_model),
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                provider="anthropic",
+                user_id=user_id,
+                duration_ms=duration_ms,
+                metadata={
+                    "document_id": str(doc_id),
+                    "message_length": len(assistant_content),
+                    "streaming": True,
+                },
+            )
+
             db.session.commit()
             msg_id = assistant_msg.id
 
@@ -785,10 +1091,219 @@ def _stream_response(
     )
 
 
+def _stream_agent_response(
+    client, system_prompt, messages, tools, tenant_id, doc_id, user_msg, user_id, app
+):
+    """Agent-mode streaming with tool-use loop.
+
+    Uses execute_agent_turn() generator to handle tool calls. Yields SSE
+    events for tool_start, tool_result, chunk, and done. Saves assistant
+    message and tool execution records to the database.
+    """
+    import uuid as _uuid
+
+    turn_id = str(_uuid.uuid4())
+
+    tool_context = ToolContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        document_id=str(doc_id) if doc_id else None,
+        turn_id=turn_id,
+    )
+
+    def generate():
+        full_text = []
+        msg_id = None
+        done_data = None
+
+        try:
+            for sse_event in execute_agent_turn(
+                client=client,
+                system_prompt=system_prompt,
+                messages=messages,
+                tools=tools,
+                tool_context=tool_context,
+                app=app,
+            ):
+                if sse_event.type == "chunk":
+                    full_text.append(sse_event.data.get("text", ""))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "chunk"})
+                    )
+
+                elif sse_event.type == "tool_start":
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_start"})
+                    )
+
+                elif sse_event.type == "tool_result":
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_result"})
+                    )
+
+                elif sse_event.type == "done":
+                    done_data = sse_event.data
+
+        except Exception as e:
+            logger.exception("Agent execution error: %s", e)
+            yield "data: {}\n\n".format(
+                json.dumps({"type": "error", "message": str(e)})
+            )
+            return
+
+        # Save the assistant message after the agent turn completes
+        assistant_content = "".join(full_text)
+        with app.app_context():
+            # Build metadata with tool call summary and cost totals
+            extra = {}
+            if done_data:
+                extra = {
+                    "tool_calls": done_data.get("tool_calls", []),
+                    "llm_calls": len(done_data.get("tool_calls", [])) + 1,
+                    "total_input_tokens": done_data.get("total_input_tokens", 0),
+                    "total_output_tokens": done_data.get("total_output_tokens", 0),
+                    "total_cost_usd": done_data.get("total_cost_usd", "0"),
+                }
+
+            assistant_msg = StrategyChatMessage(
+                tenant_id=tenant_id,
+                document_id=doc_id,
+                role="assistant",
+                content=assistant_content,
+                extra=extra,
+            )
+            db.session.add(assistant_msg)
+            db.session.flush()
+            msg_id = assistant_msg.id
+
+            # Log tool executions to the tool_executions table
+            if done_data:
+                for tc in done_data.get("tool_calls", []):
+                    tool_exec = ToolExecution(
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        document_id=doc_id,
+                        chat_message_id=msg_id,
+                        tool_name=tc.get("tool_name", ""),
+                        input_args=tc.get("input_args", {}),
+                        output_data=tc.get("output_data", {}),
+                        is_error=tc.get("status") == "error",
+                        error_message=tc.get("error_message"),
+                        duration_ms=tc.get("duration_ms"),
+                    )
+                    db.session.add(tool_exec)
+
+                # Log aggregated LLM usage
+                log_llm_usage(
+                    tenant_id=tenant_id,
+                    operation="playbook_chat",
+                    model=done_data.get("model", client.default_model),
+                    input_tokens=done_data.get("total_input_tokens", 0),
+                    output_tokens=done_data.get("total_output_tokens", 0),
+                    user_id=user_id,
+                    metadata={
+                        "agent_turn": True,
+                        "tool_calls": len(done_data.get("tool_calls", [])),
+                    },
+                )
+
+            db.session.commit()
+
+            # Log assistant chat event
+            if user_id:
+                _log_event(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    doc_id=doc_id,
+                    event_type="chat_assistant",
+                    payload={
+                        "message": assistant_content[:500],
+                        "tool_calls": done_data.get("tool_calls", [])
+                        if done_data
+                        else [],
+                    },
+                )
+
+        # Emit done event with message_id, tool call summary, and
+        # document_changed signal for frontend (WRITE + THINK features)
+        done_payload = {"type": "done", "message_id": msg_id}
+        if done_data and done_data.get("tool_calls"):
+            done_payload["tool_calls"] = done_data["tool_calls"]
+
+            # Check if any tool calls modified the strategy document
+            strategy_edit_tools = {
+                "update_strategy_section",
+                "set_extracted_field",
+                "append_to_section",
+            }
+            doc_changes = []
+            for tc in done_data["tool_calls"]:
+                tn = tc.get("tool_name", "")
+                if tn in strategy_edit_tools and tc.get("status") == "success":
+                    output = tc.get("output_data") or {}
+                    if tn in ("update_strategy_section", "append_to_section"):
+                        doc_changes.append(output.get("section", tn))
+                    elif tn == "set_extracted_field":
+                        doc_changes.append(
+                            "data: {}".format(
+                                (tc.get("input_args") or {}).get("path", "")
+                            )
+                        )
+
+            if doc_changes:
+                done_payload["document_changed"] = True
+                if len(doc_changes) == 1:
+                    done_payload["changes_summary"] = "Strategy updated: {}".format(
+                        doc_changes[0]
+                    )
+                else:
+                    done_payload["changes_summary"] = (
+                        "Strategy updated: {} ({} changes)".format(
+                            ", ".join(doc_changes), len(doc_changes)
+                        )
+                    )
+
+        yield "data: {}\n\n".format(json.dumps(done_payload))
+
+    # Commit the user message before entering the generator
+    db.session.commit()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 def _sync_response(
     client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
 ):
-    """Return a non-streaming JSON response with the full LLM reply."""
+    """Return a non-streaming JSON response with the full LLM reply.
+
+    If tools are registered, consumes the agent executor loop collecting
+    all events, then persists the assistant message and tool execution
+    records. Otherwise, falls back to the simple stream_query path.
+    """
+    tools = get_tools_for_api()
+
+    if tools:
+        return _sync_agent_response(
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+        )
+
+    # --- No-tools path (backward compatible) ---
+    start_time = time.time()
+    llm_error = False
     try:
         full_text = []
         for chunk in client.stream_query(
@@ -802,10 +1317,13 @@ def _sync_response(
         assistant_content = "".join(full_text)
     except Exception as e:
         logger.exception("LLM query error: %s", e)
+        llm_error = True
         # Fall back to error message so the user message is still saved
         assistant_content = (
             "Sorry, I encountered an error generating a response. Please try again."
         )
+
+    duration_ms = int((time.time() - start_time) * 1000)
 
     assistant_msg = StrategyChatMessage(
         tenant_id=tenant_id,
@@ -814,6 +1332,26 @@ def _sync_response(
         content=assistant_content,
     )
     db.session.add(assistant_msg)
+
+    # Log LLM usage (skip if LLM call failed)
+    if not llm_error:
+        usage = client.last_stream_usage
+        log_llm_usage(
+            tenant_id=tenant_id,
+            operation="playbook_chat",
+            model=usage.get("model", client.default_model),
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            provider="anthropic",
+            user_id=user_id,
+            duration_ms=duration_ms,
+            metadata={
+                "document_id": str(doc_id),
+                "message_length": len(assistant_content),
+                "streaming": False,
+            },
+        )
+
     db.session.commit()
 
     # Log assistant chat event
@@ -832,3 +1370,138 @@ def _sync_response(
             "assistant_message": assistant_msg.to_dict(),
         }
     ), 201
+
+
+def _sync_agent_response(
+    client,
+    system_prompt,
+    messages,
+    tools,
+    tenant_id,
+    doc_id,
+    user_msg,
+    user_id,
+):
+    """Sync (non-streaming) response with agent tool-use loop.
+
+    Collects all SSE events from execute_agent_turn(), persists the
+    assistant message and tool execution records, and returns JSON.
+    """
+    import uuid as _uuid
+
+    tool_context = ToolContext(
+        tenant_id=str(tenant_id),
+        user_id=str(user_id) if user_id else None,
+        document_id=str(doc_id) if doc_id else None,
+        turn_id=str(_uuid.uuid4()),
+    )
+
+    try:
+        events = list(
+            execute_agent_turn(
+                client=client,
+                system_prompt=system_prompt,
+                messages=messages,
+                tools=tools,
+                tool_context=tool_context,
+            )
+        )
+    except Exception as e:
+        logger.exception("Agent sync execution error: %s", e)
+        assistant_msg = StrategyChatMessage(
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            role="assistant",
+            content="Sorry, I encountered an error generating a response. Please try again.",
+        )
+        db.session.add(assistant_msg)
+        db.session.commit()
+        return jsonify(
+            {
+                "user_message": user_msg.to_dict(),
+                "assistant_message": assistant_msg.to_dict(),
+            }
+        ), 201
+
+    text_parts = [e.data.get("text", "") for e in events if e.type == "chunk"]
+    done_event = next((e for e in events if e.type == "done"), None)
+    done_data = done_event.data if done_event else {}
+
+    assistant_content = "".join(text_parts)
+
+    # Build metadata with tool call summary and cost totals
+    extra = {}
+    if done_data:
+        extra = {
+            "tool_calls": done_data.get("tool_calls", []),
+            "llm_calls": len(done_data.get("tool_calls", [])) + 1,
+            "total_input_tokens": done_data.get("total_input_tokens", 0),
+            "total_output_tokens": done_data.get("total_output_tokens", 0),
+            "total_cost_usd": done_data.get("total_cost_usd", "0"),
+        }
+
+    assistant_msg = StrategyChatMessage(
+        tenant_id=tenant_id,
+        document_id=doc_id,
+        role="assistant",
+        content=assistant_content,
+        extra=extra,
+    )
+    db.session.add(assistant_msg)
+    db.session.flush()
+    msg_id = assistant_msg.id
+
+    # Log tool executions to the tool_executions table
+    if done_data:
+        for tc in done_data.get("tool_calls", []):
+            tool_exec = ToolExecution(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                document_id=doc_id,
+                chat_message_id=msg_id,
+                tool_name=tc.get("tool_name", ""),
+                input_args=tc.get("input_args", {}),
+                output_data=tc.get("output_data", {}),
+                is_error=tc.get("status") == "error",
+                error_message=tc.get("error_message"),
+                duration_ms=tc.get("duration_ms"),
+            )
+            db.session.add(tool_exec)
+
+        # Log aggregated LLM usage
+        log_llm_usage(
+            tenant_id=tenant_id,
+            operation="playbook_chat",
+            model=done_data.get("model", client.default_model),
+            input_tokens=done_data.get("total_input_tokens", 0),
+            output_tokens=done_data.get("total_output_tokens", 0),
+            user_id=user_id,
+            metadata={
+                "agent_turn": True,
+                "tool_calls": len(done_data.get("tool_calls", [])),
+            },
+        )
+
+    db.session.commit()
+
+    # Log assistant chat event
+    if user_id:
+        _log_event(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            doc_id=doc_id,
+            event_type="chat_assistant",
+            payload={
+                "message": assistant_content[:500],
+                "tool_calls": done_data.get("tool_calls", []) if done_data else [],
+            },
+        )
+
+    result = {
+        "user_message": user_msg.to_dict(),
+        "assistant_message": assistant_msg.to_dict(),
+    }
+    if done_data and done_data.get("tool_calls"):
+        result["tool_calls"] = done_data["tool_calls"]
+
+    return jsonify(result), 201

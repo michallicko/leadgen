@@ -1,5 +1,6 @@
-import { useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useEffect, useState } from 'react'
 import { FilterBar, type FilterConfig } from '../../components/ui/FilterBar'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../api/queries/useMessages'
 import { useTags } from '../../api/queries/useTags'
 import { useCampaigns } from '../../api/queries/useCampaigns'
@@ -37,6 +38,7 @@ const CHANNEL_OPTIONS = [
 export function MessagesPage() {
   const { toast } = useToast()
   const stack = useEntityStack('contact')
+  const [showBulkApproveConfirm, setShowBulkApproveConfirm] = useState(false)
 
   // Filters
   const [ownerName, setOwnerName] = useLocalStorage('msg_filter_owner', '')
@@ -100,12 +102,16 @@ export function MessagesPage() {
     [data],
   )
 
-  const handleBulkApprove = useCallback(async () => {
+  const handleBulkApprove = useCallback(() => {
     if (allDraftAIds.length === 0) {
       toast('No draft A variants to approve', 'info')
       return
     }
-    if (!confirm(`Approve ${allDraftAIds.length} variant A message(s)?`)) return
+    setShowBulkApproveConfirm(true)
+  }, [allDraftAIds, toast])
+
+  const executeBulkApprove = useCallback(async () => {
+    setShowBulkApproveConfirm(false)
     try {
       await batchMutation.mutateAsync({
         ids: allDraftAIds,
@@ -258,6 +264,15 @@ export function MessagesPage() {
           <ContactDetail contact={contactDetail} onNavigate={stack.push} />
         )}
       </DetailModal>
+
+      <ConfirmDialog
+        open={showBulkApproveConfirm}
+        title="Bulk approve messages"
+        message={`Approve ${allDraftAIds.length} variant A message(s)? This will mark them as ready for outreach.`}
+        confirmLabel="Approve All"
+        onConfirm={executeBulkApprove}
+        onCancel={() => setShowBulkApproveConfirm(false)}
+      />
     </div>
   )
 }

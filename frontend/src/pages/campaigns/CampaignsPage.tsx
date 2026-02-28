@@ -8,6 +8,7 @@ import {
   type Campaign,
 } from '../../api/queries/useCampaigns'
 import { DataTable, type Column } from '../../components/ui/DataTable'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
@@ -41,6 +42,7 @@ export function CampaignsPage() {
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newTemplateId, setNewTemplateId] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const campaigns = useMemo(() => data?.campaigns ?? [], [data])
   const templates = useMemo(() => templateData?.templates ?? [], [templateData])
@@ -58,13 +60,15 @@ export function CampaignsPage() {
     setShowCreate(false)
   }, [newName, newDesc, newTemplateId, createCampaign])
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      if (!confirm('Delete this draft campaign?')) return
-      await deleteCampaign.mutateAsync(id)
-    },
-    [deleteCampaign],
-  )
+  const handleDelete = useCallback((id: string) => {
+    setDeleteTarget(id)
+  }, [])
+
+  const executeDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setDeleteTarget(null)
+    await deleteCampaign.mutateAsync(deleteTarget)
+  }, [deleteTarget, deleteCampaign])
 
   const columns: Column<Campaign>[] = useMemo(
     () => [
@@ -231,6 +235,16 @@ export function CampaignsPage() {
           onRowClick={(c) => navigate(c.id)}
         />
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete campaign"
+        message="Delete this draft campaign? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

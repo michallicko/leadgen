@@ -29,6 +29,16 @@ export interface CostEstimateResponse {
     count: number
     cost: number
   }>
+  enrichment_gaps?: {
+    total_contacts: number
+    enriched_contacts: number
+    unenriched_contacts: number
+    gap_details: Array<{
+      contact_id: string
+      name: string
+      missing_stages: string[]
+    }>
+  }
 }
 
 // ── Hooks ──────────────────────────────────────────────
@@ -52,11 +62,12 @@ export function useGenerationStatus(campaignId: string | null, enabled: boolean)
 export function useStartGeneration() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (campaignId: string) =>
+    mutationFn: ({ campaignId, skipUnenriched }: { campaignId: string; skipUnenriched?: boolean }) =>
       apiFetch<{ ok: boolean; status: string }>(`/campaigns/${campaignId}/generate`, {
         method: 'POST',
+        body: skipUnenriched ? { skip_unenriched: true } : undefined,
       }),
-    onSuccess: (_, campaignId) => {
+    onSuccess: (_, { campaignId }) => {
       qc.invalidateQueries({ queryKey: ['campaign', campaignId] })
       qc.invalidateQueries({ queryKey: ['generation-status', campaignId] })
       qc.invalidateQueries({ queryKey: ['campaigns'] })

@@ -27,6 +27,11 @@ MODEL_PRICING = {
         "input": Decimal("3.00"),
         "output": Decimal("15.00"),
     },
+    # Anthropic Haiku 4.5
+    "anthropic/claude-haiku-4-5-20251001": {
+        "input": Decimal("0.80"),
+        "output": Decimal("4.00"),
+    },
     # Perplexity models
     "perplexity/sonar": {
         "input": Decimal("1.00"),
@@ -35,6 +40,14 @@ MODEL_PRICING = {
     "perplexity/sonar-pro": {
         "input": Decimal("3.00"),
         "output": Decimal("15.00"),
+    },
+    "perplexity/sonar-reasoning-pro": {
+        "input": Decimal("2.00"),
+        "output": Decimal("8.00"),
+    },
+    "perplexity/sonar-reasoning": {
+        "input": Decimal("1.00"),
+        "output": Decimal("5.00"),
     },
     "perplexity/*": {
         "input": Decimal("1.00"),

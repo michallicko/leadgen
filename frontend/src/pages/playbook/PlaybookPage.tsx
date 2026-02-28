@@ -1,13 +1,17 @@
 /**
- * PlaybookPage — split-view editor + AI chat for ICP strategy.
+ * PlaybookPage -- split-view editor + AI chat for ICP strategy.
  *
  * Left panel (~60%): Phase-specific content (StrategyEditor for strategy, placeholders for others)
- * Right panel (~40%): AI chat with SSE streaming (PlaybookChat)
+ * Right panel (~40%): AI chat — uses ChatProvider for persistent state
  *
  * Shows onboarding flow for first-time visitors (no enrichment data yet).
  *
- * Wires together: usePlaybookDocument, useSavePlaybook, usePlaybookChat,
- * useExtractStrategy, useSSE, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
+ * Wires together: usePlaybookDocument, useSavePlaybook,
+ * useExtractStrategy, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
+ * Chat state is provided by ChatProvider (app-level).
+ *
+ * WRITE feature: handles document_changed signals from AI tool calls,
+ * refreshes editor content, and provides undo for AI edits.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -15,18 +19,15 @@ import { useParams, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
-import { PlaybookChat, type ChatMessage } from '../../components/playbook/PlaybookChat'
-import { PlaybookOnboarding } from '../../components/playbook/PlaybookOnboarding'
+import { PlaybookChat } from '../../components/playbook/PlaybookChat'
+import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
 import {
   usePlaybookDocument,
   useSavePlaybook,
-  usePlaybookChat,
   useExtractStrategy,
-  type ChatMessage as APIChatMessage,
+  useUndoAIEdit,
 } from '../../api/queries/usePlaybook'
-import { useSSE } from '../../hooks/useSSE'
-import { resolveApiBase, buildHeaders } from '../../api/client'
-import { getAccessToken } from '../../lib/auth'
+import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
 // ---------------------------------------------------------------------------
@@ -38,16 +39,6 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Convert API ChatMessage (with `extra`) to PlaybookChat ChatMessage format. */
-function toChatMessage(msg: APIChatMessage): ChatMessage {
-  return {
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-    created_at: msg.created_at,
-  }
-}
 
 function isValidPhase(phase: string | undefined): phase is PhaseKey {
   return PHASE_ORDER.includes(phase as PhaseKey)
@@ -62,6 +53,15 @@ function ExtractIcon() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 2v8M5 7l3 3 3-3" />
       <path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+    </svg>
+  )
+}
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7h6a4 4 0 0 1 0 8H9" />
+      <path d="M3 7l3-3M3 7l3 3" />
     </svg>
   )
 }
@@ -98,22 +98,34 @@ export function PlaybookPage() {
   const navigate = useNavigate()
   const { phase: urlPhase } = useParams<{ phase: string }>()
 
+  // Chat state from provider (persists across navigation)
+  const {
+    messages,
+    isStreaming,
+    streamingText,
+    isLoading: chatLoading,
+    sendMessage,
+    chatInputRef,
+    documentChanged,
+    clearDocumentChanged,
+    toolCalls,
+    isThinking,
+    activeToolName,
+  } = useChatContext()
+
   // Server state
   const docQuery = usePlaybookDocument()
-  const chatQuery = usePlaybookChat()
   const saveMutation = useSavePlaybook()
   const extractMutation = useExtractStrategy()
-
-  // SSE streaming
-  const sse = useSSE()
+  const undoMutation = useUndoAIEdit()
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
-  const [streamingText, setStreamingText] = useState('')
-  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -159,10 +171,48 @@ export function PlaybookPage() {
     }
   }, [docQuery.data, isDirty, docRefetch])
 
+  // ---------------------------------------------------------------------------
+  // Handle AI document changes (from ChatProvider)
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!documentChanged?.changed) return
+
+    if (saveStatus !== 'saved' && isDirty) {
+      // User has unsaved changes -- don't auto-replace, show toast
+      toast(
+        documentChanged.summary ?? 'Strategy updated by AI',
+        'info',
+      )
+    } else {
+      // No unsaved changes -- safe to auto-refresh the editor
+      // Update lastSavedContentRef so the debounced save sees no diff and skips
+      queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true }).then(() => {
+        // After refetch, update the saved content ref to match server state
+        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook'])
+        if (newContent?.content) {
+          lastSavedContentRef.current = newContent.content
+          setEditedContent(null)
+          setIsDirty(false)
+        }
+      })
+
+      // Show toast summarizing changes
+      if (documentChanged.summary) {
+        toast(documentChanged.summary, 'info')
+      }
+    }
+
+    clearDocumentChanged()
+  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged])
+
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
     ? editedContent
     : (docQuery.data?.content ?? null)
+
+  // Derive whether undo is available
+  const hasUndoableEdits = docQuery.data?.has_ai_edits ?? false
 
   // ---------------------------------------------------------------------------
   // Auto-save logic
@@ -270,51 +320,81 @@ export function PlaybookPage() {
   }, [extractMutation, toast])
 
   // ---------------------------------------------------------------------------
-  // Chat handlers
+  // Undo AI edit handler
   // ---------------------------------------------------------------------------
 
-  const handleSendMessage = useCallback(
-    (text: string) => {
-      // Add optimistic user message
-      const optimisticMsg: ChatMessage = {
-        id: `optimistic-${Date.now()}`,
-        role: 'user',
-        content: text,
-        created_at: new Date().toISOString(),
+  const handleUndoClick = useCallback(() => {
+    setShowUndoConfirm(true)
+  }, [])
+
+  const handleUndoConfirmed = useCallback(async () => {
+    setShowUndoConfirm(false)
+    try {
+      await undoMutation.mutateAsync()
+      // Refetch doc after undo and update refs
+      const result = await docQuery.refetch()
+      if (result.data?.content) {
+        lastSavedContentRef.current = result.data.content
+        setEditedContent(null)
+        setIsDirty(false)
       }
-      setOptimisticMessages((prev) => [...prev, optimisticMsg])
-      setStreamingText('')
+      toast('Reverted to previous version', 'success')
+    } catch {
+      toast('Undo failed', 'error')
+    }
+  }, [undoMutation, docQuery, toast])
 
-      const url = `${resolveApiBase()}/playbook/chat`
-      const token = getAccessToken()
-      const headers = buildHeaders(token)
+  // ---------------------------------------------------------------------------
+  // Onboarding: generate strategy via AI chat
+  // ---------------------------------------------------------------------------
 
-      sse.startStream(url, { message: text, phase: viewPhase }, headers, {
-        onChunk: (chunk) => {
-          setStreamingText((prev) => prev + chunk)
-        },
-        onDone: () => {
-          setStreamingText('')
-          setOptimisticMessages([])
-          // Refetch chat history from server to get persisted messages
-          chatQuery.refetch()
-        },
-        onError: (error) => {
-          setStreamingText('')
-          setOptimisticMessages([])
-          toast(error.message || 'Chat error', 'error')
-        },
-      })
+  const handleOnboardGenerate = useCallback(
+    async (payload: OnboardingPayload) => {
+      // Save objective to the document
+      try {
+        await saveMutation.mutateAsync({ objective: payload.objective })
+      } catch {
+        // Objective save failed — continue anyway, AI will still work
+      }
+
+      // Build a crafted prompt for the AI to generate the strategy
+      const parts = [
+        `Generate a complete GTM strategy playbook for my company (${payload.domain}).`,
+        `Our primary objective: ${payload.objective}.`,
+      ]
+      if (payload.icp) {
+        parts.push(`Our ideal customer: ${payload.icp}.`)
+      }
+      parts.push(
+        'Draft all sections of the strategy document using the update_strategy_section tool. ' +
+          'Fill in each section with specific, actionable content based on the information I provided.',
+      )
+
+      sendMessage(parts.join(' '))
+
+      // Exit onboarding gate immediately — the chat panel is visible in the
+      // main split view so the user can follow the AI's progress there
+      setSkipped(true)
+      setShowSuggestions(true)
     },
-    [sse, chatQuery, toast, viewPhase],
+    [sendMessage, saveMutation],
   )
 
-  // ---------------------------------------------------------------------------
-  // Derived state
-  // ---------------------------------------------------------------------------
+  // Wrap sendMessage to dismiss suggestions on first user follow-up
+  const handleSendWithSuggestionDismiss = useCallback(
+    (text: string) => {
+      setShowSuggestions(false)
+      sendMessage(text)
+    },
+    [sendMessage],
+  )
 
-  const serverMessages = (chatQuery.data?.messages ?? []).map(toChatMessage)
-  const allMessages = [...serverMessages, ...optimisticMessages]
+  const ONBOARDING_SUGGESTIONS = [
+    'Refine my ICP criteria',
+    'Add more buyer personas',
+    'Strengthen the value proposition',
+    'Suggest outreach channels',
+  ]
 
   // ---------------------------------------------------------------------------
   // Loading / error states
@@ -357,21 +437,18 @@ export function PlaybookPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Onboarding gate — show if no enrichment data and user hasn't skipped
+  // Onboarding gate -- show if doc is blank (no content) and user hasn't skipped
   // ---------------------------------------------------------------------------
 
-  const needsOnboarding = docQuery.data && !docQuery.data.enrichment_id
+  const docContent = docQuery.data?.content || ''
+  const needsOnboarding = docQuery.data && !docContent.trim()
 
   if (needsOnboarding && !skipped) {
     return (
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
-        onComplete={() => {
-          // Invalidate the document query so it re-fetches with seeded content.
-          // Only invalidate ['playbook'] exactly — NOT ['playbook', 'research']
-          // which would cause the onboarding to skip prematurely (see 8ac309b).
-          queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true })
-        }}
+        onGenerate={handleOnboardGenerate}
+        isGenerating={isStreaming}
       />
     )
   }
@@ -410,6 +487,18 @@ export function PlaybookPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Undo AI edit button */}
+          {hasUndoableEdits && (
+            <button
+              onClick={handleUndoClick}
+              disabled={undoMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer disabled:opacity-40"
+            >
+              <UndoIcon />
+              {undoMutation.isPending ? 'Reverting...' : 'Undo AI edit'}
+            </button>
+          )}
+
           {/* Phase-specific action button */}
           {viewPhase === 'strategy' ? (
             <button
@@ -432,6 +521,33 @@ export function PlaybookPage() {
         </div>
       </div>
 
+      {/* Undo confirmation dialog */}
+      {showUndoConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-surface border border-border-solid rounded-lg shadow-lg p-6 max-w-sm mx-4">
+            <h3 className="text-sm font-semibold mb-2">Undo AI edit?</h3>
+            <p className="text-xs text-text-muted mb-4">
+              This will revert the strategy document to its state before the last AI edit.
+              Any manual changes made since then will be lost.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowUndoConfirm(false)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUndoConfirmed}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer"
+              >
+                Undo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Phase indicator */}
       <PhaseIndicator
         current={viewPhase}
@@ -451,14 +567,20 @@ export function PlaybookPage() {
           />
         </div>
 
-        {/* Right: Chat */}
+        {/* Right: Inline Chat (uses ChatProvider state) */}
         <div className="flex-[2] min-w-0 flex flex-col min-h-0">
           <PlaybookChat
-            messages={allMessages}
-            onSendMessage={handleSendMessage}
-            isStreaming={sse.isStreaming}
+            messages={messages}
+            onSendMessage={handleSendWithSuggestionDismiss}
+            isStreaming={isStreaming}
             streamingText={streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
+            activeToolName={activeToolName}
+            isLoading={chatLoading}
+            inputRef={chatInputRef}
+            toolCalls={toolCalls}
+            isThinking={isThinking}
+            suggestions={showSuggestions ? ONBOARDING_SUGGESTIONS : []}
           />
         </div>
       </div>

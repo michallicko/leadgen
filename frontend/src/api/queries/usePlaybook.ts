@@ -11,16 +11,19 @@ export interface StrategyDocument {
   phase: string
   status: string
   version: number
+  has_ai_edits: boolean
   created_at: string
   updated_at: string
 }
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   extra: Record<string, unknown>
   created_at: string
+  page_context?: string | null
+  thread_start?: boolean
 }
 
 interface ChatResponse {
@@ -42,15 +45,16 @@ export function usePlaybookDocument() {
 
 export function useSavePlaybook() {
   return useMutation({
-    mutationFn: (data: { content: string }) =>
+    mutationFn: (data: { content?: string; objective?: string }) =>
       apiFetch<StrategyDocument>('/playbook', { method: 'PUT', body: data }),
   })
 }
 
-export function usePlaybookChat() {
+export function usePlaybookChat(enabled = true) {
   return useQuery({
     queryKey: ['playbook', 'chat'],
     queryFn: () => apiFetch<ChatResponse>('/playbook/chat'),
+    enabled,
   })
 }
 
@@ -59,6 +63,20 @@ export function useSendChatMessage() {
   return useMutation({
     mutationFn: (data: { message: string }) =>
       apiFetch<ChatMessage>('/playbook/chat', { method: 'POST', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'chat'] })
+    },
+  })
+}
+
+export function useNewThread() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ thread_id: string; created_at: string }>('/playbook/chat/new-thread', {
+        method: 'POST',
+        body: {},
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook', 'chat'] })
     },
@@ -105,6 +123,24 @@ export function useAdvancePhase() {
   return useMutation({
     mutationFn: (data: { phase: string }) =>
       apiFetch<StrategyDocument>('/playbook/phase', { method: 'PUT', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+interface UndoResponse {
+  success: boolean
+  restored_version: number
+  current_version: number
+  error?: string
+}
+
+export function useUndoAIEdit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<UndoResponse>('/playbook/undo', { method: 'POST', body: {} }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook'] })
     },

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './hooks/useAuth'
 import { ToastProvider } from './components/ui/Toast'
+import { ChatProvider } from './providers/ChatProvider'
 import { AppShell } from './components/layout/AppShell'
 import { LoginPage } from './components/layout/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
@@ -18,6 +19,7 @@ import { ImportPage } from './pages/import/ImportPage'
 import { AdminPage } from './pages/admin/AdminPage'
 import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
+import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +36,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
         <BrowserRouter>
+          <ChatProvider>
           <Routes>
             {/* Login — root page */}
             <Route path="/" element={<LoginPage />} />
@@ -56,9 +59,10 @@ export default function App() {
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="preferences" element={<PreferencesPage />} />
-              <Route path="llm-costs" element={<PlaceholderPage title="LLM Costs" description="AI usage tracking — cost over time, per-operation breakdown, per-tenant analysis, and call logs." />} />
+              <Route path="llm-costs" element={<LlmCostsPage />} />
             </Route>
           </Routes>
+          </ChatProvider>
         </BrowserRouter>
         </ToastProvider>
       </AuthProvider>

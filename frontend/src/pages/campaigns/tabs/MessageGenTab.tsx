@@ -14,6 +14,7 @@ import { useToast } from '../../../components/ui/Toast'
 import { Modal } from '../../../components/ui/Modal'
 import { GenerationProgressModal } from '../../../components/campaign/GenerationProgressModal'
 import { EditableSelect, EditableTextarea, FieldGrid, Field } from '../../../components/ui/DetailField'
+import { WarningBanner } from '../../../components/ui/WarningBanner'
 
 const TONE_OPTIONS = [
   { value: 'professional', label: 'Professional' },
@@ -44,6 +45,7 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
   // Cost confirm dialog state
   const [showCostDialog, setShowCostDialog] = useState(false)
   const [costData, setCostData] = useState<CostEstimateResponse | null>(null)
+  const [skipUnenriched, setSkipUnenriched] = useState(false)
 
   // Progress modal state
   const [showProgress, setShowProgress] = useState(false)
@@ -125,11 +127,12 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
     }
   }, [generationConfig, campaign.id, updateCampaign, toast])
 
-  // Cost estimate → confirmation dialog
+  // Cost estimate -> confirmation dialog
   const handleEstimateCost = useCallback(async () => {
     try {
       const data = await costEstimate.mutateAsync(campaign.id)
       setCostData(data)
+      setSkipUnenriched(false)
       setShowCostDialog(true)
     } catch {
       toast('Failed to estimate cost', 'error')
@@ -140,12 +143,14 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
   const handleConfirmGenerate = useCallback(async () => {
     setShowCostDialog(false)
     try {
-      await startGeneration.mutateAsync(campaign.id)
+      await startGeneration.mutateAsync({ campaignId: campaign.id, skipUnenriched })
       setShowProgress(true)
     } catch {
       toast('Failed to start generation', 'error')
     }
-  }, [campaign.id, startGeneration, toast])
+  }, [campaign.id, startGeneration, toast, skipUnenriched])
+
+  const gaps = costData?.enrichment_gaps
 
   return (
     <div className="space-y-4">
@@ -302,6 +307,30 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
               {' '}for{' '}
               <span className="font-semibold text-accent-cyan">{costData.total_contacts} contacts</span>?
             </p>
+
+            {/* Enrichment gap warning */}
+            {gaps && gaps.unenriched_contacts > 0 && (
+              <div className="space-y-2">
+                <WarningBanner
+                  variant="warning"
+                  message={
+                    <span>
+                      <strong>{gaps.unenriched_contacts}</strong> of {gaps.total_contacts} contacts
+                      have not been fully enriched. Messages for these contacts may be lower quality.
+                    </span>
+                  }
+                />
+                <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipUnenriched}
+                    onChange={(e) => setSkipUnenriched(e.target.checked)}
+                    className="rounded border-border accent-accent"
+                  />
+                  Skip unenriched contacts ({gaps.enriched_contacts} of {gaps.total_contacts} will be generated)
+                </label>
+              </div>
+            )}
 
             {/* Step breakdown */}
             {costData.by_step && costData.by_step.length > 0 && (

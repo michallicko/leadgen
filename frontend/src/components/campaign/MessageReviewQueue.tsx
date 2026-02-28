@@ -6,6 +6,7 @@ import {
   type ReviewQueueItem,
 } from '../../api/queries/useMessages'
 import { useToast } from '../ui/Toast'
+import { Modal } from '../ui/Modal'
 
 // ── Constants ──────────────────────────────────────────
 
@@ -35,6 +36,8 @@ const EDIT_REASONS = [
   { value: 'generic', label: 'Too generic' },
   { value: 'other', label: 'Other' },
 ]
+
+const MIN_REJECTION_LENGTH = 5
 
 // ── Types ──────────────────────────────────────────────
 
@@ -70,6 +73,8 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
 
   // Regen state
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [showRegenDialog, setShowRegenDialog] = useState(false)
+  const [regenInstruction, setRegenInstruction] = useState('')
 
   // Transition state
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null)
@@ -152,6 +157,10 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
       toast('Please enter a rejection reason', 'error')
       return
     }
+    if (rejectNotes.trim().length < MIN_REJECTION_LENGTH) {
+      toast(`Rejection reason must be at least ${MIN_REJECTION_LENGTH} characters`, 'error')
+      return
+    }
     try {
       await updateMutation.mutateAsync({
         id: current.message.id,
@@ -197,13 +206,21 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
     }
   }, [current, editBody, editSubject, editReason, updateMutation, toast, advance])
 
-  const handleRegenerate = useCallback(async () => {
+  const handleOpenRegen = useCallback(() => {
+    // Pre-fill with rejection notes if the message was previously rejected
+    const notes = current?.message.review_notes ?? ''
+    setRegenInstruction(notes)
+    setShowRegenDialog(true)
+  }, [current])
+
+  const handleConfirmRegen = useCallback(async () => {
     if (!current) return
+    setShowRegenDialog(false)
     setIsRegenerating(true)
     try {
       await regenMutation.mutateAsync({
         id: current.message.id,
-        data: {},
+        data: regenInstruction.trim() ? { instruction: regenInstruction.trim() } : {},
       })
       toast('Message regenerated', 'success')
       refetch()
@@ -212,7 +229,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
     } finally {
       setIsRegenerating(false)
     }
-  }, [current, regenMutation, toast, refetch])
+  }, [current, regenMutation, toast, refetch, regenInstruction])
 
   const handleSkip = useCallback(() => {
     setActionCounts(c => ({ ...c, skipped: c.skipped + 1 }))
@@ -238,6 +255,8 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
               setEditSubject(current.message.subject ?? '')
             }
             setEditReason('')
+          } else if (showRegenDialog) {
+            setShowRegenDialog(false)
           }
         }
         // Cmd/Ctrl+Enter to save edit
@@ -250,10 +269,15 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
           e.preventDefault()
           handleReject()
         }
+        // Cmd/Ctrl+Enter in regen dialog confirms
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && showRegenDialog) {
+          e.preventDefault()
+          handleConfirmRegen()
+        }
         return
       }
 
-      if (isRegenerating) return
+      if (isRegenerating || showRegenDialog) return
 
       switch (e.key) {
         case 'a':
@@ -278,7 +302,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
         case 'g':
           if (mode === 'view') {
             e.preventDefault()
-            handleRegenerate()
+            handleOpenRegen()
           }
           break
         case 'ArrowLeft':
@@ -308,7 +332,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [mode, current, isRegenerating, handleApprove, handleReject, handleEditSave, handleRegenerate, handleSkip, goBack, onClose])
+  }, [mode, current, isRegenerating, showRegenDialog, handleApprove, handleReject, handleEditSave, handleOpenRegen, handleConfirmRegen, handleSkip, goBack, onClose])
 
   // ── Progress summary ─────────────────────────────────
 
@@ -627,6 +651,14 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
                     </div>
                   </div>
 
+                  {/* Previous rejection notes */}
+                  {msg.review_notes && msg.status === 'rejected' && (
+                    <div className="mt-3 px-4 py-2.5 bg-error/5 border border-error/20 rounded-lg">
+                      <span className="text-xs font-medium text-error block mb-1">Previous rejection</span>
+                      <span className="text-xs text-text-muted">{msg.review_notes}</span>
+                    </div>
+                  )}
+
                   {/* Original (if edited previously) */}
                   {msg.original_body && msg.original_body !== msg.body && (
                     <details className="mt-4">
@@ -736,14 +768,19 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
                       autoFocus
                       value={rejectNotes}
                       onChange={e => setRejectNotes(e.target.value)}
-                      placeholder="Why is this message being rejected?"
+                      placeholder="Why is this message being rejected? (min 5 chars)"
                       rows={3}
                       className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-1 focus:ring-error"
                     />
+                    {rejectNotes.trim().length > 0 && rejectNotes.trim().length < MIN_REJECTION_LENGTH && (
+                      <p className="text-xs text-error mt-1">
+                        {MIN_REJECTION_LENGTH - rejectNotes.trim().length} more character{MIN_REJECTION_LENGTH - rejectNotes.trim().length !== 1 ? 's' : ''} needed
+                      </p>
+                    )}
                     <div className="flex gap-2 mt-3">
                       <button
                         onClick={handleReject}
-                        disabled={!rejectNotes.trim() || updateMutation.isPending}
+                        disabled={!rejectNotes.trim() || rejectNotes.trim().length < MIN_REJECTION_LENGTH || updateMutation.isPending}
                         className="px-4 py-2 bg-error text-white text-sm font-medium rounded-lg hover:bg-error/90 disabled:opacity-50 transition-colors"
                       >
                         {updateMutation.isPending ? 'Rejecting...' : 'Confirm Reject'}
@@ -807,7 +844,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
                 </button>
 
                 <button
-                  onClick={handleRegenerate}
+                  onClick={handleOpenRegen}
                   className="px-5 py-2 bg-surface border border-border text-text text-sm rounded-lg hover:bg-surface-alt transition-colors"
                   title="Regenerate (G)"
                 >
@@ -833,6 +870,47 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
           )}
         </div>
       </div>
+
+      {/* Regeneration instruction dialog */}
+      <Modal
+        open={showRegenDialog}
+        onClose={() => setShowRegenDialog(false)}
+        title="Regenerate Message"
+        actions={
+          <>
+            <button
+              onClick={() => setShowRegenDialog(false)}
+              className="px-3 py-1.5 text-sm rounded border border-border text-text-muted hover:text-text cursor-pointer bg-transparent transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmRegen}
+              disabled={regenMutation.isPending}
+              className="px-4 py-1.5 text-sm font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50"
+            >
+              {regenMutation.isPending ? 'Regenerating...' : 'Regenerate'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-text-muted">
+            Optionally provide instructions for the AI to follow when regenerating this message.
+          </p>
+          <textarea
+            autoFocus
+            value={regenInstruction}
+            onChange={e => setRegenInstruction(e.target.value)}
+            placeholder="e.g. Make it shorter and more direct, focus on their recent funding round..."
+            rows={3}
+            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          <p className="text-xs text-text-dim">
+            Leave empty to regenerate with default settings. Cmd+Enter to confirm.
+          </p>
+        </div>
+      </Modal>
 
       {/* Inline styles for slide animations */}
       <style>{`

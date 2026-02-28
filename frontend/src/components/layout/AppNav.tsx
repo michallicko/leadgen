@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useNamespace } from '../../hooks/useNamespace'
+import { useChatContext, useHasUnread } from '../../providers/ChatProvider'
 import { type Role } from '../../lib/auth'
 import { getRevision, clearRevision } from '../../lib/revision'
 import { apiFetch } from '../../api/client'
@@ -196,6 +197,9 @@ export function AppNav() {
 
         {/* Right section */}
         <div className="flex items-center gap-3 ml-auto">
+          {/* Chat toggle */}
+          <ChatToggleButton />
+
           {/* Namespace switcher */}
           <NamespaceSwitcher />
 
@@ -306,6 +310,40 @@ export function AppNav() {
         </div>
       )}
     </div>
+  )
+}
+
+// ---- Chat toggle button sub-component ----
+
+function ChatToggleButton() {
+  const { toggleChat, isOnPlaybookPage } = useChatContext()
+  const hasUnread = useHasUnread()
+
+  // Don't show toggle on playbook page — chat is inline there
+  if (isOnPlaybookPage) return null
+
+  return (
+    <button
+      onClick={toggleChat}
+      className="relative p-1.5 rounded-md border border-border text-text-muted hover:text-accent-cyan hover:border-accent-cyan/40 transition-colors bg-transparent cursor-pointer hidden md:flex items-center justify-center"
+      aria-label="Toggle AI Chat (Cmd+K)"
+      title="AI Chat (Cmd+K)"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+      {hasUnread && (
+        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent-cyan rounded-full" />
+      )}
+    </button>
   )
 }
 
