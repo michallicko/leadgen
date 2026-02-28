@@ -1106,6 +1106,7 @@ def _stream_agent_response(
                 messages=messages,
                 tools=tools,
                 tool_context=tool_context,
+                app=app,
             ):
                 if sse_event.type == "chunk":
                     full_text.append(sse_event.data.get("text", ""))

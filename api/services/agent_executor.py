@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
+from flask import current_app
+
 from .tool_registry import get_tool
 
 logger = logging.getLogger(__name__)
@@ -70,11 +72,15 @@ def _summarize_output(tool_name, output):
     return "Completed {}".format(tool_name)
 
 
-def _execute_tool(tool_name, tool_input, tool_context):
+def _execute_tool(tool_name, tool_input, tool_context, app=None):
     """Execute a single tool and return a ToolExecutionRecord.
 
     All exceptions are caught and converted to error records so the
     agentic loop can continue and Claude can handle the error gracefully.
+
+    If ``app`` is provided, the tool handler runs inside an app context
+    (needed when executing inside an SSE generator where Flask's request
+    context has already been torn down).
     """
     start = time.monotonic()
     tool_def = get_tool(tool_name)
@@ -91,7 +97,11 @@ def _execute_tool(tool_name, tool_input, tool_context):
         )
 
     try:
-        result = tool_def.handler(tool_input, tool_context)
+        if app is not None:
+            with app.app_context():
+                result = tool_def.handler(tool_input, tool_context)
+        else:
+            result = tool_def.handler(tool_input, tool_context)
         elapsed_ms = int((time.monotonic() - start) * 1000)
         return ToolExecutionRecord(
             tool_name=tool_name,
@@ -120,6 +130,7 @@ def execute_agent_turn(
     messages,
     tools,
     tool_context,
+    app=None,
 ):
     """Execute a full agent turn with tool-use loop.
 
@@ -138,6 +149,8 @@ def execute_agent_turn(
             assistant + tool_result messages during the loop).
         tools: List of tool definitions in Claude API format.
         tool_context: ToolContext with tenant_id, user_id, document_id.
+        app: Flask app object. When provided, tool handlers execute inside
+            an application context (required for SSE generators in gunicorn).
 
     Yields:
         SSEEvent objects.
@@ -226,8 +239,8 @@ def execute_agent_turn(
                 },
             )
 
-            # Execute the tool
-            exec_record = _execute_tool(tool_name, tool_input, tool_context)
+            # Execute the tool (with app context for DB access)
+            exec_record = _execute_tool(tool_name, tool_input, tool_context, app=app)
             exec_record.tool_call_id = tool_id
             tool_executions.append(exec_record)
 
