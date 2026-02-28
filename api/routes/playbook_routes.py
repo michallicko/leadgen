@@ -90,18 +90,22 @@ def update_playbook():
 
     data = request.get_json(silent=True) or {}
 
-    content = data.get("content", "")
+    content = data.get("content")
     status = data.get("status")
+    objective = data.get("objective")
 
     doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
-    doc.content = content
-    doc.version = doc.version + 1
+    if content is not None:
+        doc.content = content
+        doc.version = doc.version + 1
     doc.updated_by = getattr(request, "user_id", None)
     if status:
         doc.status = status
+    if objective is not None:
+        doc.objective = objective
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200

@@ -32,6 +32,8 @@ interface PlaybookChatProps {
   toolCalls?: ToolCallEvent[]
   /** THINK: show thinking indicator before first tool_start or chunk */
   isThinking?: boolean
+  /** Clickable suggestion chips shown above the input */
+  suggestions?: string[]
 }
 
 export function PlaybookChat({
@@ -45,6 +47,7 @@ export function PlaybookChat({
   inputRef,
   toolCalls = [],
   isThinking = false,
+  suggestions = [],
 }: PlaybookChatProps) {
   return (
     <div className="flex flex-col h-full bg-surface rounded-lg border border-border-solid overflow-hidden">
@@ -75,6 +78,22 @@ export function PlaybookChat({
         toolCalls={toolCalls}
         isThinking={isThinking}
       />
+
+      {/* Suggestion chips */}
+      {suggestions.length > 0 && !isStreaming && (
+        <div className="px-3 pt-2 flex flex-wrap gap-2">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => onSendMessage(suggestion)}
+              className="px-3 py-1.5 text-xs font-medium rounded-full border border-accent/30 text-accent hover:bg-accent/10 transition-colors bg-transparent cursor-pointer"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Input area */}
       <ChatInput
