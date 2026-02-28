@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 MAX_TOOL_ITERATIONS = 10
 
+# Per-turn rate limits by tool name.  Tools not listed here get the default.
+TOOL_RATE_LIMITS: dict[str, int] = {
+    "web_search": 3,
+}
+DEFAULT_TOOL_RATE_LIMIT = 5  # max calls per tool per turn
+
 
 @dataclass
 class SSEEvent:
@@ -158,6 +164,7 @@ def execute_agent_turn(
     total_output_tokens = 0
     total_cost_usd = Decimal("0")
     tool_executions = []
+    tool_call_counts: dict[str, int] = {}  # per-tool rate limit counter
     model = client.default_model
 
     for iteration in range(MAX_TOOL_ITERATIONS):
@@ -238,6 +245,47 @@ def execute_agent_turn(
                     "input": tool_input,
                 },
             )
+
+            # Rate-limit check
+            max_allowed = TOOL_RATE_LIMITS.get(tool_name, DEFAULT_TOOL_RATE_LIMIT)
+            current_count = tool_call_counts.get(tool_name, 0)
+            if current_count >= max_allowed:
+                exec_record = ToolExecutionRecord(
+                    tool_name=tool_name,
+                    tool_call_id=tool_id,
+                    input_args=tool_input,
+                    is_error=True,
+                    error_message=(
+                        "Rate limit: {} can be called at most {} times per turn. "
+                        "Please continue with the information you already have."
+                    ).format(tool_name, max_allowed),
+                    duration_ms=0,
+                )
+                tool_executions.append(exec_record)
+
+                yield SSEEvent(
+                    type="tool_result",
+                    data={
+                        "tool_call_id": tool_id,
+                        "tool_name": tool_name,
+                        "status": "error",
+                        "summary": exec_record.error_message,
+                        "output": "",
+                        "duration_ms": 0,
+                    },
+                )
+
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": exec_record.error_message,
+                        "is_error": True,
+                    }
+                )
+                continue
+
+            tool_call_counts[tool_name] = current_count + 1
 
             # Execute the tool (with app context for DB access)
             exec_record = _execute_tool(tool_name, tool_input, tool_context, app=app)

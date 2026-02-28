@@ -16,11 +16,13 @@ def create_app():
     db.init_app(app)
     register_blueprints(app)
 
-    # Register strategy tools with the agent tool registry
+    # Register agent tools with the tool registry
+    from .services.analyze_tools import ANALYZE_TOOLS
+    from .services.search_tools import SEARCH_TOOLS
     from .services.strategy_tools import STRATEGY_TOOLS
     from .services.tool_registry import register_tool
 
-    for tool in STRATEGY_TOOLS:
+    for tool in STRATEGY_TOOLS + ANALYZE_TOOLS + SEARCH_TOOLS:
         try:
             register_tool(tool)
         except ValueError:
