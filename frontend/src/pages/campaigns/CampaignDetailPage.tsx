@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router'
-import { useCampaign, useUpdateCampaign, useCloneCampaign, useCampaignContacts } from '../../api/queries/useCampaigns'
+import { useCampaign, useUpdateCampaign, useCloneCampaign, useCampaignContacts, useSaveAsTemplate } from '../../api/queries/useCampaigns'
 import { useContact } from '../../api/queries/useContacts'
 import { useCompany } from '../../api/queries/useCompanies'
 import { useToast } from '../../components/ui/Toast'
@@ -57,6 +57,31 @@ export function CampaignDetailPage() {
   const isReviewStatus = campaign?.status === 'Review'
   const { data: reviewSummary } = useReviewSummary(isReviewStatus ? (campaignId ?? null) : null)
   const [showOutreachDialog, setShowOutreachDialog] = useState(false)
+
+  // Save as template
+  const saveAsTemplate = useSaveAsTemplate()
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDesc, setTemplateDesc] = useState('')
+
+  const canSaveAsTemplate = (campaign?.template_config?.length ?? 0) > 0
+
+  const handleSaveAsTemplate = async () => {
+    if (!campaign || !templateName.trim()) return
+    try {
+      await saveAsTemplate.mutateAsync({
+        campaignId: campaign.id,
+        name: templateName.trim(),
+        description: templateDesc.trim() || undefined,
+      })
+      toast('Template saved', 'success')
+      setShowSaveTemplate(false)
+      setTemplateName('')
+      setTemplateDesc('')
+    } catch {
+      toast('Failed to save template', 'error')
+    }
+  }
 
   // Editable state
   const isEditable = campaign?.status === 'Draft' || campaign?.status === 'Ready'
@@ -178,6 +203,18 @@ export function CampaignDetailPage() {
             </span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {canSaveAsTemplate && (
+              <button
+                onClick={() => {
+                  setTemplateName(campaign.name)
+                  setTemplateDesc('')
+                  setShowSaveTemplate(true)
+                }}
+                className="px-3 py-1 text-xs font-medium rounded bg-transparent text-text-muted border border-border cursor-pointer hover:text-text hover:border-accent transition-colors"
+              >
+                Save as Template
+              </button>
+            )}
             {isReviewStatus && reviewSummary?.can_approve_outreach && (
               <button
                 onClick={() => setShowOutreachDialog(true)}
@@ -287,6 +324,54 @@ export function CampaignDetailPage() {
           onClose={() => setShowOutreachDialog(false)}
           onApproved={() => { setShowOutreachDialog(false) }}
         />
+      )}
+
+      {/* Save as Template dialog */}
+      {showSaveTemplate && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSaveTemplate(false) }}
+        >
+          <div className="bg-surface border border-border rounded-lg p-5 w-full max-w-md shadow-lg">
+            <h2 className="text-sm font-semibold text-text mb-4">Save as Template</h2>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-xs text-text-muted mb-1 block">Template name</label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded border border-border bg-surface text-text outline-none focus:border-accent"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted mb-1 block">Description (optional)</label>
+                <textarea
+                  value={templateDesc}
+                  onChange={(e) => setTemplateDesc(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-1.5 text-sm rounded border border-border bg-surface text-text outline-none focus:border-accent resize-none"
+                />
+              </div>
+              <div className="flex gap-2 justify-end mt-1">
+                <button
+                  onClick={() => setShowSaveTemplate(false)}
+                  className="px-4 py-1.5 text-sm rounded bg-transparent text-text-muted border border-border cursor-pointer hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveAsTemplate}
+                  disabled={!templateName.trim() || saveAsTemplate.isPending}
+                  className="px-4 py-1.5 text-sm font-medium rounded bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saveAsTemplate.isPending ? 'Saving...' : 'Save Template'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

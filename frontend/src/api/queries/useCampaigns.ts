@@ -133,6 +133,55 @@ export function useCloneCampaign() {
   })
 }
 
+// ── Template Mutations ────────────────────────────────
+
+export function useCreateCampaignTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; steps: TemplateStep[]; default_config?: Record<string, unknown> }) =>
+      apiFetch<CampaignTemplate>('/campaign-templates', { method: 'POST', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign-templates'] })
+    },
+  })
+}
+
+export function useSaveAsTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ campaignId, name, description }: { campaignId: string; name: string; description?: string }) =>
+      apiFetch<{ id: string; name: string }>(`/campaigns/${campaignId}/save-as-template`, {
+        method: 'POST',
+        body: { name, description },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign-templates'] })
+    },
+  })
+}
+
+export function useUpdateCampaignTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; description?: string } }) =>
+      apiFetch<{ ok: boolean }>(`/campaign-templates/${id}`, { method: 'PATCH', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign-templates'] })
+    },
+  })
+}
+
+export function useDeleteCampaignTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ ok: boolean }>(`/campaign-templates/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign-templates'] })
+    },
+  })
+}
+
 // ── Campaign Contacts ──────────────────────────────────
 
 export interface CampaignContactItem {
