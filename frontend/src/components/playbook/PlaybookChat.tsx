@@ -3,10 +3,14 @@
  *
  * Thin wrapper around shared ChatMessages + ChatInput components.
  * Provides the playbook-specific header and layout chrome.
+ *
+ * THINK feature: passes toolCalls and isThinking props through to
+ * ChatMessages for real-time tool call visualization.
  */
 
 import { ChatMessages, type ChatMessage } from '../chat/ChatMessages'
 import { ChatInput } from '../chat/ChatInput'
+import type { ToolCallEvent } from './ToolCallCard'
 
 // Re-export ChatMessage type for consumers
 export type { ChatMessage }
@@ -24,6 +28,10 @@ interface PlaybookChatProps {
   isLoading?: boolean
   /** Ref forwarded to the textarea for Cmd+K focus */
   inputRef?: React.RefObject<HTMLTextAreaElement | null>
+  /** THINK: in-flight tool calls from the current agent turn */
+  toolCalls?: ToolCallEvent[]
+  /** THINK: show thinking indicator before first tool_start or chunk */
+  isThinking?: boolean
 }
 
 export function PlaybookChat({
@@ -35,6 +43,8 @@ export function PlaybookChat({
   activeToolName = null,
   isLoading = false,
   inputRef,
+  toolCalls = [],
+  isThinking = false,
 }: PlaybookChatProps) {
   return (
     <div className="flex flex-col h-full bg-surface rounded-lg border border-border-solid overflow-hidden">
@@ -62,6 +72,8 @@ export function PlaybookChat({
         isStreaming={isStreaming}
         streamingText={streamingText}
         isLoading={isLoading}
+        toolCalls={toolCalls}
+        isThinking={isThinking}
       />
 
       {/* Input area */}

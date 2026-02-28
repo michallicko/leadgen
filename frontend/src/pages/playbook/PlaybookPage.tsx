@@ -108,6 +108,9 @@ export function PlaybookPage() {
     chatInputRef,
     documentChanged,
     clearDocumentChanged,
+    toolCalls,
+    isThinking,
+    activeToolName,
   } = useChatContext()
 
   // Server state
@@ -522,9 +525,11 @@ export function PlaybookPage() {
             isStreaming={isStreaming}
             streamingText={streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
-            activeToolName={null}
+            activeToolName={activeToolName}
             isLoading={chatLoading}
             inputRef={chatInputRef}
+            toolCalls={toolCalls}
+            isThinking={isThinking}
           />
         </div>
       </div>

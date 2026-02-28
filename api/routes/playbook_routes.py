@@ -1220,8 +1220,8 @@ def _stream_agent_response(
                     },
                 )
 
-        # Emit done event with message_id and tool call summary
-        # Build done payload with document_changed signal for frontend
+        # Emit done event with message_id, tool call summary, and
+        # document_changed signal for frontend (WRITE + THINK features)
         done_payload = {"type": "done", "message_id": msg_id}
         if done_data and done_data.get("tool_calls"):
             done_payload["tool_calls"] = done_data["tool_calls"]

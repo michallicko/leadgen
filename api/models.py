@@ -1264,7 +1264,7 @@ class StrategyChatMessage(db.Model):
             "document_id": self.document_id,
             "role": self.role,
             "content": self.content,
-            "metadata": self.extra or {},
+            "extra": self.extra or {},
             "page_context": self.page_context,
             "thread_start": self.thread_start,
             "created_at": self.created_at.isoformat() if self.created_at else None,

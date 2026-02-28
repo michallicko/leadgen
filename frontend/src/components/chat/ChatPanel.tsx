@@ -71,6 +71,8 @@ export function ChatPanel() {
     startNewThread,
     isOnPlaybookPage,
     chatInputRef,
+    toolCalls,
+    isThinking,
   } = useChatContext()
 
   // Don't render on Playbook page — inline chat is used there
@@ -136,6 +138,8 @@ export function ChatPanel() {
           isStreaming={isStreaming}
           streamingText={streamingText}
           isLoading={isLoading}
+          toolCalls={toolCalls}
+          isThinking={isThinking}
         />
 
         {/* Input */}

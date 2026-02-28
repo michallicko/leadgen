@@ -2,7 +2,8 @@
  * ChatProvider — app-level context for persistent chat.
  *
  * Wraps the router so chat state persists across route changes.
- * Manages: messages, streaming, open/closed state, page context.
+ * Manages: messages, streaming, open/closed state, page context,
+ * tool call state (thinking indicator, in-flight tool calls).
  *
  * On the Playbook page the inline chat is used instead of the sliding panel.
  * Cmd+K toggles the panel (or focuses inline input on Playbook page).
@@ -25,6 +26,7 @@ import { useSSE } from '../hooks/useSSE'
 import { resolveApiBase, buildHeaders } from '../api/client'
 import { getAccessToken } from '../lib/auth'
 import type { ChatMessage } from '../components/chat/ChatMessages'
+import type { ToolCallEvent } from '../components/playbook/ToolCallCard'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +49,10 @@ interface ChatContextValue {
   /** Set after an AI turn completes with strategy edits. Cleared on next send. */
   documentChanged: DocumentChangeInfo | null
   clearDocumentChanged: () => void
+  // Tool call state (THINK feature)
+  toolCalls: ToolCallEvent[]
+  isThinking: boolean
+  activeToolName: string | null
 
   // Actions
   toggleChat: () => void
@@ -110,6 +116,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [documentChanged, setDocumentChanged] = useState<DocumentChangeInfo | null>(null)
 
   const clearDocumentChanged = useCallback(() => setDocumentChanged(null), [])
+
+  // Tool call state (THINK feature)
+  const [toolCalls, setToolCalls] = useState<ToolCallEvent[]>([])
+  const [isThinking, setIsThinking] = useState(false)
+  const [activeToolName, setActiveToolName] = useState<string | null>(null)
 
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -179,6 +190,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       setOptimisticMessages((prev) => [...prev, optimisticMsg])
       setStreamingText('')
+      setToolCalls([])
+      setIsThinking(true)
+      setActiveToolName(null)
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -193,21 +207,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         headers,
         {
           onChunk: (chunk) => {
+            setIsThinking(false)
             setStreamingText((prev) => prev + chunk)
           },
-          onDone: (_messageId, toolCalls) => {
+          onDone: (doneData) => {
             setStreamingText('')
             setOptimisticMessages([])
+            setToolCalls([])
+            setIsThinking(false)
+            setActiveToolName(null)
             chatQuery.refetch()
 
             // Detect document changes from strategy tool calls
-            if (toolCalls && toolCalls.length > 0) {
+            const doneToolCalls = doneData.toolCalls
+            if (doneToolCalls && doneToolCalls.length > 0) {
               const STRATEGY_EDIT_TOOLS = new Set([
                 'update_strategy_section',
                 'set_extracted_field',
                 'append_to_section',
               ])
-              const edits = toolCalls.filter(
+              const edits = doneToolCalls.filter(
                 (tc) => STRATEGY_EDIT_TOOLS.has(tc.tool_name) && tc.status === 'success',
               )
               if (edits.length > 0) {
@@ -225,6 +244,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           onError: () => {
             setStreamingText('')
             setOptimisticMessages([])
+            setToolCalls([])
+            setIsThinking(false)
+            setActiveToolName(null)
+          },
+          onToolStart: (event) => {
+            setIsThinking(false)
+            setActiveToolName(event.toolName)
+            setToolCalls((prev) => [
+              ...prev,
+              {
+                tool_call_id: event.toolCallId,
+                tool_name: event.toolName,
+                input: event.input,
+                status: 'running',
+              },
+            ])
+          },
+          onToolResult: (result) => {
+            setToolCalls((prev) =>
+              prev.map((tc) =>
+                tc.tool_call_id === result.toolCallId
+                  ? {
+                      ...tc,
+                      status: result.status,
+                      summary: result.summary,
+                      output: result.output,
+                      duration_ms: result.durationMs,
+                    }
+                  : tc,
+              ),
+            )
+            // Clear active tool name when result arrives
+            setActiveToolName(null)
+          },
+          onThinking: () => {
+            setIsThinking(false)
           },
         },
       )
@@ -272,6 +327,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       id: msg.id,
       role: msg.role as ChatMessage['role'],
       content: msg.content,
+      extra: msg.extra,
       created_at: msg.created_at,
       page_context: msg.page_context,
       thread_start: msg.thread_start,
@@ -296,6 +352,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isLoading: chatQuery.isLoading,
       documentChanged,
       clearDocumentChanged,
+      toolCalls,
+      isThinking,
+      activeToolName,
       toggleChat,
       openChat,
       closeChat,
@@ -313,6 +372,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       chatQuery.isLoading,
       documentChanged,
       clearDocumentChanged,
+      toolCalls,
+      isThinking,
+      activeToolName,
       toggleChat,
       openChat,
       closeChat,
