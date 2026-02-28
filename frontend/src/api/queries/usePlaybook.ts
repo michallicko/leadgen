@@ -11,6 +11,7 @@ export interface StrategyDocument {
   phase: string
   status: string
   version: number
+  has_ai_edits: boolean
   created_at: string
   updated_at: string
 }
@@ -122,6 +123,24 @@ export function useAdvancePhase() {
   return useMutation({
     mutationFn: (data: { phase: string }) =>
       apiFetch<StrategyDocument>('/playbook/phase', { method: 'PUT', body: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+interface UndoResponse {
+  success: boolean
+  restored_version: number
+  current_version: number
+  error?: string
+}
+
+export function useUndoAIEdit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<UndoResponse>('/playbook/undo', { method: 'POST', body: {} }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook'] })
     },

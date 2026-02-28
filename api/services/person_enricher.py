@@ -241,7 +241,9 @@ interests to the company's needs."""
 # ---------------------------------------------------------------------------
 
 
-def enrich_person(contact_id, tenant_id=None, previous_data=None, boost=False, user_id=None):
+def enrich_person(
+    contact_id, tenant_id=None, previous_data=None, boost=False, user_id=None
+):
     """Enrich a contact with person-level intelligence.
 
     Args:
@@ -685,7 +687,12 @@ def _validate_and_score(
 
 
 def _synthesize(
-    contact_data, company_data, l2_data, profile_data, signals_data, scores,
+    contact_data,
+    company_data,
+    l2_data,
+    profile_data,
+    signals_data,
+    scores,
     user_id=None,
 ):
     """Call Anthropic for personalization synthesis."""

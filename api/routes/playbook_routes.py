@@ -21,6 +21,7 @@ from ..models import (
     PlaybookLog,
     StrategyDocument,
     StrategyChatMessage,
+    StrategyVersion,
     Tenant,
     ToolExecution,
     db,
@@ -40,10 +41,17 @@ logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
 
-_ALLOWED_PAGE_CONTEXTS = frozenset({
-    "contacts", "companies", "messages", "campaigns",
-    "enrich", "import", "playbook",
-})
+_ALLOWED_PAGE_CONTEXTS = frozenset(
+    {
+        "contacts",
+        "companies",
+        "messages",
+        "campaigns",
+        "enrich",
+        "import",
+        "playbook",
+    }
+)
 
 
 @playbook_bp.route("/api/playbook", methods=["GET"])
@@ -59,7 +67,18 @@ def get_playbook():
         db.session.add(doc)
         db.session.commit()
 
-    return jsonify(doc.to_dict()), 200
+    result = doc.to_dict()
+
+    # Check for undoable AI edits
+    has_ai_edits = (
+        StrategyVersion.query.filter_by(
+            document_id=doc.id, edit_source="ai_tool"
+        ).first()
+        is not None
+    )
+    result["has_ai_edits"] = has_ai_edits
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook", methods=["PUT"])
@@ -86,6 +105,87 @@ def update_playbook():
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
+
+
+@playbook_bp.route("/api/playbook/undo", methods=["POST"])
+@require_auth
+def undo_ai_edit():
+    """Undo the most recent AI edit(s) to the strategy document.
+
+    Finds the most recent turn_id (batch of edits from one AI turn) and
+    restores the document to the snapshot taken before the first edit of
+    that turn.  If no turn_id is set, reverts to the most recent snapshot.
+
+    The undo itself creates a snapshot (with edit_source='user_undo') so
+    it can be un-undone.  After restoring, the AI-tool snapshots from the
+    undone turn are deleted.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Find the latest ai_tool snapshot for this document
+    latest_snap = (
+        StrategyVersion.query.filter_by(document_id=doc.id, edit_source="ai_tool")
+        .order_by(StrategyVersion.created_at.desc())
+        .first()
+    )
+
+    if not latest_snap:
+        return jsonify({"error": "No AI edits to undo"}), 404
+
+    # Batch undo: if the latest snapshot has a turn_id, find the
+    # earliest snapshot from that turn to restore the state from
+    # *before* the first tool call of the turn.
+    if latest_snap.turn_id:
+        restore_snap = (
+            StrategyVersion.query.filter_by(
+                document_id=doc.id,
+                edit_source="ai_tool",
+                turn_id=latest_snap.turn_id,
+            )
+            .order_by(StrategyVersion.created_at.asc())
+            .first()
+        )
+    else:
+        restore_snap = latest_snap
+
+    # Save a snapshot of current state (so undo is undoable)
+    from ..services.strategy_tools import _snapshot
+
+    _snapshot(doc, edit_source="user_undo")
+
+    restored_version = restore_snap.version
+
+    # Restore content and extracted_data from the snapshot
+    doc.content = restore_snap.content
+    doc.extracted_data = restore_snap.extracted_data
+    doc.version += 1
+    doc.updated_by = getattr(request, "user_id", None)
+
+    # Delete the ai_tool snapshots that were undone
+    if latest_snap.turn_id:
+        StrategyVersion.query.filter_by(
+            document_id=doc.id,
+            edit_source="ai_tool",
+            turn_id=latest_snap.turn_id,
+        ).delete()
+    else:
+        db.session.delete(latest_snap)
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "restored_version": restored_version,
+            "current_version": doc.version,
+        }
+    ), 200
 
 
 @playbook_bp.route("/api/playbook/phase", methods=["PUT"])
@@ -668,9 +768,7 @@ def get_chat_history():
         )
     else:
         messages = (
-            StrategyChatMessage.query.filter_by(
-                document_id=doc.id, tenant_id=tenant_id
-            )
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
             .order_by(StrategyChatMessage.created_at.asc())
             .limit(limit)
             .all()
@@ -724,9 +822,7 @@ def new_chat_thread():
     return jsonify(
         {
             "thread_id": marker.id,
-            "created_at": marker.created_at.isoformat()
-            if marker.created_at
-            else None,
+            "created_at": marker.created_at.isoformat() if marker.created_at else None,
         }
     ), 201
 
@@ -791,8 +887,7 @@ def post_chat_message():
                 StrategyChatMessage.id != user_msg.id,
                 db.or_(
                     StrategyChatMessage.id == latest_thread_start.id,
-                    StrategyChatMessage.created_at
-                    > latest_thread_start.created_at,
+                    StrategyChatMessage.created_at > latest_thread_start.created_at,
                 ),
             )
             .order_by(StrategyChatMessage.created_at.asc())
@@ -800,9 +895,7 @@ def post_chat_message():
         )
     else:
         history = (
-            StrategyChatMessage.query.filter_by(
-                document_id=doc.id, tenant_id=tenant_id
-            )
+            StrategyChatMessage.query.filter_by(document_id=doc.id, tenant_id=tenant_id)
             .filter(StrategyChatMessage.id != user_msg.id)
             .order_by(StrategyChatMessage.created_at.asc())
             .all()
@@ -886,13 +979,26 @@ def _stream_response(
 
     if tools:
         return _stream_agent_response(
-            client, system_prompt, messages, tools,
-            tenant_id, doc_id, user_msg, user_id, app,
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
         )
     else:
         return _stream_simple_response(
-            client, system_prompt, messages,
-            tenant_id, doc_id, user_msg, user_id, app,
+            client,
+            system_prompt,
+            messages,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
+            app,
         )
 
 
@@ -982,8 +1088,7 @@ def _stream_simple_response(
 
 
 def _stream_agent_response(
-    client, system_prompt, messages, tools,
-    tenant_id, doc_id, user_msg, user_id, app
+    client, system_prompt, messages, tools, tenant_id, doc_id, user_msg, user_id, app
 ):
     """Agent-mode streaming with tool-use loop.
 
@@ -991,11 +1096,15 @@ def _stream_agent_response(
     events for tool_start, tool_result, chunk, and done. Saves assistant
     message and tool execution records to the database.
     """
+    import uuid as _uuid
+
+    turn_id = str(_uuid.uuid4())
 
     tool_context = ToolContext(
         tenant_id=str(tenant_id),
         user_id=str(user_id) if user_id else None,
         document_id=str(doc_id) if doc_id else None,
+        turn_id=turn_id,
     )
 
     def generate():
@@ -1010,16 +1119,23 @@ def _stream_agent_response(
                 messages=messages,
                 tools=tools,
                 tool_context=tool_context,
+                app=app,
             ):
                 if sse_event.type == "chunk":
                     full_text.append(sse_event.data.get("text", ""))
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "chunk"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "chunk"})
+                    )
 
                 elif sse_event.type == "tool_start":
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_start"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_start"})
+                    )
 
                 elif sse_event.type == "tool_result":
-                    yield "data: {}\n\n".format(json.dumps(sse_event.data | {"type": "tool_result"}))
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "tool_result"})
+                    )
 
                 elif sse_event.type == "done":
                     done_data = sse_event.data
@@ -1105,9 +1221,44 @@ def _stream_agent_response(
                 )
 
         # Emit done event with message_id and tool call summary
+        # Build done payload with document_changed signal for frontend
         done_payload = {"type": "done", "message_id": msg_id}
         if done_data and done_data.get("tool_calls"):
             done_payload["tool_calls"] = done_data["tool_calls"]
+
+            # Check if any tool calls modified the strategy document
+            strategy_edit_tools = {
+                "update_strategy_section",
+                "set_extracted_field",
+                "append_to_section",
+            }
+            doc_changes = []
+            for tc in done_data["tool_calls"]:
+                tn = tc.get("tool_name", "")
+                if tn in strategy_edit_tools and tc.get("status") == "success":
+                    output = tc.get("output_data") or {}
+                    if tn in ("update_strategy_section", "append_to_section"):
+                        doc_changes.append(output.get("section", tn))
+                    elif tn == "set_extracted_field":
+                        doc_changes.append(
+                            "data: {}".format(
+                                (tc.get("input_args") or {}).get("path", "")
+                            )
+                        )
+
+            if doc_changes:
+                done_payload["document_changed"] = True
+                if len(doc_changes) == 1:
+                    done_payload["changes_summary"] = "Strategy updated: {}".format(
+                        doc_changes[0]
+                    )
+                else:
+                    done_payload["changes_summary"] = (
+                        "Strategy updated: {} ({} changes)".format(
+                            ", ".join(doc_changes), len(doc_changes)
+                        )
+                    )
+
         yield "data: {}\n\n".format(json.dumps(done_payload))
 
     # Commit the user message before entering the generator
@@ -1136,8 +1287,14 @@ def _sync_response(
 
     if tools:
         return _sync_agent_response(
-            client, system_prompt, messages, tools,
-            tenant_id, doc_id, user_msg, user_id,
+            client,
+            system_prompt,
+            messages,
+            tools,
+            tenant_id,
+            doc_id,
+            user_msg,
+            user_id,
         )
 
     # --- No-tools path (backward compatible) ---
@@ -1212,18 +1369,27 @@ def _sync_response(
 
 
 def _sync_agent_response(
-    client, system_prompt, messages, tools,
-    tenant_id, doc_id, user_msg, user_id,
+    client,
+    system_prompt,
+    messages,
+    tools,
+    tenant_id,
+    doc_id,
+    user_msg,
+    user_id,
 ):
     """Sync (non-streaming) response with agent tool-use loop.
 
     Collects all SSE events from execute_agent_turn(), persists the
     assistant message and tool execution records, and returns JSON.
     """
+    import uuid as _uuid
+
     tool_context = ToolContext(
         tenant_id=str(tenant_id),
         user_id=str(user_id) if user_id else None,
         document_id=str(doc_id) if doc_id else None,
+        turn_id=str(_uuid.uuid4()),
     )
 
     try:
@@ -1253,9 +1419,7 @@ def _sync_agent_response(
             }
         ), 201
 
-    text_parts = [
-        e.data.get("text", "") for e in events if e.type == "chunk"
-    ]
+    text_parts = [e.data.get("text", "") for e in events if e.type == "chunk"]
     done_event = next((e for e in events if e.type == "done"), None)
     done_data = done_event.data if done_event else {}
 
@@ -1325,9 +1489,7 @@ def _sync_agent_response(
             event_type="chat_assistant",
             payload={
                 "message": assistant_content[:500],
-                "tool_calls": done_data.get("tool_calls", [])
-                if done_data
-                else [],
+                "tool_calls": done_data.get("tool_calls", []) if done_data else [],
             },
         )
 

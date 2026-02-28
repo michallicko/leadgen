@@ -30,6 +30,12 @@ import type { ChatMessage } from '../components/chat/ChatMessages'
 // Types
 // ---------------------------------------------------------------------------
 
+/** Summary of a document change triggered by AI tool calls. */
+export interface DocumentChangeInfo {
+  changed: boolean
+  summary: string | null
+}
+
 interface ChatContextValue {
   // State
   messages: ChatMessage[]
@@ -37,6 +43,10 @@ interface ChatContextValue {
   isStreaming: boolean
   streamingText: string
   isLoading: boolean
+
+  /** Set after an AI turn completes with strategy edits. Cleared on next send. */
+  documentChanged: DocumentChangeInfo | null
+  clearDocumentChanged: () => void
 
   // Actions
   toggleChat: () => void
@@ -97,6 +107,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(getStoredOpen)
   const [streamingText, setStreamingText] = useState('')
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
+  const [documentChanged, setDocumentChanged] = useState<DocumentChangeInfo | null>(null)
+
+  const clearDocumentChanged = useCallback(() => setDocumentChanged(null), [])
 
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -171,6 +184,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const token = getAccessToken()
       const headers = buildHeaders(token)
 
+      // Clear any previous document change before starting new stream
+      setDocumentChanged(null)
+
       sse.startStream(
         url,
         { message: text, page_context: currentPage },
@@ -179,10 +195,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           onChunk: (chunk) => {
             setStreamingText((prev) => prev + chunk)
           },
-          onDone: () => {
+          onDone: (_messageId, toolCalls) => {
             setStreamingText('')
             setOptimisticMessages([])
             chatQuery.refetch()
+
+            // Detect document changes from strategy tool calls
+            if (toolCalls && toolCalls.length > 0) {
+              const STRATEGY_EDIT_TOOLS = new Set([
+                'update_strategy_section',
+                'set_extracted_field',
+                'append_to_section',
+              ])
+              const edits = toolCalls.filter(
+                (tc) => STRATEGY_EDIT_TOOLS.has(tc.tool_name) && tc.status === 'success',
+              )
+              if (edits.length > 0) {
+                const names = edits.map((tc) => tc.tool_name.replace(/_/g, ' '))
+                setDocumentChanged({
+                  changed: true,
+                  summary:
+                    edits.length === 1
+                      ? `Strategy updated (${names[0]})`
+                      : `Strategy updated (${edits.length} changes)`,
+                })
+              }
+            }
           },
           onError: () => {
             setStreamingText('')
@@ -256,6 +294,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isStreaming: sse.isStreaming,
       streamingText,
       isLoading: chatQuery.isLoading,
+      documentChanged,
+      clearDocumentChanged,
       toggleChat,
       openChat,
       closeChat,
@@ -271,6 +311,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       sse.isStreaming,
       streamingText,
       chatQuery.isLoading,
+      documentChanged,
+      clearDocumentChanged,
       toggleChat,
       openChat,
       closeChat,

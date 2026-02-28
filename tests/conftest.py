@@ -16,6 +16,7 @@ os.environ.setdefault("CORS_ORIGINS", "*")
 from api import create_app
 from api.models import db as _db
 from api.auth import hash_password
+from api.services.tool_registry import clear_registry
 
 
 def _uuid_default():
@@ -79,6 +80,15 @@ def client(app, db):
     with app.test_client() as client:
         with app.app_context():
             yield client
+
+
+@pytest.fixture(autouse=True)
+def clean_tool_registry():
+    """Clear tool registry between tests to prevent agent-mode routing
+    in tests that mock the simple stream_query path."""
+    clear_registry()
+    yield
+    clear_registry()
 
 
 @pytest.fixture

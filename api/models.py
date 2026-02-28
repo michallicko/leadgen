@@ -1272,6 +1272,39 @@ class StrategyChatMessage(db.Model):
         }
 
 
+class StrategyVersion(db.Model):
+    """Snapshot of a strategy document before an AI edit.
+
+    Enables undo for AI edits. Each snapshot stores the full content and
+    extracted_data at the version *before* the edit was applied.
+
+    Snapshots from the same AI turn share a ``turn_id`` (the assistant
+    message UUID), enabling batch undo of multi-tool turns.
+    """
+
+    __tablename__ = "strategy_versions"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    document_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("strategy_documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    version = db.Column(db.Integer, nullable=False)
+    content = db.Column(db.Text)
+    extracted_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    edit_source = db.Column(db.String(20), nullable=False, default="ai_tool")
+    turn_id = db.Column(UUID(as_uuid=False), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class ToolExecution(db.Model):
     __tablename__ = "tool_executions"
 
@@ -1284,9 +1317,7 @@ class ToolExecution(db.Model):
         UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
     )
     user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
-    document_id = db.Column(
-        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
-    )
+    document_id = db.Column(UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"))
     chat_message_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("strategy_chat_messages.id")
     )
