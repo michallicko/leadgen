@@ -2,8 +2,10 @@
  * App shell — wraps authenticated pages with nav + container.
  */
 
+import { useState } from 'react'
 import { Outlet, Navigate, useParams } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
+import { useTokenBudget } from '../../hooks/useTokenBudget'
 import { getDefaultNamespace } from '../../lib/auth'
 import { AppNav } from './AppNav'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -66,11 +68,66 @@ export function AppShell() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppNav />
+      <BudgetWarningBanner />
       <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
         <Outlet />
       </div>
       <ChatPanel />
       <MobileFAB />
+    </div>
+  )
+}
+
+
+// ---- Budget warning banner ----
+
+function BudgetWarningBanner() {
+  const { alertLevel, budget } = useTokenBudget()
+  const [dismissed, setDismissed] = useState<string | null>(
+    () => sessionStorage.getItem('budget_banner_dismissed')
+  )
+
+  if (alertLevel === 'none' || !budget) return null
+
+  // Allow dismissing per level — re-show if level escalates
+  if (dismissed === alertLevel) return null
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('budget_banner_dismissed', alertLevel)
+    setDismissed(alertLevel)
+  }
+
+  const pct = Math.round(budget.usage_pct)
+  let bg: string
+  let message: string
+
+  switch (alertLevel) {
+    case 'warning':
+      bg = 'bg-yellow-50 border-yellow-300 text-yellow-800'
+      message = `Your workspace has used ${pct}% of its credit budget this period.`
+      break
+    case 'exceeded':
+      bg = 'bg-orange-50 border-orange-300 text-orange-800'
+      message = 'Credit budget exceeded. Operations may be limited.'
+      break
+    case 'hard_blocked':
+      bg = 'bg-red-50 border-red-300 text-red-800'
+      message = 'Credit budget reached. AI operations are paused. Contact your admin.'
+      break
+    default:
+      return null
+  }
+
+  return (
+    <div className={`${bg} border-b px-4 py-2 text-sm flex items-center justify-between`}>
+      <span>{message}</span>
+      <button
+        onClick={handleDismiss}
+        className="ml-3 text-current opacity-60 hover:opacity-100 text-lg leading-none"
+        aria-label="Dismiss"
+      >
+        x
+      </button>
     </div>
   )
 }
