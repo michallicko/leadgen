@@ -86,7 +86,6 @@ def compute_cost(provider, model, input_tokens, output_tokens):
     return total
 
 
-
 def compute_credits(cost_usd):
     """Convert USD cost to credits (1 credit = $0.001).
 
@@ -151,6 +150,7 @@ def log_llm_usage(
 
     # Consume credits from budget (moves reserved -> used)
     from .budget import consume_credits
+
     consume_credits(tenant_id, credits, reserved=reserved_credits)
 
     return entry

@@ -26,9 +26,7 @@ def get_token_dashboard():
     if not tenant_id:
         return jsonify({"error": "Namespace required"}), 400
 
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
 
     # Period dates
     now = datetime.now(timezone.utc)
@@ -57,12 +55,14 @@ def get_token_dashboard():
     by_operation = []
     for r in by_op_rows:
         pct = round((r[2] / total_credits) * 100, 1) if total_credits > 0 else 0
-        by_operation.append({
-            "operation": r[0],
-            "calls": r[1],
-            "credits": r[2],
-            "pct": pct,
-        })
+        by_operation.append(
+            {
+                "operation": r[0],
+                "calls": r[1],
+                "credits": r[2],
+                "pct": pct,
+            }
+        )
 
     # Usage by user (credits only)
     by_user_rows = db.session.execute(
@@ -82,12 +82,14 @@ def get_token_dashboard():
     by_user = []
     for r in by_user_rows:
         pct = round((r[2] / total_credits) * 100, 1) if total_credits > 0 else 0
-        by_user.append({
-            "user_id": r[0],
-            "display_name": r[1],
-            "credits": r[2],
-            "pct": pct,
-        })
+        by_user.append(
+            {
+                "user_id": r[0],
+                "display_name": r[1],
+                "credits": r[2],
+                "pct": pct,
+            }
+        )
 
     result = {
         "budget": budget.to_dict() if budget else None,
@@ -114,25 +116,27 @@ def get_token_status():
     if not tenant_id:
         return jsonify({"error": "Namespace required"}), 400
 
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
 
     if not budget:
         return jsonify({"budget": None})
 
-    return jsonify({
-        "budget": {
-            "total_budget": budget.total_budget,
-            "used_credits": budget.used_credits,
-            "reserved_credits": budget.reserved_credits,
-            "remaining_credits": budget.remaining_credits,
-            "usage_pct": budget.usage_pct,
-            "enforcement_mode": budget.enforcement_mode,
-            "alert_threshold_pct": budget.alert_threshold_pct,
-            "next_reset_at": budget.next_reset_at.isoformat() if budget.next_reset_at else None,
+    return jsonify(
+        {
+            "budget": {
+                "total_budget": budget.total_budget,
+                "used_credits": budget.used_credits,
+                "reserved_credits": budget.reserved_credits,
+                "remaining_credits": budget.remaining_credits,
+                "usage_pct": budget.usage_pct,
+                "enforcement_mode": budget.enforcement_mode,
+                "alert_threshold_pct": budget.alert_threshold_pct,
+                "next_reset_at": budget.next_reset_at.isoformat()
+                if budget.next_reset_at
+                else None,
+            }
         }
-    })
+    )
 
 
 @token_bp.route("/api/admin/tokens/history", methods=["GET"])
@@ -224,9 +228,7 @@ def set_budget():
     if total_budget is None or not isinstance(total_budget, int) or total_budget < 0:
         return jsonify({"error": "total_budget must be a non-negative integer"}), 400
 
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
 
     now = datetime.now(timezone.utc)
 
@@ -235,8 +237,12 @@ def set_budget():
         db.session.add(budget)
 
     budget.total_budget = total_budget
-    budget.enforcement_mode = data.get("enforcement_mode", budget.enforcement_mode or "soft")
-    budget.alert_threshold_pct = data.get("alert_threshold_pct", budget.alert_threshold_pct or 80)
+    budget.enforcement_mode = data.get(
+        "enforcement_mode", budget.enforcement_mode or "soft"
+    )
+    budget.alert_threshold_pct = data.get(
+        "alert_threshold_pct", budget.alert_threshold_pct or 80
+    )
 
     reset_period = data.get("reset_period")
     if reset_period in ("monthly", "quarterly", None):
@@ -256,7 +262,9 @@ def set_budget():
     budget.updated_at = now
     db.session.commit()
 
-    return jsonify({"budget": budget.to_dict(), "message": "Budget updated successfully"})
+    return jsonify(
+        {"budget": budget.to_dict(), "message": "Budget updated successfully"}
+    )
 
 
 @token_bp.route("/api/admin/tokens/topup", methods=["POST"])
@@ -276,9 +284,7 @@ def topup_credits():
     if credits is None or not isinstance(credits, int) or credits <= 0:
         return jsonify({"error": "credits must be a positive integer"}), 400
 
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if not budget:
         return jsonify({"error": "No budget configured for this namespace"}), 404
 
@@ -286,11 +292,13 @@ def topup_credits():
     budget.updated_at = db.func.now()
     db.session.commit()
 
-    return jsonify({
-        "budget": budget.to_dict(),
-        "added_credits": credits,
-        "new_total": budget.total_budget,
-    })
+    return jsonify(
+        {
+            "budget": budget.to_dict(),
+            "added_credits": credits,
+            "new_total": budget.total_budget,
+        }
+    )
 
 
 @token_bp.route("/api/admin/tokens/cost-breakdown", methods=["GET"])
@@ -337,16 +345,18 @@ def cost_breakdown():
     for r in rows:
         calls = r[3]
         credits = r[7]
-        breakdown.append({
-            "operation": r[0],
-            "provider": r[1],
-            "model": r[2],
-            "calls": calls,
-            "input_tokens": r[4],
-            "output_tokens": r[5],
-            "cost_usd": float(r[6]),
-            "credits": credits,
-            "avg_credits_per_call": round(credits / calls) if calls > 0 else 0,
-        })
+        breakdown.append(
+            {
+                "operation": r[0],
+                "provider": r[1],
+                "model": r[2],
+                "calls": calls,
+                "input_tokens": r[4],
+                "output_tokens": r[5],
+                "cost_usd": float(r[6]),
+                "credits": credits,
+                "avg_credits_per_call": round(credits / calls) if calls > 0 else 0,
+            }
+        )
 
     return jsonify({"breakdown": breakdown})

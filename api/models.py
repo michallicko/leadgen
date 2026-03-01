@@ -831,7 +831,6 @@ class LlmUsageLog(db.Model):
         }
 
 
-
 class NamespaceTokenBudget(db.Model):
     __tablename__ = "namespace_token_budgets"
 
@@ -1050,9 +1049,7 @@ class Campaign(db.Model):
     # Outreach sender configuration (migration 032)
     sender_config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     # Campaign targeting (migration 037)
-    strategy_id = db.Column(
-        UUID(as_uuid=False), db.ForeignKey("strategy_documents.id")
-    )
+    strategy_id = db.Column(UUID(as_uuid=False), db.ForeignKey("strategy_documents.id"))
     target_criteria = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     conflict_report = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     contact_cooldown_days = db.Column(db.Integer, default=30)
@@ -1133,9 +1130,7 @@ class CampaignOverlapLog(db.Model):
     overlap_type = db.Column(db.Text, nullable=False)
     resolved = db.Column(db.Boolean, default=False)
     resolved_by = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
 class EntityStageCompletion(db.Model):

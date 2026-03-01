@@ -19,8 +19,7 @@ class BudgetExceededError(Exception):
         self.remaining = remaining
         self.required = required
         super().__init__(
-            f"Token budget exceeded: {remaining} credits remaining, "
-            f"{required} required"
+            f"Token budget exceeded: {remaining} credits remaining, {required} required"
         )
 
 
@@ -38,9 +37,7 @@ def check_budget(tenant_id, estimated_credits=0):
         BudgetExceededError: If enforcement_mode='hard' and budget exhausted,
                              or enforcement_mode='soft' and over 120%.
     """
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if not budget:
         return None  # No budget = unlimited
 
@@ -50,17 +47,13 @@ def check_budget(tenant_id, estimated_credits=0):
     remaining = budget.remaining_credits
 
     if budget.enforcement_mode == "hard":
-        if remaining <= 0 or (
-            estimated_credits > 0 and remaining < estimated_credits
-        ):
+        if remaining <= 0 or (estimated_credits > 0 and remaining < estimated_credits):
             raise BudgetExceededError(tenant_id, remaining, estimated_credits)
 
     if budget.enforcement_mode == "soft":
         # Soft mode allows up to 120% of budget
         soft_limit = int(budget.total_budget * 1.2)
-        effective_remaining = (
-            soft_limit - budget.used_credits - budget.reserved_credits
-        )
+        effective_remaining = soft_limit - budget.used_credits - budget.reserved_credits
         if effective_remaining <= 0:
             raise BudgetExceededError(tenant_id, remaining, estimated_credits)
 
@@ -77,9 +70,7 @@ def reserve_credits(tenant_id, credits):
     Returns:
         The number of credits reserved.
     """
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if budget:
         budget.reserved_credits += credits
         budget.updated_at = db.func.now()
@@ -97,14 +88,10 @@ def consume_credits(tenant_id, credits, reserved=0):
         credits: Actual credits consumed
         reserved: Credits that were previously reserved for this operation
     """
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if budget:
         if reserved > 0:
-            budget.reserved_credits = max(
-                0, budget.reserved_credits - reserved
-            )
+            budget.reserved_credits = max(0, budget.reserved_credits - reserved)
         budget.used_credits += credits
         budget.updated_at = db.func.now()
         db.session.flush()
@@ -117,9 +104,7 @@ def release_reservation(tenant_id, credits):
         tenant_id: UUID string
         credits: Credits to release from reservation
     """
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if budget:
         budget.reserved_credits = max(0, budget.reserved_credits - credits)
         budget.updated_at = db.func.now()
@@ -132,9 +117,7 @@ def get_budget_status(tenant_id):
     Returns:
         dict with budget info, or None if no budget configured.
     """
-    budget = NamespaceTokenBudget.query.filter_by(
-        tenant_id=str(tenant_id)
-    ).first()
+    budget = NamespaceTokenBudget.query.filter_by(tenant_id=str(tenant_id)).first()
     if not budget:
         return None
     return budget.to_dict()
@@ -158,18 +141,14 @@ def _compute_next_reset(reset_period, reset_day, from_date=None):
         next_month = now + relativedelta(months=1)
         max_day = monthrange(next_month.year, next_month.month)[1]
         day = min(reset_day, max_day)
-        return next_month.replace(
-            day=day, hour=0, minute=0, second=0, microsecond=0
-        )
+        return next_month.replace(day=day, hour=0, minute=0, second=0, microsecond=0)
 
     if reset_period == "quarterly":
         # Next quarter start on reset_day
         next_quarter = now + relativedelta(months=3)
         max_day = monthrange(next_quarter.year, next_quarter.month)[1]
         day = min(reset_day, max_day)
-        return next_quarter.replace(
-            day=day, hour=0, minute=0, second=0, microsecond=0
-        )
+        return next_quarter.replace(day=day, hour=0, minute=0, second=0, microsecond=0)
 
     return None
 
