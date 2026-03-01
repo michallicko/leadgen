@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router'
-import { useCampaign, useUpdateCampaign, useCampaignContacts } from '../../api/queries/useCampaigns'
+import { useCampaign, useUpdateCampaign, useCloneCampaign, useCampaignContacts } from '../../api/queries/useCampaigns'
 import { useContact } from '../../api/queries/useContacts'
 import { useCompany } from '../../api/queries/useCompanies'
 import { useToast } from '../../components/ui/Toast'
@@ -38,6 +38,7 @@ export function CampaignDetailPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const updateCampaign = useUpdateCampaign()
+  const cloneCampaign = useCloneCampaign()
 
   // Active tab from URL
   const rawTab = searchParams.get('tab')
@@ -65,6 +66,17 @@ export function CampaignDetailPage() {
   const handleFieldChange = useCallback((name: string, value: unknown) => {
     setEdits((prev) => ({ ...prev, [name]: value }))
   }, [])
+
+  const handleClone = useCallback(async () => {
+    if (!campaign) return
+    try {
+      const result = await cloneCampaign.mutateAsync(campaign.id)
+      toast(`Campaign cloned as '${result.name}'`, 'success')
+      navigate(`../${result.id}`, { relative: 'path' })
+    } catch {
+      toast('Failed to clone campaign', 'error')
+    }
+  }, [campaign, cloneCampaign, toast, navigate])
 
   const handleSave = async () => {
     if (!campaign) return
@@ -177,6 +189,18 @@ export function CampaignDetailPage() {
             {isReviewStatus && reviewSummary && !reviewSummary.can_approve_outreach && reviewSummary.pending_reason && (
               <span className="text-xs text-warning">{reviewSummary.pending_reason}</span>
             )}
+            <button
+              onClick={handleClone}
+              disabled={cloneCampaign.isPending}
+              className="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-transparent text-text-muted border border-border cursor-pointer hover:text-text hover:border-text-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Clone campaign"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                <path d="M3 10.5H2.5a1 1 0 01-1-1v-7a1 1 0 011-1h7a1 1 0 011 1V3" />
+              </svg>
+              {cloneCampaign.isPending ? 'Cloning...' : 'Clone'}
+            </button>
             {hasChanges && (
               <button
                 onClick={handleSave}

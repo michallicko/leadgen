@@ -1,4 +1,5 @@
 """Unit tests for campaign CRUD routes."""
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -56,10 +57,14 @@ class TestCreateCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={
-            "name": "My Campaign",
-            "description": "Test campaign",
-        })
+        resp = client.post(
+            "/api/campaigns",
+            headers=headers,
+            json={
+                "name": "My Campaign",
+                "description": "Test campaign",
+            },
+        )
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["name"] == "My Campaign"
@@ -70,7 +75,9 @@ class TestCreateCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={"description": "no name"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"description": "no name"}
+        )
         assert resp.status_code == 400
         assert "name" in resp.get_json()["error"].lower()
 
@@ -83,23 +90,30 @@ class TestCreateCampaign:
 
     def test_create_from_template(self, client, seed_companies_contacts, db):
         from api.models import CampaignTemplate
+
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
         # Create a system template
         tpl = CampaignTemplate(
             name="Test Template",
-            steps=json.dumps([{"step": 1, "channel": "email", "label": "Email 1", "enabled": True}]),
+            steps=json.dumps(
+                [{"step": 1, "channel": "email", "label": "Email 1", "enabled": True}]
+            ),
             default_config=json.dumps({"tone": "casual"}),
             is_system=True,
         )
         db.session.add(tpl)
         db.session.commit()
 
-        resp = client.post("/api/campaigns", headers=headers, json={
-            "name": "From Template",
-            "template_id": tpl.id,
-        })
+        resp = client.post(
+            "/api/campaigns",
+            headers=headers,
+            json={
+                "name": "From Template",
+                "template_id": tpl.id,
+            },
+        )
         assert resp.status_code == 201
 
         # Verify template config was copied
@@ -115,7 +129,9 @@ class TestGetCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Detail Test"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Detail Test"}
+        )
         campaign_id = resp.get_json()["id"]
 
         resp = client.get(f"/api/campaigns/{campaign_id}", headers=headers)
@@ -130,7 +146,9 @@ class TestGetCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.get("/api/campaigns/00000000-0000-0000-0000-000000000099", headers=headers)
+        resp = client.get(
+            "/api/campaigns/00000000-0000-0000-0000-000000000099", headers=headers
+        )
         assert resp.status_code == 404
 
 
@@ -142,10 +160,14 @@ class TestUpdateCampaign:
         resp = client.post("/api/campaigns", headers=headers, json={"name": "Original"})
         campaign_id = resp.get_json()["id"]
 
-        resp = client.patch(f"/api/campaigns/{campaign_id}", headers=headers, json={
-            "name": "Updated",
-            "description": "New desc",
-        })
+        resp = client.patch(
+            f"/api/campaigns/{campaign_id}",
+            headers=headers,
+            json={
+                "name": "Updated",
+                "description": "New desc",
+            },
+        )
         assert resp.status_code == 200
 
         detail = client.get(f"/api/campaigns/{campaign_id}", headers=headers)
@@ -153,14 +175,18 @@ class TestUpdateCampaign:
         assert data["name"] == "Updated"
         assert data["description"] == "New desc"
 
-    def test_valid_status_transition_draft_to_ready(self, client, seed_companies_contacts):
+    def test_valid_status_transition_draft_to_ready(
+        self, client, seed_companies_contacts
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
         resp = client.post("/api/campaigns", headers=headers, json={"name": "Transit"})
         campaign_id = resp.get_json()["id"]
 
-        resp = client.patch(f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "ready"})
+        resp = client.patch(
+            f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "ready"}
+        )
         assert resp.status_code == 200
 
         detail = client.get(f"/api/campaigns/{campaign_id}", headers=headers)
@@ -170,11 +196,15 @@ class TestUpdateCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Bad Transit"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Bad Transit"}
+        )
         campaign_id = resp.get_json()["id"]
 
         # Draft cannot go directly to review
-        resp = client.patch(f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "review"})
+        resp = client.patch(
+            f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "review"}
+        )
         assert resp.status_code == 400
         assert "Cannot transition" in resp.get_json()["error"]
 
@@ -185,7 +215,9 @@ class TestUpdateCampaign:
         resp = client.post("/api/campaigns", headers=headers, json={"name": "NF"})
         campaign_id = resp.get_json()["id"]
 
-        resp = client.patch(f"/api/campaigns/{campaign_id}", headers=headers, json={"bogus": "field"})
+        resp = client.patch(
+            f"/api/campaigns/{campaign_id}", headers=headers, json={"bogus": "field"}
+        )
         assert resp.status_code == 400
 
     def test_update_nonexistent(self, client, seed_companies_contacts):
@@ -205,7 +237,9 @@ class TestDeleteCampaign:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Delete Me"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Delete Me"}
+        )
         campaign_id = resp.get_json()["id"]
 
         resp = client.delete(f"/api/campaigns/{campaign_id}", headers=headers)
@@ -224,7 +258,9 @@ class TestDeleteCampaign:
         campaign_id = resp.get_json()["id"]
 
         # Move to ready first
-        client.patch(f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "ready"})
+        client.patch(
+            f"/api/campaigns/{campaign_id}", headers=headers, json={"status": "ready"}
+        )
 
         # Attempt delete
         resp = client.delete(f"/api/campaigns/{campaign_id}", headers=headers)
@@ -242,6 +278,130 @@ class TestDeleteCampaign:
         assert resp.status_code == 404
 
 
+class TestCloneCampaign:
+    """BL-038: Clone campaign — copy config, reset counters."""
+
+    def test_clone_basic(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        # Create original campaign with config
+        resp = client.post(
+            "/api/campaigns",
+            headers=headers,
+            json={
+                "name": "Original Campaign",
+                "description": "A test campaign",
+            },
+        )
+        assert resp.status_code == 201
+        original_id = resp.get_json()["id"]
+
+        # Add generation_config with template_config
+        client.patch(
+            f"/api/campaigns/{original_id}",
+            headers=headers,
+            json={
+                "template_config": [
+                    {"step": 1, "channel": "email", "label": "Email 1", "enabled": True}
+                ],
+                "generation_config": {"tone": "casual", "language": "en"},
+            },
+        )
+
+        # Clone it
+        resp = client.post(f"/api/campaigns/{original_id}/clone", headers=headers)
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["name"] == "Original Campaign (Copy)"
+        assert data["status"] == "Draft"
+        assert "id" in data
+        assert data["id"] != original_id
+
+        # Verify clone details
+        detail = client.get(f"/api/campaigns/{data['id']}", headers=headers)
+        clone = detail.get_json()
+        assert clone["total_contacts"] == 0
+        assert clone["generated_count"] == 0
+        assert float(clone["generation_cost"]) == 0
+        assert clone["description"] == "A test campaign"
+
+    def test_clone_excludes_runtime_keys(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "With Runtime"}
+        )
+        original_id = resp.get_json()["id"]
+
+        # Set generation_config with runtime keys
+        client.patch(
+            f"/api/campaigns/{original_id}",
+            headers=headers,
+            json={
+                "generation_config": {
+                    "tone": "formal",
+                    "strategy_snapshot": {"some": "data"},
+                    "cancelled": True,
+                },
+            },
+        )
+
+        resp = client.post(f"/api/campaigns/{original_id}/clone", headers=headers)
+        assert resp.status_code == 201
+        clone_id = resp.get_json()["id"]
+
+        detail = client.get(f"/api/campaigns/{clone_id}", headers=headers)
+        gen_config = detail.get_json()["generation_config"]
+        assert "tone" in gen_config
+        assert "strategy_snapshot" not in gen_config
+        assert "cancelled" not in gen_config
+
+    def test_clone_name_dedup(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        # Create original
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Dedup Test"}
+        )
+        original_id = resp.get_json()["id"]
+
+        # First clone
+        resp = client.post(f"/api/campaigns/{original_id}/clone", headers=headers)
+        assert resp.get_json()["name"] == "Dedup Test (Copy)"
+
+        # Second clone — should deduplicate
+        resp = client.post(f"/api/campaigns/{original_id}/clone", headers=headers)
+        assert resp.get_json()["name"] == "Dedup Test (Copy) (2)"
+
+    def test_clone_nonexistent(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post(
+            "/api/campaigns/00000000-0000-0000-0000-000000000099/clone",
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    def test_clone_custom_name(self, client, seed_companies_contacts):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.post("/api/campaigns", headers=headers, json={"name": "Original"})
+        original_id = resp.get_json()["id"]
+
+        resp = client.post(
+            f"/api/campaigns/{original_id}/clone",
+            headers=headers,
+            json={"name": "My Custom Clone"},
+        )
+        assert resp.status_code == 201
+        assert resp.get_json()["name"] == "My Custom Clone"
+
+
 class TestCampaignContacts:
     """BL-032: Campaign contacts — add, list, remove contacts from campaigns."""
 
@@ -256,9 +416,13 @@ class TestCampaignContacts:
         cid = self._create_campaign(client, headers)
 
         contact_ids = [str(data["contacts"][0].id), str(data["contacts"][1].id)]
-        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
-            "contact_ids": contact_ids,
-        })
+        resp = client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={
+                "contact_ids": contact_ids,
+            },
+        )
         assert resp.status_code == 200
         result = resp.get_json()
         assert result["added"] == 2
@@ -272,9 +436,13 @@ class TestCampaignContacts:
         cid = self._create_campaign(client, headers)
 
         # Company[0] = Acme Corp with contacts[0] and contacts[1]
-        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
-            "company_ids": [str(data["companies"][0].id)],
-        })
+        resp = client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={
+                "company_ids": [str(data["companies"][0].id)],
+            },
+        )
         assert resp.status_code == 200
         result = resp.get_json()
         assert result["added"] == 2  # John Doe + Jane Smith
@@ -286,10 +454,18 @@ class TestCampaignContacts:
         cid = self._create_campaign(client, headers)
 
         contact_ids = [str(data["contacts"][0].id)]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         # Add same contact again
-        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        resp = client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
         result = resp.get_json()
         assert result["added"] == 0
         assert result["skipped"] == 1
@@ -310,11 +486,17 @@ class TestCampaignContacts:
 
         # Move to ready then generating
         client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
-        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"})
+        client.patch(
+            f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"}
+        )
 
-        resp = client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={
-            "contact_ids": [str(data["contacts"][0].id)],
-        })
+        resp = client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={
+                "contact_ids": [str(data["contacts"][0].id)],
+            },
+        )
         assert resp.status_code == 400
         assert "draft or ready" in resp.get_json()["error"].lower()
 
@@ -326,7 +508,11 @@ class TestCampaignContacts:
 
         # Add 3 contacts
         contact_ids = [str(c.id) for c in data["contacts"][:3]]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         resp = client.get(f"/api/campaigns/{cid}/contacts", headers=headers)
         assert resp.status_code == 200
@@ -353,7 +539,10 @@ class TestCampaignContacts:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.get("/api/campaigns/00000000-0000-0000-0000-000000000099/contacts", headers=headers)
+        resp = client.get(
+            "/api/campaigns/00000000-0000-0000-0000-000000000099/contacts",
+            headers=headers,
+        )
         assert resp.status_code == 404
 
     def test_remove_contacts(self, client, seed_companies_contacts):
@@ -363,12 +552,20 @@ class TestCampaignContacts:
         cid = self._create_campaign(client, headers)
 
         contact_ids = [str(c.id) for c in data["contacts"][:3]]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         # Remove first contact
-        resp = client.delete(f"/api/campaigns/{cid}/contacts", headers=headers, json={
-            "contact_ids": [contact_ids[0]],
-        })
+        resp = client.delete(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={
+                "contact_ids": [contact_ids[0]],
+            },
+        )
         assert resp.status_code == 200
         assert resp.get_json()["removed"] == 1
 
@@ -384,13 +581,23 @@ class TestCampaignContacts:
 
         # Add a contact, then move to generating
         contact_ids = [str(data["contacts"][0].id)]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
         client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
-        client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"})
+        client.patch(
+            f"/api/campaigns/{cid}", headers=headers, json={"status": "generating"}
+        )
 
-        resp = client.delete(f"/api/campaigns/{cid}/contacts", headers=headers, json={
-            "contact_ids": contact_ids,
-        })
+        resp = client.delete(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={
+                "contact_ids": contact_ids,
+            },
+        )
         assert resp.status_code == 400
 
     def test_campaign_detail_shows_contact_count(self, client, seed_companies_contacts):
@@ -400,7 +607,11 @@ class TestCampaignContacts:
         cid = self._create_campaign(client, headers)
 
         contact_ids = [str(c.id) for c in data["contacts"][:4]]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         resp = client.get(f"/api/campaigns/{cid}", headers=headers)
         assert resp.get_json()["total_contacts"] == 4
@@ -410,10 +621,16 @@ class TestEnrichmentCheck:
     """BL-034: Enrichment readiness check for campaign contacts."""
 
     def _create_campaign_with_contacts(self, client, headers, data, contact_indices):
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Readiness Test"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Readiness Test"}
+        )
         cid = resp.get_json()["id"]
         contact_ids = [str(data["contacts"][i].id) for i in contact_indices]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
         return cid
 
     def test_enrichment_check_no_completions(self, client, seed_companies_contacts):
@@ -432,8 +649,11 @@ class TestEnrichmentCheck:
         for c in result["contacts"]:
             assert len(c["gaps"]) > 0
 
-    def test_enrichment_check_with_completions(self, client, seed_companies_contacts, db):
+    def test_enrichment_check_with_completions(
+        self, client, seed_companies_contacts, db
+    ):
         from api.models import EntityStageCompletion
+
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         data = seed_companies_contacts
@@ -474,6 +694,7 @@ class TestEnrichmentCheck:
 
     def test_enrichment_check_partial(self, client, seed_companies_contacts, db):
         from api.models import EntityStageCompletion
+
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         data = seed_companies_contacts
@@ -510,7 +731,9 @@ class TestEnrichmentCheck:
         assert resp.status_code == 200
         assert resp.get_json()["summary"]["total"] == 0
 
-    def test_enrichment_check_nonexistent_campaign(self, client, seed_companies_contacts):
+    def test_enrichment_check_nonexistent_campaign(
+        self, client, seed_companies_contacts
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
@@ -530,22 +753,37 @@ class TestCostEstimate:
         data = seed_companies_contacts
 
         # Create campaign with template
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Cost Test"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Cost Test"}
+        )
         cid = resp.get_json()["id"]
 
         # Set template config
         template_config = [
-            {"step": 1, "channel": "linkedin_connect", "label": "LI Invite", "enabled": True},
+            {
+                "step": 1,
+                "channel": "linkedin_connect",
+                "label": "LI Invite",
+                "enabled": True,
+            },
             {"step": 2, "channel": "email", "label": "Email 1", "enabled": True},
             {"step": 3, "channel": "email", "label": "Email 2", "enabled": False},
         ]
-        client.patch(f"/api/campaigns/{cid}", headers=headers, json={
-            "template_config": template_config,
-        })
+        client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={
+                "template_config": template_config,
+            },
+        )
 
         # Add contacts
         contact_ids = [str(data["contacts"][0].id), str(data["contacts"][1].id)]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         resp = client.post(f"/api/campaigns/{cid}/cost-estimate", headers=headers)
         assert resp.status_code == 200
@@ -576,7 +814,11 @@ class TestCostEstimate:
 
         # Add contacts but no template
         contact_ids = [str(data["contacts"][0].id)]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         resp = client.post(f"/api/campaigns/{cid}/cost-estimate", headers=headers)
         assert resp.status_code == 400
@@ -591,15 +833,28 @@ class TestGeneration:
         cid = resp.get_json()["id"]
 
         template_config = [
-            {"step": 1, "channel": "linkedin_connect", "label": "LI Invite", "enabled": True},
+            {
+                "step": 1,
+                "channel": "linkedin_connect",
+                "label": "LI Invite",
+                "enabled": True,
+            },
             {"step": 2, "channel": "email", "label": "Email 1", "enabled": True},
         ]
-        client.patch(f"/api/campaigns/{cid}", headers=headers, json={
-            "template_config": template_config,
-        })
+        client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={
+                "template_config": template_config,
+            },
+        )
 
         contact_ids = [str(data["contacts"][0].id)]
-        client.post(f"/api/campaigns/{cid}/contacts", headers=headers, json={"contact_ids": contact_ids})
+        client.post(
+            f"/api/campaigns/{cid}/contacts",
+            headers=headers,
+            json={"contact_ids": contact_ids},
+        )
 
         # Move to ready
         client.patch(f"/api/campaigns/{cid}", headers=headers, json={"status": "ready"})
@@ -617,7 +872,9 @@ class TestGeneration:
         assert "ready" in resp.get_json()["error"].lower()
 
     @patch("api.routes.campaign_routes.start_generation")
-    def test_generate_starts_background_thread(self, mock_start, client, seed_companies_contacts):
+    def test_generate_starts_background_thread(
+        self, mock_start, client, seed_companies_contacts
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         data = seed_companies_contacts
@@ -630,7 +887,9 @@ class TestGeneration:
         mock_start.assert_called_once()
 
     @patch("api.routes.campaign_routes.start_generation")
-    def test_generate_transitions_to_generating(self, mock_start, client, seed_companies_contacts):
+    def test_generate_transitions_to_generating(
+        self, mock_start, client, seed_companies_contacts
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
         data = seed_companies_contacts
@@ -646,7 +905,9 @@ class TestGeneration:
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
-        resp = client.post("/api/campaigns", headers=headers, json={"name": "Status Test"})
+        resp = client.post(
+            "/api/campaigns", headers=headers, json={"name": "Status Test"}
+        )
         cid = resp.get_json()["id"]
 
         resp = client.get(f"/api/campaigns/{cid}/generation-status", headers=headers)
@@ -716,6 +977,7 @@ class TestGenerationEngine:
 class TestCampaignTemplates:
     def test_list_system_templates(self, client, seed_companies_contacts, db):
         from api.models import CampaignTemplate
+
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
 
