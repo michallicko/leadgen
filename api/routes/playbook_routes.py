@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -10,6 +11,7 @@ import time
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
+from ..display import display_seniority
 from ..models import (
     Company,
     CompanyEnrichmentL1,
@@ -107,6 +109,18 @@ def update_playbook():
         doc.status = status
     if objective is not None:
         doc.objective = objective
+
+    # Persist playbook selections (contacts, messages, etc.)
+    playbook_selections = data.get("playbook_selections")
+    if playbook_selections is not None and isinstance(playbook_selections, dict):
+        existing = doc.playbook_selections or {}
+        if isinstance(existing, str):
+            try:
+                existing = json.loads(existing)
+            except (ValueError, TypeError):
+                existing = {}
+        existing.update(playbook_selections)
+        doc.playbook_selections = existing
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
@@ -370,6 +384,264 @@ def extract_strategy():
         {
             "extracted_data": extracted_data,
             "version": doc.version,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/contacts", methods=["GET"])
+@require_auth
+def playbook_contacts():
+    """Return contacts filtered by the playbook's ICP criteria.
+
+    Reads extracted_data.icp from the strategy document, maps ICP fields
+    to contact query filters (reusing _map_icp_to_filters from
+    icp_filter_tools), and returns a paginated contact list.
+
+    Query params allow overriding individual filters and pagination:
+        page (int, default 1), per_page (int, default 25, max 100)
+        industries, seniority_levels, geo_regions, company_sizes (comma-sep)
+        sort (str), sort_dir (asc|desc)
+        search (str) — text search across name/email/title
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Read ICP from extracted_data
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+
+    icp = extracted.get("icp", {})
+    if isinstance(icp, str):
+        try:
+            icp = json.loads(icp)
+        except (ValueError, TypeError):
+            icp = {}
+
+    icp_source = bool(icp)
+
+    # Merge top-level personas into icp if present
+    top_personas = extracted.get("personas", [])
+    icp_personas = icp.get("personas", []) if isinstance(icp, dict) else []
+    if top_personas and not icp_personas and isinstance(icp, dict):
+        icp["personas"] = top_personas
+
+    # Map ICP to base filters
+    from ..services.icp_filter_tools import _map_icp_to_filters
+
+    base_filters = _map_icp_to_filters(icp) if icp else {}
+
+    # Allow query param overrides (comma-separated lists)
+    override_keys = ["industries", "seniority_levels", "geo_regions", "company_sizes"]
+    for key in override_keys:
+        raw = request.args.get(key, "").strip()
+        if raw:
+            base_filters[key] = [v.strip() for v in raw.split(",") if v.strip()]
+
+    # Pagination
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(1, request.args.get("per_page", 25, type=int)))
+
+    # Sort
+    sort_field = request.args.get("sort", "last_name").strip()
+    sort_dir = request.args.get("sort_dir", "asc").strip().lower()
+    _SORT_ALLOWED = {
+        "last_name", "first_name", "job_title", "seniority_level",
+        "contact_score", "created_at",
+    }
+    if sort_field not in _SORT_ALLOWED:
+        sort_field = "last_name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+
+    # Text search
+    search = request.args.get("search", "").strip()
+
+    # Build WHERE clause
+    where = [
+        "ct.tenant_id = :tenant_id",
+        "(ct.is_disqualified = false OR ct.is_disqualified IS NULL)",
+    ]
+    params = {"tenant_id": tenant_id}
+
+    if search:
+        where.append(
+            "(LOWER(ct.first_name) LIKE LOWER(:search)"
+            " OR LOWER(ct.last_name) LIKE LOWER(:search)"
+            " OR LOWER(ct.email_address) LIKE LOWER(:search)"
+            " OR LOWER(ct.job_title) LIKE LOWER(:search))"
+        )
+        params["search"] = "%{}%".format(search)
+
+    # Apply ICP-derived (or overridden) multi-value filters
+    multi_map = {
+        "industries": ("co.industry", "ind"),
+        "seniority_levels": ("ct.seniority_level", "sen"),
+        "geo_regions": ("co.geo_region", "geo"),
+        "company_sizes": ("co.company_size", "csz"),
+    }
+    for key, (column, prefix) in multi_map.items():
+        values = base_filters.get(key, [])
+        if not values or not isinstance(values, list):
+            continue
+        phs = []
+        for i, v in enumerate(values):
+            pname = "{}_{}".format(prefix, i)
+            params[pname] = v
+            phs.append(":{}".format(pname))
+        where.append("{} IN ({})".format(column, ", ".join(phs)))
+
+    where_clause = " AND ".join(where)
+
+    joins = """
+        LEFT JOIN companies co ON ct.company_id = co.id
+        LEFT JOIN owners o ON ct.owner_id = o.id
+    """
+
+    # Count total
+    total = (
+        db.session.execute(
+            db.text(
+                "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
+                    joins, where_clause
+                )
+            ),
+            params,
+        ).scalar()
+        or 0
+    )
+
+    pages = max(1, math.ceil(total / per_page))
+    offset = (page - 1) * per_page
+
+    order = "ct.{} {} NULLS LAST".format(
+        sort_field, "ASC" if sort_dir == "asc" else "DESC"
+    )
+
+    rows = db.session.execute(
+        db.text(
+            """
+            SELECT
+                ct.id, ct.first_name, ct.last_name, ct.job_title,
+                co.id AS company_id, co.name AS company_name,
+                ct.email_address, ct.seniority_level,
+                ct.contact_score, ct.icp_fit,
+                co.industry, co.company_size, co.status AS company_status
+            FROM contacts ct
+            {joins}
+            WHERE {where}
+            ORDER BY {order}
+            LIMIT :limit OFFSET :offset
+        """.format(
+                joins=joins, where=where_clause, order=order
+            )
+        ),
+        {**params, "limit": per_page, "offset": offset},
+    ).fetchall()
+
+    contacts = []
+    for r in rows:
+        contacts.append(
+            {
+                "id": str(r[0]),
+                "first_name": r[1] or "",
+                "last_name": r[2] or "",
+                "full_name": (
+                    ((r[1] or "") + " " + (r[2] or "")).strip() or r[1] or ""
+                ),
+                "job_title": r[3],
+                "company_id": str(r[4]) if r[4] else None,
+                "company_name": r[5],
+                "email_address": r[6],
+                "seniority_level": display_seniority(r[7]),
+                "contact_score": r[8],
+                "icp_fit": r[9],
+                "industry": r[10],
+                "company_size": r[11],
+                "company_status": r[12],
+            }
+        )
+
+    return jsonify(
+        {
+            "filters": {"applied_filters": base_filters},
+            "contacts": contacts,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+            "icp_source": icp_source,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/contacts/confirm", methods=["POST"])
+@require_auth
+def confirm_contact_selection():
+    """Save selected contact IDs and advance phase to messages.
+
+    Body: { "selected_ids": ["id1", "id2", ...] }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    selected_ids = data.get("selected_ids", [])
+    if not isinstance(selected_ids, list) or not selected_ids:
+        return jsonify({"error": "selected_ids must be a non-empty list"}), 400
+
+    # Validate that all IDs are actual contacts for this tenant
+    valid_ids = [
+        str(r[0])
+        for r in db.session.execute(
+            db.text(
+                "SELECT id FROM contacts WHERE tenant_id = :t AND id IN ({})".format(
+                    ", ".join(":cid_{}".format(i) for i in range(len(selected_ids)))
+                )
+            ),
+            {
+                "t": tenant_id,
+                **{"cid_{}".format(i): cid for i, cid in enumerate(selected_ids)},
+            },
+        ).fetchall()
+    ]
+
+    if not valid_ids:
+        return jsonify({"error": "No valid contacts found for the given IDs"}), 400
+
+    # Save selections
+    existing = doc.playbook_selections or {}
+    if isinstance(existing, str):
+        try:
+            existing = json.loads(existing)
+        except (ValueError, TypeError):
+            existing = {}
+    existing["contacts"] = {"selected_ids": valid_ids}
+    doc.playbook_selections = existing
+
+    # Advance phase to messages
+    doc.phase = "messages"
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "selected_count": len(valid_ids),
+            "phase": doc.phase,
+            "playbook_selections": doc.playbook_selections,
         }
     ), 200
 

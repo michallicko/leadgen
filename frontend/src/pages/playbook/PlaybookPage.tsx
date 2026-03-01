@@ -748,6 +748,8 @@ export function PlaybookPage() {
             content={localContent}
             onEditorUpdate={handleEditorUpdate}
             editable={saveStatus !== 'saving'}
+            extractedData={docQuery.data?.extracted_data}
+            playbookSelections={docQuery.data?.playbook_selections}
           />
         </div>
 
