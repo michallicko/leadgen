@@ -412,7 +412,6 @@ export function PlaybookPage() {
             },
           },
         )
-        setResearchTriggered(true)
       }
 
       // Build a crafted prompt for the AI to generate the strategy
