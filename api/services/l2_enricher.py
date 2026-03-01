@@ -292,7 +292,10 @@ def enrich_l2(
         # --- Phase 1: Two Perplexity research calls ---
         try:
             news_data, news_cost = _research_news(
-                company, l1_data, model, user_id=user_id,
+                company,
+                l1_data,
+                model,
+                user_id=user_id,
                 enrichment_language=enrichment_lang,
             )
             total_cost += news_cost
@@ -303,7 +306,10 @@ def enrich_l2(
 
         try:
             strategic_data, strategic_cost = _research_strategic(
-                company, l1_data, model, user_id=user_id,
+                company,
+                l1_data,
+                model,
+                user_id=user_id,
                 enrichment_language=enrichment_lang,
             )
             total_cost += strategic_cost
@@ -319,7 +325,11 @@ def enrich_l2(
         # --- Phase 2: Anthropic synthesis ---
         try:
             synthesis_data, synthesis_cost = _synthesize(
-                company, l1_data, news_data, strategic_data, user_id=user_id,
+                company,
+                l1_data,
+                news_data,
+                strategic_data,
+                user_id=user_id,
                 enrichment_language=enrichment_lang,
             )
             total_cost += synthesis_cost
@@ -474,7 +484,9 @@ def _research_news(company, l1_data, model, user_id=None, enrichment_language=No
     return data, resp.cost_usd
 
 
-def _research_strategic(company, l1_data, model, user_id=None, enrichment_language=None):
+def _research_strategic(
+    company, l1_data, model, user_id=None, enrichment_language=None
+):
     """Call Perplexity for strategic signals."""
     client = PerplexityClient()
     user_prompt = STRATEGIC_USER_TEMPLATE.format(
@@ -535,7 +547,9 @@ def _research_strategic(company, l1_data, model, user_id=None, enrichment_langua
 # ---------------------------------------------------------------------------
 
 
-def _synthesize(company, l1_data, news_data, strategic_data, user_id=None, enrichment_language=None):
+def _synthesize(
+    company, l1_data, news_data, strategic_data, user_id=None, enrichment_language=None
+):
     """Call Anthropic Claude to synthesize research into actionable intel."""
     client = AnthropicClient()
 
