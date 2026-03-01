@@ -1,14 +1,31 @@
+import json
 import re
 import secrets
 
 from flask import Blueprint, g, jsonify, request
 
-from ..auth import hash_password, require_auth, require_role
-from ..models import Tenant, User, UserTenantRole, db
+from ..auth import hash_password, require_auth, require_role, resolve_tenant
+from ..models import (
+    Campaign,
+    Contact,
+    StrategyDocument,
+    Tenant,
+    User,
+    UserTenantRole,
+    db,
+)
 
 tenants_bp = Blueprint("tenants", __name__, url_prefix="/api/tenants")
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
+
+
+def _parse_settings(tenant):
+    """Parse tenant settings, handling SQLite text or PG JSONB."""
+    settings = tenant.settings
+    if isinstance(settings, str):
+        settings = json.loads(settings) if settings else {}
+    return settings or {}
 
 
 def _has_tenant_access(user, tenant_id):
@@ -172,7 +189,7 @@ def deactivate_tenant(tenant_id):
 @tenants_bp.route("/<tenant_id>/settings", methods=["PATCH"])
 @require_role("admin")
 def patch_tenant_settings(tenant_id):
-    """Merge-patch tenant settings (e.g. language, enrichment_language)."""
+    """Merge-patch tenant settings (e.g. language, enrichment_language, onboarding)."""
     from ..services.language import VALID_LANGUAGE_CODES
 
     if not _is_tenant_admin(g.current_user, tenant_id):
@@ -193,9 +210,17 @@ def patch_tenant_settings(tenant_id):
             if val is not None and val not in VALID_LANGUAGE_CODES:
                 return jsonify({"error": f"Invalid {key}: {val}"}), 400
 
+    # Allowed settings keys for merge-patch
+    ALLOWED_KEYS = (
+        "language",
+        "enrichment_language",
+        "onboarding_path",
+        "checklist_dismissed",
+    )
+
     # Merge-patch: update existing settings dict
-    current = dict(tenant.settings or {})
-    for key in ("language", "enrichment_language"):
+    current = _parse_settings(tenant)
+    for key in ALLOWED_KEYS:
         if key in data:
             if data[key] is None:
                 current.pop(key, None)
@@ -239,3 +264,103 @@ def list_tenant_users(tenant_id):
         )
 
     return jsonify(result)
+
+
+@tenants_bp.route("/onboarding-status", methods=["GET"])
+@require_auth
+def get_onboarding_status():
+    """Return data counts and onboarding settings for the current namespace.
+
+    Used by the frontend to decide whether to show the entry signpost,
+    context-aware empty states, and the progress checklist.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Count entities
+    contact_count = Contact.query.filter_by(tenant_id=tenant_id).count()
+    campaign_count = Campaign.query.filter_by(tenant_id=tenant_id).count()
+
+    # Check if a strategy document exists with content
+    strategy_doc = StrategyDocument.query.filter_by(
+        tenant_id=tenant_id
+    ).first()
+    has_strategy = bool(
+        strategy_doc
+        and strategy_doc.content
+        and strategy_doc.content.strip()
+    )
+
+    settings = _parse_settings(tenant)
+
+    return jsonify(
+        {
+            "contact_count": contact_count,
+            "campaign_count": campaign_count,
+            "has_strategy": has_strategy,
+            "onboarding_path": settings.get("onboarding_path"),
+            "checklist_dismissed": settings.get("checklist_dismissed", False),
+        }
+    )
+
+
+VALID_ONBOARDING_PATHS = {"strategy", "import", "templates"}
+
+
+@tenants_bp.route("/onboarding-settings", methods=["PATCH"])
+@require_auth
+def patch_onboarding_settings():
+    """Update onboarding-specific settings for the current namespace.
+
+    Any authenticated user with namespace access can update these.
+    Only allows onboarding_path and checklist_dismissed keys.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    if not _has_tenant_access(g.current_user, tenant_id):
+        return jsonify({"error": "Insufficient permissions"}), 403
+
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    current = _parse_settings(tenant)
+
+    if "onboarding_path" in data:
+        val = data["onboarding_path"]
+        if val is not None and val not in VALID_ONBOARDING_PATHS:
+            return jsonify(
+                {"error": f"Invalid onboarding_path: {val}"}
+            ), 400
+        if val is None:
+            current.pop("onboarding_path", None)
+        else:
+            current["onboarding_path"] = val
+
+    if "checklist_dismissed" in data:
+        val = data["checklist_dismissed"]
+        if not isinstance(val, bool):
+            return jsonify(
+                {"error": "checklist_dismissed must be a boolean"}
+            ), 400
+        current["checklist_dismissed"] = val
+
+    tenant.settings = current
+    db.session.commit()
+    return jsonify(
+        {
+            "onboarding_path": current.get("onboarding_path"),
+            "checklist_dismissed": current.get("checklist_dismissed", False),
+        }
+    )
