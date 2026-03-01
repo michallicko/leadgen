@@ -7,7 +7,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, LinkedInSendQueue, db
+from ..models import Campaign, CampaignContact, CampaignTemplate, LinkedInSendQueue, db
 from ..services.message_generator import estimate_generation_cost, start_generation
 from ..services.send_service import get_send_status, send_campaign_emails
 
@@ -444,6 +444,184 @@ def list_campaign_templates():
         )
 
     return jsonify({"templates": templates})
+
+
+@campaigns_bp.route("/api/campaign-templates", methods=["POST"])
+@require_auth
+def create_campaign_template():
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    steps = body.get("steps")
+    if not isinstance(steps, list) or len(steps) == 0:
+        return jsonify({"error": "steps must be a non-empty array"}), 400
+
+    tpl = CampaignTemplate(
+        tenant_id=tenant_id,
+        name=name,
+        description=(body.get("description") or "").strip() or None,
+        steps=json.dumps(steps),
+        default_config=json.dumps(body.get("default_config") or {}),
+        is_system=False,
+    )
+    db.session.add(tpl)
+    db.session.commit()
+
+    return (
+        jsonify(
+            {
+                "id": str(tpl.id),
+                "name": tpl.name,
+                "description": tpl.description,
+                "steps": _parse_jsonb(tpl.steps) or [],
+                "default_config": _parse_jsonb(tpl.default_config) or {},
+                "is_system": False,
+                "created_at": _format_ts(tpl.created_at),
+            }
+        ),
+        201,
+    )
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/save-as-template", methods=["POST"])
+@require_auth
+def save_campaign_as_template(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT template_config, generation_config, name
+            FROM campaigns WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    template_config = _parse_jsonb(row[0]) or []
+    generation_config = _parse_jsonb(row[1]) or {}
+    campaign_name = row[2]
+
+    if not template_config or len(template_config) == 0:
+        return jsonify({"error": "Campaign has no steps to save as template"}), 400
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        name = f"{campaign_name} Template"
+
+    # Strip runtime keys from generation_config
+    default_config = {
+        k: v
+        for k, v in generation_config.items()
+        if k not in ("strategy_snapshot", "cancelled")
+    }
+
+    tpl = CampaignTemplate(
+        tenant_id=tenant_id,
+        name=name,
+        description=(body.get("description") or "").strip() or None,
+        steps=json.dumps(template_config),
+        default_config=json.dumps(default_config),
+        is_system=False,
+    )
+    db.session.add(tpl)
+    db.session.commit()
+
+    return jsonify({"id": str(tpl.id), "name": tpl.name}), 201
+
+
+@campaigns_bp.route("/api/campaign-templates/<template_id>", methods=["PATCH"])
+@require_auth
+def update_campaign_template(template_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT id, is_system, tenant_id
+            FROM campaign_templates WHERE id = :id
+        """),
+        {"id": template_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Template not found"}), 404
+
+    if row[1]:
+        return jsonify({"error": "Cannot modify system templates"}), 403
+
+    if str(row[2]) != str(tenant_id):
+        return jsonify({"error": "Template not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    set_parts = []
+    params = {"id": template_id}
+
+    if "name" in body:
+        name = (body["name"] or "").strip()
+        if not name:
+            return jsonify({"error": "name cannot be empty"}), 400
+        set_parts.append("name = :name")
+        params["name"] = name
+    if "description" in body:
+        set_parts.append("description = :description")
+        params["description"] = (body["description"] or "").strip() or None
+
+    if not set_parts:
+        return jsonify({"error": "No fields to update"}), 400
+
+    set_parts.append("updated_at = CURRENT_TIMESTAMP")
+    db.session.execute(
+        db.text(f"UPDATE campaign_templates SET {', '.join(set_parts)} WHERE id = :id"),
+        params,
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})
+
+
+@campaigns_bp.route("/api/campaign-templates/<template_id>", methods=["DELETE"])
+@require_auth
+def delete_campaign_template(template_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT id, is_system, tenant_id
+            FROM campaign_templates WHERE id = :id
+        """),
+        {"id": template_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Template not found"}), 404
+
+    if row[1]:
+        return jsonify({"error": "Cannot delete system templates"}), 403
+
+    if str(row[2]) != str(tenant_id):
+        return jsonify({"error": "Template not found"}), 404
+
+    db.session.execute(
+        db.text("DELETE FROM campaign_templates WHERE id = :id"),
+        {"id": template_id},
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})
 
 
 # ── Campaign Contacts ─────────────────────────────────────────
