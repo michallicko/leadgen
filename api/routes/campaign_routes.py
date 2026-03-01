@@ -7,7 +7,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, CampaignTemplate, LinkedInSendQueue, db
+from ..models import Campaign, CampaignContact, CampaignTemplate, LinkedInSendQueue, StrategyDocument, db
 from ..services.message_generator import estimate_generation_cost, start_generation
 from ..services.send_service import get_send_status, send_campaign_emails
 
@@ -106,6 +106,7 @@ def create_campaign():
     description = body.get("description", "")
     owner_id = body.get("owner_id")
     template_id = body.get("template_id")
+    strategy_id = body.get("strategy_id")
 
     # If creating from a template, copy its steps and config
     template_config = []
@@ -123,6 +124,34 @@ def create_campaign():
             template_config = _parse_jsonb(tpl[0]) or []
             generation_config = _parse_jsonb(tpl[1]) or {}
 
+    # Auto-populate from strategy when strategy_id is provided
+    target_criteria = body.get("target_criteria", {})
+    channel = body.get("channel")
+    if strategy_id:
+        strat_doc = StrategyDocument.query.filter_by(
+            id=strategy_id, tenant_id=tenant_id
+        ).first()
+        if strat_doc and strat_doc.extracted_data:
+            extracted = _parse_jsonb(strat_doc.extracted_data)
+            if extracted and isinstance(extracted, dict):
+                # Auto-populate target_criteria from ICP (body arg overrides)
+                if not target_criteria:
+                    icp = extracted.get("icp", {})
+                    if icp and isinstance(icp, dict):
+                        target_criteria = icp
+
+                # Auto-populate tone from messaging (only if no template config)
+                if not generation_config:
+                    messaging = extracted.get("messaging", {})
+                    if isinstance(messaging, dict) and messaging.get("tone"):
+                        generation_config["tone"] = messaging["tone"]
+
+                # Auto-populate channel from channels.primary
+                if not channel:
+                    channels = extracted.get("channels", {})
+                    if isinstance(channels, dict) and channels.get("primary"):
+                        channel = channels["primary"]
+
     # Use ORM to avoid SQL dialect issues with JSONB casting
     campaign = Campaign(
         tenant_id=tenant_id,
@@ -130,6 +159,11 @@ def create_campaign():
         description=description,
         owner_id=owner_id,
         status="draft",
+        strategy_id=strategy_id,
+        channel=channel,
+        target_criteria=json.dumps(target_criteria)
+        if isinstance(target_criteria, dict)
+        else target_criteria,
         template_config=json.dumps(template_config)
         if isinstance(template_config, (dict, list))
         else template_config,
