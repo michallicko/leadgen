@@ -148,8 +148,9 @@ function Toolbar({ editor }: ToolbarProps) {
           editor
             .chain()
             .focus()
-            .setCodeBlock({ language: 'mermaid' })
-            .insertContent(MERMAID_TEMPLATE)
+            .insertContent([
+              { type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: MERMAID_TEMPLATE }] },
+            ])
             .run()
         }
       />

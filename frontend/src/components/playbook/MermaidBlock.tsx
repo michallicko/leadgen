@@ -18,32 +18,29 @@ import type { NodeViewProps } from '@tiptap/react'
 // Lazy mermaid loader (dynamic import for bundle performance)
 // ---------------------------------------------------------------------------
 
-let mermaidInstance: typeof import('mermaid')['default'] | null = null
-let mermaidInitialized = false
+let mermaidPromise: Promise<typeof import('mermaid')['default']> | null = null
 
-async function getMermaid() {
-  if (!mermaidInstance) {
-    const mod = await import('mermaid')
-    mermaidInstance = mod.default
-  }
-  if (!mermaidInitialized) {
-    mermaidInstance.initialize({
-      startOnLoad: false,
-      theme: 'dark',
-      themeVariables: {
-        darkMode: true,
-        background: 'transparent',
-        primaryColor: '#6E2C8B',
-        primaryTextColor: '#E8E0F0',
-        primaryBorderColor: '#9B59B6',
-        lineColor: '#8B7FA8',
-        secondaryColor: '#1A3A4A',
-        tertiaryColor: '#2D1F3D',
-      },
+function getMermaid() {
+  if (!mermaidPromise) {
+    mermaidPromise = import('mermaid').then((mod) => {
+      mod.default.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: 'transparent',
+          primaryColor: '#6E2C8B',
+          primaryTextColor: '#E8E0F0',
+          primaryBorderColor: '#9B59B6',
+          lineColor: '#8B7FA8',
+          secondaryColor: '#1A3A4A',
+          tertiaryColor: '#2D1F3D',
+        },
+      })
+      return mod.default
     })
-    mermaidInitialized = true
   }
-  return mermaidInstance
+  return mermaidPromise
 }
 
 // ---------------------------------------------------------------------------
