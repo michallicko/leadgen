@@ -57,68 +57,20 @@ export function ContactsEmptyState() {
 /**
  * Context-aware empty state for the Campaigns page.
  * Shows different messaging depending on whether contacts exist.
+ * No CTA button — the page header already has a "New Campaign" button.
  */
 export function CampaignsEmptyState() {
-  const { namespace } = useParams<{ namespace: string }>()
-  const navigate = useNavigate()
-  const { data: status } = useOnboardingStatus()
-
-  const contactCount = status?.contact_count ?? 0
-  const hasContacts = contactCount > 0
-
-  if (hasContacts) {
-    return (
-      <EmptyState
-        icon={
-          <svg
-            viewBox="0 0 24 24"
-            className="w-12 h-12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 2L11 13" />
-            <path d="M22 2L15 22l-4-9-9-4z" />
-          </svg>
-        }
-        title={`You have ${contactCount.toLocaleString()} contact${contactCount !== 1 ? 's' : ''} ready`}
-        description="Create a campaign to start reaching out. Select contacts, craft messages, and launch your outreach."
-        action={{
-          label: 'New Campaign',
-          onClick: () => {
-            // The CampaignsPage has its own create dialog — navigate there
-            // The user can click the "New Campaign" button on the page header
-            navigate(`/${namespace}/campaigns`)
-          },
-        }}
-      />
-    )
-  }
+  const { data: onboardingStatus } = useOnboardingStatus()
+  const hasContacts = (onboardingStatus?.contact_count ?? 0) > 0
 
   return (
     <EmptyState
-      icon={
-        <svg
-          viewBox="0 0 24 24"
-          className="w-12 h-12"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M22 2L11 13" />
-          <path d="M22 2L15 22l-4-9-9-4z" />
-        </svg>
+      title={hasContacts ? 'Ready to reach out' : 'No campaigns yet'}
+      description={
+        hasContacts
+          ? `You have ${onboardingStatus?.contact_count} contacts ready. Create a campaign to start reaching out.`
+          : 'Import contacts first, then create a campaign to start outreach.'
       }
-      title="No campaigns yet"
-      description="Import contacts first, then create a campaign to start your outreach."
-      action={{
-        label: 'Import Contacts',
-        onClick: () => navigate(`/${namespace}/import`),
-      }}
     />
   )
 }

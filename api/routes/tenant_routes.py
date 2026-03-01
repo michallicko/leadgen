@@ -1,3 +1,4 @@
+import json
 import re
 import secrets
 
@@ -23,9 +24,7 @@ def _parse_settings(tenant):
     """Parse tenant settings, handling SQLite text or PG JSONB."""
     settings = tenant.settings
     if isinstance(settings, str):
-        import json as _json
-
-        settings = _json.loads(settings) if settings else {}
+        settings = json.loads(settings) if settings else {}
     return settings or {}
 
 
@@ -277,7 +276,7 @@ def get_onboarding_status():
     """
     tenant_id = resolve_tenant()
     if not tenant_id:
-        return jsonify({"error": "Namespace required"}), 400
+        return jsonify({"error": "Tenant not found"}), 404
 
     tenant = db.session.get(Tenant, tenant_id)
     if not tenant:
@@ -323,7 +322,7 @@ def patch_onboarding_settings():
     """
     tenant_id = resolve_tenant()
     if not tenant_id:
-        return jsonify({"error": "Namespace required"}), 400
+        return jsonify({"error": "Tenant not found"}), 404
 
     if not _has_tenant_access(g.current_user, tenant_id):
         return jsonify({"error": "Insufficient permissions"}), 403

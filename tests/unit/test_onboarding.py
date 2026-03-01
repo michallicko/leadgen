@@ -43,7 +43,7 @@ class TestOnboardingStatus:
         # The resolve_tenant will pick the first role from the token.
         # Super admin without any role mappings in token → should get 400
         # Actually, super_admin token has empty roles dict, resolve_tenant returns None
-        assert resp.status_code == 400
+        assert resp.status_code == 404
 
     def test_counts_contacts(
         self, client, seed_admin_with_tenant, seed_tenant, db
@@ -204,7 +204,7 @@ class TestOnboardingSettingsPatch:
             headers=headers,
             json={"onboarding_path": "strategy"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 404
 
     def test_regular_user_can_update(
         self, client, seed_user_with_role, seed_tenant
