@@ -116,6 +116,7 @@ class Owner(db.Model):
         UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
     )
     name = db.Column(db.Text, nullable=False)
+    default_language = db.Column(db.Text, default="en")
     is_active = db.Column(db.Boolean, default=True)
 
 

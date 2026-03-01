@@ -235,9 +235,52 @@ CONTACT_SOURCE_DISPLAY = {
 
 LANGUAGE_DISPLAY = {
     "en": "English",
-    "de": "German",
-    "nl": "Dutch",
     "cs": "Czech",
+    "da": "Danish",
+    "de": "German",
+    "es": "Spanish",
+    "fi": "Finnish",
+    "fr": "French",
+    "it": "Italian",
+    "nl": "Dutch",
+    "no": "Norwegian",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "sv": "Swedish",
+}
+
+# Full language names for prompt injection (language code -> English name)
+LANGUAGE_NAMES = {
+    "en": "English",
+    "cs": "Czech",
+    "da": "Danish",
+    "de": "German",
+    "es": "Spanish",
+    "fi": "Finnish",
+    "fr": "French",
+    "it": "Italian",
+    "nl": "Dutch",
+    "no": "Norwegian",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "sv": "Swedish",
+}
+
+# Language code -> locale for date/number formatting
+LANGUAGE_LOCALES = {
+    "en": "en-US",
+    "cs": "cs-CZ",
+    "da": "da-DK",
+    "de": "de-DE",
+    "es": "es-ES",
+    "fi": "fi-FI",
+    "fr": "fr-FR",
+    "it": "it-IT",
+    "nl": "nl-NL",
+    "no": "nb-NO",
+    "pl": "pl-PL",
+    "pt": "pt-PT",
+    "sv": "sv-SE",
 }
 
 LINKEDIN_ACTIVITY_DISPLAY = {

@@ -169,6 +169,44 @@ def deactivate_tenant(tenant_id):
     return jsonify({"ok": True, "message": "Namespace deactivated"})
 
 
+@tenants_bp.route("/<tenant_id>/settings", methods=["PATCH"])
+@require_role("admin")
+def patch_tenant_settings(tenant_id):
+    """Merge-patch tenant settings (e.g. language, enrichment_language)."""
+    from ..services.language import VALID_LANGUAGE_CODES
+
+    if not _is_tenant_admin(g.current_user, tenant_id):
+        return jsonify({"error": "Insufficient permissions"}), 403
+
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    # Validate language fields
+    for key in ("language", "enrichment_language"):
+        if key in data:
+            val = data[key]
+            if val is not None and val not in VALID_LANGUAGE_CODES:
+                return jsonify({"error": f"Invalid {key}: {val}"}), 400
+
+    # Merge-patch: update existing settings dict
+    current = dict(tenant.settings or {})
+    for key in ("language", "enrichment_language"):
+        if key in data:
+            if data[key] is None:
+                current.pop(key, None)
+            else:
+                current[key] = data[key]
+
+    tenant.settings = current
+    db.session.commit()
+    return jsonify(tenant.to_dict())
+
+
 @tenants_bp.route("/<tenant_id>/users", methods=["GET"])
 @require_auth
 def list_tenant_users(tenant_id):

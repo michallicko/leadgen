@@ -262,6 +262,21 @@ def enrich_person(
     if not contact_data:
         return {"error": "Contact not found", "enrichment_cost_usd": 0}
 
+    # Resolve enrichment language from tenant settings
+    enrichment_lang = None
+    try:
+        from ..models import Tenant
+
+        eff_tenant_id = tenant_id or contact_data.get("tenant_id")
+        if eff_tenant_id:
+            tenant_obj = db.session.get(Tenant, eff_tenant_id)
+            if tenant_obj:
+                from .language import get_enrichment_language
+
+                enrichment_lang = get_enrichment_language(tenant_obj)
+    except Exception:
+        pass  # Fall back to English
+
     pplx_model = get_model_for_stage("person", boost)
 
     try:
@@ -271,6 +286,7 @@ def enrich_person(
             company_data,
             pplx_model,
             user_id=user_id,
+            enrichment_language=enrichment_lang,
         )
         total_cost += profile_cost
     except Exception as exc:
@@ -285,6 +301,7 @@ def enrich_person(
             l2_data,
             pplx_model,
             user_id=user_id,
+            enrichment_language=enrichment_lang,
         )
         total_cost += signals_cost
     except Exception as exc:
@@ -312,6 +329,7 @@ def enrich_person(
             signals_data,
             scores,
             user_id=user_id,
+            enrichment_language=enrichment_lang,
         )
         total_cost += synthesis_cost
     except Exception as exc:
@@ -423,7 +441,9 @@ def _load_contact_and_company(contact_id):
 # ---------------------------------------------------------------------------
 
 
-def _research_profile(contact_data, company_data, model, user_id=None):
+def _research_profile(
+    contact_data, company_data, model, user_id=None, enrichment_language=None
+):
     """Call Perplexity for professional profile research."""
     import time as _time
 
@@ -438,10 +458,21 @@ def _research_profile(contact_data, company_data, model, user_id=None):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    effective_system_prompt = PROFILE_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_system_prompt += (
+            f"\n\nIMPORTANT: Conduct research and write all descriptive output "
+            f"in {lang_name}. Field names and JSON keys must remain in English, "
+            f"but descriptive text should be in {lang_name}."
+        )
+
     client = PerplexityClient()
     start_time = _time.time()
     resp = client.query(
-        system_prompt=PROFILE_SYSTEM_PROMPT,
+        system_prompt=effective_system_prompt,
         user_prompt=user_prompt,
         model=model,
         max_tokens=PERPLEXITY_MAX_TOKENS,
@@ -474,7 +505,9 @@ def _research_profile(contact_data, company_data, model, user_id=None):
     return data, resp.cost_usd
 
 
-def _research_signals(contact_data, company_data, l2_data, model, user_id=None):
+def _research_signals(
+    contact_data, company_data, l2_data, model, user_id=None, enrichment_language=None
+):
     """Call Perplexity for decision-making signals."""
     import time as _time
 
@@ -491,10 +524,21 @@ def _research_signals(contact_data, company_data, l2_data, model, user_id=None):
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
+    effective_system_prompt = SIGNALS_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_system_prompt += (
+            f"\n\nIMPORTANT: Conduct research and write all descriptive output "
+            f"in {lang_name}. Field names and JSON keys must remain in English, "
+            f"but descriptive text should be in {lang_name}."
+        )
+
     client = PerplexityClient()
     start_time = _time.time()
     resp = client.query(
-        system_prompt=SIGNALS_SYSTEM_PROMPT,
+        system_prompt=effective_system_prompt,
         user_prompt=user_prompt,
         model=model,
         max_tokens=600,
@@ -694,6 +738,7 @@ def _synthesize(
     signals_data,
     scores,
     user_id=None,
+    enrichment_language=None,
 ):
     """Call Anthropic for personalization synthesis."""
     import time as _time
@@ -729,10 +774,21 @@ def _synthesize(
         industry=company_data.get("industry", ""),
     )
 
+    effective_system_prompt = SYNTHESIS_SYSTEM_PROMPT
+    if enrichment_language and enrichment_language != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(enrichment_language, enrichment_language)
+        effective_system_prompt += (
+            f"\n\nIMPORTANT: Write all analysis and output in {lang_name}. "
+            f"Field names and JSON keys must remain in English, "
+            f"but descriptive text should be in {lang_name}."
+        )
+
     client = AnthropicClient()
     start_time = _time.time()
     resp = client.query(
-        system_prompt=SYNTHESIS_SYSTEM_PROMPT,
+        system_prompt=effective_system_prompt,
         user_prompt=user_prompt,
         model=ANTHROPIC_MODEL,
         max_tokens=ANTHROPIC_MAX_TOKENS,

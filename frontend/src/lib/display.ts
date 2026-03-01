@@ -217,9 +217,18 @@ export const CONTACT_SOURCE_DISPLAY: Record<string, string> = {
 
 export const LANGUAGE_DISPLAY: Record<string, string> = {
   en: 'English',
-  de: 'German',
-  nl: 'Dutch',
   cs: 'Czech',
+  da: 'Danish',
+  de: 'German',
+  es: 'Spanish',
+  fi: 'Finnish',
+  fr: 'French',
+  it: 'Italian',
+  nl: 'Dutch',
+  no: 'Norwegian',
+  pl: 'Polish',
+  pt: 'Portuguese',
+  sv: 'Swedish',
 }
 
 // --- Reverse maps (display value -> DB value) ---
