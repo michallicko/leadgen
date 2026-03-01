@@ -110,7 +110,7 @@ export function useResearchStatus(enabled: boolean) {
 export function useTriggerResearch() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { domain: string; objective: string }) =>
+    mutationFn: (data: { domains: string[]; primary_domain: string; objective?: string }) =>
       apiFetch<ResearchStatus>('/playbook/research', { method: 'POST', body: data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook', 'research'] })

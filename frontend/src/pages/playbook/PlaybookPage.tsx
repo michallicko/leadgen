@@ -26,6 +26,8 @@ import {
   useSavePlaybook,
   useExtractStrategy,
   useUndoAIEdit,
+  useTriggerResearch,
+  useResearchStatus,
 } from '../../api/queries/usePlaybook'
 import { useCreateStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
@@ -129,12 +131,17 @@ export function PlaybookPage() {
   const extractMutation = useExtractStrategy()
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
+  const triggerResearch = useTriggerResearch()
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [skipped, setSkipped] = useState(false)
+  const [researchTriggered, setResearchTriggered] = useState(false)
+
+  // Poll research status once research has been triggered
+  const researchQuery = useResearchStatus(researchTriggered)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
@@ -184,6 +191,22 @@ export function PlaybookPage() {
       return () => clearInterval(interval)
     }
   }, [docQuery.data, isDirty, docRefetch])
+
+  // ---------------------------------------------------------------------------
+  // Auto-refresh when research completes
+  // ---------------------------------------------------------------------------
+
+  const prevResearchStatus = useRef<string | null>(null)
+  useEffect(() => {
+    const status = researchQuery.data?.status
+    if (!status) return
+    if (prevResearchStatus.current === 'in_progress' && status === 'completed') {
+      // Research just finished -- refresh the document to pick up enrichment data
+      queryClient.invalidateQueries({ queryKey: ['playbook'] })
+      toast('Company research completed', 'info')
+    }
+    prevResearchStatus.current = status
+  }, [researchQuery.data?.status, queryClient, toast])
 
   // ---------------------------------------------------------------------------
   // Handle AI document changes (from ChatProvider)
@@ -364,29 +387,48 @@ export function PlaybookPage() {
 
   const handleOnboardGenerate = useCallback(
     async (payload: OnboardingPayload) => {
-      // Save objective to the document
+      const primaryDomain = payload.domains[0] || ''
+
+      // Save description as objective to the document
       try {
-        await saveMutation.mutateAsync({ objective: payload.objective })
+        await saveMutation.mutateAsync({ objective: payload.description })
       } catch {
-        // Objective save failed — continue anyway, AI will still work
+        // Objective save failed -- continue anyway, AI will still work
       }
 
-      // If a template was applied, the content is already set — just refetch and skip chat
-      if (payload.templateId) {
-        await docQuery.refetch()
-        setSkipped(true)
-        setShowSuggestions(true)
-        toast('Strategy generated from template', 'success')
-        return
+      // Fire research in parallel (non-blocking) -- enriches company data
+      if (primaryDomain) {
+        triggerResearch.mutate(
+          {
+            domains: payload.domains,
+            primary_domain: primaryDomain,
+          },
+          {
+            onSuccess: () => {
+              setResearchTriggered(true)
+            },
+            onError: () => {
+              // Research failed -- non-fatal, AI still works without enrichment
+            },
+          },
+        )
+        setResearchTriggered(true)
       }
 
       // Build a crafted prompt for the AI to generate the strategy
+      const challengeLabel = payload.challenge_type
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+
       const parts = [
-        `Generate a complete GTM strategy playbook for my company (${payload.domain}).`,
-        `Our primary objective: ${payload.objective}.`,
+        `Generate a complete GTM strategy playbook for my company (${primaryDomain}).`,
+        `Company description: ${payload.description}.`,
+        `Primary challenge: ${challengeLabel}.`,
       ]
-      if (payload.icp) {
-        parts.push(`Our ideal customer: ${payload.icp}.`)
+      if (payload.domains.length > 1) {
+        parts.push(
+          `Key competitors/related domains: ${payload.domains.slice(1).join(', ')}.`,
+        )
       }
       parts.push(
         'Draft all sections of the strategy document using the update_strategy_section tool. ' +
@@ -395,12 +437,12 @@ export function PlaybookPage() {
 
       sendMessage(parts.join(' '))
 
-      // Exit onboarding gate immediately — the chat panel is visible in the
+      // Exit onboarding gate immediately -- the chat panel is visible in the
       // main split view so the user can follow the AI's progress there
       setSkipped(true)
       setShowSuggestions(true)
     },
-    [sendMessage, saveMutation, docQuery, toast],
+    [sendMessage, saveMutation, triggerResearch],
   )
 
   // ---------------------------------------------------------------------------
@@ -528,6 +570,16 @@ export function PlaybookPage() {
             </span>
           )}
         </div>
+
+        {/* Research-in-progress indicator */}
+        {researchTriggered && researchQuery.data?.status === 'in_progress' && (
+          <div className="flex items-center gap-1.5 ml-1">
+            <span className="w-3 h-3 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
+            <span className="text-xs text-accent-cyan font-medium">
+              Researching...
+            </span>
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {/* Save as Template */}
