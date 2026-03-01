@@ -227,6 +227,9 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
                 value={(generationConfig.custom_instructions as string) || ''}
                 onChange={handleInstructionsChange}
                 rows={3}
+                maxLength={2000}
+                placeholder="e.g., Mention our Series A funding. Reference prospect's recent company news. Keep under 100 words."
+                helpText="These instructions are appended to every message generation prompt for this campaign."
               />
             </>
           ) : (
