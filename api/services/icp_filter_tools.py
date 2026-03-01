@@ -220,6 +220,12 @@ def apply_icp_filters(args: dict, ctx: ToolContext) -> dict:
             "message": "No ICP data extracted yet. Run Extract ICP first.",
         }
 
+    # Personas may be at top-level or inside icp — merge both
+    top_personas = extracted.get("personas", [])
+    icp_personas = icp.get("personas", [])
+    if top_personas and not icp_personas:
+        icp["personas"] = top_personas
+
     # Map ICP to filters
     filters = _map_icp_to_filters(icp)
     if not filters:

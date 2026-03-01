@@ -329,8 +329,8 @@ export function PlaybookPage() {
   const handleExtract = useCallback(async () => {
     try {
       const result = await extractMutation.mutateAsync()
-      const icp = (result as Record<string, unknown>)?.extracted_data
-      const hasIcp = icp && typeof icp === 'object' && Object.keys(icp as object).length > 0
+      const extractedData = (result as Record<string, unknown>)?.extracted_data as Record<string, unknown> | undefined
+      const hasIcp = extractedData?.icp && typeof extractedData.icp === 'object' && Object.keys(extractedData.icp as object).length > 0
 
       if (hasIcp) {
         // Auto-advance to contacts phase
