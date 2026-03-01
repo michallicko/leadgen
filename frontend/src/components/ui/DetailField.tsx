@@ -117,18 +117,70 @@ interface EditableTextareaProps {
   value: string | null | undefined
   onChange: (name: string, value: string) => void
   rows?: number
+  maxLength?: number
+  placeholder?: string
+  helpText?: string
 }
 
-export function EditableTextarea({ label, name, value, onChange, rows = 3 }: EditableTextareaProps) {
+export function EditableTextarea({ label, name, value, onChange, rows = 3, maxLength, placeholder, helpText }: EditableTextareaProps) {
+  const [localValue, setLocalValue] = useState(value || '')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
+  const isDirty = localValue !== (value || '')
+
+  // Sync from parent when value changes externally (e.g. template load)
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    setLocalValue(value || '')
+  }
+
+  const remaining = maxLength ? maxLength - localValue.length : undefined
+
+  const handleBlur = () => {
+    if (!isDirty) return
+    onChange(name, localValue)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus((s) => s === 'saved' ? 'idle' : s), 2000)
+  }
+
+  const helpId = helpText ? `${name}-help` : undefined
+  const counterId = maxLength ? `${name}-counter` : undefined
+  const describedBy = [helpId, counterId].filter(Boolean).join(' ') || undefined
+
   return (
     <div className="col-span-full">
       <label className="text-xs text-text-muted mb-0.5 block">{label}</label>
       <textarea
-        value={value || ''}
-        onChange={(e) => onChange(name, e.target.value)}
+        value={localValue}
+        onChange={(e) => setLocalValue(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
+        onBlur={handleBlur}
         rows={rows}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        aria-describedby={describedBy}
         className="w-full bg-surface-alt border border-border-solid rounded-md px-3 py-2 text-sm text-text resize-y focus:outline-none focus:border-accent"
       />
+      {(maxLength || helpText || saveStatus === 'saved') && (
+        <div className="flex items-center justify-between mt-1">
+          <span id={helpId} className="text-[11px] text-text-dim">
+            {helpText || ''}
+          </span>
+          <span className="flex items-center gap-2">
+            {saveStatus === 'saved' && (
+              <span className="text-[11px] text-green-400 transition-opacity">Saved</span>
+            )}
+            {remaining !== undefined && (
+              <span
+                id={counterId}
+                className={`text-[11px] ${remaining < 100 ? 'text-red-400' : 'text-text-dim'}`}
+                aria-live={remaining < 100 ? 'polite' : undefined}
+              >
+                {remaining}/{maxLength}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

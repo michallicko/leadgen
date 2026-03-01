@@ -16,7 +16,9 @@ from .message_routes import messages_bp
 from .oauth_routes import oauth_bp
 from .pipeline_routes import pipeline_bp
 from .playbook_routes import playbook_bp
+from .strategy_template_routes import strategy_templates_bp
 from .tenant_routes import tenants_bp
+from .token_routes import token_bp
 from .user_routes import users_bp
 
 
@@ -41,3 +43,5 @@ def register_blueprints(app):
     app.register_blueprint(gmail_bp)
     app.register_blueprint(extension_bp)
     app.register_blueprint(playbook_bp)
+    app.register_blueprint(token_bp)
+    app.register_blueprint(strategy_templates_bp)

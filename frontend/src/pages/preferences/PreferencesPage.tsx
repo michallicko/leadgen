@@ -1,122 +1,133 @@
 /**
- * PreferencesPage -- user settings and extension connection status.
+ * PreferencesPage -- tabbed settings page with vertical navigation.
+ *
+ * Sections are individually importable for use by other sprint items
+ * (BL-037, LANG, TMPL).
  */
 
-import { useEffect, useState } from 'react'
-import { apiFetch } from '../../api/client'
+import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
+import { GeneralSection } from './sections/GeneralSection'
+import { LanguageSection } from './sections/LanguageSection'
+import { CampaignTemplatesSection } from './sections/CampaignTemplatesSection'
+import { StrategyTemplatesSection } from './sections/StrategyTemplatesSection'
 
-interface ExtensionStatus {
-  connected: boolean
-  last_lead_sync: string | null
-  last_activity_sync: string | null
-  total_leads_imported: number
-  total_activities_synced: number
+interface SettingsTab {
+  id: string
+  label: string
+  component: React.ComponentType
 }
 
-export function PreferencesPage() {
-  const [status, setStatus] = useState<ExtensionStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+const TABS: SettingsTab[] = [
+  { id: 'general', label: 'General', component: GeneralSection },
+  { id: 'language', label: 'Language', component: LanguageSection },
+  { id: 'campaign-templates', label: 'Campaign Templates', component: CampaignTemplatesSection },
+  { id: 'strategy-templates', label: 'Strategy Templates', component: StrategyTemplatesSection },
+]
 
-  useEffect(() => {
-    apiFetch<ExtensionStatus>('/extension/status')
-      .then(setStatus)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false))
+export function PreferencesPage() {
+  const [activeTab, setActiveTab] = useState(TABS[0].id)
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const activeIndex = TABS.findIndex((t) => t.id === activeTab)
+  const ActiveComponent = TABS[activeIndex]?.component ?? TABS[0].component
+
+  const focusTab = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(TABS.length - 1, index))
+    tabRefs.current[clamped]?.focus()
+    setActiveTab(TABS[clamped].id)
   }, [])
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          focusTab(activeIndex + 1)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          focusTab(activeIndex - 1)
+          break
+        case 'Home':
+          e.preventDefault()
+          focusTab(0)
+          break
+        case 'End':
+          e.preventDefault()
+          focusTab(TABS.length - 1)
+          break
+      }
+    },
+    [activeIndex, focusTab],
+  )
+
   return (
-    <div className="max-w-[720px] mx-auto">
+    <div className="max-w-[960px] mx-auto">
       <div className="mb-5">
         <h1 className="font-title text-[1.3rem] font-semibold tracking-tight mb-1.5">
-          Preferences
+          Settings
         </h1>
         <p className="text-text-muted text-sm">
           Account settings and integrations.
         </p>
       </div>
 
-      <div className="bg-surface border border-border rounded-lg p-5">
-        <h2 className="font-title text-[1rem] font-semibold tracking-tight mb-4">
-          Browser Extension
-        </h2>
+      {/* Mobile dropdown (< 768px) */}
+      <div className="md:hidden mb-4">
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+          aria-label="Settings section"
+          className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-accent"
+        >
+          {TABS.map((tab) => (
+            <option key={tab.id} value={tab.id}>
+              {tab.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {loading && (
-          <p className="text-text-muted text-sm">Loading extension status...</p>
-        )}
+      <div className="flex gap-6">
+        {/* Vertical tab list (>= 768px) */}
+        <div
+          role="tablist"
+          aria-label="Settings sections"
+          aria-orientation="vertical"
+          className="hidden md:flex flex-col flex-shrink-0 w-[200px]"
+          onKeyDown={handleKeyDown}
+        >
+          {TABS.map((tab, i) => (
+            <button
+              key={tab.id}
+              ref={(el) => { tabRefs.current[i] = el }}
+              role="tab"
+              id={`settings-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`settings-panel-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              className={`text-left px-3 py-2 text-sm rounded-md transition-colors border-l-2 ${
+                activeTab === tab.id
+                  ? 'border-accent text-text bg-surface-alt font-medium'
+                  : 'border-transparent text-text-muted hover:text-text hover:bg-surface-alt/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {error && (
-          <p className="text-error text-sm">
-            Failed to load extension status: {error}
-          </p>
-        )}
-
-        {!loading && !error && status && (
-          <>
-            <div className="flex items-center gap-2 mb-4">
-              <span
-                className={`inline-block w-2.5 h-2.5 rounded-full ${
-                  status.connected ? 'bg-green-500' : 'bg-text-muted/40'
-                }`}
-              />
-              <span className="text-sm text-text">
-                {status.connected ? 'Connected' : 'Not connected'}
-              </span>
-              {status.connected && status.last_lead_sync && (
-                <span className="text-[0.75rem] text-text-muted ml-2">
-                  Last sync {formatRelative(status.last_lead_sync)}
-                </span>
-              )}
-            </div>
-
-            {status.connected && (
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="bg-surface-alt rounded-md p-3">
-                  <dt className="text-text-muted text-[0.75rem] mb-1">Leads imported</dt>
-                  <dd className="text-[1.1rem] font-semibold text-text">{status.total_leads_imported}</dd>
-                </div>
-                <div className="bg-surface-alt rounded-md p-3">
-                  <dt className="text-text-muted text-[0.75rem] mb-1">Activities synced</dt>
-                  <dd className="text-[1.1rem] font-semibold text-text">{status.total_activities_synced}</dd>
-                </div>
-                <div className="bg-surface-alt rounded-md p-3">
-                  <dt className="text-text-muted text-[0.75rem] mb-1">Last lead sync</dt>
-                  <dd className="text-text text-[0.82rem]">
-                    {status.last_lead_sync ? formatDate(status.last_lead_sync) : '\u2014'}
-                  </dd>
-                </div>
-                <div className="bg-surface-alt rounded-md p-3">
-                  <dt className="text-text-muted text-[0.75rem] mb-1">Last activity sync</dt>
-                  <dd className="text-text text-[0.82rem]">
-                    {status.last_activity_sync ? formatDate(status.last_activity_sync) : '\u2014'}
-                  </dd>
-                </div>
-              </div>
-            )}
-
-            {!status.connected && (
-              <p className="text-text-muted text-sm">
-                Install the VisionVolve Leads browser extension and log in to connect.
-                Once connected, your lead imports and activity syncs will appear here.
-              </p>
-            )}
-          </>
-        )}
+        {/* Tab panel */}
+        <div
+          role="tabpanel"
+          id={`settings-panel-${activeTab}`}
+          aria-labelledby={`settings-tab-${activeTab}`}
+          className="flex-1 min-w-0"
+        >
+          <ActiveComponent />
+        </div>
       </div>
     </div>
   )
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString()
-}
-
-function formatRelative(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins} min ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }

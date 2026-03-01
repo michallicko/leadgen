@@ -27,6 +27,7 @@ import {
   useExtractStrategy,
   useUndoAIEdit,
 } from '../../api/queries/usePlaybook'
+import { useCreateStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
@@ -62,6 +63,15 @@ function UndoIcon() {
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 7h6a4 4 0 0 1 0 8H9" />
       <path d="M3 7l3-3M3 7l3 3" />
+    </svg>
+  )
+}
+
+function SaveTemplateIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.67 14H3.33A1.33 1.33 0 0 1 2 12.67V3.33A1.33 1.33 0 0 1 3.33 2h7.34L14 5.33v7.34A1.33 1.33 0 0 1 12.67 14Z" />
+      <path d="M11.33 14V9.33H4.67V14M4.67 2v3.33h5.33" />
     </svg>
   )
 }
@@ -118,6 +128,7 @@ export function PlaybookPage() {
   const saveMutation = useSavePlaybook()
   const extractMutation = useExtractStrategy()
   const undoMutation = useUndoAIEdit()
+  const createTemplateMutation = useCreateStrategyTemplate()
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
@@ -126,6 +137,9 @@ export function PlaybookPage() {
   const [skipped, setSkipped] = useState(false)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDescription, setTemplateDescription] = useState('')
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -357,6 +371,15 @@ export function PlaybookPage() {
         // Objective save failed — continue anyway, AI will still work
       }
 
+      // If a template was applied, the content is already set — just refetch and skip chat
+      if (payload.templateId) {
+        await docQuery.refetch()
+        setSkipped(true)
+        setShowSuggestions(true)
+        toast('Strategy generated from template', 'success')
+        return
+      }
+
       // Build a crafted prompt for the AI to generate the strategy
       const parts = [
         `Generate a complete GTM strategy playbook for my company (${payload.domain}).`,
@@ -377,8 +400,28 @@ export function PlaybookPage() {
       setSkipped(true)
       setShowSuggestions(true)
     },
-    [sendMessage, saveMutation],
+    [sendMessage, saveMutation, docQuery, toast],
   )
+
+  // ---------------------------------------------------------------------------
+  // Save as Template handler
+  // ---------------------------------------------------------------------------
+
+  const handleSaveAsTemplate = useCallback(async () => {
+    if (!templateName.trim()) return
+    try {
+      await createTemplateMutation.mutateAsync({
+        name: templateName.trim(),
+        description: templateDescription.trim() || undefined,
+      })
+      setShowSaveTemplate(false)
+      setTemplateName('')
+      setTemplateDescription('')
+      toast('Strategy saved as template', 'success')
+    } catch {
+      toast('Failed to save template', 'error')
+    }
+  }, [templateName, templateDescription, createTemplateMutation, toast])
 
   // Wrap sendMessage to dismiss suggestions on first user follow-up
   const handleSendWithSuggestionDismiss = useCallback(
@@ -487,6 +530,18 @@ export function PlaybookPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Save as Template */}
+          {viewPhase === 'strategy' && docContent.trim() && (
+            <button
+              onClick={() => setShowSaveTemplate(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              title="Save current strategy as a reusable template"
+            >
+              <SaveTemplateIcon />
+              Save as Template
+            </button>
+          )}
+
           {/* Undo AI edit button */}
           {hasUndoableEdits && (
             <button
@@ -542,6 +597,58 @@ export function PlaybookPage() {
                 className="px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer"
               >
                 Undo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save as Template dialog */}
+      {showSaveTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-surface border border-border-solid rounded-lg shadow-lg p-6 max-w-sm mx-4 w-full">
+            <h3 className="text-sm font-semibold mb-3">Save as Template</h3>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label htmlFor="tpl-name" className="block text-xs font-medium text-text mb-1">
+                  Template name
+                </label>
+                <input
+                  id="tpl-name"
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g., My SaaS GTM Framework"
+                  className="w-full px-3 py-1.5 text-sm rounded-md border border-border-solid bg-surface-alt text-text placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+              </div>
+              <div>
+                <label htmlFor="tpl-desc" className="block text-xs font-medium text-text mb-1">
+                  Description <span className="text-text-dim font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="tpl-desc"
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="Brief description of this strategy framework"
+                  rows={2}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border border-border-solid bg-surface-alt text-text placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowSaveTemplate(false); setTemplateName(''); setTemplateDescription('') }}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAsTemplate}
+                disabled={!templateName.trim() || createTemplateMutation.isPending}
+                className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {createTemplateMutation.isPending ? 'Saving...' : 'Save Template'}
               </button>
             </div>
           </div>

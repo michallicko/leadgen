@@ -1,33 +1,9 @@
 import { useState } from 'react'
 import { useRegenEstimate, useRegenerateMessage } from '../../api/queries/useMessages'
 import { useToast } from '../../components/ui/Toast'
+import { LANGUAGES as LANG_LIST, FORMALITY_LABELS } from '../../lib/languages'
 
-const LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'cs', label: 'Czech' },
-  { value: 'de', label: 'German' },
-  { value: 'fr', label: 'French' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'it', label: 'Italian' },
-  { value: 'pl', label: 'Polish' },
-  { value: 'nl', label: 'Dutch' },
-  { value: 'pt', label: 'Portuguese' },
-  { value: 'sv', label: 'Swedish' },
-  { value: 'no', label: 'Norwegian' },
-  { value: 'fi', label: 'Finnish' },
-  { value: 'da', label: 'Danish' },
-]
-
-const FORMALITY_LABELS: Record<string, Record<string, string>> = {
-  cs: { formal: 'Vy (vykání)', informal: 'Ty (tykání)' },
-  de: { formal: 'Sie', informal: 'Du' },
-  fr: { formal: 'Vous', informal: 'Tu' },
-  es: { formal: 'Usted', informal: 'Tú' },
-  it: { formal: 'Lei', informal: 'Tu' },
-  pt: { formal: 'O Senhor', informal: 'Você' },
-  pl: { formal: 'Pan/Pani', informal: 'Ty' },
-  nl: { formal: 'U', informal: 'Je' },
-}
+const LANGUAGES = LANG_LIST.map((l) => ({ value: l.code, label: l.label }))
 
 const TONES = [
   { value: 'professional', label: 'Professional' },

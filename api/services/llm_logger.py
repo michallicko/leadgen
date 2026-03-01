@@ -86,6 +86,18 @@ def compute_cost(provider, model, input_tokens, output_tokens):
     return total
 
 
+def compute_credits(cost_usd):
+    """Convert USD cost to credits (1 credit = $0.001).
+
+    Args:
+        cost_usd: Decimal or float cost in USD
+
+    Returns:
+        int credits
+    """
+    return int(Decimal(str(cost_usd)) * 1000)
+
+
 def log_llm_usage(
     tenant_id,
     operation,
@@ -96,10 +108,12 @@ def log_llm_usage(
     user_id=None,
     duration_ms=None,
     metadata=None,
+    reserved_credits=0,
 ):
     """Create an LlmUsageLog entry and add to the current session.
 
     Does NOT commit -- caller's transaction includes it.
+    Also consumes credits from the tenant's budget if one exists.
 
     Args:
         tenant_id: UUID string
@@ -111,11 +125,13 @@ def log_llm_usage(
         user_id: optional UUID string
         duration_ms: optional int
         metadata: optional dict
+        reserved_credits: credits previously reserved for this operation
 
     Returns:
         The created LlmUsageLog instance.
     """
     cost = compute_cost(provider, model, input_tokens, output_tokens)
+    credits = compute_credits(cost)
 
     entry = LlmUsageLog(
         tenant_id=str(tenant_id),
@@ -126,8 +142,15 @@ def log_llm_usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost,
+        credits_consumed=credits,
         duration_ms=duration_ms,
         extra=metadata or {},
     )
     db.session.add(entry)
+
+    # Consume credits from budget (moves reserved -> used)
+    from .budget import consume_credits
+
+    consume_credits(tenant_id, credits, reserved=reserved_credits)
+
     return entry

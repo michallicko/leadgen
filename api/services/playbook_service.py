@@ -508,6 +508,25 @@ def build_system_prompt(
                 ]
             )
 
+    # Language injection: instruct AI to respond in tenant's language
+    from .language import get_effective_language
+
+    lang = get_effective_language(tenant)
+    if lang and lang != "en":
+        from ..display import LANGUAGE_NAMES
+
+        lang_name = LANGUAGE_NAMES.get(lang, lang)
+        parts.extend(
+            [
+                "",
+                "--- Language ---",
+                "IMPORTANT: Respond to the user in {}. ".format(lang_name)
+                + "Strategy document section titles and field names may stay in English, "
+                + "but all conversational text, analysis, and recommendations must be "
+                + "in {}.".format(lang_name),
+            ]
+        )
+
     return "\n".join(parts)
 
 

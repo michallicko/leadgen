@@ -7,7 +7,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, LinkedInSendQueue, db
+from ..models import Campaign, CampaignContact, CampaignTemplate, LinkedInSendQueue, db
 from ..services.message_generator import estimate_generation_cost, start_generation
 from ..services.send_service import get_send_status, send_campaign_emails
 
@@ -332,6 +332,83 @@ def delete_campaign(campaign_id):
     return jsonify({"ok": True})
 
 
+# ── Clone Campaign ─────────────────────────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/clone", methods=["POST"])
+@require_role("editor")
+def clone_campaign(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    original = db.session.execute(
+        db.text("""
+            SELECT id, name, description, owner_id,
+                   template_config, generation_config, sender_config
+            FROM campaigns
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not original:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    base_name = body.get("name") or f"{original[1]} (Copy)"
+
+    # Deduplicate name: append " (2)", " (3)" etc. if name exists
+    clone_name = base_name
+    counter = 1
+    while True:
+        exists = db.session.execute(
+            db.text("""
+                SELECT 1 FROM campaigns
+                WHERE tenant_id = :t AND name = :n AND is_active = true
+            """),
+            {"t": tenant_id, "n": clone_name},
+        ).fetchone()
+        if not exists:
+            break
+        counter += 1
+        clone_name = f"{base_name} ({counter})"
+
+    # Parse JSONB fields
+    gen_config = _parse_jsonb(original[5]) or {}
+    # Strip runtime keys from generation_config
+    for key in ("strategy_snapshot", "cancelled"):
+        gen_config.pop(key, None)
+
+    campaign = Campaign(
+        tenant_id=tenant_id,
+        name=clone_name,
+        description=original[2],
+        owner_id=original[3],
+        status="draft",
+        template_config=json.dumps(_parse_jsonb(original[4]) or [])
+        if isinstance(_parse_jsonb(original[4]), (dict, list))
+        else original[4],
+        generation_config=json.dumps(gen_config),
+        sender_config=json.dumps(_parse_jsonb(original[6]) or {})
+        if isinstance(_parse_jsonb(original[6]), (dict, list))
+        else original[6],
+        total_contacts=0,
+        generated_count=0,
+        generation_cost=0,
+    )
+    db.session.add(campaign)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": str(campaign.id),
+            "name": clone_name,
+            "status": "Draft",
+        }
+    ), 201
+
+
 # ── Campaign Templates ────────────────────────────────────────
 
 
@@ -367,6 +444,184 @@ def list_campaign_templates():
         )
 
     return jsonify({"templates": templates})
+
+
+@campaigns_bp.route("/api/campaign-templates", methods=["POST"])
+@require_auth
+def create_campaign_template():
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    steps = body.get("steps")
+    if not isinstance(steps, list) or len(steps) == 0:
+        return jsonify({"error": "steps must be a non-empty array"}), 400
+
+    tpl = CampaignTemplate(
+        tenant_id=tenant_id,
+        name=name,
+        description=(body.get("description") or "").strip() or None,
+        steps=json.dumps(steps),
+        default_config=json.dumps(body.get("default_config") or {}),
+        is_system=False,
+    )
+    db.session.add(tpl)
+    db.session.commit()
+
+    return (
+        jsonify(
+            {
+                "id": str(tpl.id),
+                "name": tpl.name,
+                "description": tpl.description,
+                "steps": _parse_jsonb(tpl.steps) or [],
+                "default_config": _parse_jsonb(tpl.default_config) or {},
+                "is_system": False,
+                "created_at": _format_ts(tpl.created_at),
+            }
+        ),
+        201,
+    )
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/save-as-template", methods=["POST"])
+@require_auth
+def save_campaign_as_template(campaign_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT template_config, generation_config, name
+            FROM campaigns WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    template_config = _parse_jsonb(row[0]) or []
+    generation_config = _parse_jsonb(row[1]) or {}
+    campaign_name = row[2]
+
+    if not template_config or len(template_config) == 0:
+        return jsonify({"error": "Campaign has no steps to save as template"}), 400
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        name = f"{campaign_name} Template"
+
+    # Strip runtime keys from generation_config
+    default_config = {
+        k: v
+        for k, v in generation_config.items()
+        if k not in ("strategy_snapshot", "cancelled")
+    }
+
+    tpl = CampaignTemplate(
+        tenant_id=tenant_id,
+        name=name,
+        description=(body.get("description") or "").strip() or None,
+        steps=json.dumps(template_config),
+        default_config=json.dumps(default_config),
+        is_system=False,
+    )
+    db.session.add(tpl)
+    db.session.commit()
+
+    return jsonify({"id": str(tpl.id), "name": tpl.name}), 201
+
+
+@campaigns_bp.route("/api/campaign-templates/<template_id>", methods=["PATCH"])
+@require_auth
+def update_campaign_template(template_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT id, is_system, tenant_id
+            FROM campaign_templates WHERE id = :id
+        """),
+        {"id": template_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Template not found"}), 404
+
+    if row[1]:
+        return jsonify({"error": "Cannot modify system templates"}), 403
+
+    if str(row[2]) != str(tenant_id):
+        return jsonify({"error": "Template not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    set_parts = []
+    params = {"id": template_id}
+
+    if "name" in body:
+        name = (body["name"] or "").strip()
+        if not name:
+            return jsonify({"error": "name cannot be empty"}), 400
+        set_parts.append("name = :name")
+        params["name"] = name
+    if "description" in body:
+        set_parts.append("description = :description")
+        params["description"] = (body["description"] or "").strip() or None
+
+    if not set_parts:
+        return jsonify({"error": "No fields to update"}), 400
+
+    set_parts.append("updated_at = CURRENT_TIMESTAMP")
+    db.session.execute(
+        db.text(f"UPDATE campaign_templates SET {', '.join(set_parts)} WHERE id = :id"),
+        params,
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})
+
+
+@campaigns_bp.route("/api/campaign-templates/<template_id>", methods=["DELETE"])
+@require_auth
+def delete_campaign_template(template_id):
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    row = db.session.execute(
+        db.text("""
+            SELECT id, is_system, tenant_id
+            FROM campaign_templates WHERE id = :id
+        """),
+        {"id": template_id},
+    ).fetchone()
+
+    if not row:
+        return jsonify({"error": "Template not found"}), 404
+
+    if row[1]:
+        return jsonify({"error": "Cannot delete system templates"}), 403
+
+    if str(row[2]) != str(tenant_id):
+        return jsonify({"error": "Template not found"}), 404
+
+    db.session.execute(
+        db.text("DELETE FROM campaign_templates WHERE id = :id"),
+        {"id": template_id},
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True})
 
 
 # ── Campaign Contacts ─────────────────────────────────────────
@@ -2298,4 +2553,168 @@ def export_messages_csv(campaign_id):
         csv_content,
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Conflict Check ──────────────────────────────────
+
+
+@campaigns_bp.route("/api/campaigns/<campaign_id>/conflict-check", methods=["POST"])
+@require_role("editor")
+def conflict_check(campaign_id):
+    """Check a campaign's contacts for ICP mismatches and overlaps."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign = db.session.execute(
+        db.text("""
+            SELECT id, name, strategy_id, target_criteria,
+                   contact_cooldown_days, status, template_config,
+                   created_at
+            FROM campaigns
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    strategy_id = campaign[2]
+    cooldown_days = campaign[4] or 30
+
+    icp = {}
+    if strategy_id:
+        strat_row = db.session.execute(
+            db.text("""
+                SELECT extracted_data FROM strategy_documents
+                WHERE id = :sid AND tenant_id = :t
+            """),
+            {"sid": strategy_id, "t": tenant_id},
+        ).fetchone()
+        if strat_row:
+            extracted = _parse_jsonb(strat_row[0]) or {}
+            icp = extracted.get("icp", {})
+
+    # Get campaign contacts with company details
+    contacts = db.session.execute(
+        db.text("""
+            SELECT ct.id, ct.first_name, ct.last_name,
+                   ct.email_address, ct.linkedin_url,
+                   ct.seniority_level, ct.department,
+                   co.industry, co.geo_region, co.company_size, co.name
+            FROM campaign_contacts cc
+            JOIN contacts ct ON ct.id = cc.contact_id
+            LEFT JOIN companies co ON co.id = ct.company_id
+            WHERE cc.campaign_id = :cid AND ct.tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchall()
+
+    issues = []
+
+    icp_industries = [ind.lower() for ind in icp.get("industries", [])]
+    icp_geos = [g.lower() for g in icp.get("geographies", [])]
+    icp_sizes = [s.lower() for s in icp.get("company_sizes", [])]
+
+    for c in contacts:
+        contact_id = str(c[0])
+        contact_name = f"{c[1] or ''} {c[2] or ''}".strip()
+
+        # ICP industry mismatch
+        if icp_industries and c[7]:
+            if c[7].lower() not in icp_industries:
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "industry",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[7],
+                        "expected": icp_industries,
+                    }
+                )
+
+        # ICP geography mismatch
+        if icp_geos and c[8]:
+            if c[8].lower() not in icp_geos:
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "geo_region",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[8],
+                        "expected": icp_geos,
+                    }
+                )
+
+        # ICP company size mismatch
+        if icp_sizes and c[9]:
+            if c[9].lower() not in icp_sizes:
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "company_size",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[9],
+                        "expected": icp_sizes,
+                    }
+                )
+
+        # Channel gaps
+        if not c[3] and not c[4]:
+            issues.append(
+                {
+                    "type": "channel_gap",
+                    "contact_id": contact_id,
+                    "contact_name": contact_name,
+                    "detail": "No email or LinkedIn URL",
+                }
+            )
+
+    # Cooldown violations
+    cooldown_rows = db.session.execute(
+        db.text("""
+            SELECT cc2.contact_id, ct.first_name, ct.last_name,
+                   cmp2.id, cmp2.name, cmp2.status
+            FROM campaign_contacts cc2
+            JOIN contacts ct ON ct.id = cc2.contact_id
+            JOIN campaigns cmp2 ON cmp2.id = cc2.campaign_id
+            WHERE cc2.contact_id IN (
+                SELECT contact_id FROM campaign_contacts
+                WHERE campaign_id = :cid
+            )
+            AND cc2.campaign_id != :cid
+            AND cmp2.status NOT IN ('archived', 'draft')
+            AND cmp2.tenant_id = :t
+            AND cmp2.created_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * :cooldown
+        """),
+        {"cid": campaign_id, "t": tenant_id, "cooldown": cooldown_days},
+    ).fetchall()
+
+    for cr in cooldown_rows:
+        issues.append(
+            {
+                "type": "cooldown_violation",
+                "contact_id": str(cr[0]),
+                "contact_name": f"{cr[1] or ''} {cr[2] or ''}".strip(),
+                "overlapping_campaign": {
+                    "id": str(cr[3]),
+                    "name": cr[4],
+                    "status": cr[5],
+                },
+                "cooldown_days": cooldown_days,
+            }
+        )
+
+    return jsonify(
+        {
+            "campaign_id": campaign_id,
+            "total_contacts": len(contacts),
+            "total_issues": len(issues),
+            "issues": issues,
+        }
     )
