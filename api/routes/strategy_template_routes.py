@@ -47,15 +47,19 @@ def list_strategy_templates():
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    templates = StrategyTemplate.query.filter(
-        db.or_(
-            StrategyTemplate.tenant_id == str(tenant_id),
-            StrategyTemplate.is_system.is_(True),
+    templates = (
+        StrategyTemplate.query.filter(
+            db.or_(
+                StrategyTemplate.tenant_id == str(tenant_id),
+                StrategyTemplate.is_system.is_(True),
+            )
         )
-    ).order_by(
-        StrategyTemplate.is_system.desc(),
-        StrategyTemplate.created_at.desc(),
-    ).all()
+        .order_by(
+            StrategyTemplate.is_system.desc(),
+            StrategyTemplate.created_at.desc(),
+        )
+        .all()
+    )
 
     result = []
     for t in templates:
@@ -140,9 +144,7 @@ def create_strategy_template():
 # ---------------------------------------------------------------------------
 
 
-@strategy_templates_bp.route(
-    "/api/strategy-templates/<template_id>", methods=["PATCH"]
-)
+@strategy_templates_bp.route("/api/strategy-templates/<template_id>", methods=["PATCH"])
 @require_auth
 def update_strategy_template(template_id):
     """Update a user template's name or description."""
@@ -250,14 +252,16 @@ def apply_template():
         try:
             check_budget(tenant_id, _TEMPLATE_MERGE_ESTIMATED_CREDITS)
         except BudgetExceededError as e:
-            return jsonify({
-                "error": "Token budget exceeded",
-                "code": "budget_exceeded",
-                "details": {
-                    "remaining": e.remaining,
-                    "required": e.required,
-                },
-            }), 402
+            return jsonify(
+                {
+                    "error": "Token budget exceeded",
+                    "code": "budget_exceeded",
+                    "details": {
+                        "remaining": e.remaining,
+                        "required": e.required,
+                    },
+                }
+            ), 402
 
     # Gather context for AI merge
     context_parts = []
@@ -266,11 +270,13 @@ def apply_template():
     if doc.extracted_data:
         ed = doc.extracted_data if isinstance(doc.extracted_data, dict) else {}
         if ed:
-            context_parts.append(
-                f"Existing Strategy Data: {json.dumps(ed, indent=2)}"
-            )
+            context_parts.append(f"Existing Strategy Data: {json.dumps(ed, indent=2)}")
 
-    context_text = "\n".join(context_parts) if context_parts else "No additional context available."
+    context_text = (
+        "\n".join(context_parts)
+        if context_parts
+        else "No additional context available."
+    )
 
     # Build prompt
     system_prompt = (

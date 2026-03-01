@@ -1426,9 +1426,7 @@ class StrategyTemplate(db.Model):
         default=dict,
     )
     is_system = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(
         db.DateTime(timezone=True),
         server_default=db.text("now()"),
@@ -1442,12 +1440,8 @@ class StrategyTemplate(db.Model):
             "description": self.description,
             "category": self.category,
             "is_system": self.is_system,
-            "created_at": (
-                self.created_at.isoformat() if self.created_at else None
-            ),
-            "updated_at": (
-                self.updated_at.isoformat() if self.updated_at else None
-            ),
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
+            "updated_at": (self.updated_at.isoformat() if self.updated_at else None),
         }
         if include_content:
             d["content_template"] = self.content_template
