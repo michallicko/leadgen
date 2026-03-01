@@ -124,6 +124,9 @@ export function PlaybookPage() {
     toolCalls,
     isThinking,
     activeToolName,
+    analysisStreamingText,
+    isAnalysisStreaming,
+    analysisSuggestions,
   } = useChatContext()
 
   // Server state
@@ -497,6 +500,11 @@ export function PlaybookPage() {
     'Suggest outreach channels',
   ]
 
+  // Dynamic suggestions from proactive analysis take priority over static ones
+  const activeSuggestions = analysisSuggestions.length > 0
+    ? analysisSuggestions
+    : (showSuggestions ? ONBOARDING_SUGGESTIONS : [])
+
   // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
@@ -747,15 +755,15 @@ export function PlaybookPage() {
           <PlaybookChat
             messages={messages}
             onSendMessage={handleSendWithSuggestionDismiss}
-            isStreaming={isStreaming}
-            streamingText={streamingText}
+            isStreaming={isStreaming || isAnalysisStreaming}
+            streamingText={isAnalysisStreaming ? analysisStreamingText : streamingText}
             placeholder={PHASE_PLACEHOLDERS[viewPhase]}
-            activeToolName={activeToolName}
+            activeToolName={isAnalysisStreaming ? 'Analyzing strategy...' : activeToolName}
             isLoading={chatLoading}
             inputRef={chatInputRef}
             toolCalls={toolCalls}
             isThinking={isThinking}
-            suggestions={showSuggestions ? ONBOARDING_SUGGESTIONS : []}
+            suggestions={activeSuggestions}
           />
         </div>
       </div>

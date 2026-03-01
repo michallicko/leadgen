@@ -32,6 +32,7 @@ from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
+    build_proactive_analysis_prompt,
     build_seeded_template,
     build_system_prompt,
 )
@@ -1300,6 +1301,102 @@ def _stream_agent_response(
 
         yield "data: {}\n\n".format(json.dumps(done_payload))
 
+        # --- Proactive analysis follow-up ---
+        # If strategy edits were made, generate a proactive analysis message
+        # with context-aware suggestions. This appears as a second assistant
+        # message in the conversation without user intervention.
+        has_doc_changes = done_payload.get("document_changed", False)
+        if has_doc_changes:
+            try:
+                with app.app_context():
+                    # Load the freshly-updated strategy document
+                    doc = StrategyDocument.query.filter_by(
+                        tenant_id=tenant_id
+                    ).first()
+                    strategy_content = doc.content if doc else ""
+
+                    # Load enrichment data for grounded suggestions
+                    enrichment_data = None
+                    if doc and doc.enrichment_id:
+                        enrichment_data = _load_enrichment_data(
+                            doc.enrichment_id
+                        )
+
+                    analysis_prompt = build_proactive_analysis_prompt(
+                        strategy_content, enrichment_data
+                    )
+
+                # Signal the frontend that analysis is starting
+                yield "data: {}\n\n".format(
+                    json.dumps({"type": "analysis_start"})
+                )
+
+                # Stream the analysis response (simple query, no tools)
+                analysis_parts = []
+                for chunk in client.stream_query(
+                    messages=[{"role": "user", "content": analysis_prompt}],
+                    system_prompt=system_prompt,
+                    max_tokens=512,
+                    temperature=0.4,
+                ):
+                    analysis_parts.append(chunk)
+                    yield "data: {}\n\n".format(
+                        json.dumps({"type": "analysis_chunk", "text": chunk})
+                    )
+
+                analysis_content = "".join(analysis_parts)
+
+                # Save analysis as an assistant message
+                analysis_msg_id = None
+                with app.app_context():
+                    analysis_msg = StrategyChatMessage(
+                        tenant_id=tenant_id,
+                        document_id=doc_id,
+                        role="assistant",
+                        content=analysis_content,
+                        extra={"proactive_analysis": True},
+                    )
+                    db.session.add(analysis_msg)
+                    db.session.flush()
+                    analysis_msg_id = analysis_msg.id
+
+                    # Log LLM usage for the analysis call
+                    usage = client.last_stream_usage
+                    log_llm_usage(
+                        tenant_id=tenant_id,
+                        operation="proactive_analysis",
+                        model=usage.get("model", client.default_model),
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                        provider="anthropic",
+                        user_id=user_id,
+                        metadata={
+                            "document_id": str(doc_id),
+                            "trigger": "strategy_edit",
+                        },
+                    )
+
+                    db.session.commit()
+
+                # Extract suggestion chips from the analysis text.
+                # Look for numbered lines (e.g., "1. ...", "2. ...") and
+                # extract a short actionable phrase from each.
+                suggestions = _extract_suggestion_chips(analysis_content)
+
+                yield "data: {}\n\n".format(
+                    json.dumps(
+                        {
+                            "type": "analysis_done",
+                            "message_id": analysis_msg_id,
+                            "suggestions": suggestions,
+                        }
+                    )
+                )
+
+            except Exception as e:
+                logger.warning("Proactive analysis failed (non-fatal): %s", e)
+                # Non-fatal: the main response was already delivered
+
     # Commit the user message before entering the generator
     db.session.commit()
 
@@ -1311,6 +1408,50 @@ def _stream_agent_response(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _extract_suggestion_chips(analysis_text):
+    """Extract short suggestion chips from a proactive analysis message.
+
+    Looks for numbered lines (e.g. "1. Your ICP targets...Want me to...?")
+    and extracts the question portion as a clickable chip. Falls back to
+    the first sentence of each numbered line if no question is found.
+
+    Args:
+        analysis_text: The full analysis message text.
+
+    Returns:
+        list[str]: Up to 3 suggestion strings suitable for UI chips.
+    """
+    suggestions = []
+    # Match numbered lines: "1. ...", "2. ...", etc.
+    numbered = re.findall(r"^\d+[\.\)]\s*(.+)", analysis_text, re.MULTILINE)
+
+    for line in numbered[:3]:
+        # Try to extract a question (sentence ending with ?)
+        questions = re.findall(r"([^.!?]*\?)", line)
+        if questions:
+            # Take the last question (usually the actionable one)
+            chip = questions[-1].strip()
+            # Clean up leading conjunctions
+            for prefix in [
+                "Want me to ",
+                "Should I ",
+                "Shall I ",
+                "Would you like me to ",
+            ]:
+                if chip.startswith(prefix):
+                    chip = "Yes, " + chip[0].lower() + chip[1:]
+                    break
+            suggestions.append(chip)
+        else:
+            # No question found -- use truncated line
+            chip = line.strip()
+            if len(chip) > 80:
+                chip = chip[:77] + "..."
+            suggestions.append(chip)
+
+    return suggestions
 
 
 def _sync_response(
