@@ -485,14 +485,24 @@ def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
     db.session.commit()
 
 
-def _run_self_research(app, company_id, tenant_id):
-    """Run L1 + L2 enrichment in a background thread for self-company research."""
+def _run_self_research(app, company_id, tenant_id, additional_domains=None):
+    """Run L1 + L2 enrichment in a background thread for self-company research.
+
+    Args:
+        additional_domains: Optional list of competitor/partner domains for
+            lightweight web_search enrichment. The primary domain gets full
+            L1+L2 enrichment; additional domains get stored as metadata.
+    """
     with app.app_context():
         try:
             from api.services.l1_enricher import enrich_l1
             from api.services.l2_enricher import enrich_l2
 
-            logger.info("Starting self-research for company %s", company_id)
+            logger.info(
+                "Starting self-research for company %s (additional_domains=%s)",
+                company_id,
+                additional_domains,
+            )
 
             enrich_l1(company_id, tenant_id)
 
@@ -542,6 +552,8 @@ def _run_self_research(app, company_id, tenant_id):
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
             if doc and doc.version == 1:
                 enrichment_data = _load_enrichment_data(company_id)
+                if additional_domains and enrichment_data:
+                    enrichment_data["additional_domains"] = additional_domains
                 doc.content = build_seeded_template(doc.objective, enrichment_data)
                 doc.enrichment_id = company_id
                 db.session.commit()
@@ -604,8 +616,21 @@ def trigger_research():
         return jsonify({"error": "Tenant not found"}), 404
 
     data = request.get_json(silent=True) or {}
-    domain = data.get("domain")
     objective = data.get("objective")
+
+    # Support multi-domain format: {domains: [...], primary_domain: "..."}
+    # Backward compat: {domain: "..."} treated as {domains: [domain]}
+    domains = data.get("domains")
+    primary_domain = data.get("primary_domain")
+    if not domains:
+        # Old format: single domain field
+        legacy_domain = data.get("domain")
+        if legacy_domain:
+            domains = [legacy_domain]
+            primary_domain = legacy_domain
+
+    # Resolve primary domain
+    domain = primary_domain or (domains[0] if domains else None)
 
     # Fall back to tenant's domain if none provided
     if not domain:
@@ -617,8 +642,11 @@ def trigger_research():
             {"error": "Domain is required (provide in body or set on tenant)"}
         ), 400
 
+    if not domains:
+        domains = [domain]
+
     # Derive company name from domain (strip TLD, capitalize)
-    # e.g., "notion.so" → "Notion", "stripe.com" → "Stripe"
+    # e.g., "notion.so" -> "Notion", "stripe.com" -> "Stripe"
     domain_parts = domain.split(".")
     company_name = domain_parts[0].capitalize() if domain_parts else domain
 
@@ -648,6 +676,9 @@ def trigger_research():
         doc.objective = objective
     db.session.commit()
 
+    # Store additional domains as metadata for lightweight research
+    additional_domains = [d for d in domains if d != domain]
+
     # Log research trigger
     user_id = getattr(request, "user_id", None)
     if user_id:
@@ -658,6 +689,8 @@ def trigger_research():
             event_type="research_trigger",
             payload={
                 "domain": domain,
+                "domains": domains,
+                "additional_domains": additional_domains,
                 "objective": objective,
                 "company_id": str(company.id),
             },
@@ -670,6 +703,7 @@ def trigger_research():
     t = threading.Thread(
         target=_run_self_research,
         args=(app, company.id, tenant_id),
+        kwargs={"additional_domains": additional_domains},
         daemon=True,
         name="self-research-{}".format(company.id),
     )
@@ -680,6 +714,7 @@ def trigger_research():
             "status": "triggered",
             "company_id": company.id,
             "domain": company.domain,
+            "domains": domains,
         }
     ), 200
 
