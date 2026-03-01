@@ -2304,9 +2304,7 @@ def export_messages_csv(campaign_id):
 # ── Conflict Check ──────────────────────────────────
 
 
-@campaigns_bp.route(
-    "/api/campaigns/<campaign_id>/conflict-check", methods=["POST"]
-)
+@campaigns_bp.route("/api/campaigns/<campaign_id>/conflict-check", methods=["POST"])
 @require_role("editor")
 def conflict_check(campaign_id):
     """Check a campaign's contacts for ICP mismatches and overlaps."""
@@ -2372,47 +2370,55 @@ def conflict_check(campaign_id):
         # ICP industry mismatch
         if icp_industries and c[7]:
             if c[7].lower() not in icp_industries:
-                issues.append({
-                    "type": "icp_mismatch",
-                    "field": "industry",
-                    "contact_id": contact_id,
-                    "contact_name": contact_name,
-                    "value": c[7],
-                    "expected": icp_industries,
-                })
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "industry",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[7],
+                        "expected": icp_industries,
+                    }
+                )
 
         # ICP geography mismatch
         if icp_geos and c[8]:
             if c[8].lower() not in icp_geos:
-                issues.append({
-                    "type": "icp_mismatch",
-                    "field": "geo_region",
-                    "contact_id": contact_id,
-                    "contact_name": contact_name,
-                    "value": c[8],
-                    "expected": icp_geos,
-                })
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "geo_region",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[8],
+                        "expected": icp_geos,
+                    }
+                )
 
         # ICP company size mismatch
         if icp_sizes and c[9]:
             if c[9].lower() not in icp_sizes:
-                issues.append({
-                    "type": "icp_mismatch",
-                    "field": "company_size",
-                    "contact_id": contact_id,
-                    "contact_name": contact_name,
-                    "value": c[9],
-                    "expected": icp_sizes,
-                })
+                issues.append(
+                    {
+                        "type": "icp_mismatch",
+                        "field": "company_size",
+                        "contact_id": contact_id,
+                        "contact_name": contact_name,
+                        "value": c[9],
+                        "expected": icp_sizes,
+                    }
+                )
 
         # Channel gaps
         if not c[3] and not c[4]:
-            issues.append({
-                "type": "channel_gap",
-                "contact_id": contact_id,
-                "contact_name": contact_name,
-                "detail": "No email or LinkedIn URL",
-            })
+            issues.append(
+                {
+                    "type": "channel_gap",
+                    "contact_id": contact_id,
+                    "contact_name": contact_name,
+                    "detail": "No email or LinkedIn URL",
+                }
+            )
 
     # Cooldown violations
     cooldown_rows = db.session.execute(
@@ -2435,21 +2441,25 @@ def conflict_check(campaign_id):
     ).fetchall()
 
     for cr in cooldown_rows:
-        issues.append({
-            "type": "cooldown_violation",
-            "contact_id": str(cr[0]),
-            "contact_name": f"{cr[1] or ''} {cr[2] or ''}".strip(),
-            "overlapping_campaign": {
-                "id": str(cr[3]),
-                "name": cr[4],
-                "status": cr[5],
-            },
-            "cooldown_days": cooldown_days,
-        })
+        issues.append(
+            {
+                "type": "cooldown_violation",
+                "contact_id": str(cr[0]),
+                "contact_name": f"{cr[1] or ''} {cr[2] or ''}".strip(),
+                "overlapping_campaign": {
+                    "id": str(cr[3]),
+                    "name": cr[4],
+                    "status": cr[5],
+                },
+                "cooldown_days": cooldown_days,
+            }
+        )
 
-    return jsonify({
-        "campaign_id": campaign_id,
-        "total_contacts": len(contacts),
-        "total_issues": len(issues),
-        "issues": issues,
-    })
+    return jsonify(
+        {
+            "campaign_id": campaign_id,
+            "total_contacts": len(contacts),
+            "total_issues": len(issues),
+            "issues": issues,
+        }
+    )

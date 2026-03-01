@@ -910,9 +910,7 @@ def search_contacts():
     enrichment_map = {}
     campaign_map = {}
     if contact_ids:
-        id_placeholders = ", ".join(
-            f":cid_{i}" for i in range(len(contact_ids))
-        )
+        id_placeholders = ", ".join(f":cid_{i}" for i in range(len(contact_ids)))
         id_params = {f"cid_{i}": cid for i, cid in enumerate(contact_ids)}
 
         enrich_rows = db.session.execute(
@@ -965,9 +963,7 @@ def search_contacts():
                 "ai_champion_score": float(r[9]) if r[9] else None,
                 "icp_fit": r[10],
                 "created_at": (
-                    created.isoformat()
-                    if hasattr(created, "isoformat")
-                    else created
+                    created.isoformat() if hasattr(created, "isoformat") else created
                 ),
                 "company": {
                     "id": str(r[12]) if r[12] else None,

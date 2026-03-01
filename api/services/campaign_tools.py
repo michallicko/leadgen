@@ -46,7 +46,9 @@ def _parse_jsonb(val):
 
 def filter_contacts(args: dict, ctx: ToolContext) -> dict:
     """Search and filter the user's contact pool. Returns matching contacts."""
-    limit = min(int(args.get("limit", DEFAULT_CONTACTS_RETURNED)), MAX_CONTACTS_RETURNED)
+    limit = min(
+        int(args.get("limit", DEFAULT_CONTACTS_RETURNED)), MAX_CONTACTS_RETURNED
+    )
     params = {"tenant_id": ctx.tenant_id, "limit": limit}
     where = [
         "ct.tenant_id = :tenant_id",
@@ -119,20 +121,26 @@ def filter_contacts(args: dict, ctx: ToolContext) -> dict:
     where_clause = " AND ".join(where)
 
     # Count total matches
-    total = db.session.execute(
-        text("""
+    total = (
+        db.session.execute(
+            text(
+                """
             SELECT COUNT(*)
             FROM contacts ct
             LEFT JOIN companies co ON ct.company_id = co.id
             WHERE {}
-        """.format(where_clause)),
-        params,
-    ).scalar() or 0
+        """.format(where_clause)
+            ),
+            params,
+        ).scalar()
+        or 0
+    )
 
     # Fetch top contacts
     data_params = dict(params)
     rows = db.session.execute(
-        text("""
+        text(
+            """
             SELECT ct.id, ct.first_name, ct.last_name, ct.job_title,
                    ct.email_address, ct.linkedin_url, ct.seniority_level,
                    ct.contact_score, ct.icp_fit,
@@ -142,33 +150,37 @@ def filter_contacts(args: dict, ctx: ToolContext) -> dict:
             WHERE {}
             ORDER BY ct.contact_score DESC NULLS LAST
             LIMIT :limit
-        """.format(where_clause)),
+        """.format(where_clause)
+        ),
         data_params,
     ).fetchall()
 
     contacts = []
     for r in rows:
         full_name = ((r[1] or "") + " " + (r[2] or "")).strip()
-        contacts.append({
-            "id": str(r[0]),
-            "full_name": full_name,
-            "job_title": r[3],
-            "email": r[4],
-            "linkedin_url": r[5],
-            "seniority": r[6],
-            "contact_score": r[7],
-            "icp_fit": r[8],
-            "company_name": r[9],
-            "tier": r[10],
-            "industry": r[11],
-        })
+        contacts.append(
+            {
+                "id": str(r[0]),
+                "full_name": full_name,
+                "job_title": r[3],
+                "email": r[4],
+                "linkedin_url": r[5],
+                "seniority": r[6],
+                "contact_score": r[7],
+                "icp_fit": r[8],
+                "company_name": r[9],
+                "tier": r[10],
+                "industry": r[11],
+            }
+        )
 
     return {
         "total": total,
         "returned": len(contacts),
         "contacts": contacts,
         "filters_applied": {
-            k: v for k, v in args.items()
+            k: v
+            for k, v in args.items()
             if v is not None and k != "limit" and v != [] and v != ""
         },
     }
@@ -208,7 +220,8 @@ def create_campaign(args: dict, ctx: ToolContext) -> dict:
         status="draft",
         strategy_id=strategy_id,
         target_criteria=json.dumps(target_criteria)
-        if isinstance(target_criteria, dict) else target_criteria,
+        if isinstance(target_criteria, dict)
+        else target_criteria,
     )
     db.session.add(campaign)
     db.session.commit()
@@ -253,11 +266,13 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
             comp_params[pname] = v
             comp_phs.append(":{}".format(pname))
         company_contacts = db.session.execute(
-            text("""
+            text(
+                """
                 SELECT id FROM contacts
                 WHERE tenant_id = :t AND company_id IN ({})
                     AND (is_disqualified = false OR is_disqualified IS NULL)
-            """.format(", ".join(comp_phs))),
+            """.format(", ".join(comp_phs))
+            ),
             comp_params,
         ).fetchall()
         contact_ids.extend(str(r[0]) for r in company_contacts)
@@ -266,9 +281,7 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
     filters = args.get("filters")
     if filters and isinstance(filters, dict):
         # Reuse filter_contacts logic to resolve IDs
-        filter_result = filter_contacts(
-            {**filters, "limit": 1000}, ctx
-        )
+        filter_result = filter_contacts({**filters, "limit": 1000}, ctx)
         if "contacts" in filter_result:
             contact_ids.extend(c["id"] for c in filter_result["contacts"])
 
@@ -284,11 +297,13 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
         id_params[pname] = v
         id_phs.append(":{}".format(pname))
     valid = db.session.execute(
-        text("""
+        text(
+            """
             SELECT id FROM contacts
             WHERE tenant_id = :t AND id IN ({})
                 AND (is_disqualified = false OR is_disqualified IS NULL)
-        """.format(", ".join(id_phs))),
+        """.format(", ".join(id_phs))
+        ),
         id_params,
     ).fetchall()
     valid_ids = {str(r[0]) for r in valid}
@@ -305,7 +320,9 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
 
     # Check for overlaps with other active campaigns
     overlap_warnings = []
-    new_ids = [cid for cid in contact_ids if cid in valid_ids and cid not in existing_ids]
+    new_ids = [
+        cid for cid in contact_ids if cid in valid_ids and cid not in existing_ids
+    ]
     if new_ids:
         ovl_phs = []
         ovl_params = {"t": ctx.tenant_id, "cid": campaign_id}
@@ -314,7 +331,8 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
             ovl_params[pname] = v
             ovl_phs.append(":{}".format(pname))
         ovl_rows = db.session.execute(
-            text("""
+            text(
+                """
                 SELECT cc.contact_id, c.name, c.status
                 FROM campaign_contacts cc
                 JOIN campaigns c ON c.id = cc.campaign_id
@@ -323,15 +341,18 @@ def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
                     AND cc.campaign_id != :cid
                     AND c.is_active = true
                     AND c.status IN ('draft', 'ready', 'approved', 'sending')
-            """.format(", ".join(ovl_phs))),
+            """.format(", ".join(ovl_phs))
+            ),
             ovl_params,
         ).fetchall()
         for r in ovl_rows:
-            overlap_warnings.append({
-                "contact_id": str(r[0]),
-                "campaign_name": r[1],
-                "campaign_status": r[2],
-            })
+            overlap_warnings.append(
+                {
+                    "contact_id": str(r[0]),
+                    "campaign_name": r[1],
+                    "campaign_status": r[2],
+                }
+            )
             # Log overlap
             log = CampaignOverlapLog(
                 tenant_id=ctx.tenant_id,
@@ -403,9 +424,7 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
     if not campaign:
         return {"error": "Campaign not found."}
 
-    strategy_id = args.get("strategy_id") or (
-        str(campaign[1]) if campaign[1] else None
-    )
+    strategy_id = args.get("strategy_id") or (str(campaign[1]) if campaign[1] else None)
     contact_ids = args.get("contact_ids", [])
 
     # Load contacts
@@ -417,7 +436,8 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
             cid_params[pname] = v
             cid_phs.append(":{}".format(pname))
         contacts = db.session.execute(
-            text("""
+            text(
+                """
                 SELECT ct.id, ct.first_name, ct.last_name,
                        ct.email_address, ct.linkedin_url,
                        ct.relationship_status,
@@ -425,7 +445,8 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
                 FROM contacts ct
                 LEFT JOIN companies co ON ct.company_id = co.id
                 WHERE ct.tenant_id = :t AND ct.id IN ({})
-            """.format(", ".join(cid_phs))),
+            """.format(", ".join(cid_phs))
+            ),
             cid_params,
         ).fetchall()
     else:
@@ -466,7 +487,9 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
             {"id": strategy_id, "t": ctx.tenant_id},
         ).fetchone()
         if strat and strat[0]:
-            extracted = _parse_jsonb(strat[0]) if isinstance(strat[0], str) else strat[0]
+            extracted = (
+                _parse_jsonb(strat[0]) if isinstance(strat[0], str) else strat[0]
+            )
             icp = (extracted or {}).get("icp", {})
 
     # Overlaps
@@ -478,7 +501,8 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
             ovl_params[pname] = v
             ovl_phs.append(":{}".format(pname))
         ovl_rows = db.session.execute(
-            text("""
+            text(
+                """
                 SELECT cc.contact_id, c.name, c.status
                 FROM campaign_contacts cc
                 JOIN campaigns c ON c.id = cc.campaign_id
@@ -486,17 +510,20 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
                     AND cc.contact_id IN ({})
                     AND cc.campaign_id != :cid
                     AND c.is_active = true
-            """.format(", ".join(ovl_phs))),
+            """.format(", ".join(ovl_phs))
+            ),
             ovl_params,
         ).fetchall()
     else:
         ovl_rows = []
     overlap_map = {}
     for r in ovl_rows:
-        overlap_map.setdefault(str(r[0]), []).append({
-            "campaign": r[1],
-            "status": r[2],
-        })
+        overlap_map.setdefault(str(r[0]), []).append(
+            {
+                "campaign": r[1],
+                "status": r[2],
+            }
+        )
 
     # Build conflicts list
     conflicts = []
@@ -520,24 +547,28 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
         if icp:
             icp_industries = icp.get("industries", [])
             if icp_industries and industry and industry not in icp_industries:
-                conflicts.append({
-                    "type": "icp_mismatch",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "Industry '{}' not in ICP".format(industry),
-                    "severity": "warning",
-                })
+                conflicts.append(
+                    {
+                        "type": "icp_mismatch",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "Industry '{}' not in ICP".format(industry),
+                        "severity": "warning",
+                    }
+                )
                 contacts_with_warnings.add(cid)
 
             icp_geos = icp.get("geographies", [])
             if icp_geos and geo_region and geo_region not in icp_geos:
-                conflicts.append({
-                    "type": "icp_mismatch",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "Region '{}' not in ICP".format(geo_region),
-                    "severity": "warning",
-                })
+                conflicts.append(
+                    {
+                        "type": "icp_mismatch",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "Region '{}' not in ICP".format(geo_region),
+                        "severity": "warning",
+                    }
+                )
                 contacts_with_warnings.add(cid)
 
             icp_size = icp.get("company_size", {})
@@ -546,63 +577,75 @@ def check_strategy_conflicts(args: dict, ctx: ToolContext) -> dict:
                 max_s = icp_size.get("max", 999999)
                 emp = float(verified_employees)
                 if emp < min_s or emp > max_s:
-                    conflicts.append({
-                        "type": "icp_mismatch",
-                        "contact_id": cid,
-                        "contact_name": full_name,
-                        "detail": "{} employees (ICP: {}-{})".format(
-                            int(emp), min_s, max_s
-                        ),
-                        "severity": "warning",
-                    })
+                    conflicts.append(
+                        {
+                            "type": "icp_mismatch",
+                            "contact_id": cid,
+                            "contact_name": full_name,
+                            "detail": "{} employees (ICP: {}-{})".format(
+                                int(emp), min_s, max_s
+                            ),
+                            "severity": "warning",
+                        }
+                    )
                     contacts_with_warnings.add(cid)
 
         # Channel gaps
         campaign_channel = campaign[3]
         if campaign_channel:
             if "email" in campaign_channel.lower() and not email:
-                conflicts.append({
-                    "type": "channel_gap",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "No email address for email campaign",
-                    "severity": "error",
-                })
+                conflicts.append(
+                    {
+                        "type": "channel_gap",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "No email address for email campaign",
+                        "severity": "error",
+                    }
+                )
                 contacts_with_errors.add(cid)
             if "linkedin" in campaign_channel.lower() and not linkedin:
-                conflicts.append({
-                    "type": "channel_gap",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "No LinkedIn URL for LinkedIn campaign",
-                    "severity": "error",
-                })
+                conflicts.append(
+                    {
+                        "type": "channel_gap",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "No LinkedIn URL for LinkedIn campaign",
+                        "severity": "error",
+                    }
+                )
                 contacts_with_errors.add(cid)
 
         # Overlap
         if cid in overlap_map:
             for ovl in overlap_map[cid]:
-                conflicts.append({
-                    "type": "segment_overlap",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "Also in '{}' ({})".format(ovl["campaign"], ovl["status"]),
-                    "severity": "warning",
-                })
+                conflicts.append(
+                    {
+                        "type": "segment_overlap",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "Also in '{}' ({})".format(
+                            ovl["campaign"], ovl["status"]
+                        ),
+                        "severity": "warning",
+                    }
+                )
                 contacts_with_warnings.add(cid)
 
         # Tone mismatch
         if campaign_tone and relationship:
             if "cold" in campaign_tone and relationship in ("warm", "hot", "customer"):
-                conflicts.append({
-                    "type": "tone_mismatch",
-                    "contact_id": cid,
-                    "contact_name": full_name,
-                    "detail": "Campaign tone '{}' but relationship is '{}'".format(
-                        campaign_tone, relationship
-                    ),
-                    "severity": "warning",
-                })
+                conflicts.append(
+                    {
+                        "type": "tone_mismatch",
+                        "contact_id": cid,
+                        "contact_name": full_name,
+                        "detail": "Campaign tone '{}' but relationship is '{}'".format(
+                            campaign_tone, relationship
+                        ),
+                        "severity": "warning",
+                    }
+                )
                 contacts_with_warnings.add(cid)
 
     total = len(contacts)
@@ -658,8 +701,9 @@ def get_campaign_summary(args: dict, ctx: ToolContext) -> dict:
     by_status = {r[0]: r[1] for r in status_rows}
 
     # Enrichment readiness
-    ready_count = db.session.execute(
-        text("""
+    ready_count = (
+        db.session.execute(
+            text("""
             SELECT COUNT(DISTINCT ct.id)
             FROM campaign_contacts cc
             JOIN contacts ct ON cc.contact_id = ct.id
@@ -681,8 +725,10 @@ def get_campaign_summary(args: dict, ctx: ToolContext) -> dict:
                         AND e.stage = 'person' AND e.status = 'completed'
                 )
         """),
-        {"cid": campaign_id, "t": ctx.tenant_id},
-    ).scalar() or 0
+            {"cid": campaign_id, "t": ctx.tenant_id},
+        ).scalar()
+        or 0
+    )
 
     total_contacts = sum(by_status.values())
 
@@ -701,7 +747,9 @@ def get_campaign_summary(args: dict, ctx: ToolContext) -> dict:
             campaign[7].isoformat()
             if hasattr(campaign[7], "isoformat")
             else campaign[7]
-        ) if campaign[7] else None,
+        )
+        if campaign[7]
+        else None,
     }
 
 
