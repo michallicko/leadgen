@@ -1,8 +1,14 @@
 # Leadgen Pipeline - Project Rules
 
 <!-- sdlc-tier: product -->
+<!-- backlog-project: leadgen-pipeline -->
+<!-- governance-from: backlog -->
 
 > This project uses the **global SDLC plugin** for feature specs (`/spec`), backlog management (`/backlog`), product strategy (`/pm`), technical health (`/em`), and design review (`/pd`). Project-specific rules below override or extend the global workflow. The `/roadmap` skill is project-local.
+
+## Session Start
+
+Call `backlog_onboard("leadgen-pipeline")` at session start to load full governance context including directives, process documents, routing tables, sprint status, and recommended next items.
 
 ## Hard Rules (Enforced by Tooling)
 
@@ -357,55 +363,54 @@ A feature is **development-ready** when ALL of the following are complete. No co
 
 **Skip conditions**: Hotfixes and single-line bug fixes can skip to a lightweight version (problem + fix + test plan).
 
-## Definition of Done
+## Pre-PR Quality Gates (Synced from Governance)
 
-A feature is **done** when ALL of the following gates pass in order. Work is not complete until every gate is green.
+Gate sequence (mandatory before any PR):
 
-### Gate 1: Code Quality
-- [ ] All unit tests pass (`make test`)
-- [ ] All lint checks pass (`make lint` — Ruff + ESLint)
-- [ ] No new security vulnerabilities (OWASP top 10 scan)
-- [ ] Code review passed (confidence >= 80%, no Critical/Important findings)
+1. **Spec compliance**: spec-reviewer agent approves (COMPLIANT verdict)
+2. **Code quality + Security** (parallel):
+   - feature-dev:code-reviewer (confidence >= 80%)
+   - security-scanner agent (no Critical/Important findings)
+3. **QA**: unit + E2E tests pass
+4. **Docs**: ARCHITECTURE.md, CHANGELOG.md, ADR (if applicable) updated
+5. **Backlog**: items updated to Done
 
-### Gate 2: Security Audit
-- [ ] Security scanner run — no Critical or Important findings
-- [ ] Input validation at all system boundaries
-- [ ] No secrets in code, no hardcoded credentials
-- [ ] Auth/authz checks on all new endpoints
+Gate order: spec compliance -> code quality + security (parallel) -> QA -> docs -> backlog
 
-### Gate 3: Staging Revision + Automated E2E
+### Test Requirements
+
+- All new code must have tests (TDD preferred)
+- Run: `make test` (unit) and `make test-e2e` (Playwright)
+- All lint checks pass: `make lint` (Ruff + ESLint)
+
+## Definition of Done (Project-Specific Detail)
+
+A feature is **done** when ALL quality gates above pass AND:
+
+### Staging Verification
 - [ ] Deployed to staging revision (`deploy-revision.sh`)
 - [ ] Playwright E2E tests pass against staging revision (run by agent, NOT the user)
 - [ ] Acceptance criteria verified via Playwright against the revision
 - [ ] No regressions in existing E2E tests
 - [ ] Tear down revision container after tests pass (free staging resources)
 
-### Gate 4: Review & Audit
-- [ ] Code review by `feature-dev:code-reviewer` or human (confidence >= 80%)
-- [ ] Security audit by `sdlc:security-scanner` (no Critical/Important)
-- [ ] Spec compliance verified (all acceptance criteria met)
+### Security Audit
+- [ ] Input validation at all system boundaries
+- [ ] No secrets in code, no hardcoded credentials
+- [ ] Auth/authz checks on all new endpoints
 
-### Gate 5: Documentation
-- [ ] CHANGELOG.md updated
-- [ ] ARCHITECTURE.md updated (if architectural changes)
-- [ ] ADR written (if significant decision made)
-- [ ] API docs updated (if endpoints changed)
-- [ ] Backlog items marked Done
-
-### Gate 6: Merge to Staging
+### Merge to Staging
 - [ ] PR created to staging with passing CI
 - [ ] PR approved (1 approval required)
 - [ ] Merged to staging
 - [ ] Staging root deployment verified (auto-deploys on merge)
 - [ ] User notified: "Feature X is ready for testing on staging"
 
-**Gate order is strict**: Code Quality → Security → Staging Rev + E2E → Review → Docs → Merge. Do not skip ahead.
-
 ### Testing Responsibilities
 - **Agents do**: Deploy to staging revision, run Playwright E2E, verify acceptance criteria, tear down revision, code review, security audit, merge to staging
 - **User does**: Manual testing on staging root AFTER features are merged. User tests the integrated experience, not individual revisions.
-- **Flow**: Agent builds → Agent deploys rev → Agent runs E2E → Agent reviews → Agent merges to staging → User tests on staging root
-- **Manual test scripts**: `docs/testing/sprint-{N}-manual-tests.md` — used by the user for staging root testing
+- **Flow**: Agent builds -> Agent deploys rev -> Agent runs E2E -> Agent reviews -> Agent merges to staging -> User tests on staging root
+- **Manual test scripts**: `docs/testing/sprint-{N}-manual-tests.md` -- used by the user for staging root testing
 
 ## Code Standards
 
@@ -414,3 +419,53 @@ A feature is **done** when ALL of the following gates pass in order. Work is not
 - SQL: Lowercase keywords, snake_case names
 - No over-engineering — minimum complexity for current requirements
 - Security: validate at system boundaries, never trust client input
+
+## Agent Workflow Discipline (Synced from Governance)
+
+### Agent Backlog Assignment
+
+When an SDLC agent starts execution on a backlog item:
+
+1. **Claim immediately**: Call `backlog_claim_item` with the item short_id before writing any code
+2. **Update status to Building**: Set item status from Spec'd/Idea to Building on first action
+3. **Release on completion**: Call `backlog_release_item` and set status to Done/PR Open when finished
+
+This is non-negotiable. No agent works on an item without claiming it first. This prevents duplicate work and gives the team visibility into who is working on what.
+
+### Status Transitions
+
+- Idea -> Building (when agent starts)
+- Building -> PR Open (when code is committed)
+- PR Open -> Done (when merged/deployed)
+
+### Sprint Assignment
+
+Items must be assigned to a sprint before execution begins. Unscheduled items should not be picked up without explicit user approval.
+
+## Team Delegation Mode Rules (Synced from Governance)
+
+### Core Rule
+
+When operating in team/delegate/swarm mode, the lead coordinator NEVER directly:
+- Reads, edits, or writes source code
+- Runs git operations (commit, push, diff)
+- Runs deployment commands
+- Does diagnostics (docker logs, API checks)
+
+### Lead Coordinator ONLY Does
+
+- Decomposes work into tasks (TaskCreate)
+- Spawns agents with full context (run_in_background: true)
+- Synthesizes agent outputs into user-facing summaries
+- Asks clarifying questions (AskUserQuestion)
+- Routes messages between agents (SendMessage)
+- Enforces quality gates
+
+### Non-Blocking Rule
+
+After spawning a teammate or sending a message, immediately return control to the user. Never wait for agent completion before responding.
+
+### Agent Types
+
+- `general-purpose`: implementation, deploys, git, diagnostics
+- `Explore`: research and investigation only (no edits)
