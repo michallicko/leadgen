@@ -25,6 +25,7 @@ import {
   usePlaybookDocument,
   useSavePlaybook,
   useExtractStrategy,
+  useAdvancePhase,
   useUndoAIEdit,
 } from '../../api/queries/usePlaybook'
 import { useCreateStrategyTemplate } from '../../api/queries/useStrategyTemplates'
@@ -127,6 +128,7 @@ export function PlaybookPage() {
   const docQuery = usePlaybookDocument()
   const saveMutation = useSavePlaybook()
   const extractMutation = useExtractStrategy()
+  const advancePhaseMutation = useAdvancePhase()
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
 
@@ -326,12 +328,27 @@ export function PlaybookPage() {
 
   const handleExtract = useCallback(async () => {
     try {
-      await extractMutation.mutateAsync()
-      toast('Strategy data extracted successfully', 'success')
+      const result = await extractMutation.mutateAsync()
+      const extractedData = (result as Record<string, unknown>)?.extracted_data as Record<string, unknown> | undefined
+      const hasIcp = extractedData?.icp && typeof extractedData.icp === 'object' && Object.keys(extractedData.icp as object).length > 0
+
+      if (hasIcp) {
+        // Auto-advance to contacts phase
+        try {
+          await advancePhaseMutation.mutateAsync({ phase: 'contacts' })
+          toast('ICP extracted. Moving to Contacts phase...', 'success')
+          handlePhaseNavigate('contacts')
+        } catch {
+          // Phase advance failed (e.g. validation) -- stay on strategy
+          toast('Strategy data extracted successfully', 'success')
+        }
+      } else {
+        toast('Strategy data extracted successfully', 'success')
+      }
     } catch {
       toast('Extraction failed', 'error')
     }
-  }, [extractMutation, toast])
+  }, [extractMutation, advancePhaseMutation, toast, handlePhaseNavigate])
 
   // ---------------------------------------------------------------------------
   // Undo AI edit handler
