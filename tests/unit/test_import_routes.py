@@ -54,10 +54,10 @@ class TestUploadCSV:
         resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
         assert resp.status_code == 201
         body = resp.get_json()
-        assert body["total_rows"] == 2
+        assert body["row_count"] == 2
         assert body["job_id"]
-        assert body["mapping"]["mappings"][0]["target"] == "contact.first_name"
-        assert body["mapping_confidence"] > 0
+        assert body["columns"][0]["target_field"] == "contact.first_name"
+        assert body["columns"][0]["confidence"] in ("high", "medium", "low")
 
     def test_upload_no_file(self, client, seed_companies_contacts):
         headers = auth_header(client)
@@ -90,10 +90,10 @@ class TestUploadCSV:
         resp = client.post("/api/imports/upload", headers=headers, data=data, content_type="multipart/form-data")
         assert resp.status_code == 201
         body = resp.get_json()
-        assert body["total_rows"] == 2
+        assert body["row_count"] == 2
         assert body["job_id"]
-        assert body["headers"] == ["First Name", "Last Name", "Email", "Company", "Title"]
-        assert body["mapping_confidence"] > 0
+        assert len(body["columns"]) > 0
+        assert body["columns"][0]["confidence"] in ("high", "medium", "low")
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_upload_ai_failure_graceful(self, mock_claude, client, seed_companies_contacts):
@@ -106,7 +106,7 @@ class TestUploadCSV:
         # Should still succeed with empty mapping and a warning
         assert resp.status_code == 201
         body = resp.get_json()
-        assert "AI mapping failed" in body["mapping"]["warnings"][0]
+        assert "AI mapping failed" in body["warnings"][0]
 
     def test_upload_requires_auth(self, client, db):
         data = {"file": (io.BytesIO(SAMPLE_CSV.encode()), "contacts.csv")}
@@ -289,8 +289,9 @@ class TestImportStatus:
         resp = client.get(f"/api/imports/{job_id}/status", headers=headers)
         assert resp.status_code == 200
         body = resp.get_json()
-        assert body["id"] == job_id
         assert body["status"] == "mapped"
+        assert body["mapping"] is not None
+        assert isinstance(body["mapping"], list)
 
 
 class TestListImports:
@@ -450,7 +451,10 @@ class TestRemapImport:
         resp = client.post(f"/api/imports/{job_id}/remap", headers=json_headers, json={})
         assert resp.status_code == 200
         body = resp.get_json()
-        assert body["mapping"]["mappings"][4].get("suggested_custom_field") is not None
+        # Remap response now uses ColumnMapping[] format
+        assert len(body["columns"]) >= 5
+        assert body["columns"][4]["source_column"] == "Title"
+        assert body["columns"][4]["target_field"] == "contact.job_title"
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_remap_completed_fails(self, mock_claude, client, seed_companies_contacts):

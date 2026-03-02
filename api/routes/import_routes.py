@@ -102,6 +102,61 @@ def _rows_to_csv_text(headers, rows):
     return output.getvalue()
 
 
+def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_defs):
+    """Transform raw Claude mapping result into the shape the frontend expects.
+
+    The frontend UploadResponse expects:
+      { job_id, filename, row_count, columns: ColumnMapping[], warnings, custom_field_defs }
+
+    where ColumnMapping is:
+      { source_column, target_field, sample_values, confidence, is_custom, custom_display_name? }
+    """
+    columns = []
+    for m in mapping_result.get("mappings", []):
+        target = m.get("target") or None
+        raw_confidence = m.get("confidence", 0)
+        if isinstance(raw_confidence, (int, float)):
+            if raw_confidence >= 0.75:
+                confidence = "high"
+            elif raw_confidence >= 0.4:
+                confidence = "medium"
+            else:
+                confidence = "low"
+        else:
+            confidence = str(raw_confidence) if raw_confidence else "low"
+
+        is_custom = bool(target and "custom" in target)
+        suggestion = m.get("suggested_custom_field") or {}
+        custom_display_name = suggestion.get("field_label") if is_custom else None
+
+        columns.append(
+            {
+                "source_column": m.get("csv_header", ""),
+                "target_field": target,
+                "sample_values": m.get("sample_values", []),
+                "confidence": confidence,
+                "is_custom": is_custom,
+                "custom_display_name": custom_display_name,
+            }
+        )
+
+    custom_field_defs = []
+    for cdef in custom_defs or []:
+        if isinstance(cdef, dict):
+            custom_field_defs.append(cdef)
+        else:
+            custom_field_defs.append(cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+
+    return {
+        "job_id": str(job_id),
+        "filename": filename,
+        "row_count": total_rows,
+        "columns": columns,
+        "warnings": mapping_result.get("warnings", []),
+        "custom_field_defs": custom_field_defs,
+    }
+
+
 @imports_bp.route("/api/imports/upload", methods=["POST"])
 @require_auth
 def upload_csv():
@@ -219,18 +274,25 @@ def upload_csv():
             },
         )
 
+    # Auto-create custom field definitions from mapping
+    _auto_create_custom_field_defs(str(tenant_id), mapping_result)
+
     db.session.commit()
 
+    # Fetch updated custom field defs (including any just created)
+    updated_custom_defs = CustomFieldDefinition.query.filter_by(
+        tenant_id=str(tenant_id),
+        is_active=True,
+    ).all()
+
     return jsonify(
-        {
-            "job_id": str(job.id),
-            "filename": file.filename,
-            "total_rows": len(rows),
-            "headers": headers,
-            "sample_rows": sample_rows,
-            "mapping": mapping_result,
-            "mapping_confidence": round(avg_confidence, 2),
-        }
+        _build_upload_response(
+            job.id,
+            file.filename,
+            len(rows),
+            mapping_result,
+            [d.to_dict() for d in updated_custom_defs],
+        )
     ), 201
 
 
@@ -301,18 +363,25 @@ def remap_import(job_id):
             },
         )
 
+    # Auto-create custom field definitions from mapping
+    _auto_create_custom_field_defs(str(tenant_id), mapping_result)
+
     db.session.commit()
 
+    # Fetch updated custom field defs
+    updated_custom_defs = CustomFieldDefinition.query.filter_by(
+        tenant_id=str(tenant_id),
+        is_active=True,
+    ).all()
+
     return jsonify(
-        {
-            "job_id": str(job.id),
-            "filename": job.filename,
-            "total_rows": job.total_rows,
-            "headers": headers,
-            "sample_rows": sample_rows,
-            "mapping": mapping_result,
-            "mapping_confidence": round(avg_confidence, 2),
-        }
+        _build_upload_response(
+            job.id,
+            job.filename,
+            job.total_rows,
+            mapping_result,
+            [d.to_dict() for d in updated_custom_defs],
+        )
     )
 
 
@@ -557,7 +626,11 @@ def import_results(job_id):
 @imports_bp.route("/api/imports/<job_id>/status", methods=["GET"])
 @require_auth
 def import_status(job_id):
-    """Get import job status."""
+    """Get import job status.
+
+    Returns { status, mapping: ColumnMapping[] | null, preview } for the
+    frontend ImportStatusResponse type.
+    """
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
@@ -566,8 +639,20 @@ def import_status(job_id):
     if not job:
         return jsonify({"error": "Import job not found"}), 404
 
-    include_data = job.status in ("uploaded", "mapped", "previewed")
-    return jsonify(job.to_dict(include_data=include_data))
+    # Build mapping in the ColumnMapping[] format the frontend expects
+    mapping = None
+    if job.status in ("uploaded", "mapped", "previewed"):
+        raw = ImportJob._parse_jsonb(job.column_mapping) or {}
+        resp = _build_upload_response(job.id, job.filename, job.total_rows, raw, [])
+        mapping = resp["columns"]
+
+    return jsonify(
+        {
+            "status": job.status,
+            "mapping": mapping,
+            "preview": None,  # preview is re-generated on demand
+        }
+    )
 
 
 @imports_bp.route("/api/imports", methods=["GET"])
