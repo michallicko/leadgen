@@ -119,6 +119,9 @@ def update_playbook():
                 existing = json.loads(existing)
             except (ValueError, TypeError):
                 existing = {}
+        # Shallow merge: top-level keys are merged, but nested structures
+        # (e.g., contacts.selected_ids) are replaced wholesale per key.
+        # Use confirm_contact_selection for atomic selection updates.
         existing.update(playbook_selections)
         doc.playbook_selections = existing
 
@@ -454,8 +457,12 @@ def playbook_contacts():
     sort_field = request.args.get("sort", "last_name").strip()
     sort_dir = request.args.get("sort_dir", "asc").strip().lower()
     _SORT_ALLOWED = {
-        "last_name", "first_name", "job_title", "seniority_level",
-        "contact_score", "created_at",
+        "last_name",
+        "first_name",
+        "job_title",
+        "seniority_level",
+        "contact_score",
+        "created_at",
     }
     if sort_field not in _SORT_ALLOWED:
         sort_field = "last_name"
@@ -540,9 +547,7 @@ def playbook_contacts():
             WHERE {where}
             ORDER BY {order}
             LIMIT :limit OFFSET :offset
-        """.format(
-                joins=joins, where=where_clause, order=order
-            )
+        """.format(joins=joins, where=where_clause, order=order)
         ),
         {**params, "limit": per_page, "offset": offset},
     ).fetchall()
@@ -603,6 +608,14 @@ def confirm_contact_selection():
     if not isinstance(selected_ids, list) or not selected_ids:
         return jsonify({"error": "selected_ids must be a non-empty list"}), 400
 
+    MAX_CONTACT_SELECTIONS = 500
+    if len(selected_ids) > MAX_CONTACT_SELECTIONS:
+        return jsonify(
+            {
+                "error": f"Cannot select more than {MAX_CONTACT_SELECTIONS} contacts at once"
+            }
+        ), 400
+
     # Validate that all IDs are actual contacts for this tenant
     valid_ids = [
         str(r[0])
@@ -632,8 +645,13 @@ def confirm_contact_selection():
     existing["contacts"] = {"selected_ids": valid_ids}
     doc.playbook_selections = existing
 
-    # Advance phase to messages
+    # Advance phase to messages — route through phase gate
+    error = _validate_phase_transition(doc, doc.phase, "messages")
+    if error:
+        db.session.rollback()
+        return jsonify({"error": error}), 422
     doc.phase = "messages"
+    doc.updated_by = getattr(request, "user_id", None)
     db.session.commit()
 
     return jsonify(

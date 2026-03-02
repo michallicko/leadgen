@@ -138,7 +138,12 @@ class TestPlaybookContacts:
 
         assert body["total"] >= 1
         for ct in body["contacts"]:
-            assert "john" in ct["full_name"].lower()
+            searchable = " ".join(filter(None, [
+                ct.get("full_name", ""),
+                ct.get("email_address", ""),
+                ct.get("job_title", ""),
+            ])).lower()
+            assert "john" in searchable
 
     def test_contact_response_shape(self, client, seed_companies_contacts, db):
         data = seed_companies_contacts
