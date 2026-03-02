@@ -6,6 +6,7 @@ CRUD for GTM strategy templates + AI-assisted template application.
 import json
 import logging
 import os
+import uuid
 
 from flask import Blueprint, jsonify, request
 
@@ -243,7 +244,13 @@ def apply_template():
     # Load or create strategy document
     doc = StrategyDocument.query.filter_by(tenant_id=str(tenant_id)).first()
     if not doc:
-        doc = StrategyDocument(tenant_id=str(tenant_id), status="draft")
+        doc = StrategyDocument(
+            id=str(uuid.uuid4()),
+            tenant_id=str(tenant_id),
+            status="draft",
+            content="",
+            version=1,
+        )
         db.session.add(doc)
         db.session.flush()
 
@@ -346,7 +353,7 @@ def apply_template():
 
     # Apply merged content
     doc.content = response.content
-    doc.version += 1
+    doc.version = (doc.version or 0) + 1
     doc.updated_by = getattr(request, "user_id", None)
     doc.updated_at = db.func.now()
 
