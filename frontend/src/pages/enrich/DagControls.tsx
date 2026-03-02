@@ -69,10 +69,17 @@ export function DagControls({
             )}
             <button
               onClick={onRun}
-              disabled={enabledCount === 0 || !tagName || isLoading}
+              disabled={enabledCount === 0 || !tagName}
               className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? 'Loading...' : `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`}
+              {isLoading ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Estimating...
+                </span>
+              ) : (
+                `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`
+              )}
             </button>
           </>
         )}
