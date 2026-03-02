@@ -823,6 +823,39 @@ function ExtractionSummaryDialog({ data, onConfirm, onDismiss }: ExtractionSumma
 
   const hasIcp = industries.length > 0 || geographies.length > 0 || titlePatterns.length > 0
 
+  // Auto-advance countdown when ICP data is present
+  const [countdown, setCountdown] = useState(hasIcp ? 5 : 0)
+  const countdownRef = useRef(countdown)
+  countdownRef.current = countdown
+
+  useEffect(() => {
+    if (!hasIcp) return
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [hasIcp])
+
+  // Trigger onConfirm when countdown reaches 0
+  const onConfirmRef = useRef(onConfirm)
+  onConfirmRef.current = onConfirm
+  useEffect(() => {
+    if (hasIcp && countdown === 0) {
+      onConfirmRef.current()
+    }
+  }, [hasIcp, countdown])
+
+  // Cancel countdown when user interacts
+  const cancelCountdown = useCallback(() => {
+    setCountdown(-1) // -1 = cancelled, won't trigger auto-advance
+  }, [])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-surface border border-border-solid rounded-lg shadow-lg max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
@@ -910,22 +943,29 @@ function ExtractionSummaryDialog({ data, onConfirm, onDismiss }: ExtractionSumma
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-between">
           <button
-            onClick={onDismiss}
+            onClick={() => { cancelCountdown(); onDismiss() }}
             className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
           >
             Stay on Strategy
           </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer flex items-center gap-2"
-          >
-            {hasIcp ? 'Continue to Contacts' : 'OK'}
-            {hasIcp && (
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 7h8M8 3l3 4-3 4" />
-              </svg>
+          <div className="flex items-center gap-3">
+            {hasIcp && countdown > 0 && (
+              <span className="text-xs text-text-dim">
+                Advancing in {countdown}s...
+              </span>
             )}
-          </button>
+            <button
+              onClick={() => { cancelCountdown(); onConfirm() }}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer flex items-center gap-2"
+            >
+              {hasIcp ? 'Continue to Contacts' : 'OK'}
+              {hasIcp && (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7h8M8 3l3 4-3 4" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
