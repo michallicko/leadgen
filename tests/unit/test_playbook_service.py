@@ -3,7 +3,7 @@
 
 class TestBuildSystemPrompt:
     def test_basic_prompt_contains_strategy_sections(self):
-        """System prompt mentions the 8-section strategy structure."""
+        """System prompt mentions the 9-section strategy structure."""
         from api.services.playbook_service import build_system_prompt
         from unittest.mock import MagicMock
 
@@ -17,7 +17,7 @@ class TestBuildSystemPrompt:
 
         assert isinstance(prompt, str)
         assert len(prompt) > 100
-        # Must reference the 8 strategy sections
+        # Must reference the 9 strategy sections (unified STRATEGY_SECTIONS)
         assert "Executive Summary" in prompt
         assert "ICP" in prompt
         assert "Buyer Personas" in prompt
@@ -25,7 +25,8 @@ class TestBuildSystemPrompt:
         assert "Competitive Positioning" in prompt
         assert "Channel Strategy" in prompt
         assert "Messaging Framework" in prompt
-        assert "Success Metrics" in prompt
+        assert "Metrics & KPIs" in prompt
+        assert "90-Day Action Plan" in prompt
 
     def test_includes_tenant_name(self):
         """System prompt references the tenant/company name."""
