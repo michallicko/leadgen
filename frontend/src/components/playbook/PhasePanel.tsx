@@ -2,19 +2,30 @@
  * PhasePanel — left-panel component switcher based on active phase.
  *
  * Strategy phase renders the StrategyEditor (existing).
+ * Contacts phase renders the ContactsPhasePanel with ICP pre-filters.
  * Other phases render placeholder stubs for now.
  */
 
 import { StrategyEditor } from './StrategyEditor'
+import { ContactsPhasePanel } from './ContactsPhasePanel'
 
 interface PhasePanelProps {
   phase: string
   content: string | null
   onEditorUpdate: (content: string) => void
   editable: boolean
+  extractedData?: Record<string, unknown>
+  playbookSelections?: Record<string, unknown>
 }
 
-export function PhasePanel({ phase, content, onEditorUpdate, editable }: PhasePanelProps) {
+export function PhasePanel({
+  phase,
+  content,
+  onEditorUpdate,
+  editable,
+  extractedData,
+  playbookSelections,
+}: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
       return (
@@ -22,8 +33,16 @@ export function PhasePanel({ phase, content, onEditorUpdate, editable }: PhasePa
           <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
         </div>
       )
-    case 'contacts':
-      return <PhasePlaceholder title="Contact Selection" description="Select target companies and contacts based on your ICP strategy. AI will help recommend the best matches." />
+    case 'contacts': {
+      const existingSelections =
+        (playbookSelections?.contacts as { selected_ids?: string[] })?.selected_ids ?? []
+      return (
+        <ContactsPhasePanel
+          extractedData={extractedData ?? {}}
+          existingSelections={existingSelections}
+        />
+      )
+    }
     case 'messages':
       return <PhasePlaceholder title="Message Generation" description="Craft personalized outreach messages for your selected contacts. AI will draft messages using your strategy and enrichment data." />
     case 'campaign':
