@@ -28,13 +28,14 @@ MAX_HISTORY_MESSAGES = 20
 
 STRATEGY_SECTIONS = [
     "Executive Summary",
-    "ICP (Ideal Customer Profile)",
+    "Ideal Customer Profile (ICP)",
     "Buyer Personas",
-    "Value Proposition",
+    "Value Proposition & Messaging",
     "Competitive Positioning",
     "Channel Strategy",
     "Messaging Framework",
-    "Success Metrics",
+    "Metrics & KPIs",
+    "90-Day Action Plan",
 ]
 
 

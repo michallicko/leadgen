@@ -300,9 +300,13 @@ def track_assumption(args: dict, ctx: ToolContext) -> dict:
     # Create snapshot before edit
     _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
 
-    extracted = doc.extracted_data or {}
-    if isinstance(extracted, str):
-        extracted = json.loads(extracted)
+    try:
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            extracted = json.loads(extracted)
+    except (json.JSONDecodeError, ValueError):
+        db.session.rollback()
+        return {"error": "Corrupt extracted_data in document"}
 
     # Ensure assumptions array exists
     if "assumptions" not in extracted:
@@ -314,10 +318,12 @@ def track_assumption(args: dict, ctx: ToolContext) -> dict:
     if "confidence_score" not in extracted:
         extracted["confidence_score"] = 0.0
 
-    # Find existing assumption by id or append new one
+    # Find existing assumption by id and track previous status
     found = False
+    prev_status = None
     for assumption in extracted["assumptions"]:
         if assumption.get("id") == assumption_id:
+            prev_status = assumption.get("status")
             assumption["text"] = text
             assumption["status"] = status
             assumption["source"] = source
@@ -342,8 +348,8 @@ def track_assumption(args: dict, ctx: ToolContext) -> dict:
         )
         extracted["confidence_score"] = round(resolved / len(assumptions), 2)
 
-    # Increment discovery round when an assumption status changes
-    if status in ("validated", "invalidated"):
+    # Increment discovery round only when status actually changes
+    if status in ("validated", "invalidated") and prev_status != status:
         extracted["discovery_round"] = extracted.get("discovery_round", 0) + 1
 
     doc.extracted_data = extracted
@@ -453,7 +459,7 @@ def check_readiness(args: dict, ctx: ToolContext) -> dict:
         # Weight: 60% structural checks, 40% assumption confidence
         score = round(0.6 * score + 0.4 * assumption_confidence, 2)
 
-    ready = checks_passed == total_checks and score >= 0.7
+    ready = checks_passed == total_checks
 
     return {
         "ready": ready,
