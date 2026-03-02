@@ -274,6 +274,198 @@ def set_extracted_field(args: dict, ctx: ToolContext) -> dict:
     }
 
 
+def track_assumption(args: dict, ctx: ToolContext) -> dict:
+    """Handler for track_assumption tool.
+
+    Records or updates an assumption in the strategy document's
+    extracted_data.assumptions array.  Each assumption has an id, text,
+    status (open/validated/invalidated), source, and is associated with
+    a discovery_round counter.
+    """
+    assumption_id = args.get("assumption_id", "")
+    text = args.get("text", "")
+    status = args.get("status", "open")
+    source = args.get("source", "")
+
+    if status not in ("open", "validated", "invalidated"):
+        return {"error": "status must be 'open', 'validated', or 'invalidated'"}
+
+    if not assumption_id or not text:
+        return {"error": "assumption_id and text are required"}
+
+    doc = StrategyDocument.query.filter_by(tenant_id=ctx.tenant_id).first()
+    if not doc:
+        return {"error": "No strategy document found"}
+
+    # Create snapshot before edit
+    _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
+
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        extracted = json.loads(extracted)
+
+    # Ensure assumptions array exists
+    if "assumptions" not in extracted:
+        extracted["assumptions"] = []
+
+    # Ensure discovery tracking fields exist
+    if "discovery_round" not in extracted:
+        extracted["discovery_round"] = 0
+    if "confidence_score" not in extracted:
+        extracted["confidence_score"] = 0.0
+
+    # Find existing assumption by id or append new one
+    found = False
+    for assumption in extracted["assumptions"]:
+        if assumption.get("id") == assumption_id:
+            assumption["text"] = text
+            assumption["status"] = status
+            assumption["source"] = source
+            found = True
+            break
+
+    if not found:
+        extracted["assumptions"].append(
+            {
+                "id": assumption_id,
+                "text": text,
+                "status": status,
+                "source": source,
+            }
+        )
+
+    # Recalculate confidence score based on assumption statuses
+    assumptions = extracted["assumptions"]
+    if assumptions:
+        resolved = sum(
+            1 for a in assumptions if a.get("status") in ("validated", "invalidated")
+        )
+        extracted["confidence_score"] = round(resolved / len(assumptions), 2)
+
+    # Increment discovery round when an assumption status changes
+    if status in ("validated", "invalidated"):
+        extracted["discovery_round"] = extracted.get("discovery_round", 0) + 1
+
+    doc.extracted_data = extracted
+    doc.version += 1
+    doc.updated_by = ctx.user_id
+    db.session.commit()
+
+    return {
+        "success": True,
+        "assumption_id": assumption_id,
+        "status": status,
+        "total_assumptions": len(assumptions),
+        "confidence_score": extracted["confidence_score"],
+        "discovery_round": extracted["discovery_round"],
+    }
+
+
+def check_readiness(args: dict, ctx: ToolContext) -> dict:
+    """Handler for check_readiness tool.
+
+    Evaluates whether the strategy is converged enough for phase
+    transition by checking extracted_data and document content for
+    completeness across key dimensions.
+    """
+    doc = StrategyDocument.query.filter_by(tenant_id=ctx.tenant_id).first()
+    if not doc:
+        return {"error": "No strategy document found"}
+
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        extracted = json.loads(extracted)
+
+    content = doc.content or ""
+
+    gaps = []
+    checks_passed = 0
+    total_checks = 4
+
+    # Check 1: ICP has specific disqualifiers
+    icp = extracted.get("icp", {})
+    if isinstance(icp, str):
+        try:
+            icp = json.loads(icp)
+        except (json.JSONDecodeError, ValueError):
+            icp = {}
+    disqualifiers = icp.get("disqualifiers", [])
+    if disqualifiers and len(disqualifiers) > 0:
+        checks_passed += 1
+    else:
+        gaps.append("ICP needs specific disqualifiers (not just 'tech companies')")
+
+    # Check 2: At least 2 personas defined
+    personas = extracted.get("personas", [])
+    if isinstance(personas, str):
+        try:
+            personas = json.loads(personas)
+        except (json.JSONDecodeError, ValueError):
+            personas = []
+    if isinstance(personas, list) and len(personas) >= 2:
+        checks_passed += 1
+    else:
+        gaps.append(
+            "Define at least 2 buyer personas with title patterns "
+            "(currently {})".format(len(personas) if isinstance(personas, list) else 0)
+        )
+
+    # Check 3: Messaging angles grounded in research
+    messaging = extracted.get("messaging", {})
+    if isinstance(messaging, str):
+        try:
+            messaging = json.loads(messaging)
+        except (json.JSONDecodeError, ValueError):
+            messaging = {}
+    angles = messaging.get("angles", [])
+    if angles and len(angles) > 0:
+        checks_passed += 1
+    else:
+        gaps.append("Messaging needs specific angles grounded in research")
+
+    # Check 4: Channel strategy has rationale
+    channels = extracted.get("channels", {})
+    if isinstance(channels, str):
+        try:
+            channels = json.loads(channels)
+        except (json.JSONDecodeError, ValueError):
+            channels = {}
+    has_primary = bool(channels.get("primary"))
+    # Also check document content for channel rationale
+    has_channel_section = "## Channel Strategy" in content and len(
+        content.split("## Channel Strategy")[1].split("##")[0].strip()
+    ) > 50
+    if has_primary and has_channel_section:
+        checks_passed += 1
+    else:
+        if not has_primary:
+            gaps.append("Channel strategy needs a primary channel defined")
+        if not has_channel_section:
+            gaps.append("Channel strategy section needs rationale (currently too brief)")
+
+    # Calculate readiness score
+    score = round(checks_passed / total_checks, 2) if total_checks > 0 else 0.0
+
+    # Factor in assumption confidence
+    assumptions = extracted.get("assumptions", [])
+    assumption_confidence = extracted.get("confidence_score", 0.0)
+    if assumptions:
+        # Weight: 60% structural checks, 40% assumption confidence
+        score = round(0.6 * score + 0.4 * assumption_confidence, 2)
+
+    ready = checks_passed == total_checks and score >= 0.7
+
+    return {
+        "ready": ready,
+        "score": score,
+        "checks_passed": checks_passed,
+        "total_checks": total_checks,
+        "gaps": gaps,
+        "assumptions_tracked": len(assumptions),
+        "assumption_confidence": assumption_confidence,
+    }
+
+
 def append_to_section(args: dict, ctx: ToolContext) -> dict:
     """Handler for append_to_section tool.
 
@@ -453,5 +645,68 @@ STRATEGY_TOOLS = [
             "required": ["section", "content"],
         },
         handler=append_to_section,
+    ),
+    ToolDefinition(
+        name="track_assumption",
+        description=(
+            "Record or update a strategic assumption during convergent "
+            "discovery. Use this to track whether key hypotheses in the "
+            "Strategic Brief have been validated or invalidated through "
+            "user feedback. Each assumption has an id, text, status "
+            "(open/validated/invalidated), and a source citation."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "assumption_id": {
+                    "type": "string",
+                    "description": (
+                        "Unique identifier for this assumption (e.g., "
+                        "'icp_mid_market', 'channel_linkedin'). Use "
+                        "snake_case, descriptive names."
+                    ),
+                },
+                "text": {
+                    "type": "string",
+                    "description": (
+                        "The assumption text (e.g., 'Mid-market SaaS "
+                        "companies (50-500 employees) are the primary ICP')."
+                    ),
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["open", "validated", "invalidated"],
+                    "description": (
+                        "Current status: 'open' (untested), 'validated' "
+                        "(confirmed by user/data), 'invalidated' (disproven)."
+                    ),
+                },
+                "source": {
+                    "type": "string",
+                    "description": (
+                        "Source of validation/invalidation (e.g., "
+                        "'user confirmed', 'web research', 'discovery call')."
+                    ),
+                },
+            },
+            "required": ["assumption_id", "text", "status"],
+        },
+        handler=track_assumption,
+    ),
+    ToolDefinition(
+        name="check_readiness",
+        description=(
+            "Evaluate whether the strategy is converged enough for phase "
+            "transition to Contacts. Checks: ICP has specific disqualifiers, "
+            "at least 2 personas defined, messaging angles are research-grounded, "
+            "and channel strategy has rationale. Returns a readiness score, "
+            "boolean ready flag, and list of remaining gaps."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        handler=check_readiness,
     ),
 ]

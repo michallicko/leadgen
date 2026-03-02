@@ -419,6 +419,7 @@ export function PlaybookPage() {
           {
             domains: payload.domains,
             primary_domain: primaryDomain,
+            challenge_type: payload.challenge_type,
           },
           {
             onSuccess: () => {

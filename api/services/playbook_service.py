@@ -229,13 +229,73 @@ def _format_enrichment_for_prompt(enrichment_data):
 
 PHASE_INSTRUCTIONS = {
     "strategy": (
-        "You are in the STRATEGY phase. Focus on helping the user define their "
-        "GTM strategy: ICP, buyer personas, value proposition, competitive "
-        "positioning, channel strategy, messaging framework, and success metrics.\n\n"
-        "When the strategy feels specific enough (ICP has concrete disqualifiers, "
-        "personas have real title patterns, metrics have numbers), suggest moving "
-        'to the Contacts phase by saying: "Your strategy looks ready. Want to '
-        'move to the Contacts phase to select your target contacts?"'
+        "You are in the STRATEGY phase. You are a proactive fractional CMO who "
+        "takes initiative — NOT a passive question-asker.\n\n"
+        "FIRST MESSAGE BEHAVIOR (critical — when chat history is empty or this is "
+        "the very first assistant turn):\n"
+        "1. Use `web_search` to research the company based on the domain and "
+        "description from the objective. Search for: company overview, products, "
+        "competitors, recent news, industry trends.\n"
+        "2. Use `get_strategy_document` to check what's already in the document.\n"
+        "3. Produce a **Strategic Brief** as your first message using this exact "
+        "format:\n\n"
+        "```\n"
+        "# {Company Name} — Strategic Brief (Draft v0.1)\n\n"
+        "> **What this is:** A first-pass GTM framework based on public research. "
+        "Several assumptions need validation before this becomes actionable. Key "
+        "decision points are flagged for your input.\n\n"
+        "---\n\n"
+        "## What We're Working With\n"
+        "{Company overview from research — name, industry, products, current GTM, "
+        "notable clients}\n\n"
+        "## Strategic Bets\n"
+        "### Bet 1: {Hypothesis}\n"
+        "{2-3 sentences grounded in research data}\n"
+        "*Assumption: {core assumption that must hold true}*\n\n"
+        "### Bet 2: {Hypothesis}\n"
+        "{2-3 sentences grounded in research data}\n"
+        "*Assumption: {core assumption}*\n\n"
+        "## Proposed Sequence\n"
+        "{Phased approach with rationale for ordering}\n\n"
+        "## Foundation Phase — What Needs to Exist\n"
+        "| Asset | Why It's Blocking | Estimated Effort |\n"
+        "|-------|-------------------|------------------|\n"
+        "| ... | ... | ... |\n\n"
+        "## Open Questions & Flags\n"
+        "{Concrete gaps that would change the strategy}\n"
+        "```\n\n"
+        "Adapt sections based on the challenge type:\n"
+        "- **New market entry + B2B SaaS**: Add ICP matrix, channel prioritization, "
+        "ARR targets\n"
+        "- **New market entry + Services**: Add partnership model, referral strategy\n"
+        "- **New market entry + E-commerce**: Add funnel analysis, seasonal calendar\n"
+        "- **Scaling pipeline**: Add pipeline velocity analysis, conversion optimization\n"
+        "- **Re-engaging cold leads**: Add re-engagement sequences, segment analysis\n"
+        "- **Launching new product**: Add launch playbook, positioning matrix\n\n"
+        "CONVERGENCE TRACKING:\n"
+        "- Track assumptions as open, validated, or invalidated using "
+        "`track_assumption` tool\n"
+        "- Each conversation round is a discovery round — aim to validate or "
+        "invalidate at least one assumption per round\n"
+        "- When the user confirms or denies an assumption, immediately update it "
+        "with `track_assumption`\n"
+        "- Monitor overall readiness with `check_readiness` when several assumptions "
+        "are validated\n\n"
+        "READINESS DETECTION:\n"
+        "When the strategy has converged enough, check these criteria:\n"
+        "- ICP has specific disqualifiers (not just 'tech companies')\n"
+        "- At least 2 buyer personas with real title patterns\n"
+        "- Messaging angles grounded in research (not generic)\n"
+        "- Channel strategy has rationale tied to the ICP\n"
+        "Use `check_readiness` to evaluate, and if ready, suggest: \"Your strategy "
+        "has solid foundations. Ready to move to the Contacts phase?\"\n\n"
+        "SUBSEQUENT MESSAGES:\n"
+        "- Reference the Strategic Brief and update it based on user feedback\n"
+        "- Use `update_strategy_section` to write validated findings into the "
+        "document\n"
+        "- Always ground recommendations in research, not generic advice\n"
+        "- For the FIRST follow-up message, lift the 150-word limit to 400 words "
+        "so you can deliver a comprehensive brief"
     ),
     "contacts": (
         "You are in the CONTACTS phase. The user's ICP and personas have been "
@@ -950,7 +1010,153 @@ def _match_leader_to_persona(persona_title, leader_map):
     return None
 
 
-def build_seeded_template(objective=None, enrichment_data=None):
+def _build_challenge_section(challenge_type, industry_raw=None):
+    """Generate an adaptive section based on challenge_type and industry.
+
+    Returns a tuple of (section_heading, section_content) for the
+    challenge-specific section, or (None, None) if no special section
+    is needed.
+    """
+    industry_lower = (industry_raw or "").lower()
+
+    if challenge_type == "new_market_entry":
+        if any(kw in industry_lower for kw in ("saas", "software", "technology")):
+            return (
+                "ICP Matrix & Channel Prioritization",
+                (
+                    "### ICP Prioritization Matrix\n\n"
+                    "| Segment | Fit Score | TAM | Priority |\n"
+                    "|---------|-----------|-----|----------|\n"
+                    "| _Segment A_ | _High_ | _$__M_ | _P1_ |\n"
+                    "| _Segment B_ | _Medium_ | _$__M_ | _P2_ |\n\n"
+                    "### Channel Prioritization\n\n"
+                    "- **Primary**: LinkedIn outbound (highest conversion for B2B SaaS)\n"
+                    "- **Secondary**: Content marketing, webinars\n"
+                    "- **Tertiary**: Paid search, events\n\n"
+                    "### ARR Targets\n\n"
+                    "- **Q1**: Pipeline foundation — $__K pipeline\n"
+                    "- **Q2**: First wins — $__K ARR\n"
+                    "- **Year 1**: $__K ARR target"
+                ),
+            )
+        if any(kw in industry_lower for kw in ("services", "consulting", "agency")):
+            return (
+                "Partnership & Referral Strategy",
+                (
+                    "### Partnership Model\n\n"
+                    "- **Referral partners**: _Identify 3-5 complementary service providers_\n"
+                    "- **Co-delivery**: _Joint proposals with established firms_\n"
+                    "- **Commission structure**: _Typical 10-20% referral fee_\n\n"
+                    "### Referral Strategy\n\n"
+                    "- Map existing network for warm introductions\n"
+                    "- Create referral incentive program\n"
+                    "- Build case studies as social proof for partners"
+                ),
+            )
+        if any(kw in industry_lower for kw in ("ecommerce", "e_commerce", "retail")):
+            return (
+                "Funnel Analysis & Seasonal Calendar",
+                (
+                    "### Funnel Analysis\n\n"
+                    "| Stage | Current Rate | Target Rate |\n"
+                    "|-------|-------------|-------------|\n"
+                    "| Visit → Lead | __% | __% |\n"
+                    "| Lead → MQL | __% | __% |\n"
+                    "| MQL → Customer | __% | __% |\n\n"
+                    "### Seasonal Calendar\n\n"
+                    "- **Q1**: Post-holiday momentum, new year budgets\n"
+                    "- **Q2**: Mid-year campaigns\n"
+                    "- **Q3**: Back-to-school / pre-holiday prep\n"
+                    "- **Q4**: Peak season (Black Friday, holiday)"
+                ),
+            )
+        # Generic new market entry
+        return (
+            "Market Entry Framework",
+            (
+                "### Entry Strategy\n\n"
+                "- **Beachhead segment**: _Define your initial target niche_\n"
+                "- **Differentiation**: _What sets you apart in this new market?_\n"
+                "- **Go-to-market motion**: _Direct sales / channel / PLG_\n\n"
+                "### Milestones\n\n"
+                "- Month 1-2: Market research and validation\n"
+                "- Month 3-4: First pilot customers\n"
+                "- Month 5-6: Scale based on learnings"
+            ),
+        )
+
+    if challenge_type == "scaling_pipeline":
+        return (
+            "Pipeline Velocity Analysis",
+            (
+                "### Current Pipeline Metrics\n\n"
+                "| Metric | Current | Target | Gap |\n"
+                "|--------|---------|--------|-----|\n"
+                "| Leads/month | __ | __ | __ |\n"
+                "| Conversion rate | __% | __% | __ |\n"
+                "| Average deal size | $__ | $__ | __ |\n"
+                "| Sales cycle (days) | __ | __ | __ |\n\n"
+                "### Conversion Optimization\n\n"
+                "- **Top-of-funnel**: Increase volume through _channels_\n"
+                "- **Mid-funnel**: Improve qualification with _criteria_\n"
+                "- **Bottom-funnel**: Accelerate close with _tactics_\n\n"
+                "### Pipeline Velocity Formula\n\n"
+                "Pipeline Velocity = (Opportunities x Win Rate x Deal Size) / Cycle Length"
+            ),
+        )
+
+    if challenge_type == "reengaging_cold_leads":
+        return (
+            "Re-engagement Strategy",
+            (
+                "### Segment Analysis\n\n"
+                "| Segment | Count | Last Active | Re-engage Priority |\n"
+                "|---------|-------|-------------|--------------------|\n"
+                "| _Previously interested_ | __ | _3-6 months_ | _High_ |\n"
+                "| _Demo no-shows_ | __ | _1-3 months_ | _Medium_ |\n"
+                "| _Lost deals_ | __ | _6-12 months_ | _High_ |\n\n"
+                "### Re-engagement Sequences\n\n"
+                "**Sequence 1: Value-first re-engage**\n"
+                "- Touch 1: New insight or case study relevant to their pain\n"
+                "- Touch 2: Personalized update on what's changed\n"
+                "- Touch 3: Specific offer or demo invite\n\n"
+                "**Sequence 2: Event-triggered re-engage**\n"
+                "- Trigger: Company news, hiring, funding\n"
+                "- Reach out with a timely, contextual message"
+            ),
+        )
+
+    if challenge_type == "launching_new_product":
+        return (
+            "Launch Playbook",
+            (
+                "### Positioning Matrix\n\n"
+                "| Dimension | Your Product | Competitor A | Competitor B |\n"
+                "|-----------|-------------|-------------|-------------|\n"
+                "| Core value | __ | __ | __ |\n"
+                "| Target buyer | __ | __ | __ |\n"
+                "| Price point | __ | __ | __ |\n"
+                "| Differentiator | __ | __ | __ |\n\n"
+                "### Launch Phases\n\n"
+                "**Phase 1: Pre-launch (4-6 weeks)**\n"
+                "- Build waitlist and beta program\n"
+                "- Create launch content (case studies, demos)\n"
+                "- Seed with early adopters\n\n"
+                "**Phase 2: Launch (1-2 weeks)**\n"
+                "- Coordinated multi-channel announcement\n"
+                "- Direct outreach to target accounts\n"
+                "- PR and thought leadership\n\n"
+                "**Phase 3: Post-launch (4-8 weeks)**\n"
+                "- Collect feedback and testimonials\n"
+                "- Optimize messaging based on response\n"
+                "- Scale outreach"
+            ),
+        )
+
+    return (None, None)
+
+
+def build_seeded_template(objective=None, enrichment_data=None, challenge_type=None):
     """Generate a markdown template for a new strategy document.
 
     Produces a professional strategy document with structured formatting:
@@ -959,18 +1165,21 @@ def build_seeded_template(objective=None, enrichment_data=None):
     - Industry names are cleaned from snake_case to Title Case
     - Each section uses distinct enrichment fields (no duplication)
     - Placeholder instructions are replaced with actionable content
+    - Adaptive section based on challenge_type and industry
 
     Args:
         objective: Optional user-stated objective to embed in the summary.
         enrichment_data: Optional dict from _load_enrichment_data with
             company profile, signals, and market data.
+        challenge_type: Optional string indicating the user's primary
+            challenge (e.g., 'new_market_entry', 'scaling_pipeline').
 
     Returns:
-        str: Markdown string with 9 sections pre-populated with company-
+        str: Markdown string with 9+ sections pre-populated with company-
         specific content from enrichment data.
     """
     if not enrichment_data:
-        return _build_empty_template(objective)
+        return _build_empty_template(objective, challenge_type)
 
     co = enrichment_data.get("company") or {}
     company_name = _get(co, "name")
@@ -1271,6 +1480,14 @@ def build_seeded_template(objective=None, enrichment_data=None):
     action_parts.append("- Set targets for next quarter based on results")
     action_content = "\n".join(action_parts)
 
+    # Build adaptive challenge section
+    challenge_heading, challenge_content = _build_challenge_section(
+        challenge_type, industry_raw
+    )
+    challenge_section = ""
+    if challenge_heading and challenge_content:
+        challenge_section = "\n\n## {}\n\n{}".format(challenge_heading, challenge_content)
+
     return """# {header}
 
 ## Executive Summary
@@ -1303,7 +1520,7 @@ def build_seeded_template(objective=None, enrichment_data=None):
 
 ## Metrics & KPIs
 
-{metrics_content}
+{metrics_content}{challenge_section}
 
 ## 90-Day Action Plan
 
@@ -1317,12 +1534,20 @@ def build_seeded_template(objective=None, enrichment_data=None):
         channel_content=channel_content,
         msg_content=msg_content,
         metrics_content=metrics_content,
+        challenge_section=challenge_section,
         action_content=action_content,
     ).strip()
 
 
-def _build_empty_template(objective=None):
+def _build_empty_template(objective=None, challenge_type=None):
     """Minimal template when no enrichment data is available."""
+    challenge_heading, challenge_content = _build_challenge_section(
+        challenge_type, None
+    )
+    challenge_section = ""
+    if challenge_heading and challenge_content:
+        challenge_section = "\n\n## {}\n\n{}".format(challenge_heading, challenge_content)
+
     return """# GTM Strategy
 
 ## Executive Summary
@@ -1355,12 +1580,13 @@ Define core messaging pillars aligned with your value proposition and personas.
 
 ## Metrics & KPIs
 
-Set measurable targets: reply rates, meeting rates, pipeline goals, and timeline.
+Set measurable targets: reply rates, meeting rates, pipeline goals, and timeline.{challenge_section}
 
 ## 90-Day Action Plan
 
 Break your strategy into concrete weekly/monthly milestones for the first 90 days.""".format(
         objective=objective or "Define your go-to-market objective",
+        challenge_section=challenge_section,
     ).strip()
 
 
