@@ -17,6 +17,7 @@ interface PreviewStepProps {
   onImportComplete: (response: ImportResponse) => void
   importResponse: ImportResponse | null
   onReset: () => void
+  returnTo?: string
 }
 
 const DEDUP_OPTIONS: Array<{ value: 'skip' | 'update' | 'create_new'; label: string; description: string }> = [
@@ -53,6 +54,7 @@ export function PreviewStep({
   onImportComplete,
   importResponse,
   onReset,
+  returnTo,
 }: PreviewStepProps) {
   const [isImporting, setIsImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,6 +81,7 @@ export function PreviewStep({
         response={importResponse}
         jobId={jobId}
         onReset={onReset}
+        returnTo={returnTo}
       />
     )
   }

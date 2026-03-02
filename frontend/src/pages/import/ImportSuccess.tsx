@@ -233,21 +233,23 @@ export function ImportSuccess({ response, jobId, onReset }: ImportSuccessProps) 
 
       {/* Action links */}
       <div className="flex justify-center gap-3 mb-8 flex-wrap">
-        {returnTo === 'playbook' ? (
+        {returnTo === 'playbook' && (
           <button
-            onClick={() => navigate(`/${namespace}/playbook/contacts`)}
-            className="bg-accent text-white font-semibold px-4 py-2 rounded-md hover:bg-accent-hover transition-colors text-sm"
-          >
-            Return to Playbook
-          </button>
-        ) : (
-          <button
-            onClick={() => navigate(`/${namespace}/enrich`)}
+            onClick={() => navigate(`/${namespace}/playbook?imported=true`)}
             className="bg-accent-cyan text-bg font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity text-sm"
           >
-            Enrich Now
+            Back to Playbook
           </button>
         )}
+        <button
+          onClick={() => navigate(`/${namespace}/enrich`)}
+          className={returnTo === 'playbook'
+            ? 'border border-border text-text-muted px-4 py-2 rounded-md hover:bg-surface-alt transition-colors text-sm'
+            : 'bg-accent-cyan text-bg font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity text-sm'
+          }
+        >
+          Enrich Now
+        </button>
         <button
           onClick={() => navigate(`/${namespace}/contacts`)}
           className="border border-border text-text-muted px-4 py-2 rounded-md hover:bg-surface-alt transition-colors text-sm"
