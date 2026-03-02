@@ -751,7 +751,6 @@ export function PlaybookPage() {
             extractedData={docQuery.data?.extracted_data}
             playbookSelections={docQuery.data?.playbook_selections}
             playbookId={docQuery.data?.id}
-            selections={docQuery.data?.playbook_selections as Record<string, unknown>}
             onPhaseAdvance={handlePhaseNavigate}
           />
         </div>

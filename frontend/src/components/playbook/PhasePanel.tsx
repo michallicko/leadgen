@@ -19,7 +19,6 @@ interface PhasePanelProps {
   extractedData?: Record<string, unknown>
   playbookSelections?: Record<string, unknown>
   playbookId?: string
-  selections?: Record<string, unknown>
   onPhaseAdvance?: (phase: string) => void
 }
 
@@ -31,7 +30,6 @@ export function PhasePanel({
   extractedData,
   playbookSelections,
   playbookId,
-  selections,
   onPhaseAdvance,
 }: PhasePanelProps) {
   switch (phase) {

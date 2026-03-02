@@ -330,8 +330,7 @@ export function MessagesPhasePanel({ playbookId, onPhaseAdvance }: MessagesPhase
       onSuccess: () => setSetupDone(true),
       onError: () => setSetupDone(true), // Still allow viewing even if setup fails
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbookId])
+  }, [playbookId, setupDone, setupMutation])
 
   const contactCount = setupMutation.data?.total_contacts ?? 0
 

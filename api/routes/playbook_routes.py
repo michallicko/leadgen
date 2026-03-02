@@ -48,6 +48,8 @@ logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
 
+_ALLOWED_MSG_STATUSES = frozenset({"draft", "approved", "rejected"})
+
 _ALLOWED_PAGE_CONTEXTS = frozenset(
     {
         "contacts",
@@ -2071,7 +2073,7 @@ def setup_messages(playbook_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
@@ -2146,7 +2148,7 @@ def generate_messages(playbook_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
@@ -2156,6 +2158,7 @@ def generate_messages(playbook_id):
     selected_ids = (
         contacts_sel.get("selected_ids", []) if isinstance(contacts_sel, dict) else []
     )
+    selected_ids = selected_ids[:500]
 
     if not selected_ids:
         return jsonify({"error": "No contacts selected in playbook"}), 400
@@ -2208,7 +2211,7 @@ def get_playbook_messages(playbook_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
@@ -2228,6 +2231,8 @@ def get_playbook_messages(playbook_id):
 
     # Build query for messages linked to this campaign's contacts
     status_filter = request.args.get("status")
+    if status_filter and status_filter not in _ALLOWED_MSG_STATUSES:
+        return jsonify({"error": "Invalid status filter"}), 400
     page = int(request.args.get("page", "1"))
     per_page = min(int(request.args.get("per_page", "50")), 100)
 
@@ -2273,10 +2278,27 @@ def get_playbook_messages(playbook_id):
     for m in all_msgs:
         status_counts[m.status] = status_counts.get(m.status, 0) + 1
 
+    # Bulk load contacts and companies to avoid N+1 queries
+    contact_ids = [m.contact_id for m in messages]
+    contacts_map = (
+        {str(c.id): c for c in Contact.query.filter(Contact.id.in_(contact_ids)).all()}
+        if contact_ids
+        else {}
+    )
+    company_ids = [c.company_id for c in contacts_map.values() if c.company_id]
+    companies_map = (
+        {
+            str(co.id): co
+            for co in Company.query.filter(Company.id.in_(company_ids)).all()
+        }
+        if company_ids
+        else {}
+    )
+
     # Build response with contact info
     result_messages = []
     for m in messages:
-        contact = db.session.get(Contact, m.contact_id)
+        contact = contacts_map.get(str(m.contact_id))
         contact_info = {}
         company_info = None
         if contact:
@@ -2286,7 +2308,7 @@ def get_playbook_messages(playbook_id):
                 "email": contact.email_address,
             }
             if contact.company_id:
-                company = db.session.get(Company, contact.company_id)
+                company = companies_map.get(str(contact.company_id))
                 if company:
                     company_info = {"name": company.name, "domain": company.domain}
 
@@ -2335,6 +2357,8 @@ def update_playbook_message(playbook_id, message_id):
     data = request.get_json(silent=True) or {}
 
     if "status" in data:
+        if data["status"] not in _ALLOWED_MSG_STATUSES:
+            return jsonify({"error": "Invalid status"}), 400
         msg.status = data["status"]
     if "body" in data:
         msg.body = data["body"]
@@ -2362,7 +2386,7 @@ def batch_update_messages(playbook_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
@@ -2412,7 +2436,7 @@ def confirm_messages(playbook_id):
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
 
-    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
     if not doc:
         return jsonify({"error": "No strategy document found"}), 404
 
