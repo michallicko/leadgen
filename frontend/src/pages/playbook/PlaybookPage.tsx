@@ -750,6 +750,9 @@ export function PlaybookPage() {
             editable={saveStatus !== 'saving'}
             extractedData={docQuery.data?.extracted_data}
             playbookSelections={docQuery.data?.playbook_selections}
+            playbookId={docQuery.data?.id}
+            selections={docQuery.data?.playbook_selections as Record<string, unknown>}
+            onPhaseAdvance={handlePhaseNavigate}
           />
         </div>
 

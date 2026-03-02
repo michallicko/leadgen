@@ -1,13 +1,15 @@
 /**
- * PhasePanel — left-panel component switcher based on active phase.
+ * PhasePanel -- left-panel component switcher based on active phase.
  *
  * Strategy phase renders the StrategyEditor (existing).
  * Contacts phase renders the ContactsPhasePanel with ICP pre-filters.
+ * Messages phase renders the MessagesPhasePanel.
  * Other phases render placeholder stubs for now.
  */
 
 import { StrategyEditor } from './StrategyEditor'
 import { ContactsPhasePanel } from './ContactsPhasePanel'
+import { MessagesPhasePanel } from './MessagesPhasePanel'
 
 interface PhasePanelProps {
   phase: string
@@ -16,6 +18,9 @@ interface PhasePanelProps {
   editable: boolean
   extractedData?: Record<string, unknown>
   playbookSelections?: Record<string, unknown>
+  playbookId?: string
+  selections?: Record<string, unknown>
+  onPhaseAdvance?: (phase: string) => void
 }
 
 export function PhasePanel({
@@ -25,6 +30,9 @@ export function PhasePanel({
   editable,
   extractedData,
   playbookSelections,
+  playbookId,
+  selections,
+  onPhaseAdvance,
 }: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
@@ -44,7 +52,14 @@ export function PhasePanel({
       )
     }
     case 'messages':
-      return <PhasePlaceholder title="Message Generation" description="Craft personalized outreach messages for your selected contacts. AI will draft messages using your strategy and enrichment data." />
+      return (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <MessagesPhasePanel
+            playbookId={playbookId}
+            onPhaseAdvance={onPhaseAdvance}
+          />
+        </div>
+      )
     case 'campaign':
       return <PhasePlaceholder title="Campaign Management" description="Configure sequencing, timing, and launch your outreach campaign." />
     default:
