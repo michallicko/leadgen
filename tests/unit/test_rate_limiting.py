@@ -4,13 +4,14 @@ Tests cover:
 - Tool calls within limits succeed
 - Tool calls exceeding per-tool limit are rejected with error
 - Different tools have independent counters
-- Custom rate limits (e.g. web_search = 3) are respected
+- Custom rate limits (e.g. web_search) from TOOL_RATE_LIMITS are respected
 """
 
 import pytest
 
 from api.services.agent_executor import (
     DEFAULT_TOOL_RATE_LIMIT,
+    TOOL_RATE_LIMITS,
     execute_agent_turn,
 )
 from api.services.tool_registry import (
@@ -150,14 +151,15 @@ class TestRateLimiting:
         assert results[DEFAULT_TOOL_RATE_LIMIT].data["status"] == "error"
         assert "Rate limit" in results[DEFAULT_TOOL_RATE_LIMIT].data["summary"]
 
-    def test_web_search_limit_of_3(self, app):
-        """web_search has a custom limit of 3."""
+    def test_web_search_custom_limit(self, app):
+        """web_search has a custom rate limit from TOOL_RATE_LIMITS."""
         _make_echo_tool("web_search")
 
-        # Make 4 calls (limit is 3)
+        ws_limit = TOOL_RATE_LIMITS["web_search"]
+        num_calls = ws_limit + 1
         tool_calls = [
             ("web_search", {"q": "test"}, "ws_{}".format(i))
-            for i in range(4)
+            for i in range(num_calls)
         ]
         responses = [
             _tool_use_response([tc]) for tc in tool_calls
@@ -176,12 +178,12 @@ class TestRateLimiting:
         ))
 
         results = [e for e in events if e.type == "tool_result"]
-        assert len(results) == 4
+        assert len(results) == num_calls
 
-        for r in results[:3]:
+        for r in results[:ws_limit]:
             assert r.data["status"] == "success"
-        assert results[3].data["status"] == "error"
-        assert "Rate limit" in results[3].data["summary"]
+        assert results[ws_limit].data["status"] == "error"
+        assert "Rate limit" in results[ws_limit].data["summary"]
 
     def test_independent_counters(self, app):
         """Different tools have independent rate counters."""
