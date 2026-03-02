@@ -17,6 +17,7 @@ import type { Components } from 'react-markdown'
 import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
 import { ThinkingIndicator } from '../playbook/ThinkingIndicator'
 import { ChatMermaidBlock } from './ChatMermaidBlock'
+import { WorkflowSuggestions } from './WorkflowSuggestions'
 
 // ---------------------------------------------------------------------------
 // Markdown components (mermaid code block rendering)
@@ -258,10 +259,13 @@ export function EmptyState() {
       <div className="w-12 h-12 rounded-full bg-accent-cyan/10 flex items-center justify-center mb-4">
         <AssistantIcon />
       </div>
-      <p className="text-text-muted text-sm font-medium mb-1">No messages yet</p>
-      <p className="text-text-dim text-xs max-w-[240px]">
+      <p className="text-text-muted text-sm font-medium mb-1">AI Strategist</p>
+      <p className="text-text-dim text-xs max-w-[240px] mb-6">
         Ask a question about your playbook strategy and the AI will help refine it.
       </p>
+      <div className="w-full max-w-[320px] text-left">
+        <WorkflowSuggestions />
+      </div>
     </div>
   )
 }

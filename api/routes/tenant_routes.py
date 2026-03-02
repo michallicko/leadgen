@@ -7,7 +7,10 @@ from flask import Blueprint, g, jsonify, request
 from ..auth import hash_password, require_auth, require_role, resolve_tenant
 from ..models import (
     Campaign,
+    Company,
+    CompanyEnrichmentL1,
     Contact,
+    Message,
     StrategyDocument,
     Tenant,
     User,
@@ -367,3 +370,246 @@ def patch_onboarding_settings():
             "checklist_dismissed": current.get("checklist_dismissed", False),
         }
     )
+
+
+@tenants_bp.route("/workflow-suggestions", methods=["GET"])
+@require_auth
+def get_workflow_suggestions():
+    """Return proactive next-step suggestions based on namespace workflow state.
+
+    Inspects what the user has done (strategy, contacts, enrichment, messages,
+    campaigns) and suggests the most logical next action. Returns a list of
+    suggestion objects with icon, summary, action label, and navigation target.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Gather namespace state
+    strategy_doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    has_strategy = bool(
+        strategy_doc and strategy_doc.content and strategy_doc.content.strip()
+    )
+    has_extracted = bool(
+        strategy_doc
+        and strategy_doc.extracted_data
+        and isinstance(strategy_doc.extracted_data, dict)
+        and any(strategy_doc.extracted_data.values())
+    )
+    current_phase = strategy_doc.phase if strategy_doc else "strategy"
+
+    contact_count = Contact.query.filter_by(tenant_id=tenant_id).count()
+    company_count = Company.query.filter_by(tenant_id=tenant_id).count()
+
+    # Count enriched companies (have L1 data)
+    enriched_count = (
+        db.session.query(CompanyEnrichmentL1.company_id)
+        .join(Company, Company.id == CompanyEnrichmentL1.company_id)
+        .filter(Company.tenant_id == tenant_id)
+        .count()
+    )
+
+    message_count = Message.query.filter_by(tenant_id=tenant_id).count()
+    campaign_count = Campaign.query.filter_by(tenant_id=tenant_id).count()
+
+    # Active campaigns (status = generating or review or active)
+    active_campaigns = Campaign.query.filter(
+        Campaign.tenant_id == tenant_id,
+        Campaign.status.in_(["generating", "review", "active"]),
+    ).count()
+
+    suggestions = _build_workflow_suggestions(
+        tenant_id=tenant_id,
+        has_strategy=has_strategy,
+        has_extracted=has_extracted,
+        current_phase=current_phase,
+        contact_count=contact_count,
+        company_count=company_count,
+        enriched_count=enriched_count,
+        message_count=message_count,
+        campaign_count=campaign_count,
+        active_campaigns=active_campaigns,
+    )
+
+    return jsonify({"suggestions": suggestions})
+
+
+def _build_workflow_suggestions(
+    *,
+    tenant_id,
+    has_strategy,
+    has_extracted,
+    current_phase,
+    contact_count,
+    company_count,
+    enriched_count,
+    message_count,
+    campaign_count,
+    active_campaigns,
+):
+    """Build ordered list of workflow suggestions based on namespace state."""
+    suggestions = []
+
+    # Phase 1: No strategy yet
+    if not has_strategy:
+        suggestions.append(
+            {
+                "id": "create-strategy",
+                "icon": "strategy",
+                "summary": "Start by defining your GTM strategy",
+                "detail": (
+                    "The AI strategist will help you build an ICP, "
+                    "value proposition, and messaging framework."
+                ),
+                "action_label": "Open Playbook",
+                "action_path": "/playbook",
+                "priority": 1,
+            }
+        )
+        return suggestions
+
+    # Phase 2: Strategy exists but no extracted data (ICP etc.)
+    if has_strategy and not has_extracted:
+        suggestions.append(
+            {
+                "id": "extract-strategy",
+                "icon": "strategy",
+                "summary": "Your strategy needs structured data extraction",
+                "detail": (
+                    "Ask the AI to extract your ICP, personas, and "
+                    "messaging angles from your strategy document."
+                ),
+                "action_label": "Refine Strategy",
+                "action_path": "/playbook",
+                "priority": 1,
+            }
+        )
+        return suggestions
+
+    # Phase 3: Strategy extracted but no contacts
+    if contact_count == 0:
+        suggestions.append(
+            {
+                "id": "import-contacts",
+                "icon": "contacts",
+                "summary": "Import your first contacts",
+                "detail": (
+                    "Upload a CSV or connect your CRM to bring in "
+                    "contacts that match your ICP."
+                ),
+                "action_label": "Import Contacts",
+                "action_path": "/import",
+                "priority": 1,
+            }
+        )
+        return suggestions
+
+    # Phase 4: Contacts exist but not enriched
+    unenriched = company_count - enriched_count
+    if contact_count > 0 and enriched_count == 0:
+        suggestions.append(
+            {
+                "id": "start-enrichment",
+                "icon": "enrich",
+                "summary": f"{contact_count} contacts imported ({company_count} companies)",
+                "detail": (
+                    "Run enrichment to gather company intel, tech stack, "
+                    "and AI opportunities for personalized outreach."
+                ),
+                "action_label": "Start Enrichment",
+                "action_path": "/enrich",
+                "priority": 1,
+            }
+        )
+    elif unenriched > 0 and enriched_count > 0:
+        suggestions.append(
+            {
+                "id": "continue-enrichment",
+                "icon": "enrich",
+                "summary": f"{enriched_count}/{company_count} companies enriched",
+                "detail": (
+                    f"{unenriched} companies still need enrichment. "
+                    "Continue to get full coverage for your outreach."
+                ),
+                "action_label": "Continue Enrichment",
+                "action_path": "/enrich",
+                "priority": 2,
+            }
+        )
+
+    # Phase 5: Enriched but no campaign
+    if enriched_count > 0 and campaign_count == 0:
+        suggestions.append(
+            {
+                "id": "create-campaign",
+                "icon": "campaign",
+                "summary": f"{enriched_count} companies enriched — ready for outreach",
+                "detail": (
+                    "Create a campaign to generate personalized messages "
+                    "using your strategy and enrichment data."
+                ),
+                "action_label": "Create Campaign",
+                "action_path": "/campaigns",
+                "priority": 1,
+            }
+        )
+
+    # Phase 6: Campaign exists but no messages
+    if campaign_count > 0 and message_count == 0 and active_campaigns == 0:
+        suggestions.append(
+            {
+                "id": "generate-messages",
+                "icon": "messages",
+                "summary": "Campaign created — generate your outreach messages",
+                "detail": (
+                    "The AI will write personalized messages for each "
+                    "contact using your strategy and enrichment data."
+                ),
+                "action_label": "View Campaigns",
+                "action_path": "/campaigns",
+                "priority": 1,
+            }
+        )
+
+    # Phase 7: Messages generated — review them
+    if message_count > 0:
+        draft_count = Message.query.filter_by(
+            tenant_id=tenant_id, status="draft"
+        ).count()
+        if draft_count > 0:
+            suggestions.append(
+                {
+                    "id": "review-messages",
+                    "icon": "messages",
+                    "summary": f"{draft_count} draft messages ready for review",
+                    "detail": (
+                        "Review and approve your outreach messages before "
+                        "sending them to prospects."
+                    ),
+                    "action_label": "Review Messages",
+                    "action_path": "/messages",
+                    "priority": 1,
+                }
+            )
+
+    # Always suggest strategy refinement if we have data to learn from
+    if enriched_count > 0 and has_strategy:
+        suggestions.append(
+            {
+                "id": "refine-strategy",
+                "icon": "strategy",
+                "summary": "Refine your strategy with enrichment insights",
+                "detail": (
+                    "The AI can analyze your enriched companies to identify "
+                    "patterns and sharpen your ICP and messaging."
+                ),
+                "action_label": "Open Playbook",
+                "action_path": "/playbook",
+                "priority": 3,
+            }
+        )
+
+    # Sort by priority (lower = more important)
+    suggestions.sort(key=lambda s: s["priority"])
+
+    return suggestions
