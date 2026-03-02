@@ -153,6 +153,7 @@ export function PlaybookPage() {
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
   const [extractionResult, setExtractionResult] = useState<Record<string, unknown> | null>(null)
+  const [triageSynced, setTriageSynced] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -357,9 +358,11 @@ export function PlaybookPage() {
     try {
       const result = await extractMutation.mutateAsync()
       const extractedData = (result as Record<string, unknown>)?.extracted_data as Record<string, unknown> | undefined
+      const synced = !!(result as Record<string, unknown>)?.triage_synced
 
       if (extractedData) {
         setExtractionResult(extractedData)
+        setTriageSynced(synced)
       } else {
         toast('Strategy data extracted but no structured data found. Try adding more detail to your strategy.', 'info')
       }
@@ -741,6 +744,7 @@ export function PlaybookPage() {
       {extractionResult && (
         <ExtractionSummaryDialog
           data={extractionResult}
+          triageSynced={triageSynced}
           onConfirm={handleExtractionConfirm}
           onDismiss={handleExtractionDismiss}
         />
@@ -796,11 +800,12 @@ export function PlaybookPage() {
 
 interface ExtractionSummaryDialogProps {
   data: Record<string, unknown>
+  triageSynced?: boolean
   onConfirm: () => void
   onDismiss: () => void
 }
 
-function ExtractionSummaryDialog({ data, onConfirm, onDismiss }: ExtractionSummaryDialogProps) {
+function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: ExtractionSummaryDialogProps) {
   const icp = data.icp as Record<string, unknown> | undefined
   const personas = data.personas as Array<Record<string, unknown>> | undefined
   const messaging = data.messaging as Record<string, unknown> | undefined
@@ -924,6 +929,18 @@ function ExtractionSummaryDialog({ data, onConfirm, onDismiss }: ExtractionSumma
                 <ExtractionRow label="Primary Channel" values={[primaryChannel]} />
               )}
             </ExtractionSection>
+          )}
+
+          {/* Triage sync notice */}
+          {triageSynced && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-cyan/5 border border-accent-cyan/20">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-accent-cyan flex-shrink-0">
+                <path d="M7 1a6 6 0 100 12 6 6 0 000-12zM4.5 7l2 2 3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-xs text-accent-cyan">
+                Enrichment triage rules updated from your ICP criteria
+              </span>
+            </div>
           )}
 
           {/* Empty state if nothing meaningful extracted */}
