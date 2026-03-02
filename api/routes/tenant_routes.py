@@ -14,6 +14,7 @@ from ..models import (
     UserTenantRole,
     db,
 )
+from ..services.workflow_state import compute_workflow_state
 
 tenants_bp = Blueprint("tenants", __name__, url_prefix="/api/tenants")
 
@@ -294,6 +295,9 @@ def get_onboarding_status():
 
     settings = _parse_settings(tenant)
 
+    # Compute workflow state from actual data (BL-144)
+    workflow = compute_workflow_state(tenant_id)
+
     return jsonify(
         {
             "contact_count": contact_count,
@@ -301,6 +305,13 @@ def get_onboarding_status():
             "has_strategy": has_strategy,
             "onboarding_path": settings.get("onboarding_path"),
             "checklist_dismissed": settings.get("checklist_dismissed", False),
+            # Workflow state (BL-144)
+            "workflow_phase": workflow["current_phase"],
+            "workflow_phase_label": workflow["current_phase_label"],
+            "completed_phases": workflow["completed_phases"],
+            "progress_pct": workflow["progress_pct"],
+            "next_action": workflow["next_action"],
+            "workflow_context": workflow["context"],
         }
     )
 
