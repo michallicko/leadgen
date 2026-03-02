@@ -418,18 +418,18 @@ export function ContactsPhasePanel({ extractedData, existingSelections, onPhaseA
           type="button"
           disabled={selectedIds.size === 0 || confirmMutation.isPending}
           onClick={handleConfirm}
-          className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-bg hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+          className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
         >
           {confirmMutation.isPending ? (
             <>
-              <div className="w-3 h-3 border-2 border-bg/30 border-t-bg rounded-full animate-spin" />
+              <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Confirming...
             </>
           ) : (
             <>
               Confirm Selection
               {selectedIds.size > 0 && (
-                <span className="px-1.5 py-0.5 rounded bg-bg/20 text-[10px]">
+                <span className="px-1.5 py-0.5 rounded bg-white/20 text-[10px]">
                   {selectedIds.size}
                 </span>
               )}

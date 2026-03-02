@@ -215,6 +215,7 @@ export function ImportPage() {
             onImportComplete={handleImportComplete}
             importResponse={state.importResponse}
             onReset={handleReset}
+            returnTo={searchParams.get('return') ?? undefined}
           />
         )}
       </div>

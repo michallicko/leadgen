@@ -250,6 +250,41 @@ export function PlaybookPage() {
     clearDocumentChanged()
   }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged])
 
+  // ---------------------------------------------------------------------------
+  // Per-section save progress indicator (BL-151)
+  // Show a brief toast each time an AI strategy tool call completes
+  // ---------------------------------------------------------------------------
+
+  const processedToolCallsRef = useRef(new Set<string>())
+  useEffect(() => {
+    const STRATEGY_TOOLS = new Set([
+      'update_strategy_section',
+      'append_to_section',
+      'set_extracted_field',
+    ])
+    for (const tc of toolCalls) {
+      if (
+        tc.status === 'success' &&
+        STRATEGY_TOOLS.has(tc.tool_name) &&
+        !processedToolCallsRef.current.has(tc.tool_call_id)
+      ) {
+        processedToolCallsRef.current.add(tc.tool_call_id)
+        const section = (tc.input?.section_name as string) || (tc.input?.field as string) || ''
+        const label = section
+          ? `Section saved: ${section.replace(/_/g, ' ')}`
+          : 'Section saved'
+        toast(label, 'info')
+      }
+    }
+  }, [toolCalls, toast])
+
+  // Clear processed set when tool calls reset (new message)
+  useEffect(() => {
+    if (toolCalls.length === 0) {
+      processedToolCallsRef.current.clear()
+    }
+  }, [toolCalls.length])
+
   // Derive localContent: user edits take priority over server data
   const localContent = isDirty
     ? editedContent

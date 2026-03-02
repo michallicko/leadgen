@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useMessages, useBatchUpdateMessages, type Message, type MessageFilters } from '../../api/queries/useMessages'
 import { useTags } from '../../api/queries/useTags'
 import { useCampaigns } from '../../api/queries/useCampaigns'
+import { useOnboardingStatus } from '../../hooks/useOnboarding'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useToast } from '../../components/ui/Toast'
 import { useEntityStack } from '../../hooks/useEntityStack'
@@ -13,6 +14,7 @@ import { DetailModal } from '../../components/ui/DetailModal'
 import { CompanyDetail } from '../companies/CompanyDetail'
 import { ContactDetail } from '../contacts/ContactDetail'
 import { ContactGroup } from './ContactGroup'
+import { MessagesEmptyState } from '../../components/onboarding/SmartEmptyState'
 import { REVIEW_STATUS_DISPLAY, filterOptions } from '../../lib/display'
 
 interface ContactMessages {
@@ -56,6 +58,7 @@ export function MessagesPage() {
   const { data, isLoading, refetch, isRefetching } = useMessages(filters)
   const { data: tagsData } = useTags()
   const { data: campaignsData } = useCampaigns()
+  const { data: onboardingStatus } = useOnboardingStatus()
   const batchMutation = useBatchUpdateMessages()
 
   // Group messages by contact
@@ -167,6 +170,13 @@ export function MessagesPage() {
   const { data: contactDetail, isLoading: isContactLoading } = useContact(
     isContactOpen ? stack.current!.id : null
   )
+
+  // Show smart empty state when namespace has no contacts (no messages possible)
+  const namespaceHasNoContacts =
+    onboardingStatus !== undefined && onboardingStatus.contact_count === 0
+  if (namespaceHasNoContacts && !isLoading) {
+    return <MessagesEmptyState />
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">

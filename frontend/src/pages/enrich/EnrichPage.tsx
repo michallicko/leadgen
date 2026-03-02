@@ -5,6 +5,8 @@
 
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { FilterBar } from '../../components/ui/FilterBar'
+import { useOnboardingStatus } from '../../hooks/useOnboarding'
+import { EnrichEmptyState } from '../../components/onboarding/SmartEmptyState'
 import { useEnrichState } from './useEnrichState'
 import { useEnrichEstimate, computeAdjustedCost, computeUpstreamEligible } from './useEnrichEstimate'
 import { useEnrichPipeline } from './useEnrichPipeline'
@@ -17,6 +19,7 @@ import { SchedulePanel } from './SchedulePanel'
 import { StageCard } from './StageCard'
 
 export function EnrichPage() {
+  const { data: onboardingStatus } = useOnboardingStatus()
   const state = useEnrichState()
   const {
     filters,
@@ -100,6 +103,13 @@ export function EnrichPage() {
 
   const noTag = !filters.tag
 
+  // Show smart empty state when namespace has no contacts
+  const namespaceHasNoContacts =
+    onboardingStatus !== undefined && onboardingStatus.contact_count === 0
+  if (namespaceHasNoContacts) {
+    return <EnrichEmptyState />
+  }
+
   return (
     <div className="p-6">
       {/* Filters — always visible, disabled during pipeline run */}
@@ -130,7 +140,7 @@ export function EnrichPage() {
             enabledCount={enabledStageCodes.length}
             onRun={handleRun}
             onStop={stop}
-            isLoading={estimate.isLoading}
+            isLoading={estimate.isFetching}
             onLoadConfig={loadConfigSnapshot}
             getConfigSnapshot={getConfigSnapshot}
           />
