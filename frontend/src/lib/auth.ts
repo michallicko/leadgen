@@ -106,8 +106,23 @@ export function getNamespaceFromPath(pathname: string = window.location.pathname
   return slug.includes('.') ? null : slug
 }
 
+const LAST_NAMESPACE_KEY = 'leadgen_last_namespace'
+
 export function getDefaultNamespace(user: StoredUser | null): string | null {
   if (!user?.roles) return null
   const namespaces = Object.keys(user.roles)
-  return namespaces.length > 0 ? namespaces[0]! : null
+  if (namespaces.length === 0) return null
+
+  // Check localStorage for last-used namespace
+  const stored = localStorage.getItem(LAST_NAMESPACE_KEY)
+  if (stored && namespaces.includes(stored)) return stored
+
+  // For super admins, also check if the stored namespace exists (may not be in roles)
+  if (stored && user.is_super_admin) return stored
+
+  return namespaces[0]!
+}
+
+export function setLastNamespace(slug: string): void {
+  localStorage.setItem(LAST_NAMESPACE_KEY, slug)
 }
