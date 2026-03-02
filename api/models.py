@@ -1591,3 +1591,54 @@ class LinkedInSendQueue(db.Model):
             "retry_count": self.retry_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class WorkflowTransition(db.Model):
+    """Records explicit workflow phase transitions with metadata.
+
+    The current phase is COMPUTED from actual data (see workflow_state.py),
+    but transitions are logged here for audit, context, and undo.
+    """
+
+    __tablename__ = "workflow_transitions"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    from_phase = db.Column(db.Text, nullable=False)
+    to_phase = db.Column(db.Text, nullable=False)
+    trigger = db.Column(db.Text, nullable=False, default="auto")
+    metadata_json = db.Column(
+        "metadata",
+        JSONB,
+        server_default=db.text("'{}'::jsonb"),
+        nullable=False,
+        default=dict,
+    )
+    user_id = db.Column(UUID(as_uuid=False), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self):
+        meta = self.metadata_json or {}
+        if isinstance(meta, str):
+            import json as _json
+
+            try:
+                meta = _json.loads(meta)
+            except (ValueError, TypeError):
+                meta = {}
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "from_phase": self.from_phase,
+            "to_phase": self.to_phase,
+            "trigger": self.trigger,
+            "metadata": meta,
+            "user_id": str(self.user_id) if self.user_id else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
