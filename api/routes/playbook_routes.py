@@ -486,13 +486,17 @@ def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
     db.session.commit()
 
 
-def _run_self_research(app, company_id, tenant_id, additional_domains=None):
+def _run_self_research(
+    app, company_id, tenant_id, additional_domains=None, challenge_type=None
+):
     """Run L1 + L2 enrichment in a background thread for self-company research.
 
     Args:
         additional_domains: Optional list of competitor/partner domains for
             lightweight web_search enrichment. The primary domain gets full
             L1+L2 enrichment; additional domains get stored as metadata.
+        challenge_type: Optional string indicating the user's primary GTM
+            challenge. Passed to build_seeded_template for adaptive sections.
     """
     with app.app_context():
         try:
@@ -555,7 +559,9 @@ def _run_self_research(app, company_id, tenant_id, additional_domains=None):
                 enrichment_data = _load_enrichment_data(company_id)
                 if additional_domains and enrichment_data:
                     enrichment_data["additional_domains"] = additional_domains
-                doc.content = build_seeded_template(doc.objective, enrichment_data)
+                doc.content = build_seeded_template(
+                    doc.objective, enrichment_data, challenge_type=challenge_type
+                )
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
@@ -597,7 +603,9 @@ def _run_self_research(app, company_id, tenant_id, additional_domains=None):
                     enrichment_data = _load_enrichment_data(company_id)
                     if enrichment_data:
                         doc.content = build_seeded_template(
-                            doc.objective, enrichment_data
+                            doc.objective,
+                            enrichment_data,
+                            challenge_type=challenge_type,
                         )
                         db.session.commit()
             except Exception:
@@ -618,6 +626,7 @@ def trigger_research():
 
     data = request.get_json(silent=True) or {}
     objective = data.get("objective")
+    challenge_type = data.get("challenge_type")
 
     # Support multi-domain format: {domains: [...], primary_domain: "..."}
     # Backward compat: {domain: "..."} treated as {domains: [domain]}
@@ -704,7 +713,10 @@ def trigger_research():
     t = threading.Thread(
         target=_run_self_research,
         args=(app, company.id, tenant_id),
-        kwargs={"additional_domains": additional_domains},
+        kwargs={
+            "additional_domains": additional_domains,
+            "challenge_type": challenge_type,
+        },
         daemon=True,
         name="self-research-{}".format(company.id),
     )
@@ -716,6 +728,7 @@ def trigger_research():
             "company_id": company.id,
             "domain": company.domain,
             "domains": domains,
+            "challenge_type": challenge_type,
         }
     ), 200
 
