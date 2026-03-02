@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -10,13 +11,18 @@ import time
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
+from ..display import display_seniority
 from ..models import (
+    Campaign,
+    CampaignContact,
     Company,
     CompanyEnrichmentL1,
     CompanyEnrichmentL2,
     CompanyEnrichmentProfile,
     CompanyEnrichmentSignals,
     CompanyEnrichmentMarket,
+    Contact,
+    Message,
     PLAYBOOK_PHASES,
     PlaybookLog,
     StrategyDocument,
@@ -32,6 +38,7 @@ from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
+    build_proactive_analysis_prompt,
     build_seeded_template,
     build_system_prompt,
 )
@@ -40,6 +47,8 @@ from ..services.tool_registry import ToolContext, get_tools_for_api
 logger = logging.getLogger(__name__)
 
 playbook_bp = Blueprint("playbook", __name__)
+
+_ALLOWED_MSG_STATUSES = frozenset({"draft", "approved", "rejected"})
 
 _ALLOWED_PAGE_CONTEXTS = frozenset(
     {
@@ -106,6 +115,21 @@ def update_playbook():
         doc.status = status
     if objective is not None:
         doc.objective = objective
+
+    # Persist playbook selections (contacts, messages, etc.)
+    playbook_selections = data.get("playbook_selections")
+    if playbook_selections is not None and isinstance(playbook_selections, dict):
+        existing = doc.playbook_selections or {}
+        if isinstance(existing, str):
+            try:
+                existing = json.loads(existing)
+            except (ValueError, TypeError):
+                existing = {}
+        # Shallow merge: top-level keys are merged, but nested structures
+        # (e.g., contacts.selected_ids) are replaced wholesale per key.
+        # Use confirm_contact_selection for atomic selection updates.
+        existing.update(playbook_selections)
+        doc.playbook_selections = existing
 
     db.session.commit()
     return jsonify(doc.to_dict()), 200
@@ -373,6 +397,279 @@ def extract_strategy():
     ), 200
 
 
+@playbook_bp.route("/api/playbook/contacts", methods=["GET"])
+@require_auth
+def playbook_contacts():
+    """Return contacts filtered by the playbook's ICP criteria.
+
+    Reads extracted_data.icp from the strategy document, maps ICP fields
+    to contact query filters (reusing _map_icp_to_filters from
+    icp_filter_tools), and returns a paginated contact list.
+
+    Query params allow overriding individual filters and pagination:
+        page (int, default 1), per_page (int, default 25, max 100)
+        industries, seniority_levels, geo_regions, company_sizes (comma-sep)
+        sort (str), sort_dir (asc|desc)
+        search (str) — text search across name/email/title
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Read ICP from extracted_data
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+
+    icp = extracted.get("icp", {})
+    if isinstance(icp, str):
+        try:
+            icp = json.loads(icp)
+        except (ValueError, TypeError):
+            icp = {}
+
+    icp_source = bool(icp)
+
+    # Merge top-level personas into icp if present
+    top_personas = extracted.get("personas", [])
+    icp_personas = icp.get("personas", []) if isinstance(icp, dict) else []
+    if top_personas and not icp_personas and isinstance(icp, dict):
+        icp["personas"] = top_personas
+
+    # Map ICP to base filters
+    from ..services.icp_filter_tools import _map_icp_to_filters
+
+    base_filters = _map_icp_to_filters(icp) if icp else {}
+
+    # Allow query param overrides (comma-separated lists)
+    override_keys = ["industries", "seniority_levels", "geo_regions", "company_sizes"]
+    for key in override_keys:
+        raw = request.args.get(key, "").strip()
+        if raw:
+            base_filters[key] = [v.strip() for v in raw.split(",") if v.strip()]
+
+    # Pagination
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(1, request.args.get("per_page", 25, type=int)))
+
+    # Sort
+    sort_field = request.args.get("sort", "last_name").strip()
+    sort_dir = request.args.get("sort_dir", "asc").strip().lower()
+    _SORT_ALLOWED = {
+        "last_name",
+        "first_name",
+        "job_title",
+        "seniority_level",
+        "contact_score",
+        "created_at",
+    }
+    if sort_field not in _SORT_ALLOWED:
+        sort_field = "last_name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+
+    # Text search
+    search = request.args.get("search", "").strip()
+
+    # Build WHERE clause
+    where = [
+        "ct.tenant_id = :tenant_id",
+        "(ct.is_disqualified = false OR ct.is_disqualified IS NULL)",
+    ]
+    params = {"tenant_id": tenant_id}
+
+    if search:
+        where.append(
+            "(LOWER(ct.first_name) LIKE LOWER(:search)"
+            " OR LOWER(ct.last_name) LIKE LOWER(:search)"
+            " OR LOWER(ct.email_address) LIKE LOWER(:search)"
+            " OR LOWER(ct.job_title) LIKE LOWER(:search))"
+        )
+        params["search"] = "%{}%".format(search)
+
+    # Apply ICP-derived (or overridden) multi-value filters
+    multi_map = {
+        "industries": ("co.industry", "ind"),
+        "seniority_levels": ("ct.seniority_level", "sen"),
+        "geo_regions": ("co.geo_region", "geo"),
+        "company_sizes": ("co.company_size", "csz"),
+    }
+    for key, (column, prefix) in multi_map.items():
+        values = base_filters.get(key, [])
+        if not values or not isinstance(values, list):
+            continue
+        phs = []
+        for i, v in enumerate(values):
+            pname = "{}_{}".format(prefix, i)
+            params[pname] = v
+            phs.append(":{}".format(pname))
+        where.append("{} IN ({})".format(column, ", ".join(phs)))
+
+    where_clause = " AND ".join(where)
+
+    joins = """
+        LEFT JOIN companies co ON ct.company_id = co.id
+        LEFT JOIN owners o ON ct.owner_id = o.id
+    """
+
+    # Count total
+    total = (
+        db.session.execute(
+            db.text(
+                "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
+                    joins, where_clause
+                )
+            ),
+            params,
+        ).scalar()
+        or 0
+    )
+
+    pages = max(1, math.ceil(total / per_page))
+    offset = (page - 1) * per_page
+
+    order = "ct.{} {} NULLS LAST".format(
+        sort_field, "ASC" if sort_dir == "asc" else "DESC"
+    )
+
+    rows = db.session.execute(
+        db.text(
+            """
+            SELECT
+                ct.id, ct.first_name, ct.last_name, ct.job_title,
+                co.id AS company_id, co.name AS company_name,
+                ct.email_address, ct.seniority_level,
+                ct.contact_score, ct.icp_fit,
+                co.industry, co.company_size, co.status AS company_status
+            FROM contacts ct
+            {joins}
+            WHERE {where}
+            ORDER BY {order}
+            LIMIT :limit OFFSET :offset
+        """.format(joins=joins, where=where_clause, order=order)
+        ),
+        {**params, "limit": per_page, "offset": offset},
+    ).fetchall()
+
+    contacts = []
+    for r in rows:
+        contacts.append(
+            {
+                "id": str(r[0]),
+                "first_name": r[1] or "",
+                "last_name": r[2] or "",
+                "full_name": (
+                    ((r[1] or "") + " " + (r[2] or "")).strip() or r[1] or ""
+                ),
+                "job_title": r[3],
+                "company_id": str(r[4]) if r[4] else None,
+                "company_name": r[5],
+                "email_address": r[6],
+                "seniority_level": display_seniority(r[7]),
+                "contact_score": r[8],
+                "icp_fit": r[9],
+                "industry": r[10],
+                "company_size": r[11],
+                "company_status": r[12],
+            }
+        )
+
+    return jsonify(
+        {
+            "filters": {"applied_filters": base_filters},
+            "contacts": contacts,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+            "icp_source": icp_source,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/contacts/confirm", methods=["POST"])
+@require_auth
+def confirm_contact_selection():
+    """Save selected contact IDs and advance phase to messages.
+
+    Body: { "selected_ids": ["id1", "id2", ...] }
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    selected_ids = data.get("selected_ids", [])
+    if not isinstance(selected_ids, list) or not selected_ids:
+        return jsonify({"error": "selected_ids must be a non-empty list"}), 400
+
+    MAX_CONTACT_SELECTIONS = 500
+    if len(selected_ids) > MAX_CONTACT_SELECTIONS:
+        return jsonify(
+            {
+                "error": f"Cannot select more than {MAX_CONTACT_SELECTIONS} contacts at once"
+            }
+        ), 400
+
+    # Validate that all IDs are actual contacts for this tenant
+    valid_ids = [
+        str(r[0])
+        for r in db.session.execute(
+            db.text(
+                "SELECT id FROM contacts WHERE tenant_id = :t AND id IN ({})".format(
+                    ", ".join(":cid_{}".format(i) for i in range(len(selected_ids)))
+                )
+            ),
+            {
+                "t": tenant_id,
+                **{"cid_{}".format(i): cid for i, cid in enumerate(selected_ids)},
+            },
+        ).fetchall()
+    ]
+
+    if not valid_ids:
+        return jsonify({"error": "No valid contacts found for the given IDs"}), 400
+
+    # Save selections
+    existing = doc.playbook_selections or {}
+    if isinstance(existing, str):
+        try:
+            existing = json.loads(existing)
+        except (ValueError, TypeError):
+            existing = {}
+    existing["contacts"] = {"selected_ids": valid_ids}
+    doc.playbook_selections = existing
+
+    # Advance phase to messages — route through phase gate
+    error = _validate_phase_transition(doc, doc.phase, "messages")
+    if error:
+        db.session.rollback()
+        return jsonify({"error": error}), 422
+    doc.phase = "messages"
+    doc.updated_by = getattr(request, "user_id", None)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "selected_count": len(valid_ids),
+            "phase": doc.phase,
+            "playbook_selections": doc.playbook_selections,
+        }
+    ), 200
+
+
 def _get_or_create_document(tenant_id):
     """Return the tenant's strategy document, creating one if needed."""
     doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
@@ -485,14 +782,28 @@ def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
     db.session.commit()
 
 
-def _run_self_research(app, company_id, tenant_id):
-    """Run L1 + L2 enrichment in a background thread for self-company research."""
+def _run_self_research(
+    app, company_id, tenant_id, additional_domains=None, challenge_type=None
+):
+    """Run L1 + L2 enrichment in a background thread for self-company research.
+
+    Args:
+        additional_domains: Optional list of competitor/partner domains for
+            lightweight web_search enrichment. The primary domain gets full
+            L1+L2 enrichment; additional domains get stored as metadata.
+        challenge_type: Optional string indicating the user's primary GTM
+            challenge. Passed to build_seeded_template for adaptive sections.
+    """
     with app.app_context():
         try:
             from api.services.l1_enricher import enrich_l1
             from api.services.l2_enricher import enrich_l2
 
-            logger.info("Starting self-research for company %s", company_id)
+            logger.info(
+                "Starting self-research for company %s (additional_domains=%s)",
+                company_id,
+                additional_domains,
+            )
 
             enrich_l1(company_id, tenant_id)
 
@@ -542,7 +853,11 @@ def _run_self_research(app, company_id, tenant_id):
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
             if doc and doc.version == 1:
                 enrichment_data = _load_enrichment_data(company_id)
-                doc.content = build_seeded_template(doc.objective, enrichment_data)
+                if additional_domains and enrichment_data:
+                    enrichment_data["additional_domains"] = additional_domains
+                doc.content = build_seeded_template(
+                    doc.objective, enrichment_data, challenge_type=challenge_type
+                )
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
@@ -584,7 +899,9 @@ def _run_self_research(app, company_id, tenant_id):
                     enrichment_data = _load_enrichment_data(company_id)
                     if enrichment_data:
                         doc.content = build_seeded_template(
-                            doc.objective, enrichment_data
+                            doc.objective,
+                            enrichment_data,
+                            challenge_type=challenge_type,
                         )
                         db.session.commit()
             except Exception:
@@ -604,8 +921,22 @@ def trigger_research():
         return jsonify({"error": "Tenant not found"}), 404
 
     data = request.get_json(silent=True) or {}
-    domain = data.get("domain")
     objective = data.get("objective")
+    challenge_type = data.get("challenge_type")
+
+    # Support multi-domain format: {domains: [...], primary_domain: "..."}
+    # Backward compat: {domain: "..."} treated as {domains: [domain]}
+    domains = data.get("domains")
+    primary_domain = data.get("primary_domain")
+    if not domains:
+        # Old format: single domain field
+        legacy_domain = data.get("domain")
+        if legacy_domain:
+            domains = [legacy_domain]
+            primary_domain = legacy_domain
+
+    # Resolve primary domain
+    domain = primary_domain or (domains[0] if domains else None)
 
     # Fall back to tenant's domain if none provided
     if not domain:
@@ -617,8 +948,11 @@ def trigger_research():
             {"error": "Domain is required (provide in body or set on tenant)"}
         ), 400
 
+    if not domains:
+        domains = [domain]
+
     # Derive company name from domain (strip TLD, capitalize)
-    # e.g., "notion.so" → "Notion", "stripe.com" → "Stripe"
+    # e.g., "notion.so" -> "Notion", "stripe.com" -> "Stripe"
     domain_parts = domain.split(".")
     company_name = domain_parts[0].capitalize() if domain_parts else domain
 
@@ -648,6 +982,9 @@ def trigger_research():
         doc.objective = objective
     db.session.commit()
 
+    # Store additional domains as metadata for lightweight research
+    additional_domains = [d for d in domains if d != domain]
+
     # Log research trigger
     user_id = getattr(request, "user_id", None)
     if user_id:
@@ -658,6 +995,8 @@ def trigger_research():
             event_type="research_trigger",
             payload={
                 "domain": domain,
+                "domains": domains,
+                "additional_domains": additional_domains,
                 "objective": objective,
                 "company_id": str(company.id),
             },
@@ -670,6 +1009,10 @@ def trigger_research():
     t = threading.Thread(
         target=_run_self_research,
         args=(app, company.id, tenant_id),
+        kwargs={
+            "additional_domains": additional_domains,
+            "challenge_type": challenge_type,
+        },
         daemon=True,
         name="self-research-{}".format(company.id),
     )
@@ -680,6 +1023,8 @@ def trigger_research():
             "status": "triggered",
             "company_id": company.id,
             "domain": company.domain,
+            "domains": domains,
+            "challenge_type": challenge_type,
         }
     ), 200
 
@@ -1265,6 +1610,96 @@ def _stream_agent_response(
 
         yield "data: {}\n\n".format(json.dumps(done_payload))
 
+        # --- Proactive analysis follow-up ---
+        # If strategy edits were made, generate a proactive analysis message
+        # with context-aware suggestions. This appears as a second assistant
+        # message in the conversation without user intervention.
+        has_doc_changes = done_payload.get("document_changed", False)
+        if has_doc_changes:
+            try:
+                with app.app_context():
+                    # Load the freshly-updated strategy document
+                    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+                    strategy_content = doc.content if doc else ""
+
+                    # Load enrichment data for grounded suggestions
+                    enrichment_data = None
+                    if doc and doc.enrichment_id:
+                        enrichment_data = _load_enrichment_data(doc.enrichment_id)
+
+                    analysis_prompt = build_proactive_analysis_prompt(
+                        strategy_content, enrichment_data
+                    )
+
+                # Signal the frontend that analysis is starting
+                yield "data: {}\n\n".format(json.dumps({"type": "analysis_start"}))
+
+                # Stream the analysis response (simple query, no tools)
+                analysis_parts = []
+                for chunk in client.stream_query(
+                    messages=[{"role": "user", "content": analysis_prompt}],
+                    system_prompt=system_prompt,
+                    max_tokens=512,
+                    temperature=0.4,
+                ):
+                    analysis_parts.append(chunk)
+                    yield "data: {}\n\n".format(
+                        json.dumps({"type": "analysis_chunk", "text": chunk})
+                    )
+
+                analysis_content = "".join(analysis_parts)
+
+                # Save analysis as an assistant message
+                analysis_msg_id = None
+                with app.app_context():
+                    analysis_msg = StrategyChatMessage(
+                        tenant_id=tenant_id,
+                        document_id=doc_id,
+                        role="assistant",
+                        content=analysis_content,
+                        extra={"proactive_analysis": True},
+                    )
+                    db.session.add(analysis_msg)
+                    db.session.flush()
+                    analysis_msg_id = analysis_msg.id
+
+                    # Log LLM usage for the analysis call
+                    usage = client.last_stream_usage
+                    log_llm_usage(
+                        tenant_id=tenant_id,
+                        operation="proactive_analysis",
+                        model=usage.get("model", client.default_model),
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                        provider="anthropic",
+                        user_id=user_id,
+                        metadata={
+                            "document_id": str(doc_id),
+                            "trigger": "strategy_edit",
+                        },
+                    )
+
+                    db.session.commit()
+
+                # Extract suggestion chips from the analysis text.
+                # Look for numbered lines (e.g., "1. ...", "2. ...") and
+                # extract a short actionable phrase from each.
+                suggestions = _extract_suggestion_chips(analysis_content)
+
+                yield "data: {}\n\n".format(
+                    json.dumps(
+                        {
+                            "type": "analysis_done",
+                            "message_id": analysis_msg_id,
+                            "suggestions": suggestions,
+                        }
+                    )
+                )
+
+            except Exception as e:
+                logger.warning("Proactive analysis failed (non-fatal): %s", e)
+                # Non-fatal: the main response was already delivered
+
     # Commit the user message before entering the generator
     db.session.commit()
 
@@ -1276,6 +1711,50 @@ def _stream_agent_response(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _extract_suggestion_chips(analysis_text):
+    """Extract short suggestion chips from a proactive analysis message.
+
+    Looks for numbered lines (e.g. "1. Your ICP targets...Want me to...?")
+    and extracts the question portion as a clickable chip. Falls back to
+    the first sentence of each numbered line if no question is found.
+
+    Args:
+        analysis_text: The full analysis message text.
+
+    Returns:
+        list[str]: Up to 3 suggestion strings suitable for UI chips.
+    """
+    suggestions = []
+    # Match numbered lines: "1. ...", "2. ...", etc.
+    numbered = re.findall(r"^\d+[\.\)]\s*(.+)", analysis_text, re.MULTILINE)
+
+    for line in numbered[:3]:
+        # Try to extract a question (sentence ending with ?)
+        questions = re.findall(r"([^.!?]*\?)", line)
+        if questions:
+            # Take the last question (usually the actionable one)
+            chip = questions[-1].strip()
+            # Clean up leading conjunctions
+            for prefix in [
+                "Want me to ",
+                "Should I ",
+                "Shall I ",
+                "Would you like me to ",
+            ]:
+                if chip.startswith(prefix):
+                    chip = "Yes, " + chip[0].lower() + chip[1:]
+                    break
+            suggestions.append(chip)
+        else:
+            # No question found -- use truncated line
+            chip = line.strip()
+            if len(chip) > 80:
+                chip = chip[:77] + "..."
+            suggestions.append(chip)
+
+    return suggestions
 
 
 def _sync_response(
@@ -1505,3 +1984,515 @@ def _sync_agent_response(
         result["tool_calls"] = done_data["tool_calls"]
 
     return jsonify(result), 201
+
+
+# ---------------------------------------------------------------------------
+# Messages Phase endpoints (BL-118)
+# ---------------------------------------------------------------------------
+
+
+def _parse_jsonb_safe(val):
+    """Parse a JSONB column that may be a string (SQLite) or dict (PG)."""
+    if val is None:
+        return None
+    if isinstance(val, (dict, list)):
+        return val
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _get_or_create_campaign_for_playbook(tenant_id, doc):
+    """Find or create a campaign linked to the playbook's strategy document.
+
+    Returns (campaign, created) tuple.
+    """
+    # Check for an existing campaign linked to this strategy
+    campaign = Campaign.query.filter_by(tenant_id=tenant_id, strategy_id=doc.id).first()
+    if campaign:
+        return campaign, False
+
+    # Extract generation_config from strategy extracted_data
+    extracted = _parse_jsonb_safe(doc.extracted_data) or {}
+    generation_config = {}
+    channel = "email"
+
+    messaging = extracted.get("messaging", {})
+    if isinstance(messaging, dict):
+        if messaging.get("tone"):
+            generation_config["tone"] = messaging["tone"]
+        if messaging.get("angles"):
+            generation_config["angles"] = messaging["angles"]
+        if messaging.get("length"):
+            generation_config["length"] = messaging["length"]
+        if messaging.get("style"):
+            generation_config["style"] = messaging["style"]
+
+    channels = extracted.get("channels", {})
+    if isinstance(channels, dict) and channels.get("primary"):
+        channel = channels["primary"]
+
+    # Build campaign name from objective or default
+    name_base = doc.objective or "Playbook Campaign"
+    name = f"{name_base[:60]}"
+
+    campaign = Campaign(
+        tenant_id=tenant_id,
+        name=name,
+        strategy_id=doc.id,
+        status="draft",
+        channel=channel,
+        generation_config=json.dumps(generation_config),
+        template_config=json.dumps(
+            [
+                {
+                    "step": 1,
+                    "label": "Initial outreach",
+                    "channel": channel,
+                    "enabled": True,
+                }
+            ]
+        ),
+    )
+    db.session.add(campaign)
+    db.session.flush()
+    return campaign, True
+
+
+@playbook_bp.route("/api/playbook/<playbook_id>/messages/setup", methods=["POST"])
+@require_auth
+def setup_messages(playbook_id):
+    """Auto-create or load the campaign linked to this playbook.
+
+    Creates a campaign from the strategy's extracted_data if none exists,
+    then assigns selected contacts from playbook_selections.
+    Returns the campaign with contact count.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Get selected contacts from playbook_selections
+    selections = _parse_jsonb_safe(doc.playbook_selections) or {}
+    contacts_sel = selections.get("contacts", {})
+    selected_ids = (
+        contacts_sel.get("selected_ids", []) if isinstance(contacts_sel, dict) else []
+    )
+    # Cap at 500
+    selected_ids = selected_ids[:500]
+
+    if not selected_ids:
+        return jsonify({"error": "No contacts selected in playbook"}), 400
+
+    # Get or create campaign
+    campaign, created = _get_or_create_campaign_for_playbook(tenant_id, doc)
+
+    # Assign contacts to campaign (skip duplicates)
+    existing_contact_ids = set()
+    if not created:
+        existing = CampaignContact.query.filter_by(
+            campaign_id=campaign.id, tenant_id=tenant_id
+        ).all()
+        existing_contact_ids = {str(cc.contact_id) for cc in existing}
+
+    added = 0
+    for cid in selected_ids:
+        if cid in existing_contact_ids:
+            continue
+        cc = CampaignContact(
+            campaign_id=campaign.id,
+            contact_id=cid,
+            tenant_id=tenant_id,
+            status="pending",
+        )
+        db.session.add(cc)
+        added += 1
+
+    campaign.total_contacts = len(selected_ids)
+    doc.updated_by = getattr(request, "user_id", None)
+
+    # Persist campaign_id in playbook_selections
+    sel = _parse_jsonb_safe(doc.playbook_selections) or {}
+    msg_sel = sel.get("messages", {})
+    if not isinstance(msg_sel, dict):
+        msg_sel = {}
+    msg_sel["campaign_id"] = str(campaign.id)
+    sel["messages"] = msg_sel
+    doc.playbook_selections = json.dumps(sel)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "campaign_id": str(campaign.id),
+            "campaign_name": campaign.name,
+            "campaign_status": campaign.status,
+            "total_contacts": campaign.total_contacts,
+            "contacts_added": added,
+            "created": created,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/<playbook_id>/generate-messages", methods=["POST"])
+@require_auth
+def generate_messages(playbook_id):
+    """Auto-create campaign (if needed) and start background message generation."""
+    from ..services.message_generator import start_generation
+
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Get selected contact IDs from playbook_selections
+    selections = _parse_jsonb_safe(doc.playbook_selections) or {}
+    contacts_sel = selections.get("contacts", {})
+    selected_ids = (
+        contacts_sel.get("selected_ids", []) if isinstance(contacts_sel, dict) else []
+    )
+    selected_ids = selected_ids[:500]
+
+    if not selected_ids:
+        return jsonify({"error": "No contacts selected in playbook"}), 400
+
+    # Get or create campaign
+    campaign, created = _get_or_create_campaign_for_playbook(tenant_id, doc)
+
+    # Add contacts to campaign if newly created (or if contacts changed)
+    existing_contact_ids = set()
+    if not created:
+        existing = CampaignContact.query.filter_by(
+            campaign_id=campaign.id, tenant_id=tenant_id
+        ).all()
+        existing_contact_ids = {str(cc.contact_id) for cc in existing}
+
+    new_ids = [cid for cid in selected_ids if cid not in existing_contact_ids]
+    for cid in new_ids:
+        cc = CampaignContact(
+            campaign_id=campaign.id,
+            contact_id=cid,
+            tenant_id=tenant_id,
+            status="pending",
+        )
+        db.session.add(cc)
+
+    campaign.status = "generating"
+    campaign.total_contacts = len(selected_ids)
+    db.session.commit()
+
+    # Start background generation
+    from flask import current_app
+
+    start_generation(current_app._get_current_object(), str(campaign.id), tenant_id)
+
+    return jsonify(
+        {
+            "campaign_id": str(campaign.id),
+            "status": "generating",
+            "total_contacts": len(selected_ids),
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/<playbook_id>/messages", methods=["GET"])
+@require_auth
+def get_playbook_messages(playbook_id):
+    """Return messages for the playbook's linked campaign with filtering."""
+
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    # Find linked campaign
+    campaign = Campaign.query.filter_by(tenant_id=tenant_id, strategy_id=doc.id).first()
+
+    if not campaign:
+        return jsonify(
+            {
+                "messages": [],
+                "total": 0,
+                "campaign_id": None,
+                "campaign_status": None,
+                "status_counts": {},
+            }
+        ), 200
+
+    # Build query for messages linked to this campaign's contacts
+    status_filter = request.args.get("status")
+    if status_filter and status_filter not in _ALLOWED_MSG_STATUSES:
+        return jsonify({"error": "Invalid status filter"}), 400
+    page = int(request.args.get("page", "1"))
+    per_page = min(int(request.args.get("per_page", "50")), 100)
+
+    # Get campaign contact IDs
+    cc_rows = CampaignContact.query.filter_by(
+        campaign_id=campaign.id, tenant_id=tenant_id
+    ).all()
+    cc_contact_ids = [str(cc.contact_id) for cc in cc_rows]
+
+    if not cc_contact_ids:
+        return jsonify(
+            {
+                "messages": [],
+                "total": 0,
+                "campaign_id": str(campaign.id),
+                "campaign_status": campaign.status,
+                "status_counts": {},
+            }
+        ), 200
+
+    # Query messages for these contacts
+    query = Message.query.filter(
+        Message.tenant_id == tenant_id,
+        Message.contact_id.in_(cc_contact_ids),
+    )
+    if status_filter:
+        query = query.filter(Message.status == status_filter)
+
+    total = query.count()
+    messages = (
+        query.order_by(Message.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    # Status counts (unfiltered)
+    all_msgs = Message.query.filter(
+        Message.tenant_id == tenant_id,
+        Message.contact_id.in_(cc_contact_ids),
+    ).all()
+    status_counts = {}
+    for m in all_msgs:
+        status_counts[m.status] = status_counts.get(m.status, 0) + 1
+
+    # Bulk load contacts and companies to avoid N+1 queries
+    contact_ids = [m.contact_id for m in messages]
+    contacts_map = (
+        {str(c.id): c for c in Contact.query.filter(Contact.id.in_(contact_ids)).all()}
+        if contact_ids
+        else {}
+    )
+    company_ids = [c.company_id for c in contacts_map.values() if c.company_id]
+    companies_map = (
+        {
+            str(co.id): co
+            for co in Company.query.filter(Company.id.in_(company_ids)).all()
+        }
+        if company_ids
+        else {}
+    )
+
+    # Build response with contact info
+    result_messages = []
+    for m in messages:
+        contact = contacts_map.get(str(m.contact_id))
+        contact_info = {}
+        company_info = None
+        if contact:
+            contact_info = {
+                "full_name": f"{contact.first_name or ''} {contact.last_name or ''}".strip(),
+                "job_title": contact.job_title,
+                "email": contact.email_address,
+            }
+            if contact.company_id:
+                company = companies_map.get(str(contact.company_id))
+                if company:
+                    company_info = {"name": company.name, "domain": company.domain}
+
+        result_messages.append(
+            {
+                "id": str(m.id),
+                "contact_id": str(m.contact_id),
+                "contact": contact_info,
+                "company": company_info,
+                "subject": m.subject,
+                "body": m.body,
+                "status": m.status,
+                "channel": m.channel,
+                "sequence_step": m.sequence_step,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+        )
+
+    return jsonify(
+        {
+            "messages": result_messages,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "campaign_id": str(campaign.id),
+            "campaign_status": campaign.status,
+            "status_counts": status_counts,
+        }
+    ), 200
+
+
+@playbook_bp.route(
+    "/api/playbook/<playbook_id>/messages/<message_id>", methods=["PATCH"]
+)
+@require_auth
+def update_playbook_message(playbook_id, message_id):
+    """Update a single message (status, body, subject)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    msg = Message.query.filter_by(id=message_id, tenant_id=tenant_id).first()
+    if not msg:
+        return jsonify({"error": "Message not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    if "status" in data:
+        if data["status"] not in _ALLOWED_MSG_STATUSES:
+            return jsonify({"error": "Invalid status"}), 400
+        msg.status = data["status"]
+    if "body" in data:
+        msg.body = data["body"]
+    if "subject" in data:
+        msg.subject = data["subject"]
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": str(msg.id),
+            "status": msg.status,
+            "body": msg.body,
+            "subject": msg.subject,
+            "updated": True,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/<playbook_id>/messages/batch", methods=["POST"])
+@require_auth
+def batch_update_messages(playbook_id):
+    """Batch approve or reject all messages for the playbook campaign."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")
+    if action not in ("approve_all", "reject_all"):
+        return jsonify({"error": "action must be approve_all or reject_all"}), 400
+
+    campaign = Campaign.query.filter_by(tenant_id=tenant_id, strategy_id=doc.id).first()
+    if not campaign:
+        return jsonify({"error": "No campaign found"}), 404
+
+    new_status = "approved" if action == "approve_all" else "rejected"
+
+    # Get campaign contact IDs
+    cc_rows = CampaignContact.query.filter_by(
+        campaign_id=campaign.id, tenant_id=tenant_id
+    ).all()
+    cc_contact_ids = [str(cc.contact_id) for cc in cc_rows]
+
+    if not cc_contact_ids:
+        return jsonify({"updated": 0}), 200
+
+    # Fetch draft message IDs then update individually (SQLite compatible)
+    draft_msgs = Message.query.filter(
+        Message.tenant_id == tenant_id,
+        Message.contact_id.in_(cc_contact_ids),
+        Message.status == "draft",
+    ).all()
+
+    for m in draft_msgs:
+        m.status = new_status
+    db.session.commit()
+
+    return jsonify({"updated": len(draft_msgs), "status": new_status}), 200
+
+
+@playbook_bp.route("/api/playbook/<playbook_id>/confirm-messages", methods=["POST"])
+@require_auth
+def confirm_messages(playbook_id):
+    """Validate approved messages count and advance phase to campaign.
+
+    Uses _validate_phase_transition to enforce forward-transition gates,
+    persists campaign_id in playbook_selections.messages, and sets updated_by.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id, id=playbook_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    campaign = Campaign.query.filter_by(tenant_id=tenant_id, strategy_id=doc.id).first()
+    if not campaign:
+        return jsonify({"error": "No campaign found"}), 404
+
+    # Count approved messages
+    cc_rows = CampaignContact.query.filter_by(
+        campaign_id=campaign.id, tenant_id=tenant_id
+    ).all()
+    cc_contact_ids = [str(cc.contact_id) for cc in cc_rows]
+
+    approved_count = (
+        Message.query.filter(
+            Message.tenant_id == tenant_id,
+            Message.contact_id.in_(cc_contact_ids),
+            Message.status == "approved",
+        ).count()
+        if cc_contact_ids
+        else 0
+    )
+
+    if approved_count == 0:
+        return jsonify(
+            {
+                "error": "No approved messages. Approve at least one message before confirming."
+            }
+        ), 400
+
+    # Validate phase transition using the canonical gate
+    error = _validate_phase_transition(doc, doc.phase, "campaign")
+    if error:
+        return jsonify({"error": error, "current_phase": doc.phase}), 422
+
+    # Persist campaign_id in playbook_selections.messages
+    sel = _parse_jsonb_safe(doc.playbook_selections) or {}
+    msg_sel = sel.get("messages", {})
+    if not isinstance(msg_sel, dict):
+        msg_sel = {}
+    msg_sel["campaign_id"] = str(campaign.id)
+    sel["messages"] = msg_sel
+    doc.playbook_selections = json.dumps(sel)
+
+    # Advance phase and set updated_by
+    doc.phase = "campaign"
+    doc.updated_by = getattr(request, "user_id", None)
+    campaign.status = "ready"
+    db.session.commit()
+
+    return jsonify(
+        {
+            "confirmed": True,
+            "approved_count": approved_count,
+            "phase": doc.phase,
+            "campaign_status": campaign.status,
+            "campaign_id": str(campaign.id),
+        }
+    ), 200

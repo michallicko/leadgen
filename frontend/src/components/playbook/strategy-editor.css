@@ -149,6 +149,36 @@
   height: 0;
 }
 
+/* ---- Code blocks ---- */
+
+.strategy-editor .ProseMirror pre {
+  background: var(--color-surface-alt);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 0.88em;
+  line-height: 1.6;
+}
+
+/* ---- Mermaid diagrams ---- */
+
+.strategy-editor .mermaid-block {
+  /* Override ProseMirror pre styles inside mermaid blocks */
+}
+
+.strategy-editor .mermaid-block pre.mermaid-source {
+  background: transparent;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+.strategy-editor .mermaid-svg-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* ---- Selection ---- */
 
 .strategy-editor .ProseMirror ::selection {

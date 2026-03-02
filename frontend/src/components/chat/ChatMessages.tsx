@@ -13,8 +13,47 @@
 import { useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { Components } from 'react-markdown'
 import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
 import { ThinkingIndicator } from '../playbook/ThinkingIndicator'
+import { ChatMermaidBlock } from './ChatMermaidBlock'
+
+// ---------------------------------------------------------------------------
+// Markdown components (mermaid code block rendering)
+// ---------------------------------------------------------------------------
+
+const markdownComponents: Components = {
+  code({ className, children, ...props }) {
+    // Detect fenced code blocks with ```mermaid via class name
+    const langMatch = className ? /language-(\w+)/.exec(className) : null
+    const lang = langMatch?.[1]
+
+    if (lang === 'mermaid') {
+      const code = String(children).replace(/\n$/, '')
+      return <ChatMermaidBlock code={code} />
+    }
+
+    // For other fenced code blocks, render with syntax styling
+    if (className) {
+      return (
+        <code className={`${className} block bg-surface-alt rounded p-2 text-xs font-mono overflow-x-auto`} {...props}>
+          {children}
+        </code>
+      )
+    }
+
+    // Inline code
+    return (
+      <code className="bg-surface-alt px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+        {children}
+      </code>
+    )
+  },
+  pre({ children }) {
+    // Let the code component handle rendering — pre is just a pass-through
+    return <>{children}</>
+  },
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -166,7 +205,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
             <div className="chat-markdown break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {message.content}
               </ReactMarkdown>
             </div>
@@ -199,7 +238,7 @@ function StreamingBubble({ text }: { text: string }) {
       {/* Content */}
       <div className="max-w-[80%] rounded-lg px-4 py-2.5 text-sm leading-relaxed bg-surface-alt text-text border border-border-solid">
         <div className="chat-markdown break-words">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {text}
           </ReactMarkdown>
           <span className="inline-block w-[2px] h-[1em] bg-accent-cyan ml-0.5 align-text-bottom animate-pulse" />

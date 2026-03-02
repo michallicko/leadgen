@@ -18,7 +18,7 @@ import logging
 
 from sqlalchemy import text
 
-from ..models import Campaign, CampaignContact, CampaignOverlapLog, db
+from ..models import Campaign, CampaignContact, CampaignOverlapLog, StrategyDocument, db
 from .tool_registry import ToolContext, ToolDefinition
 
 logger = logging.getLogger(__name__)
@@ -213,25 +213,73 @@ def create_campaign(args: dict, ctx: ToolContext) -> dict:
     strategy_id = args.get("strategy_id")
     target_criteria = args.get("target_criteria", {})
 
+    # Auto-populate from strategy when strategy_id is provided
+    auto_channel = None
+    auto_generation_config = {}
+    if strategy_id:
+        strat_doc = StrategyDocument.query.filter_by(
+            id=strategy_id, tenant_id=ctx.tenant_id
+        ).first()
+        if strat_doc and strat_doc.extracted_data:
+            extracted = _parse_jsonb(strat_doc.extracted_data)
+            if extracted and isinstance(extracted, dict):
+                # Auto-populate target_criteria from ICP (user args override)
+                if not target_criteria:
+                    icp = extracted.get("icp", {})
+                    if icp and isinstance(icp, dict):
+                        target_criteria = icp
+
+                # Auto-populate tone from messaging
+                messaging = extracted.get("messaging", {})
+                if isinstance(messaging, dict) and messaging.get("tone"):
+                    auto_generation_config["tone"] = messaging["tone"]
+
+                # Auto-populate channel from channels.primary
+                channels = extracted.get("channels", {})
+                if isinstance(channels, dict) and channels.get("primary"):
+                    auto_channel = channels["primary"]
+
+    # Explicit user args override strategy defaults
+    channel = args.get("channel") or auto_channel
+    generation_config = args.get("generation_config", {})
+    if not generation_config and auto_generation_config:
+        generation_config = auto_generation_config
+
     campaign = Campaign(
         tenant_id=ctx.tenant_id,
         name=name,
         description=description,
         status="draft",
         strategy_id=strategy_id,
+        channel=channel,
         target_criteria=json.dumps(target_criteria)
         if isinstance(target_criteria, dict)
         else target_criteria,
+        generation_config=json.dumps(generation_config)
+        if isinstance(generation_config, dict)
+        else generation_config,
     )
     db.session.add(campaign)
     db.session.commit()
 
-    return {
+    result = {
         "campaign_id": str(campaign.id),
         "name": name,
         "status": "draft",
         "message": "Campaign '{}' created successfully.".format(name),
     }
+    # Report auto-populated fields from strategy
+    if strategy_id and (auto_channel or auto_generation_config or target_criteria):
+        auto_fields = []
+        if target_criteria:
+            auto_fields.append("target_criteria")
+        if auto_channel:
+            auto_fields.append("channel")
+        if auto_generation_config:
+            auto_fields.append("generation_config")
+        if auto_fields:
+            result["auto_populated_from_strategy"] = auto_fields
+    return result
 
 
 def assign_to_campaign(args: dict, ctx: ToolContext) -> dict:
@@ -830,7 +878,9 @@ CAMPAIGN_TOOLS = [
         name="create_campaign",
         description=(
             "Create a new outreach campaign. Returns the campaign ID. "
-            "Use this when the user wants to start a new campaign."
+            "When strategy_id is provided, auto-populates target_criteria "
+            "from ICP, tone from messaging, and channel from the strategy. "
+            "Explicit arguments override strategy defaults."
         ),
         input_schema={
             "type": "object",
@@ -846,13 +896,31 @@ CAMPAIGN_TOOLS = [
                 },
                 "strategy_id": {
                     "type": "string",
-                    "description": "Link to a strategy document",
+                    "description": (
+                        "Link to a strategy document. When provided, "
+                        "auto-populates target_criteria, channel, and "
+                        "generation_config from the strategy's extracted data."
+                    ),
                 },
                 "target_criteria": {
                     "type": "object",
                     "description": (
                         "Filter criteria used to build the contact list "
-                        "(for audit trail)"
+                        "(for audit trail). Overrides strategy ICP if provided."
+                    ),
+                },
+                "channel": {
+                    "type": "string",
+                    "description": (
+                        "Outreach channel (e.g., 'email', 'linkedin'). "
+                        "Overrides strategy channel if provided."
+                    ),
+                },
+                "generation_config": {
+                    "type": "object",
+                    "description": (
+                        "Message generation config (e.g., {tone: 'professional'}). "
+                        "Overrides strategy messaging if provided."
                     ),
                 },
             },

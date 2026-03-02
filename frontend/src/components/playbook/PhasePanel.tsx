@@ -1,20 +1,37 @@
 /**
- * PhasePanel — left-panel component switcher based on active phase.
+ * PhasePanel -- left-panel component switcher based on active phase.
  *
  * Strategy phase renders the StrategyEditor (existing).
+ * Contacts phase renders the ContactsPhasePanel with ICP pre-filters.
+ * Messages phase renders the MessagesPhasePanel.
  * Other phases render placeholder stubs for now.
  */
 
 import { StrategyEditor } from './StrategyEditor'
+import { ContactsPhasePanel } from './ContactsPhasePanel'
+import { MessagesPhasePanel } from './MessagesPhasePanel'
 
 interface PhasePanelProps {
   phase: string
   content: string | null
   onEditorUpdate: (content: string) => void
   editable: boolean
+  extractedData?: Record<string, unknown>
+  playbookSelections?: Record<string, unknown>
+  playbookId?: string
+  onPhaseAdvance?: (phase: string) => void
 }
 
-export function PhasePanel({ phase, content, onEditorUpdate, editable }: PhasePanelProps) {
+export function PhasePanel({
+  phase,
+  content,
+  onEditorUpdate,
+  editable,
+  extractedData,
+  playbookSelections,
+  playbookId,
+  onPhaseAdvance,
+}: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
       return (
@@ -22,10 +39,25 @@ export function PhasePanel({ phase, content, onEditorUpdate, editable }: PhasePa
           <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
         </div>
       )
-    case 'contacts':
-      return <PhasePlaceholder title="Contact Selection" description="Select target companies and contacts based on your ICP strategy. AI will help recommend the best matches." />
+    case 'contacts': {
+      const existingSelections =
+        (playbookSelections?.contacts as { selected_ids?: string[] })?.selected_ids ?? []
+      return (
+        <ContactsPhasePanel
+          extractedData={extractedData ?? {}}
+          existingSelections={existingSelections}
+        />
+      )
+    }
     case 'messages':
-      return <PhasePlaceholder title="Message Generation" description="Craft personalized outreach messages for your selected contacts. AI will draft messages using your strategy and enrichment data." />
+      return (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <MessagesPhasePanel
+            playbookId={playbookId}
+            onPhaseAdvance={onPhaseAdvance}
+          />
+        </div>
+      )
     case 'campaign':
       return <PhasePlaceholder title="Campaign Management" description="Configure sequencing, timing, and launch your outreach campaign." />
     default:

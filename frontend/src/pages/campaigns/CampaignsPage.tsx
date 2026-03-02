@@ -8,8 +8,10 @@ import {
   useCloneCampaign,
   type Campaign,
 } from '../../api/queries/useCampaigns'
+import { useOnboardingStatus } from '../../hooks/useOnboarding'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { CampaignsEmptyState } from '../../components/onboarding/SmartEmptyState'
 import { useToast } from '../../components/ui/Toast'
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
@@ -37,6 +39,7 @@ export function CampaignsPage() {
   const navigate = useNavigate()
   const { data, isLoading } = useCampaigns()
   const { data: templateData } = useCampaignTemplates()
+  const { data: onboardingStatus } = useOnboardingStatus()
   const createCampaign = useCreateCampaign()
   const deleteCampaign = useDeleteCampaign()
   const cloneCampaign = useCloneCampaign()
@@ -185,6 +188,14 @@ export function CampaignsPage() {
     ],
     [handleDelete, handleClone, cloneCampaign.isPending],
   )
+
+  // Show context-aware empty state when namespace has zero campaigns
+  const namespaceHasNoCampaigns =
+    onboardingStatus !== undefined && onboardingStatus.campaign_count === 0
+
+  if (namespaceHasNoCampaigns && !isLoading && campaigns.length === 0) {
+    return <CampaignsEmptyState />
+  }
 
   return (
     <div className="flex flex-col h-full">

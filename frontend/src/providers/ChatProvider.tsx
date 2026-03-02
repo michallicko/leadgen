@@ -54,6 +54,13 @@ interface ChatContextValue {
   isThinking: boolean
   activeToolName: string | null
 
+  /** Proactive analysis: streaming text for the analysis follow-up. */
+  analysisStreamingText: string
+  /** Proactive analysis: true while the analysis follow-up is streaming. */
+  isAnalysisStreaming: boolean
+  /** Dynamic suggestion chips extracted from proactive analysis. */
+  analysisSuggestions: string[]
+
   // Actions
   toggleChat: () => void
   openChat: () => void
@@ -121,6 +128,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [toolCalls, setToolCalls] = useState<ToolCallEvent[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const [activeToolName, setActiveToolName] = useState<string | null>(null)
+
+  // Proactive analysis state (BL-119)
+  const [analysisStreamingText, setAnalysisStreamingText] = useState('')
+  const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
+  const [analysisSuggestions, setAnalysisSuggestions] = useState<string[]>([])
 
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -193,6 +205,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setToolCalls([])
       setIsThinking(true)
       setActiveToolName(null)
+      setAnalysisStreamingText('')
+      setIsAnalysisStreaming(false)
+      setAnalysisSuggestions([])
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -247,6 +262,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setIsAnalysisStreaming(false)
+            setAnalysisStreamingText('')
           },
           onToolStart: (event) => {
             setIsThinking(false)
@@ -280,6 +297,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onThinking: () => {
             setIsThinking(false)
+          },
+          onAnalysisStart: () => {
+            setIsAnalysisStreaming(true)
+            setAnalysisStreamingText('')
+          },
+          onAnalysisChunk: (chunk) => {
+            setAnalysisStreamingText((prev) => prev + chunk)
+          },
+          onAnalysisDone: (data) => {
+            setIsAnalysisStreaming(false)
+            setAnalysisStreamingText('')
+            setAnalysisSuggestions(data.suggestions)
+            // Refetch to pick up the new analysis message
+            chatQuery.refetch()
           },
         },
       )
@@ -355,6 +386,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      analysisStreamingText,
+      isAnalysisStreaming,
+      analysisSuggestions,
       toggleChat,
       openChat,
       closeChat,
@@ -375,6 +409,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      analysisStreamingText,
+      isAnalysisStreaming,
+      analysisSuggestions,
       toggleChat,
       openChat,
       closeChat,

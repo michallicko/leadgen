@@ -9,6 +9,7 @@ import { useAdvancedFilters, CONTACT_MULTI_KEYS } from '../../hooks/useAdvancedF
 import { useFilterCounts } from '../../hooks/useFilterCounts'
 import { useColumnVisibility } from '../../hooks/useColumnVisibility'
 import { useChatFilterSync } from '../../hooks/useChatFilterSync'
+import { useOnboardingStatus } from '../../hooks/useOnboarding'
 import { DataTable, type SelectionMode } from '../../components/ui/DataTable'
 import { FilterSidebar, type FilterGroup } from '../../components/ui/FilterSidebar'
 import { ColumnPicker } from '../../components/ui/ColumnPicker'
@@ -16,6 +17,7 @@ import { SelectionActionBar } from '../../components/ui/SelectionActionBar'
 import { TagPicker } from '../../components/ui/TagPicker'
 import { AddToCampaignModal } from '../../components/ui/AddToCampaignModal'
 import { ChatFilterSyncBar } from '../../components/ui/ChatFilterSyncBar'
+import { ContactsEmptyState } from '../../components/onboarding/SmartEmptyState'
 import { useToast } from '../../components/ui/Toast'
 import { CONTACT_COLUMNS, CONTACT_ALWAYS_VISIBLE } from '../../config/contactColumns'
 import {
@@ -85,6 +87,7 @@ export function ContactsPage() {
   const [showCampaignModal, setShowCampaignModal] = useState(false)
 
   const { data: tagsData } = useTags()
+  const { data: onboardingStatus } = useOnboardingStatus()
   const bulkAddTags = useBulkAddTags()
   const bulkAssignCampaign = useBulkAssignCampaign()
   const matchingCount = useContactsMatchingCount()
@@ -312,6 +315,14 @@ export function ContactsPage() {
       />
     </div>
   )
+
+  // Show context-aware empty state when namespace has zero contacts
+  const namespaceHasNoContacts =
+    onboardingStatus !== undefined && onboardingStatus.contact_count === 0
+
+  if (namespaceHasNoContacts && !isLoading) {
+    return <ContactsEmptyState />
+  }
 
   return (
     <div className="flex h-full min-h-0">

@@ -8,8 +8,17 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from 'tiptap-markdown'
+import { MermaidExtension } from './MermaidExtension'
 import { STRATEGY_TEMPLATE } from './strategy-template'
 import './strategy-editor.css'
+
+// Default mermaid template inserted by the toolbar Diagram button
+const MERMAID_TEMPLATE = `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E`
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,7 +77,7 @@ function Toolbar({ editor }: ToolbarProps) {
   if (!editor) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-border-solid bg-surface">
+    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-border-solid bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
       {/* Inline marks */}
       <ToolbarBtn
         label="B"
@@ -132,6 +141,19 @@ function Toolbar({ editor }: ToolbarProps) {
             .run()
         }
       />
+      <ToolbarBtn
+        label="Diagram"
+        active={editor.isActive('codeBlock', { language: 'mermaid' })}
+        onClick={() =>
+          editor
+            .chain()
+            .focus()
+            .insertContent([
+              { type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: MERMAID_TEMPLATE }] },
+            ])
+            .run()
+        }
+      />
     </div>
   )
 }
@@ -157,7 +179,9 @@ export function StrategyEditor({
     extensions: [
       StarterKit.configure({
         heading: false, // use standalone Heading for level control
+        codeBlock: false, // replaced by MermaidExtension
       }),
+      MermaidExtension,
       Heading.configure({
         levels: [1, 2, 3],
       }),
@@ -216,7 +240,7 @@ export function StrategyEditor({
   }, [editor, content])
 
   return (
-    <div className="strategy-editor rounded-lg border border-border-solid overflow-hidden bg-surface">
+    <div className="strategy-editor rounded-lg border border-border-solid bg-surface">
       {editable && <Toolbar editor={editor} />}
       <EditorContent editor={editor} />
     </div>

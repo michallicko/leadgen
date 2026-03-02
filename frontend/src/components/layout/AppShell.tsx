@@ -6,10 +6,17 @@ import { useState } from 'react'
 import { Outlet, Navigate, useParams } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useTokenBudget } from '../../hooks/useTokenBudget'
+import {
+  useOnboardingStatus,
+  shouldShowSignpost,
+  shouldShowChecklist,
+} from '../../hooks/useOnboarding'
 import { getDefaultNamespace } from '../../lib/auth'
 import { AppNav } from './AppNav'
 import { ChatPanel } from '../chat/ChatPanel'
 import { useChatContext } from '../../providers/ChatProvider'
+import { EntrySignpost } from '../onboarding/EntrySignpost'
+import { ProgressChecklist } from '../onboarding/ProgressChecklist'
 
 // ---- Mobile floating action button for chat ----
 
@@ -43,6 +50,7 @@ function MobileFAB() {
 export function AppShell() {
   const { isAuthenticated, isLoading, user } = useAuth()
   const { namespace } = useParams<{ namespace: string }>()
+  const { data: onboardingStatus } = useOnboardingStatus()
 
   if (isLoading) {
     return (
@@ -65,12 +73,24 @@ export function AppShell() {
     }
   }
 
+  const showSignpost = shouldShowSignpost(onboardingStatus)
+  const showChecklist = shouldShowChecklist(onboardingStatus)
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppNav />
       <BudgetWarningBanner />
       <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
-        <Outlet />
+        {showSignpost ? (
+          <EntrySignpost />
+        ) : (
+          <>
+            {showChecklist && onboardingStatus && (
+              <ProgressChecklist status={onboardingStatus} />
+            )}
+            <Outlet />
+          </>
+        )}
       </div>
       <ChatPanel />
       <MobileFAB />
