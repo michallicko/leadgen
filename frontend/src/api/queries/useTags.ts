@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../client'
+import { getNamespaceFromPath } from '../../lib/auth'
 
 export interface Tag {
   id: string
@@ -28,8 +29,9 @@ interface TagsResponse {
 }
 
 export function useTags() {
+  const namespace = getNamespaceFromPath()
   return useQuery({
-    queryKey: ['tags'],
+    queryKey: ['tags', namespace],
     queryFn: () => apiFetch<TagsResponse>('/tags'),
     staleTime: 5 * 60_000,
   })
