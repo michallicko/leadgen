@@ -152,6 +152,7 @@ export function PlaybookPage() {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
+  const [extractionResult, setExtractionResult] = useState<Record<string, unknown> | null>(null)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -356,25 +357,36 @@ export function PlaybookPage() {
     try {
       const result = await extractMutation.mutateAsync()
       const extractedData = (result as Record<string, unknown>)?.extracted_data as Record<string, unknown> | undefined
-      const hasIcp = extractedData?.icp && typeof extractedData.icp === 'object' && Object.keys(extractedData.icp as object).length > 0
 
-      if (hasIcp) {
-        // Auto-advance to contacts phase
-        try {
-          await advancePhaseMutation.mutateAsync({ phase: 'contacts' })
-          toast('ICP extracted. Moving to Contacts phase...', 'success')
-          handlePhaseNavigate('contacts')
-        } catch {
-          // Phase advance failed (e.g. validation) -- stay on strategy
-          toast('Strategy data extracted successfully', 'success')
-        }
+      if (extractedData) {
+        setExtractionResult(extractedData)
       } else {
-        toast('Strategy data extracted successfully', 'success')
+        toast('Strategy data extracted but no structured data found. Try adding more detail to your strategy.', 'info')
       }
     } catch {
-      toast('Extraction failed', 'error')
+      toast('Extraction failed. Please try again.', 'error')
     }
-  }, [extractMutation, advancePhaseMutation, toast, handlePhaseNavigate])
+  }, [extractMutation, toast])
+
+  const handleExtractionConfirm = useCallback(async () => {
+    setExtractionResult(null)
+    const hasIcp = extractionResult?.icp && typeof extractionResult.icp === 'object' && Object.keys(extractionResult.icp as object).length > 0
+    if (hasIcp) {
+      try {
+        await advancePhaseMutation.mutateAsync({ phase: 'contacts' })
+        toast('Moving to Contacts phase...', 'success')
+        handlePhaseNavigate('contacts')
+      } catch {
+        toast('ICP extracted successfully', 'success')
+      }
+    } else {
+      toast('Data extracted. Add ICP details to your strategy to unlock contact filtering.', 'info')
+    }
+  }, [extractionResult, advancePhaseMutation, toast, handlePhaseNavigate])
+
+  const handleExtractionDismiss = useCallback(() => {
+    setExtractionResult(null)
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Undo AI edit handler
@@ -631,8 +643,8 @@ export function PlaybookPage() {
             </button>
           )}
 
-          {/* Phase-specific action button */}
-          {viewPhase === 'strategy' ? (
+          {/* Phase-specific action button (strategy only -- other phases have panel-level actions) */}
+          {viewPhase === 'strategy' && (
             <button
               onClick={handleExtract}
               disabled={extractMutation.isPending || saveStatus === 'saving'}
@@ -641,13 +653,6 @@ export function PlaybookPage() {
             >
               <ExtractIcon />
               {extractMutation.isPending ? phaseAction.pendingLabel : phaseAction.label}
-            </button>
-          ) : (
-            <button
-              disabled
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan"
-            >
-              {phaseAction.label}
             </button>
           )}
         </div>
@@ -732,6 +737,15 @@ export function PlaybookPage() {
         </div>
       )}
 
+      {/* Extraction summary dialog */}
+      {extractionResult && (
+        <ExtractionSummaryDialog
+          data={extractionResult}
+          onConfirm={handleExtractionConfirm}
+          onDismiss={handleExtractionDismiss}
+        />
+      )}
+
       {/* Phase indicator */}
       <PhaseIndicator
         current={viewPhase}
@@ -771,6 +785,171 @@ export function PlaybookPage() {
             suggestions={activeSuggestions}
           />
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Extraction Summary Dialog
+// ---------------------------------------------------------------------------
+
+interface ExtractionSummaryDialogProps {
+  data: Record<string, unknown>
+  onConfirm: () => void
+  onDismiss: () => void
+}
+
+function ExtractionSummaryDialog({ data, onConfirm, onDismiss }: ExtractionSummaryDialogProps) {
+  const icp = data.icp as Record<string, unknown> | undefined
+  const personas = data.personas as Array<Record<string, unknown>> | undefined
+  const messaging = data.messaging as Record<string, unknown> | undefined
+  const channels = data.channels as Record<string, unknown> | undefined
+
+  const industries = (icp?.industries as string[]) ?? []
+  const geographies = (icp?.geographies as string[]) ?? []
+  const techSignals = (icp?.tech_signals as string[]) ?? []
+  const triggers = (icp?.triggers as string[]) ?? []
+  const disqualifiers = (icp?.disqualifiers as string[]) ?? []
+  const companySize = icp?.company_size as { min?: number; max?: number } | undefined
+
+  const titlePatterns = personas?.flatMap((p) => (p.title_patterns as string[]) ?? []) ?? []
+  const themes = (messaging?.themes as string[]) ?? []
+  const primaryChannel = (channels?.primary as string) ?? ''
+
+  const hasIcp = industries.length > 0 || geographies.length > 0 || titlePatterns.length > 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-surface border border-border-solid rounded-lg shadow-lg max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-3 flex items-center gap-3 border-b border-border">
+          <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="text-success">
+              <path d="M4 9l3.5 3.5 6.5-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-text">Extraction Complete</h3>
+            <p className="text-xs text-text-muted">
+              {hasIcp
+                ? 'Your ICP criteria have been extracted from the strategy.'
+                : 'Basic data extracted. Add ICP details for better contact filtering.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+          {/* ICP section */}
+          {(industries.length > 0 || geographies.length > 0) && (
+            <ExtractionSection title="Target Market">
+              {industries.length > 0 && (
+                <ExtractionRow label="Industries" values={industries} />
+              )}
+              {geographies.length > 0 && (
+                <ExtractionRow label="Geographies" values={geographies} />
+              )}
+              {companySize && (companySize.min || companySize.max) ? (
+                <ExtractionRow
+                  label="Company Size"
+                  values={[`${companySize.min || 0} - ${companySize.max || '1000+'} employees`]}
+                />
+              ) : null}
+            </ExtractionSection>
+          )}
+
+          {/* Personas section */}
+          {titlePatterns.length > 0 && (
+            <ExtractionSection title="Target Roles">
+              <ExtractionRow label="Job Titles" values={titlePatterns} />
+            </ExtractionSection>
+          )}
+
+          {/* Signals section */}
+          {(techSignals.length > 0 || triggers.length > 0 || disqualifiers.length > 0) && (
+            <ExtractionSection title="Signals">
+              {techSignals.length > 0 && (
+                <ExtractionRow label="Tech Signals" values={techSignals} />
+              )}
+              {triggers.length > 0 && (
+                <ExtractionRow label="Triggers" values={triggers} />
+              )}
+              {disqualifiers.length > 0 && (
+                <ExtractionRow label="Disqualifiers" values={disqualifiers} color="text-error" />
+              )}
+            </ExtractionSection>
+          )}
+
+          {/* Messaging section */}
+          {(themes.length > 0 || primaryChannel) && (
+            <ExtractionSection title="Messaging">
+              {themes.length > 0 && (
+                <ExtractionRow label="Themes" values={themes} />
+              )}
+              {primaryChannel && (
+                <ExtractionRow label="Primary Channel" values={[primaryChannel]} />
+              )}
+            </ExtractionSection>
+          )}
+
+          {/* Empty state if nothing meaningful extracted */}
+          {!hasIcp && themes.length === 0 && techSignals.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-sm text-text-muted">
+                No structured criteria could be extracted. Try adding more specific ICP details to your strategy document.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+          <button
+            onClick={onDismiss}
+            className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+          >
+            Stay on Strategy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer flex items-center gap-2"
+          >
+            {hasIcp ? 'Continue to Contacts' : 'OK'}
+            {hasIcp && (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7h8M8 3l3 4-3 4" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExtractionSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">{title}</h4>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  )
+}
+
+function ExtractionRow({ label, values, color }: { label: string; values: string[]; color?: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="text-xs text-text-muted w-24 flex-shrink-0 pt-0.5">{label}</span>
+      <div className="flex flex-wrap gap-1">
+        {values.map((v, i) => (
+          <span
+            key={i}
+            className={`inline-flex px-2 py-0.5 text-xs rounded-md bg-surface-alt border border-border ${color ?? 'text-text'}`}
+          >
+            {v}
+          </span>
+        ))}
       </div>
     </div>
   )
