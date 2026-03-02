@@ -106,7 +106,7 @@ export function useDeleteStrategyTemplate() {
 // Apply template (AI merge)
 // ---------------------------------------------------------------------------
 
-export function useApplyStrategyTemplate() {
+export function useApplyStrategyTemplate(options?: { onError?: (err: Error) => void }) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (templateId: string) =>
@@ -118,5 +118,6 @@ export function useApplyStrategyTemplate() {
       qc.invalidateQueries({ queryKey: ['playbook'] })
       qc.invalidateQueries({ queryKey: ['strategy-templates'] })
     },
+    onError: options?.onError,
   })
 }
