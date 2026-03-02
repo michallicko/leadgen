@@ -39,6 +39,12 @@ export interface DoneEventData {
   changesSummary?: string | null
 }
 
+/** Payload from the `analysis_done` event. */
+export interface AnalysisDoneEventData {
+  messageId: string
+  suggestions: string[]
+}
+
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
   onDone: (data: DoneEventData) => void
@@ -49,6 +55,12 @@ export interface UseSSECallbacks {
   onToolResult?: (result: ToolResultEvent) => void
   /** Fired when the AI emits a thinking/reasoning block (v2/optional). */
   onThinking?: (text: string) => void
+  /** Fired when proactive analysis starts streaming (after strategy edits). */
+  onAnalysisStart?: () => void
+  /** Fired for each text chunk of the proactive analysis. */
+  onAnalysisChunk?: (text: string) => void
+  /** Fired when proactive analysis completes with extracted suggestions. */
+  onAnalysisDone?: (data: AnalysisDoneEventData) => void
 }
 
 interface UseSSEReturn {
@@ -122,6 +134,15 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
     })
   } else if (eventType === 'thinking') {
     callbacks.onThinking?.((event.text as string) ?? '')
+  } else if (eventType === 'analysis_start') {
+    callbacks.onAnalysisStart?.()
+  } else if (eventType === 'analysis_chunk') {
+    callbacks.onAnalysisChunk?.(event.text as string)
+  } else if (eventType === 'analysis_done') {
+    callbacks.onAnalysisDone?.({
+      messageId: event.message_id as string,
+      suggestions: (event.suggestions as string[]) ?? [],
+    })
   }
 }
 

@@ -1364,6 +1364,90 @@ Break your strategy into concrete weekly/monthly milestones for the first 90 day
     ).strip()
 
 
+def build_proactive_analysis_prompt(strategy_content, enrichment_data=None):
+    """Build a follow-up prompt that instructs the AI to proactively analyze
+    the strategy it just generated and offer improvement suggestions.
+
+    The prompt guides the AI to:
+    - Read the strategy document content provided
+    - Identify 2-3 specific improvement suggestions grounded in actual content
+    - Format suggestions as assumption-targeting questions
+    - Reference specific sections, industries, personas, channels from the Brief
+    - Never use generic advice
+
+    Args:
+        strategy_content: The strategy document markdown string.
+        enrichment_data: Optional dict of company enrichment data to ground
+            suggestions in research findings.
+
+    Returns:
+        str: A user-message prompt for the AI to generate proactive analysis.
+    """
+    parts = [
+        "You just generated or updated the Strategic Brief below. Now proactively "
+        "analyze it and suggest 2-3 specific improvements. Follow these rules strictly:",
+        "",
+        "RULES:",
+        "- Each suggestion MUST reference a specific section, industry, persona, "
+        "channel, or metric from the document. Quote or name the exact element.",
+        "- Frame each suggestion as a question the user can say yes/no to, "
+        'e.g. "Your ICP targets SaaS broadly. Want me to narrow it to healthcare SaaS?"',
+        "- NEVER give generic advice like 'consider your target market' or "
+        "'think about your value proposition'. Every suggestion must be grounded "
+        "in something concrete from the document.",
+        "- Keep total response under 120 words. Use a numbered list.",
+        "- End with a one-line prompt like: 'Pick a number, or ask me anything else.'",
+        "",
+    ]
+
+    # Include enrichment context for data-grounded suggestions
+    if enrichment_data:
+        enrichment_hints = []
+        co = enrichment_data.get("company") or {}
+        if co.get("industry"):
+            enrichment_hints.append(
+                "Company industry: {}".format(co["industry"])
+            )
+        if enrichment_data.get("competitors"):
+            enrichment_hints.append(
+                "Known competitors: {}".format(enrichment_data["competitors"])
+            )
+        if enrichment_data.get("pain_hypothesis"):
+            enrichment_hints.append(
+                "Pain hypothesis: {}".format(enrichment_data["pain_hypothesis"])
+            )
+        if enrichment_data.get("ai_opportunities"):
+            enrichment_hints.append(
+                "AI opportunities identified: {}".format(
+                    str(enrichment_data["ai_opportunities"])[:200]
+                )
+            )
+        if enrichment_data.get("customer_segments"):
+            enrichment_hints.append(
+                "Customer segments: {}".format(enrichment_data["customer_segments"])
+            )
+        if enrichment_data.get("hiring_signals"):
+            enrichment_hints.append(
+                "Hiring signals: {}".format(enrichment_data["hiring_signals"])
+            )
+        if enrichment_hints:
+            parts.append("RESEARCH DATA (use to ground suggestions):")
+            parts.extend("- {}".format(h) for h in enrichment_hints)
+            parts.append("")
+            parts.append(
+                "Cross-reference the research data with the strategy. If the strategy "
+                "misses something the research reveals, suggest adding it. If the "
+                "strategy makes assumptions the research contradicts, flag it."
+            )
+            parts.append("")
+
+    parts.append("--- Strategy Document ---")
+    parts.append(strategy_content[:4000] if strategy_content else "(empty)")
+    parts.append("--- End of Strategy Document ---")
+
+    return "\n".join(parts)
+
+
 def build_messages(chat_history, user_message):
     """Convert DB chat history into Anthropic API message format.
 
