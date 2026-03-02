@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { Tabs } from '../../components/ui/Tabs'
 import { getImportResults } from '../../api/queries/useImports'
 import type { ImportResponse, ImportResultItem } from '../../api/queries/useImports'
@@ -161,6 +161,8 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
 export function ImportSuccess({ response, jobId, onReset }: ImportSuccessProps) {
   const navigate = useNavigate()
   const { namespace } = useParams<{ namespace: string }>()
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('return')
   const { created, skipped, updated, errors } = response
 
   const tabs = useMemo(() => [
@@ -231,12 +233,21 @@ export function ImportSuccess({ response, jobId, onReset }: ImportSuccessProps) 
 
       {/* Action links */}
       <div className="flex justify-center gap-3 mb-8 flex-wrap">
-        <button
-          onClick={() => navigate(`/${namespace}/enrich`)}
-          className="bg-accent-cyan text-bg font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity text-sm"
-        >
-          Enrich Now
-        </button>
+        {returnTo === 'playbook' ? (
+          <button
+            onClick={() => navigate(`/${namespace}/playbook/contacts`)}
+            className="bg-accent text-white font-semibold px-4 py-2 rounded-md hover:bg-accent-hover transition-colors text-sm"
+          >
+            Return to Playbook
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate(`/${namespace}/enrich`)}
+            className="bg-accent-cyan text-bg font-semibold px-4 py-2 rounded-md hover:opacity-90 transition-opacity text-sm"
+          >
+            Enrich Now
+          </button>
+        )}
         <button
           onClick={() => navigate(`/${namespace}/contacts`)}
           className="border border-border text-text-muted px-4 py-2 rounded-md hover:bg-surface-alt transition-colors text-sm"

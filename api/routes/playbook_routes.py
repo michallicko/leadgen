@@ -22,6 +22,7 @@ from ..models import (
     CompanyEnrichmentSignals,
     CompanyEnrichmentMarket,
     Contact,
+    EnrichmentConfig,
     Message,
     PLAYBOOK_PHASES,
     PlaybookLog,
@@ -389,10 +390,37 @@ def extract_strategy():
     doc.extracted_data = extracted_data
     db.session.commit()
 
+    # Sync ICP criteria to enrichment triage config (BL-139)
+    triage_synced = _sync_icp_to_triage(tenant_id, extracted_data, user_id)
+
     return jsonify(
         {
             "extracted_data": extracted_data,
             "version": doc.version,
+            "triage_synced": triage_synced,
+        }
+    ), 200
+
+
+@playbook_bp.route("/api/playbook/triage-config", methods=["GET"])
+@require_auth
+def get_icp_triage_config():
+    """Return the enrichment triage config derived from ICP extraction."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    ec = EnrichmentConfig.query.filter_by(
+        tenant_id=tenant_id, name=ICP_TRIAGE_CONFIG_NAME
+    ).first()
+
+    if not ec:
+        return jsonify({"config": None, "source": None}), 200
+
+    return jsonify(
+        {
+            "config": ec.to_dict(),
+            "source": "gtm_strategy",
         }
     ), 200
 
@@ -668,6 +696,85 @@ def confirm_contact_selection():
             "playbook_selections": doc.playbook_selections,
         }
     ), 200
+
+
+ICP_TRIAGE_CONFIG_NAME = "From GTM Strategy"
+
+
+def _sync_icp_to_triage(tenant_id, extracted_data, user_id=None):
+    """Upsert enrichment triage config from extracted ICP criteria.
+
+    Maps ICP fields to triage rules (industry_allowlist, geo_allowlist,
+    min_employees) and stores them as an EnrichmentConfig named
+    "From GTM Strategy". Returns True if config was created/updated.
+    """
+    if not extracted_data or not isinstance(extracted_data, dict):
+        return False
+
+    icp = extracted_data.get("icp")
+    if not icp or not isinstance(icp, dict):
+        return False
+
+    # Build triage rules from ICP criteria
+    triage_rules = {}
+
+    industries = icp.get("industries")
+    if industries and isinstance(industries, list):
+        triage_rules["industry_allowlist"] = [
+            ind for ind in industries if isinstance(ind, str) and ind.strip()
+        ]
+
+    geographies = icp.get("geographies")
+    if geographies and isinstance(geographies, list):
+        triage_rules["geo_allowlist"] = [
+            geo for geo in geographies if isinstance(geo, str) and geo.strip()
+        ]
+
+    company_size = icp.get("company_size")
+    if isinstance(company_size, dict):
+        min_emp = company_size.get("min")
+        if min_emp and isinstance(min_emp, (int, float)) and min_emp > 0:
+            triage_rules["min_employees"] = int(min_emp)
+
+    disqualifiers = icp.get("disqualifiers")
+    if disqualifiers and isinstance(disqualifiers, list):
+        triage_rules["disqualifier_signals"] = [
+            d for d in disqualifiers if isinstance(d, str) and d.strip()
+        ]
+
+    if not triage_rules:
+        return False
+
+    # Add metadata
+    triage_rules["source"] = "gtm_strategy"
+
+    try:
+        existing = EnrichmentConfig.query.filter_by(
+            tenant_id=tenant_id, name=ICP_TRIAGE_CONFIG_NAME
+        ).first()
+
+        config_json = json.dumps(triage_rules)
+
+        if existing:
+            existing.config = config_json
+            existing.description = "Auto-populated from GTM Strategy ICP extraction"
+        else:
+            ec = EnrichmentConfig(
+                tenant_id=tenant_id,
+                name=ICP_TRIAGE_CONFIG_NAME,
+                description="Auto-populated from GTM Strategy ICP extraction",
+                config=config_json,
+                is_default=False,
+                created_by=user_id,
+            )
+            db.session.add(ec)
+
+        db.session.commit()
+        return True
+    except Exception:
+        logger.exception("Failed to sync ICP to triage config")
+        db.session.rollback()
+        return False
 
 
 def _get_or_create_document(tenant_id):
