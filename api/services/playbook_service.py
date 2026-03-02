@@ -321,6 +321,13 @@ PHASE_INSTRUCTIONS = {
         "- Adjust filters based on their priorities\n"
         "- Select specific contacts for outreach\n"
         "- Consider contact quality and engagement signals\n\n"
+        "ENRICHMENT CHECK (proactive):\n"
+        "If contacts have not been enriched, proactively suggest it:\n"
+        "1. Call `estimate_enrichment_cost` with the relevant tag to get cost breakdown\n"
+        "2. Present the cost estimate to the user (eligible companies, credits, stages)\n"
+        "3. Ask: 'Ready to start enrichment? This will cost approximately X credits.'\n"
+        "4. Only call `start_enrichment` with confirmed=true AFTER the user approves\n"
+        "5. NEVER auto-start enrichment — always show costs and wait for approval\n\n"
         "When contacts are selected, suggest moving to Messages phase."
     ),
     "messages": (
