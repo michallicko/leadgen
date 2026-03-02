@@ -11,12 +11,14 @@ import {
   type PlaybookContactsFilters,
 } from '../../api/queries/usePlaybookContacts'
 import { DataTable, type Column } from '../ui/DataTable'
+import { useToast } from '../ui/Toast'
 
 // ── Types ────────────────────────────────────────────────────
 
 interface ContactsPhaseProps {
   extractedData: Record<string, unknown>
   existingSelections?: string[]
+  onPhaseAdvance?: (phase: string) => void
 }
 
 interface ContactRow {
@@ -158,7 +160,8 @@ function FilterChips({
 
 // ── Main component ───────────────────────────────────────────
 
-export function ContactsPhasePanel({ extractedData, existingSelections }: ContactsPhaseProps) {
+export function ContactsPhasePanel({ extractedData, existingSelections, onPhaseAdvance }: ContactsPhaseProps) {
+  const { toast } = useToast()
   // Filter state (initially derived from ICP, user can modify)
   const [filterOverrides, setFilterOverrides] = useState<PlaybookContactsFilters>({})
   const [page, setPage] = useState(1)
@@ -235,8 +238,17 @@ export function ContactsPhasePanel({ extractedData, existingSelections }: Contac
   const handleConfirm = useCallback(() => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    confirmMutation.mutate(ids)
-  }, [selectedIds, confirmMutation])
+    confirmMutation.mutate(ids, {
+      onSuccess: (res) => {
+        const count = res.selected_count ?? ids.length
+        toast(`${count} contact${count !== 1 ? 's' : ''} confirmed. Moving to Messages...`, 'success')
+        onPhaseAdvance?.('messages')
+      },
+      onError: () => {
+        toast('Failed to confirm selection. Please try again.', 'error')
+      },
+    })
+  }, [selectedIds, confirmMutation, toast, onPhaseAdvance])
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
