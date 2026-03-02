@@ -288,8 +288,8 @@ PHASE_INSTRUCTIONS = {
         "- At least 2 buyer personas with real title patterns\n"
         "- Messaging angles grounded in research (not generic)\n"
         "- Channel strategy has rationale tied to the ICP\n"
-        "Use `check_readiness` to evaluate, and if ready, suggest: \"Your strategy "
-        "has solid foundations. Ready to move to the Contacts phase?\"\n\n"
+        'Use `check_readiness` to evaluate, and if ready, suggest: "Your strategy '
+        'has solid foundations. Ready to move to the Contacts phase?"\n\n'
         "SUBSEQUENT MESSAGES:\n"
         "- Reference the Strategic Brief and update it based on user feedback\n"
         "- Use `update_strategy_section` to write validated findings into the "
@@ -1487,7 +1487,9 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
     )
     challenge_section = ""
     if challenge_heading and challenge_content:
-        challenge_section = "\n\n## {}\n\n{}".format(challenge_heading, challenge_content)
+        challenge_section = "\n\n## {}\n\n{}".format(
+            challenge_heading, challenge_content
+        )
 
     return """# {header}
 
@@ -1547,7 +1549,9 @@ def _build_empty_template(objective=None, challenge_type=None):
     )
     challenge_section = ""
     if challenge_heading and challenge_content:
-        challenge_section = "\n\n## {}\n\n{}".format(challenge_heading, challenge_content)
+        challenge_section = "\n\n## {}\n\n{}".format(
+            challenge_heading, challenge_content
+        )
 
     return """# GTM Strategy
 
@@ -1632,9 +1636,7 @@ def build_proactive_analysis_prompt(strategy_content, enrichment_data=None):
         enrichment_hints = []
         co = enrichment_data.get("company") or {}
         if co.get("industry"):
-            enrichment_hints.append(
-                "Company industry: {}".format(co["industry"])
-            )
+            enrichment_hints.append("Company industry: {}".format(co["industry"]))
         if enrichment_data.get("competitors"):
             enrichment_hints.append(
                 "Known competitors: {}".format(enrichment_data["competitors"])

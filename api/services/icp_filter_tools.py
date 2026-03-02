@@ -38,6 +38,7 @@ def _parse_jsonb(val):
 # ICP field → contact filter mapping
 # ---------------------------------------------------------------------------
 
+
 def _map_icp_to_filters(icp: dict) -> dict:
     """Map ICP extracted_data fields to contact filter parameters.
 
@@ -180,10 +181,7 @@ def _build_top_segments(tenant_id: str, filters: dict) -> list[dict]:
         params,
     ).fetchall()
 
-    return [
-        {"segment": r[0] or "Unknown", "count": r[1]}
-        for r in rows
-    ]
+    return [{"segment": r[0] or "Unknown", "count": r[1]} for r in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -245,22 +243,18 @@ def apply_icp_filters(args: dict, ctx: ToolContext) -> dict:
     # Build human-readable description of applied filters
     desc_parts = []
     if "industries" in filters:
-        desc_parts.append(
-            "industries: {}".format(", ".join(filters["industries"]))
-        )
+        desc_parts.append("industries: {}".format(", ".join(filters["industries"])))
     if "geo_regions" in filters:
-        desc_parts.append(
-            "regions: {}".format(", ".join(filters["geo_regions"]))
-        )
+        desc_parts.append("regions: {}".format(", ".join(filters["geo_regions"])))
     if "seniority_levels" in filters:
         desc_parts.append(
             "seniority: {}".format(", ".join(filters["seniority_levels"]))
         )
     if "company_sizes" in filters:
-        desc_parts.append(
-            "size: {}".format(", ".join(filters["company_sizes"]))
-        )
-    description = "ICP filters: " + "; ".join(desc_parts) if desc_parts else "ICP filters applied"
+        desc_parts.append("size: {}".format(", ".join(filters["company_sizes"])))
+    description = (
+        "ICP filters: " + "; ".join(desc_parts) if desc_parts else "ICP filters applied"
+    )
 
     return {
         "total_matches": total_matches,

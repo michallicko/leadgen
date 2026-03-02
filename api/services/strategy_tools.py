@@ -438,16 +438,19 @@ def check_readiness(args: dict, ctx: ToolContext) -> dict:
             channels = {}
     has_primary = bool(channels.get("primary"))
     # Also check document content for channel rationale
-    has_channel_section = "## Channel Strategy" in content and len(
-        content.split("## Channel Strategy")[1].split("##")[0].strip()
-    ) > 50
+    has_channel_section = (
+        "## Channel Strategy" in content
+        and len(content.split("## Channel Strategy")[1].split("##")[0].strip()) > 50
+    )
     if has_primary and has_channel_section:
         checks_passed += 1
     else:
         if not has_primary:
             gaps.append("Channel strategy needs a primary channel defined")
         if not has_channel_section:
-            gaps.append("Channel strategy section needs rationale (currently too brief)")
+            gaps.append(
+                "Channel strategy section needs rationale (currently too brief)"
+            )
 
     # Calculate readiness score
     score = round(checks_passed / total_checks, 2) if total_checks > 0 else 0.0

@@ -140,13 +140,15 @@ def _classify_contacts(tenant_id: str, filters: dict) -> dict:
             category = "needs_l1"
 
         summary[category] += 1
-        contacts.append({
-            "contact_id": r[0],
-            "company_id": r[1],
-            "industry": r[2],
-            "seniority_level": r[3],
-            "category": category,
-        })
+        contacts.append(
+            {
+                "contact_id": r[0],
+                "company_id": r[1],
+                "industry": r[2],
+                "seniority_level": r[3],
+                "category": category,
+            }
+        )
 
     return {"contacts": contacts, "summary": summary}
 
@@ -232,9 +234,7 @@ def _generate_recommendations(
     if total > 0 and needs_l1 / total > 0.3:
         recs.append(
             "{} contacts ({:.0f}%) have no enrichment data. "
-            "Start with L1 company enrichment.".format(
-                needs_l1, needs_l1 / total * 100
-            )
+            "Start with L1 company enrichment.".format(needs_l1, needs_l1 / total * 100)
         )
 
     # Check for specific segments with high gap rates
@@ -326,7 +326,12 @@ def get_enrichment_gaps(args: dict, ctx: ToolContext) -> dict:
     filters = _map_icp_to_filters(icp)
 
     # Apply filter overrides (allowlisted keys only)
-    ALLOWED_FILTER_KEYS = {"industries", "seniority_levels", "geo_regions", "company_sizes"}
+    ALLOWED_FILTER_KEYS = {
+        "industries",
+        "seniority_levels",
+        "geo_regions",
+        "company_sizes",
+    }
     if filter_overrides and isinstance(filter_overrides, dict):
         for k, v in filter_overrides.items():
             if k in ALLOWED_FILTER_KEYS and isinstance(v, list) and v:

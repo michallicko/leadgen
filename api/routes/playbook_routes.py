@@ -1323,26 +1323,20 @@ def _stream_agent_response(
             try:
                 with app.app_context():
                     # Load the freshly-updated strategy document
-                    doc = StrategyDocument.query.filter_by(
-                        tenant_id=tenant_id
-                    ).first()
+                    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
                     strategy_content = doc.content if doc else ""
 
                     # Load enrichment data for grounded suggestions
                     enrichment_data = None
                     if doc and doc.enrichment_id:
-                        enrichment_data = _load_enrichment_data(
-                            doc.enrichment_id
-                        )
+                        enrichment_data = _load_enrichment_data(doc.enrichment_id)
 
                     analysis_prompt = build_proactive_analysis_prompt(
                         strategy_content, enrichment_data
                     )
 
                 # Signal the frontend that analysis is starting
-                yield "data: {}\n\n".format(
-                    json.dumps({"type": "analysis_start"})
-                )
+                yield "data: {}\n\n".format(json.dumps({"type": "analysis_start"}))
 
                 # Stream the analysis response (simple query, no tools)
                 analysis_parts = []

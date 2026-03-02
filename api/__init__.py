@@ -25,7 +25,14 @@ def create_app():
     from .services.strategy_tools import STRATEGY_TOOLS
     from .services.tool_registry import register_tool
 
-    for tool in STRATEGY_TOOLS + ANALYZE_TOOLS + SEARCH_TOOLS + CAMPAIGN_TOOLS + ICP_FILTER_TOOLS + ENRICHMENT_TOOLS:
+    for tool in (
+        STRATEGY_TOOLS
+        + ANALYZE_TOOLS
+        + SEARCH_TOOLS
+        + CAMPAIGN_TOOLS
+        + ICP_FILTER_TOOLS
+        + ENRICHMENT_TOOLS
+    ):
         try:
             register_tool(tool)
         except ValueError:

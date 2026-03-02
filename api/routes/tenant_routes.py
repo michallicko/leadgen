@@ -287,13 +287,9 @@ def get_onboarding_status():
     campaign_count = Campaign.query.filter_by(tenant_id=tenant_id).count()
 
     # Check if a strategy document exists with content
-    strategy_doc = StrategyDocument.query.filter_by(
-        tenant_id=tenant_id
-    ).first()
+    strategy_doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
     has_strategy = bool(
-        strategy_doc
-        and strategy_doc.content
-        and strategy_doc.content.strip()
+        strategy_doc and strategy_doc.content and strategy_doc.content.strip()
     )
 
     settings = _parse_settings(tenant)
@@ -340,9 +336,7 @@ def patch_onboarding_settings():
     if "onboarding_path" in data:
         val = data["onboarding_path"]
         if val is not None and val not in VALID_ONBOARDING_PATHS:
-            return jsonify(
-                {"error": f"Invalid onboarding_path: {val}"}
-            ), 400
+            return jsonify({"error": f"Invalid onboarding_path: {val}"}), 400
         if val is None:
             current.pop("onboarding_path", None)
         else:
@@ -351,9 +345,7 @@ def patch_onboarding_settings():
     if "checklist_dismissed" in data:
         val = data["checklist_dismissed"]
         if not isinstance(val, bool):
-            return jsonify(
-                {"error": "checklist_dismissed must be a boolean"}
-            ), 400
+            return jsonify({"error": "checklist_dismissed must be a boolean"}), 400
         current["checklist_dismissed"] = val
 
     tenant.settings = current

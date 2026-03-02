@@ -7,7 +7,14 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from ..auth import require_auth, require_role, resolve_tenant
 from ..display import display_campaign_status, display_tier, display_status
-from ..models import Campaign, CampaignContact, CampaignTemplate, LinkedInSendQueue, StrategyDocument, db
+from ..models import (
+    Campaign,
+    CampaignContact,
+    CampaignTemplate,
+    LinkedInSendQueue,
+    StrategyDocument,
+    db,
+)
 from ..services.message_generator import estimate_generation_cost, start_generation
 from ..services.send_service import get_send_status, send_campaign_emails
 
