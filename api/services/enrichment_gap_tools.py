@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 STAGE_L1 = "l1_company"
 STAGE_L2 = "l2_deep_research"
-STAGE_PERSON = "person_enrichment"
+STAGE_PERSON = "person"
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +284,12 @@ def get_enrichment_gaps(args: dict, ctx: ToolContext) -> dict:
     filter_overrides = args.get("filters") or {}
     group_by = args.get("group_by") or ["industry", "seniority_level"]
 
+    # Validate group_by dimensions
+    VALID_GROUP_BY = {"industry", "seniority_level"}
+    group_by = [dim for dim in group_by if dim in VALID_GROUP_BY]
+    if not group_by:
+        group_by = ["industry", "seniority_level"]
+
     # Get strategy document
     if strategy_id:
         doc = StrategyDocument.query.filter_by(
@@ -319,9 +325,12 @@ def get_enrichment_gaps(args: dict, ctx: ToolContext) -> dict:
     # Map ICP to filters
     filters = _map_icp_to_filters(icp)
 
-    # Apply filter overrides
+    # Apply filter overrides (allowlisted keys only)
+    ALLOWED_FILTER_KEYS = {"industries", "seniority_levels", "geo_regions", "company_sizes"}
     if filter_overrides and isinstance(filter_overrides, dict):
-        filters.update(filter_overrides)
+        for k, v in filter_overrides.items():
+            if k in ALLOWED_FILTER_KEYS and isinstance(v, list) and v:
+                filters[k] = v
 
     if not filters:
         return {
@@ -369,9 +378,9 @@ ENRICHMENT_TOOLS = [
             "type": "object",
             "properties": {
                 "strategy_id": {
-                    "type": "integer",
+                    "type": "string",
                     "description": (
-                        "Strategy document ID. Defaults to the tenant's "
+                        "Strategy document UUID. Defaults to the tenant's "
                         "active strategy if not provided."
                     ),
                 },
