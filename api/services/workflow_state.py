@@ -1,7 +1,7 @@
-"""Workflow state machine — computes the user's position in the GTM flow.
+"""Workflow state computation — determines the user's position in the GTM flow.
 
-The state is COMPUTED from actual data, not stored. The WorkflowTransition
-table records explicit phase transitions with metadata for audit and context.
+The state is COMPUTED from actual data (strategy docs, contacts, enrichments,
+messages, campaigns), not stored. Called by the onboarding-status endpoint.
 
 Phase order (each phase implies all previous are completed):
   no_strategy -> strategy_draft -> strategy_ready -> contacts_imported ->
