@@ -87,7 +87,7 @@ export function PlaybookChat({
               key={suggestion}
               type="button"
               onClick={() => onSendMessage(suggestion)}
-              className="px-3 py-1.5 text-xs font-medium rounded-full border border-accent/30 text-accent hover:bg-accent/10 transition-colors bg-transparent cursor-pointer"
+              className="px-3 py-1.5 text-xs font-medium rounded-full border border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/10 transition-colors bg-transparent cursor-pointer"
             >
               {suggestion}
             </button>

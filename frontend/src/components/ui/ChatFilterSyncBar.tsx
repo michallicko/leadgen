@@ -37,12 +37,12 @@ export function ChatFilterSyncBar({ pending, onAccept, onDismiss }: ChatFilterSy
 
   return (
     <div
-      className="flex items-center gap-2 px-4 py-2 bg-accent/8 border border-accent/20 rounded-lg mb-3"
+      className="flex items-center gap-2 px-4 py-2 bg-accent-cyan/8 border border-accent-cyan/20 rounded-lg mb-3"
       role="alert"
       style={{ animation: 'chatFilterSlideIn 0.2s ease-out' }}
     >
       {/* Icon */}
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-accent flex-shrink-0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-accent-cyan flex-shrink-0">
         <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.5 3.5h1v4h-1v-4zm0 5h1v1h-1v-1z" fill="currentColor" />
       </svg>
 
@@ -52,7 +52,7 @@ export function ChatFilterSyncBar({ pending, onAccept, onDismiss }: ChatFilterSy
         {filterPills.map((pill) => (
           <span
             key={pill.key}
-            className="inline-flex items-center px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[11px]"
+            className="inline-flex items-center px-1.5 py-0.5 rounded bg-accent-cyan/15 text-accent-cyan text-[11px]"
           >
             {pill.key}: {pill.value}
           </span>
@@ -64,7 +64,7 @@ export function ChatFilterSyncBar({ pending, onAccept, onDismiss }: ChatFilterSy
         <button
           type="button"
           onClick={handleAccept}
-          className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-accent text-white border-none cursor-pointer hover:bg-accent-hover transition-colors"
+          className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-accent-cyan text-white border-none cursor-pointer hover:bg-accent-cyan/80 transition-colors"
         >
           Apply
         </button>
