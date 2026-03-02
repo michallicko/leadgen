@@ -71,13 +71,17 @@ def _setup_playbook_with_contacts(db, seed_tenant, seed_super_admin):
         tenant_id=seed_tenant.id,
         status="active",
         phase="messages",
-        playbook_selections=json.dumps({
-            "contacts": {"selected_ids": contact_ids},
-        }),
-        extracted_data=json.dumps({
-            "messaging": {"tone": "professional", "angles": ["pain_point"]},
-            "channels": {"primary": "email"},
-        }),
+        playbook_selections=json.dumps(
+            {
+                "contacts": {"selected_ids": contact_ids},
+            }
+        ),
+        extracted_data=json.dumps(
+            {
+                "messaging": {"tone": "professional", "angles": ["pain_point"]},
+                "channels": {"primary": "email"},
+            }
+        ),
     )
     db.session.add(doc)
     db.session.commit()
@@ -102,9 +106,9 @@ def _setup_with_campaign(db, seed_tenant, seed_super_admin, with_messages=False)
         strategy_id=data["doc"].id,
         status="review",
         channel="email",
-        template_config=json.dumps([
-            {"step": 1, "label": "outreach", "channel": "email", "enabled": True}
-        ]),
+        template_config=json.dumps(
+            [{"step": 1, "label": "outreach", "channel": "email", "enabled": True}]
+        ),
     )
     db.session.add(campaign)
     db.session.flush()
@@ -168,9 +172,7 @@ class TestSetupMessages:
         assert body["contacts_added"] == 3
         assert body["campaign_status"] == "draft"
 
-    def test_loads_existing_campaign(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_loads_existing_campaign(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(db, seed_tenant, seed_super_admin)
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
@@ -184,9 +186,7 @@ class TestSetupMessages:
         assert body["created"] is False
         assert body["campaign_id"] == str(data["campaign"].id)
 
-    def test_no_contacts_returns_400(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_no_contacts_returns_400(self, client, db, seed_tenant, seed_super_admin):
         from api.models import StrategyDocument, UserTenantRole
 
         role = UserTenantRole(
@@ -235,9 +235,7 @@ class TestSetupMessages:
         sel = json.loads(data["doc"].playbook_selections)
         assert sel["messages"]["campaign_id"] == campaign_id
 
-    def test_caps_at_500_contacts(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_caps_at_500_contacts(self, client, db, seed_tenant, seed_super_admin):
         from api.models import Company, Contact, StrategyDocument, UserTenantRole
 
         role = UserTenantRole(
@@ -275,9 +273,11 @@ class TestSetupMessages:
             tenant_id=seed_tenant.id,
             status="active",
             phase="messages",
-            playbook_selections=json.dumps({
-                "contacts": {"selected_ids": contact_ids},
-            }),
+            playbook_selections=json.dumps(
+                {
+                    "contacts": {"selected_ids": contact_ids},
+                }
+            ),
         )
         db.session.add(doc)
         db.session.commit()
@@ -327,9 +327,7 @@ class TestGenerateMessages:
         assert body["campaign_id"] is not None
         mock_gen.assert_called_once()
 
-    def test_reuses_existing_campaign(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_reuses_existing_campaign(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(db, seed_tenant, seed_super_admin)
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
@@ -344,9 +342,7 @@ class TestGenerateMessages:
         body = resp.get_json()
         assert body["campaign_id"] == str(data["campaign"].id)
 
-    def test_no_contacts_returns_400(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_no_contacts_returns_400(self, client, db, seed_tenant, seed_super_admin):
         from api.models import StrategyDocument, UserTenantRole
 
         role = UserTenantRole(
@@ -413,9 +409,7 @@ class TestGetPlaybookMessages:
         assert "contact" in msg
         assert msg["contact"]["full_name"]
 
-    def test_filters_by_status(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_filters_by_status(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -434,9 +428,7 @@ class TestGetPlaybookMessages:
         assert body["total"] == 1
         assert all(m["status"] == "approved" for m in body["messages"])
 
-    def test_returns_status_counts(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_returns_status_counts(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -484,9 +476,7 @@ class TestGetPlaybookMessages:
 
 
 class TestUpdatePlaybookMessage:
-    def test_approve_message(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_approve_message(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -504,9 +494,7 @@ class TestUpdatePlaybookMessage:
         assert body["status"] == "approved"
         assert body["updated"] is True
 
-    def test_reject_message(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_reject_message(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -522,9 +510,7 @@ class TestUpdatePlaybookMessage:
         assert resp.status_code == 200
         assert resp.get_json()["status"] == "rejected"
 
-    def test_edit_body_and_subject(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_edit_body_and_subject(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -542,9 +528,7 @@ class TestUpdatePlaybookMessage:
         assert body["body"] == "New body text"
         assert body["subject"] == "New subject"
 
-    def test_message_not_found(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_message_not_found(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_playbook_with_contacts(db, seed_tenant, seed_super_admin)
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
@@ -575,9 +559,7 @@ class TestUpdatePlaybookMessage:
 
 
 class TestBatchUpdateMessages:
-    def test_approve_all(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_approve_all(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -594,9 +576,7 @@ class TestBatchUpdateMessages:
         assert body["updated"] == 3
         assert body["status"] == "approved"
 
-    def test_reject_all(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_reject_all(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -613,9 +593,7 @@ class TestBatchUpdateMessages:
         assert body["updated"] == 3
         assert body["status"] == "rejected"
 
-    def test_invalid_action(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_invalid_action(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_with_campaign(
             db, seed_tenant, seed_super_admin, with_messages=True
         )
@@ -699,9 +677,7 @@ class TestConfirmMessages:
         assert resp.status_code == 400
         assert "No approved" in resp.get_json()["error"]
 
-    def test_no_campaign_returns_404(
-        self, client, db, seed_tenant, seed_super_admin
-    ):
+    def test_no_campaign_returns_404(self, client, db, seed_tenant, seed_super_admin):
         data = _setup_playbook_with_contacts(db, seed_tenant, seed_super_admin)
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
