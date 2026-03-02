@@ -1,8 +1,13 @@
 /**
  * CompletionPanel — shown after pipeline completes.
- * Displays summary stats and a button to configure a new run.
+ * Displays summary stats, a button to configure a new run,
+ * and an auto-setup campaign button (BL-147).
  */
 
+import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
+import { useAutoSetupCampaign, type AutoSetupResult } from '../../api/queries/useCampaigns'
+import { useToast } from '../../components/ui/Toast'
 import type { StageProgress } from './StageCard.types'
 
 interface CompletionPanelProps {
@@ -18,6 +23,12 @@ function fmtCost(v: number): string {
 }
 
 export function CompletionPanel({ stageProgress, totalCost, onReset }: CompletionPanelProps) {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
+  const autoSetup = useAutoSetupCampaign()
+  const { toast } = useToast()
+  const [setupResult, setSetupResult] = useState<AutoSetupResult | null>(null)
+
   const stages = Object.values(stageProgress)
   const totalDone = stages.reduce((sum, s) => sum + s.done, 0)
   const totalFailed = stages.reduce((sum, s) => sum + s.failed, 0)
@@ -32,6 +43,20 @@ export function CompletionPanel({ stageProgress, totalCost, onReset }: Completio
     : wasStopped
       ? 'Pipeline Stopped'
       : 'Pipeline Finished with Errors'
+
+  const handleAutoSetup = async () => {
+    try {
+      const result = await autoSetup.mutateAsync({})
+      setSetupResult(result)
+      toast(
+        `Campaign "${result.name}" created with ${result.total_contacts} contacts`,
+        'success',
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create campaign'
+      toast(msg, 'error')
+    }
+  }
 
   return (
     <div className="mt-6 p-4 rounded-lg border border-border bg-surface-alt">
@@ -57,12 +82,46 @@ export function CompletionPanel({ stageProgress, totalCost, onReset }: Completio
         </span>
       </div>
 
-      <button
-        onClick={onReset}
-        className="px-4 py-1.5 text-sm font-medium rounded-md border border-accent text-accent hover:bg-accent/10 transition-colors"
-      >
-        Configure New Run
-      </button>
+      {/* Auto-setup campaign result (BL-147) */}
+      {setupResult && (
+        <div className="mb-4 p-3 rounded-md border border-success/30 bg-success/5">
+          <p className="text-sm font-medium text-text mb-1">
+            Campaign created: {setupResult.name}
+          </p>
+          <p className="text-xs text-text-muted mb-2">
+            {setupResult.total_contacts} contacts
+            {setupResult.with_email > 0 && ` | ${setupResult.with_email} with email`}
+            {setupResult.with_linkedin > 0 && ` | ${setupResult.with_linkedin} with LinkedIn`}
+            {setupResult.strategy_prefilled && ' | Pre-filled from GTM Strategy'}
+          </p>
+          <button
+            onClick={() => navigate(`/${namespace}/campaigns/${setupResult.id}`)}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors"
+          >
+            Review Campaign
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          onClick={onReset}
+          className="px-4 py-1.5 text-sm font-medium rounded-md border border-accent text-accent hover:bg-accent/10 transition-colors"
+        >
+          Configure New Run
+        </button>
+
+        {/* Auto-setup campaign button (BL-147) */}
+        {!setupResult && (
+          <button
+            onClick={handleAutoSetup}
+            disabled={autoSetup.isPending}
+            className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
+          >
+            {autoSetup.isPending ? 'Creating...' : 'Create Campaign from Qualified Contacts'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
