@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router'
 import {
   usePlaybookContacts,
   useConfirmContactSelection,
@@ -162,6 +163,7 @@ function FilterChips({
 
 export function ContactsPhasePanel({ extractedData, existingSelections, onPhaseAdvance }: ContactsPhaseProps) {
   const { toast } = useToast()
+  const navigate = useNavigate()
   // Filter state (initially derived from ICP, user can modify)
   const [filterOverrides, setFilterOverrides] = useState<PlaybookContactsFilters>({})
   const [page, setPage] = useState(1)
@@ -259,6 +261,46 @@ export function ContactsPhasePanel({ extractedData, existingSelections, onPhaseA
     (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
     0,
   )
+
+  const handleImportContacts = useCallback(() => {
+    const pathParts = window.location.pathname.split('/')
+    const namespace = pathParts[1]
+    navigate(`/${namespace}/import?return=playbook`)
+  }, [navigate])
+
+  // Empty state: no contacts at all (not just filtered to 0)
+  if (!isLoading && total === 0 && !search && activeFilterCount === 0) {
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M19 8v6M22 11h-6" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold font-title text-text mb-2">
+            No contacts yet
+          </h2>
+          <p className="text-sm text-text-muted leading-relaxed mb-6">
+            Import contacts from a CSV file or Google Contacts to start building your outreach list.
+          </p>
+          <button
+            type="button"
+            onClick={handleImportContacts}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v8M5 7l3 3 3-3" />
+              <path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
+            </svg>
+            Import Contacts
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
