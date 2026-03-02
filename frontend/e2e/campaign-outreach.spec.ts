@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5174'
-const API = process.env.API_URL ?? 'http://localhost:5002'
+const BASE = process.env.BASE_URL ?? 'https://leadgen-staging.visionvolve.com'
+const API = process.env.API_URL ?? BASE
 const NS = 'visionvolve'
 
 const CAMPAIGN_ID = '00000000-0000-0000-0000-000000000001'

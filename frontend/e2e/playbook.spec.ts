@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5174'
-const API = process.env.API_URL ?? 'http://localhost:5002'
+const BASE = process.env.BASE_URL ?? 'https://leadgen-staging.visionvolve.com'
+const API = process.env.API_URL ?? BASE
 const NS = 'visionvolve'
 
 /** Login via API and inject tokens into localStorage. */
