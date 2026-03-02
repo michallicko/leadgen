@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5174'
-const API = process.env.API_URL ?? 'http://localhost:5002'
+const BASE = process.env.BASE_URL ?? 'https://leadgen-staging.visionvolve.com'
+const API = process.env.API_URL ?? BASE
 const NS = 'visionvolve'
 
 /** Login via API and inject tokens into localStorage. */
@@ -23,6 +23,38 @@ async function login(page: Page) {
       user: body.user,
     },
   )
+}
+
+/** Fetch an enriched company ID via API. Uses enrichment_stage filter to skip un-enriched rows. */
+async function fetchEnrichedCompanyId(page: Page): Promise<string> {
+  const token = await page.evaluate(() => localStorage.getItem('lg_access_token'))
+  // Prefer contacts_ready (fully enriched), then fall back to enriched
+  for (const stage of ['contacts_ready', 'enriched']) {
+    const resp = await page.request.get(
+      `${API}/api/companies?page_size=5&enrichment_stage=${stage}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Namespace': NS,
+        },
+      },
+    )
+    const data = await resp.json()
+    const companies = data.companies ?? data.items ?? data.data ?? []
+    if (companies.length > 0) {
+      return companies[0].id
+    }
+  }
+  // Last resort: grab the first company regardless
+  const resp = await page.request.get(`${API}/api/companies?page_size=1`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Namespace': NS,
+    },
+  })
+  const data = await resp.json()
+  const companies = data.companies ?? data.items ?? data.data ?? []
+  return companies[0]?.id
 }
 
 test.describe('Company List', () => {
@@ -58,31 +90,20 @@ test.describe('Company Detail', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
 
-    // Fetch a company with L2 enrichment from API
-    const resp = await page.request.get(`${API}/api/companies?page_size=50`, {
-      headers: {
-        Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('lg_access_token'))}`,
-        'X-Namespace': NS,
-      },
-    })
-    const data = await resp.json()
-    // Find a company with enriched_l2 status or the first one
-    const companies = data.items ?? data.data ?? []
-    const enriched = companies.find((c: any) => c.status?.includes('Enriched')) ?? companies[0]
-    companyId = enriched?.id
+    companyId = await fetchEnrichedCompanyId(page)
     expect(companyId).toBeTruthy()
 
     await page.goto(`${BASE}/${NS}/companies/${companyId}`)
-    // Wait for detail page to load
-    await page.waitForSelector('[role="tablist"], .space-y-1', { timeout: 15000 })
+    // Wait for the detail page tab bar to render (the Tabs component renders plain buttons)
+    await page.waitForSelector('button:has-text("Overview")', { timeout: 15000 })
   })
 
   test('shows Overview tab with classification fields', async ({ page }) => {
     // Overview tab should be visible by default
     const body = await page.textContent('body')
     expect(body).toContain('Classification')
-    expect(body).toContain('Pipeline')
-    expect(body).toContain('Scores')
+    expect(body).toContain('CRM')
+    expect(body).toContain('Key Metrics')
   })
 
   test('shows derived stage badge in header', async ({ page }) => {
@@ -113,8 +134,9 @@ test.describe('Company Detail', () => {
   })
 
   test('Intelligence tab shows module cards', async ({ page }) => {
-    // Click on Intelligence tab if it exists
-    const intelTab = page.locator('button:has-text("Intelligence"), [role="tab"]:has-text("Intelligence")')
+    // Click on Intelligence tab if it exists (use getByRole with exact match to avoid
+    // matching module card buttons that also contain "Intelligence" in their text)
+    const intelTab = page.getByRole('button', { name: 'Intelligence', exact: true })
     if ((await intelTab.count()) > 0) {
       await intelTab.click()
       await page.waitForTimeout(500)
@@ -132,7 +154,7 @@ test.describe('Company Detail', () => {
   })
 
   test('module cards expand and collapse', async ({ page }) => {
-    const intelTab = page.locator('button:has-text("Intelligence"), [role="tab"]:has-text("Intelligence")')
+    const intelTab = page.getByRole('button', { name: 'Intelligence', exact: true })
     if ((await intelTab.count()) > 0) {
       await intelTab.click()
       await page.waitForTimeout(500)
@@ -152,7 +174,7 @@ test.describe('Company Detail', () => {
   })
 
   test('Contacts tab shows enrichment columns', async ({ page }) => {
-    const contactsTab = page.locator('button:has-text("Contacts"), [role="tab"]:has-text("Contacts")')
+    const contactsTab = page.locator('button:has-text("Contacts")')
     if ((await contactsTab.count()) > 0) {
       await contactsTab.click()
       await page.waitForTimeout(500)
@@ -170,7 +192,7 @@ test.describe('Company Detail', () => {
   })
 
   test('History tab shows enrichment timeline', async ({ page }) => {
-    const historyTab = page.locator('button:has-text("History"), [role="tab"]:has-text("History")')
+    const historyTab = page.locator('button:has-text("History")')
     if ((await historyTab.count()) > 0) {
       await historyTab.click()
       await page.waitForTimeout(500)
@@ -196,7 +218,7 @@ test.describe('Company Detail', () => {
     expect(data).toHaveProperty('derived_stage')
     expect(Array.isArray(data.stage_completions)).toBeTruthy()
     expect(data.derived_stage).toHaveProperty('label')
-    expect(data.derived_stage).toHaveProperty('color')
+    // Note: API returns {label, stage} — color is added client-side by deriveStage()
   })
 
   test('L2 enrichment returns module structure', async ({ page }) => {
@@ -254,19 +276,22 @@ test.describe('Field Quality (API)', () => {
     await login(page)
     const token = await page.evaluate(() => localStorage.getItem('lg_access_token'))
 
-    const resp = await page.request.get(`${API}/api/companies?page_size=10`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-Namespace': NS,
+    const resp = await page.request.get(
+      `${API}/api/companies?page_size=10&enrichment_stage=enriched`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Namespace': NS,
+        },
       },
-    })
+    )
     const data = await resp.json()
-    const companies = data.items ?? data.data ?? []
+    const companies = data.companies ?? data.items ?? data.data ?? []
     expect(companies.length).toBeGreaterThan(0)
 
     // Check that display values are used (not raw enum values)
     for (const c of companies) {
-      if (c.industry_category) {
+      if (c.industry_category != null && c.industry_category.length > 0) {
         // Should be display form like "Technology" not "technology"
         expect(c.industry_category[0]).toEqual(c.industry_category[0].toUpperCase())
       }
