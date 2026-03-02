@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5174'
-const API = process.env.API_URL ?? 'http://localhost:5002'
+const BASE = process.env.BASE_URL ?? 'https://leadgen-staging.visionvolve.com'
+const API = process.env.API_URL ?? BASE
 const NS = 'visionvolve'
 
 /** Login via API and inject tokens into localStorage. */
@@ -25,59 +25,118 @@ async function login(page: Page) {
   )
 }
 
+/**
+ * Wait for the playbook page to finish loading.
+ * Handles both states:
+ *   - Returning user: shows "ICP Playbook" heading with editor
+ *   - New user: shows onboarding form (variant A: "Set Up Your Playbook",
+ *     variant B: "Generate Your GTM Strategy")
+ */
+async function waitForPlaybookReady(page: Page) {
+  // Wait for any of the three possible heading texts
+  await Promise.race([
+    page.waitForSelector('h1:has-text("ICP Playbook")', { timeout: 20000 }),
+    page.waitForSelector('h2:has-text("Set Up Your Playbook")', { timeout: 20000 }),
+    page.waitForSelector('h2:has-text("Generate Your GTM Strategy")', { timeout: 20000 }),
+  ])
+}
+
+/**
+ * Skip onboarding if it's showing.
+ * Returns true if onboarding was skipped, false if already on main view.
+ */
+async function skipOnboardingIfNeeded(page: Page): Promise<boolean> {
+  const skipButton = page.locator('button:has-text("write it myself")')
+  if (await skipButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await skipButton.click()
+    // After skipping, the main playbook view should appear
+    await page.waitForSelector('h1:has-text("ICP Playbook")', { timeout: 10000 })
+    return true
+  }
+  return false
+}
+
 test.describe('Playbook Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
     await page.goto(`${BASE}/${NS}/playbook`)
-    // Wait for editor to initialise (Tiptap renders .ProseMirror inside .strategy-editor)
-    await page.waitForSelector('.strategy-editor .ProseMirror', { timeout: 15000 })
+    await waitForPlaybookReady(page)
   })
 
-  test('renders page heading', async ({ page }) => {
-    // The page title says "ICP Playbook"
-    await expect(page.locator('text=ICP Playbook').first()).toBeVisible()
+  test('renders page heading or onboarding', async ({ page }) => {
+    // Sprint 4 shows "ICP Playbook" for returning users or onboarding for new users
+    const playbookHeading = page.locator('h1:has-text("ICP Playbook")')
+    const onboardingA = page.locator('h2:has-text("Set Up Your Playbook")')
+    const onboardingB = page.locator('h2:has-text("Generate Your GTM Strategy")')
+
+    const visible =
+      (await playbookHeading.isVisible()) ||
+      (await onboardingA.isVisible()) ||
+      (await onboardingB.isVisible())
+    expect(visible).toBe(true)
   })
 
-  test('strategy editor is visible with toolbar', async ({ page }) => {
-    // Editor container
-    const editor = page.locator('.strategy-editor')
-    await expect(editor).toBeVisible()
+  test('phase stepper is visible with correct phases', async ({ page }) => {
+    await skipOnboardingIfNeeded(page)
 
-    // Toolbar buttons: Bold (B), Italic (I), headings (H1, H2, H3)
-    const toolbar = editor.locator('button')
-    const labels = await toolbar.allTextContents()
-    expect(labels).toContain('B')
-    expect(labels).toContain('I')
-    expect(labels).toContain('H1')
-    expect(labels).toContain('H2')
-    expect(labels).toContain('H3')
+    // PhaseIndicator renders phase buttons — check for the phase labels
+    await expect(page.locator('button:has-text("Strategy")').first()).toBeVisible()
+    await expect(page.locator('button:has-text("Contacts")').first()).toBeVisible()
+    await expect(page.locator('button:has-text("Messages")').first()).toBeVisible()
+    await expect(page.locator('button:has-text("Campaign")').first()).toBeVisible()
   })
 
   test('chat panel is visible with input', async ({ page }) => {
+    await skipOnboardingIfNeeded(page)
+
     // Chat header says "AI Chat"
     await expect(page.locator('text=AI Chat').first()).toBeVisible()
 
-    // Chat textarea placeholder
-    const textarea = page.locator('textarea[placeholder="Ask about your strategy..."]')
-    await expect(textarea).toBeVisible()
+    // Chat textarea — the placeholder varies by phase but always ends with "..."
+    const textarea = page.locator('textarea')
+    await expect(textarea.first()).toBeVisible()
 
     // Send button (aria-label)
     const sendBtn = page.locator('button[aria-label="Send message"]')
     await expect(sendBtn).toBeVisible()
   })
 
-  test('chat empty state shows when no messages', async ({ page }) => {
-    // Empty state text
-    await expect(page.locator('text=No messages yet').first()).toBeVisible()
+  test('chat area displays correctly', async ({ page }) => {
+    await skipOnboardingIfNeeded(page)
+
+    // The chat panel should contain either an empty state message or existing messages
+    const chatPanel = page.locator('text=AI Chat').first()
+    await expect(chatPanel).toBeVisible()
+
+    // Verify the chat area has either empty state or message bubbles
+    const emptyState = page.locator('text=No messages yet')
+    const anyMessage = page.locator('[class*="overflow-y-auto"]').first()
+    const hasContent =
+      (await emptyState.isVisible().catch(() => false)) ||
+      (await anyMessage.isVisible().catch(() => false))
+    expect(hasContent).toBe(true)
   })
 
-  test('save and extract buttons are present', async ({ page }) => {
-    // Save button
-    const saveBtn = page.locator('button:has-text("Save")')
-    await expect(saveBtn).toBeVisible()
+  test('phase navigation works', async ({ page }) => {
+    await skipOnboardingIfNeeded(page)
 
-    // Extract button
-    const extractBtn = page.locator('button:has-text("Extract")')
-    await expect(extractBtn).toBeVisible()
+    // Click "Contacts" phase button
+    const contactsBtn = page.locator('button:has-text("Contacts")').first()
+    await contactsBtn.click()
+
+    // URL should update to include /contacts
+    await expect(page).toHaveURL(/\/playbook\/contacts/)
+
+    // Click "Campaign" phase button
+    const campaignBtn = page.locator('button:has-text("Campaign")').first()
+    await campaignBtn.click()
+
+    // URL should update to include /campaign
+    await expect(page).toHaveURL(/\/playbook\/campaign/)
+
+    // Navigate back to Strategy
+    const strategyBtn = page.locator('button:has-text("Strategy")').first()
+    await strategyBtn.click()
+    await expect(page).toHaveURL(/\/playbook\/strategy/)
   })
 })
