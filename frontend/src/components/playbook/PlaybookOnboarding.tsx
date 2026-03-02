@@ -152,7 +152,7 @@ export function PlaybookOnboarding({
   const { tenant } = useTenantBySlug(namespace)
 
   const [description, setDescription] = useState('')
-  const [challengeType, setChallengeType] = useState(CHALLENGE_TYPES[0].value)
+  const [challengeType, setChallengeType] = useState<string>(CHALLENGE_TYPES[0].value)
 
   // Domain state: null means "user hasn't touched it yet" (show tenant default)
   const [userDomains, setUserDomains] = useState<string[] | null>(null)
