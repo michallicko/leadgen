@@ -24,13 +24,13 @@ from .tool_registry import get_tool
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ITERATIONS = 10
+MAX_TOOL_ITERATIONS = 25
 
 # Per-turn rate limits by tool name.  Tools not listed here get the default.
 TOOL_RATE_LIMITS: dict[str, int] = {
-    "web_search": 3,
+    "web_search": 5,
 }
-DEFAULT_TOOL_RATE_LIMIT = 5  # max calls per tool per turn
+DEFAULT_TOOL_RATE_LIMIT = 15  # max calls per tool per turn
 
 
 @dataclass
