@@ -451,8 +451,12 @@ export function PlaybookPage() {
         )
       }
       parts.push(
-        'Draft all sections of the strategy document using the update_strategy_section tool. ' +
-          'Fill in each section with specific, actionable content based on the information I provided.',
+        'Execute these steps NOW using your tools (do not just describe what you would do — actually call the tools): ' +
+          `1) Call web_search to research "${primaryDomain}" — search for company overview, products, market, and competitors. ` +
+          '2) Call web_search again for industry trends and competitive landscape. ' +
+          '3) Call get_strategy_document to see current state. ' +
+          '4) Call update_strategy_section for EACH of the 9 strategy sections with specific, researched content. ' +
+          'Complete all sections in this turn. Start now.',
       )
 
       sendMessage(parts.join(' '))
