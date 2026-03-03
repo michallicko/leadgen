@@ -56,7 +56,7 @@ class TestUploadCSV:
         body = resp.get_json()
         assert body["row_count"] == 2
         assert body["job_id"]
-        assert body["columns"][0]["target_field"] == "contact.first_name"
+        assert body["columns"][0]["target_field"] == "first_name"
         assert body["columns"][0]["confidence"] in ("high", "medium", "low")
 
     def test_upload_no_file(self, client, seed_companies_contacts):
@@ -454,7 +454,7 @@ class TestRemapImport:
         # Remap response now uses ColumnMapping[] format
         assert len(body["columns"]) >= 5
         assert body["columns"][4]["source_column"] == "Title"
-        assert body["columns"][4]["target_field"] == "contact.job_title"
+        assert body["columns"][4]["target_field"] == "job_title"
 
     @patch("api.routes.import_routes.call_claude_for_mapping")
     def test_remap_completed_fails(self, mock_claude, client, seed_companies_contacts):

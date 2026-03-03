@@ -56,6 +56,14 @@ ssh -i "$STAGING_KEY" "$STAGING_HOST" "sudo mkdir -p /srv/dashboard-rev-${COMMIT
 scp -i "$STAGING_KEY" -r "${PROJECT_DIR}/frontend/dist/"* "${STAGING_HOST}:/srv/dashboard-rev-${COMMIT}/"
 echo "    Frontend build copied to /srv/dashboard-rev-${COMMIT}"
 
+# ---- 3b. Update /srv/dashboard-rev-latest for staging root ----
+if [ "$BRANCH" = "staging" ]; then
+  echo ""
+  echo "==> Updating dashboard-rev-latest symlink (staging branch)..."
+  ssh -i "$STAGING_KEY" "$STAGING_HOST" "ln -sfn /srv/dashboard-rev-${COMMIT} /srv/dashboard-rev-latest"
+  echo "    /srv/dashboard-rev-latest -> /srv/dashboard-rev-${COMMIT}"
+fi
+
 # ---- 4. Generate docker-compose overlay ----
 echo ""
 echo "==> Generating docker-compose overlay..."
