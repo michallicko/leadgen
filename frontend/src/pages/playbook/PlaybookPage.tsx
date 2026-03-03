@@ -110,7 +110,7 @@ export function PlaybookPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { phase: urlPhase } = useParams<{ phase: string }>()
+  const { namespace, phase: urlPhase } = useParams<{ namespace: string; phase: string }>()
 
   // Chat state from provider (persists across navigation)
   const {
@@ -218,7 +218,7 @@ export function PlaybookPage() {
     if (!status) return
     if (prevResearchStatus.current === 'in_progress' && status === 'completed') {
       // Research just finished -- refresh the document to pick up enrichment data
-      queryClient.invalidateQueries({ queryKey: ['playbook'] })
+      queryClient.invalidateQueries({ queryKey: ['playbook', namespace] })
       toast('Company research completed', 'info')
     }
     if (prevResearchStatus.current === 'in_progress' && status === 'failed') {
@@ -227,7 +227,7 @@ export function PlaybookPage() {
       toast('Company research could not complete. The AI can still help with your strategy.', 'error')
     }
     prevResearchStatus.current = status
-  }, [researchQuery.data?.status, queryClient, toast])
+  }, [researchQuery.data?.status, queryClient, toast, namespace])
 
   // ---------------------------------------------------------------------------
   // Handle AI document changes (from ChatProvider)
@@ -245,9 +245,9 @@ export function PlaybookPage() {
     } else {
       // No unsaved changes -- safe to auto-refresh the editor
       // Update lastSavedContentRef so the debounced save sees no diff and skips
-      queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['playbook', namespace], exact: true }).then(() => {
         // After refetch, update the saved content ref to match server state
-        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook'])
+        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook', namespace])
         if (newContent?.content) {
           lastSavedContentRef.current = newContent.content
           setEditedContent(null)
@@ -262,7 +262,7 @@ export function PlaybookPage() {
     }
 
     clearDocumentChanged()
-  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged])
+  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged, namespace])
 
   // ---------------------------------------------------------------------------
   // Per-section save progress indicator (BL-151)

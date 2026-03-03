@@ -181,7 +181,41 @@ def _rows_to_csv_text(headers, rows):
     return output.getvalue()
 
 
-def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_defs):
+# Secondary target normalization for common variations Claude may return
+# that don't appear in CLAUDE_TO_FRONTEND (which only maps dotted names).
+_TARGET_NORMALIZE = {
+    "title": "job_title",
+    "company": "company_name",
+    "company_name": "company_name",
+    "website": "domain",
+    "url": "domain",
+    "phone_number": "phone",
+    "mobile_phone": "mobile",
+    "linkedin": "linkedin_url",
+    "email_address": "email",
+    "first": "first_name",
+    "last": "last_name",
+    "fname": "first_name",
+    "lname": "last_name",
+    "size": "employee_count",
+    "employees": "employee_count",
+    "role": "job_title",
+    "position": "job_title",
+    "city": "location",
+    "country": "location",
+    "desc": "description",
+}
+
+# Valid frontend target field values (from MappingStep TARGET_OPTIONS)
+_VALID_FRONTEND_TARGETS = {
+    "first_name", "last_name", "email", "phone", "mobile",
+    "job_title", "linkedin_url", "notes",
+    "company_name", "domain", "industry", "employee_count", "location", "description",
+}
+
+
+def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_defs,
+                           sample_rows=None):
     """Transform raw Claude mapping result into the shape the frontend expects.
 
     The frontend UploadResponse expects:
@@ -189,6 +223,10 @@ def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_
 
     where ColumnMapping is:
       { source_column, target_field, sample_values, confidence, is_custom, custom_display_name? }
+
+    Args:
+        sample_rows: list of dicts (CSV rows) to extract sample values from.
+            If None, falls back to whatever Claude returned in the mapping.
     """
     columns = []
     for m in mapping_result.get("mappings", []):
@@ -213,12 +251,28 @@ def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_
         frontend_target = target
         if target and not is_custom:
             frontend_target = CLAUDE_TO_FRONTEND.get(target, target)
+            # Secondary normalization for bare names Claude sometimes returns
+            if frontend_target not in _VALID_FRONTEND_TARGETS:
+                frontend_target = _TARGET_NORMALIZE.get(
+                    frontend_target.lower(), frontend_target
+                )
+
+        # Populate sample values from actual CSV data when available
+        csv_header = m.get("csv_header", "")
+        if sample_rows and csv_header:
+            samples = [
+                str(row.get(csv_header, ""))
+                for row in sample_rows[:3]
+                if row.get(csv_header)
+            ]
+        else:
+            samples = m.get("sample_values", [])
 
         columns.append(
             {
-                "source_column": m.get("csv_header", ""),
+                "source_column": csv_header,
                 "target_field": frontend_target,
-                "sample_values": m.get("sample_values", []),
+                "sample_values": samples,
                 "confidence": confidence,
                 "is_custom": is_custom,
                 "custom_display_name": custom_display_name,
@@ -377,6 +431,7 @@ def upload_csv():
             len(rows),
             mapping_result,
             [d.to_dict() for d in updated_custom_defs],
+            sample_rows=sample_rows,
         )
     ), 201
 
@@ -459,6 +514,9 @@ def remap_import(job_id):
         is_active=True,
     ).all()
 
+    # Parse sample rows from stored data for sample_values display
+    stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
+
     return jsonify(
         _build_upload_response(
             job.id,
@@ -466,6 +524,7 @@ def remap_import(job_id):
             job.total_rows,
             mapping_result,
             [d.to_dict() for d in updated_custom_defs],
+            sample_rows=stored_samples,
         )
     )
 
@@ -730,7 +789,11 @@ def import_status(job_id):
     mapping = None
     if job.status in ("uploaded", "mapped", "previewed"):
         raw = ImportJob._parse_jsonb(job.column_mapping) or {}
-        resp = _build_upload_response(job.id, job.filename, job.total_rows, raw, [])
+        stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
+        resp = _build_upload_response(
+            job.id, job.filename, job.total_rows, raw, [],
+            sample_rows=stored_samples,
+        )
         mapping = resp["columns"]
 
     return jsonify(
