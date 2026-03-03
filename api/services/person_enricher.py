@@ -349,7 +349,7 @@ def enrich_person(
     )
     linkedin_summary = _build_linkedin_summary(profile_data)
 
-    # 7. Upsert contact_enrichment
+    # 7. Upsert contact_enrichment (BL-153: pass all research data)
     _upsert_contact_enrichment(
         contact_id,
         relationship_summary,
@@ -357,6 +357,8 @@ def enrich_person(
         scores,
         profile_data,
         total_cost,
+        signals_data=signals_data,
+        synthesis_data=synthesis_data,
     )
 
     # 8. Update contact fields (pass signals_data for linkedin_activity_level)
@@ -415,23 +417,52 @@ def _load_contact_and_company(contact_id):
         "geo_region": row[15] or "",
     }
 
-    # Load L2 data if available
-    l2_row = db.session.execute(
+    # Load L2 data from split tables (BL-183), with fallback to old table (BL-154)
+    l2_data = {}
+    company_cid = contact_data["company_id"]
+
+    # Try split tables first (canonical source after migration 021/039)
+    opp_row = db.session.execute(
         text("""
-            SELECT pain_hypothesis, ai_opportunities, company_intel
-            FROM company_enrichment_l2
+            SELECT pain_hypothesis, ai_opportunities
+            FROM company_enrichment_opportunity
             WHERE company_id = :cid
         """),
-        {"cid": contact_data["company_id"]},
+        {"cid": company_cid},
     ).fetchone()
 
-    l2_data = {}
-    if l2_row:
+    prof_row = db.session.execute(
+        text("""
+            SELECT company_intel
+            FROM company_enrichment_profile
+            WHERE company_id = :cid
+        """),
+        {"cid": company_cid},
+    ).fetchone()
+
+    if opp_row or prof_row:
         l2_data = {
-            "pain_hypothesis": l2_row[0] or "Unknown",
-            "ai_opportunities": l2_row[1] or "Unknown",
-            "company_intel": l2_row[2] or "",
+            "pain_hypothesis": (opp_row[0] if opp_row else None) or "Unknown",
+            "ai_opportunities": (opp_row[1] if opp_row else None) or "Unknown",
+            "company_intel": (prof_row[0] if prof_row else None) or "",
         }
+    else:
+        # Fallback to old company_enrichment_l2 table for pre-migration data
+        l2_row = db.session.execute(
+            text("""
+                SELECT pain_hypothesis, ai_opportunities, company_intel
+                FROM company_enrichment_l2
+                WHERE company_id = :cid
+            """),
+            {"cid": company_cid},
+        ).fetchone()
+
+        if l2_row:
+            l2_data = {
+                "pain_hypothesis": l2_row[0] or "Unknown",
+                "ai_opportunities": l2_row[1] or "Unknown",
+                "company_intel": l2_row[2] or "",
+            }
 
     return contact_data, company_data, l2_data
 
@@ -895,42 +926,144 @@ def _build_linkedin_summary(profile_data):
 
 
 def _upsert_contact_enrichment(
-    contact_id, person_summary, linkedin_summary, scores, profile_data, cost
+    contact_id,
+    person_summary,
+    linkedin_summary,
+    scores,
+    profile_data,
+    cost,
+    signals_data=None,
+    synthesis_data=None,
 ):
-    """Upsert into contact_enrichment table."""
+    """Upsert into contact_enrichment table.
+
+    Stores all granular fields from profile research, signals research,
+    synthesis, and scoring (BL-153 fix: previously only 9 fields stored).
+    """
+    signals_data = signals_data or {}
+    synthesis_data = synthesis_data or {}
     now_str = datetime.now(timezone.utc).isoformat()
+
+    # Serialize list/dict fields to JSON strings for storage
+    thought_topics = profile_data.get("thought_leadership_topics", [])
+    if isinstance(thought_topics, list):
+        thought_topics = json.dumps(thought_topics)
+    expertise = profile_data.get("expertise_areas", [])
+    if isinstance(expertise, list):
+        expertise = json.dumps(expertise)
+    tech_interests = signals_data.get("technology_interests", [])
+    if isinstance(tech_interests, list):
+        tech_interests = json.dumps(tech_interests)
+    conn_points = synthesis_data.get("connection_points", [])
+    if isinstance(conn_points, list):
+        conn_points = json.dumps(conn_points)
+    scoring_flags = scores.get("flags", [])
+    if isinstance(scoring_flags, list):
+        scoring_flags = json.dumps(scoring_flags)
+
+    _COLUMNS = (
+        "person_summary",
+        "linkedin_profile_summary",
+        "relationship_synthesis",
+        "ai_champion",
+        "ai_champion_score",
+        "authority_score",
+        "career_trajectory",
+        # Profile research fields
+        "role_verified",
+        "role_mismatch_flag",
+        "career_highlights",
+        "thought_leadership",
+        "thought_leadership_topics",
+        "education",
+        "certifications",
+        "expertise_areas",
+        "public_presence_level",
+        "profile_data_confidence",
+        # Signals research fields
+        "ai_champion_evidence",
+        "authority_signals",
+        "authority_level",
+        "team_size_indication",
+        "budget_signals",
+        "technology_interests",
+        "pain_indicators",
+        "buying_signals",
+        "signals_data_confidence",
+        # Synthesis fields
+        "personalization_angle",
+        "connection_points",
+        "pain_connection",
+        "conversation_starters",
+        "objection_prediction",
+        # Scoring fields
+        "seniority",
+        "department",
+        "dept_alignment",
+        "contact_score",
+        "icp_fit",
+        "scoring_flags",
+    )
+
     params = {
         "cid": str(contact_id),
-        "summary": person_summary,
-        "linkedin": linkedin_summary,
-        "synth": person_summary,
-        "champion": scores["is_ai_champion"],
-        "champ_score": scores["ai_champion_score"],
-        "auth_score": scores["authority_score"],
-        "trajectory": profile_data.get("career_trajectory", "unknown"),
+        "person_summary": person_summary,
+        "linkedin_profile_summary": linkedin_summary,
+        "relationship_synthesis": person_summary,
+        "ai_champion": scores["is_ai_champion"],
+        "ai_champion_score": scores["ai_champion_score"],
+        "authority_score": scores["authority_score"],
+        "career_trajectory": profile_data.get("career_trajectory", "unknown"),
+        # Profile research
+        "role_verified": profile_data.get("current_role_verified", False),
+        "role_mismatch_flag": profile_data.get("role_mismatch_flag"),
+        "career_highlights": profile_data.get("career_highlights"),
+        "thought_leadership": profile_data.get("thought_leadership"),
+        "thought_leadership_topics": thought_topics,
+        "education": profile_data.get("education"),
+        "certifications": profile_data.get("certifications"),
+        "expertise_areas": expertise,
+        "public_presence_level": profile_data.get("public_presence_level"),
+        "profile_data_confidence": profile_data.get("data_confidence"),
+        # Signals research
+        "ai_champion_evidence": signals_data.get("ai_champion_evidence"),
+        "authority_signals": signals_data.get("authority_signals"),
+        "authority_level": signals_data.get("authority_level"),
+        "team_size_indication": signals_data.get("team_size_indication"),
+        "budget_signals": signals_data.get("budget_signals"),
+        "technology_interests": tech_interests,
+        "pain_indicators": signals_data.get("pain_indicators"),
+        "buying_signals": signals_data.get("buying_signals"),
+        "signals_data_confidence": signals_data.get("data_confidence"),
+        # Synthesis
+        "personalization_angle": synthesis_data.get("personalization_angle"),
+        "connection_points": conn_points,
+        "pain_connection": synthesis_data.get("pain_connection"),
+        "conversation_starters": synthesis_data.get("conversation_starters"),
+        "objection_prediction": synthesis_data.get("objection_prediction"),
+        # Scoring
+        "seniority": scores.get("seniority"),
+        "department": scores.get("department"),
+        "dept_alignment": scores.get("dept_alignment"),
+        "contact_score": scores.get("contact_score"),
+        "icp_fit": scores.get("icp_fit"),
+        "scoring_flags": scoring_flags,
         "enriched_at": now_str,
         "cost": cost,
     }
 
-    # Try PostgreSQL upsert first, fall back to SQLite
+    col_list = ", ".join(_COLUMNS)
+    val_list = ", ".join(f":{c}" for c in _COLUMNS)
+    update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in _COLUMNS)
+
     try:
         db.session.execute(
-            text("""
+            text(f"""
                 INSERT INTO contact_enrichment
-                    (contact_id, person_summary, linkedin_profile_summary,
-                     relationship_synthesis, ai_champion, ai_champion_score,
-                     authority_score, career_trajectory, enriched_at,
-                     enrichment_cost_usd)
-                VALUES (:cid, :summary, :linkedin, :synth, :champion, :champ_score,
-                        :auth_score, :trajectory, :enriched_at, :cost)
+                    (contact_id, {col_list}, enriched_at, enrichment_cost_usd)
+                VALUES (:cid, {val_list}, :enriched_at, :cost)
                 ON CONFLICT (contact_id) DO UPDATE SET
-                    person_summary = EXCLUDED.person_summary,
-                    linkedin_profile_summary = EXCLUDED.linkedin_profile_summary,
-                    relationship_synthesis = EXCLUDED.relationship_synthesis,
-                    ai_champion = EXCLUDED.ai_champion,
-                    ai_champion_score = EXCLUDED.ai_champion_score,
-                    authority_score = EXCLUDED.authority_score,
-                    career_trajectory = EXCLUDED.career_trajectory,
+                    {update_list},
                     enriched_at = EXCLUDED.enriched_at,
                     enrichment_cost_usd = EXCLUDED.enrichment_cost_usd
             """),
@@ -938,16 +1071,11 @@ def _upsert_contact_enrichment(
         )
     except Exception:
         db.session.rollback()
-        # SQLite fallback
         db.session.execute(
-            text("""
+            text(f"""
                 INSERT OR REPLACE INTO contact_enrichment
-                    (contact_id, person_summary, linkedin_profile_summary,
-                     relationship_synthesis, ai_champion, ai_champion_score,
-                     authority_score, career_trajectory, enriched_at,
-                     enrichment_cost_usd)
-                VALUES (:cid, :summary, :linkedin, :synth, :champion, :champ_score,
-                        :auth_score, :trajectory, :enriched_at, :cost)
+                    (contact_id, {col_list}, enriched_at, enrichment_cost_usd)
+                VALUES (:cid, {val_list}, :enriched_at, :cost)
             """),
             params,
         )
