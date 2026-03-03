@@ -84,12 +84,13 @@ export function AppShell() {
   const showSignpost = shouldShowSignpost(onboardingStatus)
   const showChecklist = shouldShowChecklist(onboardingStatus)
 
-  // Pages the signpost navigates to — bypass signpost when user has already
-  // clicked through so the target page actually renders.
-  const SIGNPOST_TARGET_PAGES = ['playbook', 'import']
+  // The signpost should only render on the default landing page (contacts/index).
+  // On any other page the user navigates to directly (playbook, import, admin, etc.),
+  // bypass the signpost so the actual page renders.
+  const SIGNPOST_PAGES = ['contacts', '']
   const currentSubpage = location.pathname.split('/').filter(Boolean)[1] || ''
-  const onSignpostTarget = SIGNPOST_TARGET_PAGES.includes(currentSubpage)
-  const renderSignpost = showSignpost && !onSignpostTarget
+  const onSignpostPage = SIGNPOST_PAGES.includes(currentSubpage)
+  const renderSignpost = showSignpost && onSignpostPage
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

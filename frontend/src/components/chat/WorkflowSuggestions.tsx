@@ -144,34 +144,40 @@ function SuggestionCard({
 // WorkflowSuggestions
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+const DISMISSED_KEY = 'workflow_suggestions_dismissed'
+
+function getDismissed(): string[] {
+  try {
+    const stored = sessionStorage.getItem(DISMISSED_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function dismissSuggestion(id: string) {
+  try {
+    const current = getDismissed()
+    current.push(id)
+    sessionStorage.setItem(DISMISSED_KEY, JSON.stringify(current))
+  } catch {
+    // sessionStorage unavailable
+  }
+  window.dispatchEvent(new Event('storage'))
+}
+
+// ---------------------------------------------------------------------------
+// WorkflowSuggestions — full card layout for empty chat state
+// ---------------------------------------------------------------------------
+
 export function WorkflowSuggestions() {
   const { namespace } = useParams<{ namespace: string }>()
   const navigate = useNavigate()
   const { data: suggestions, isLoading } = useWorkflowSuggestions()
-
-  // Track dismissed suggestions per session
-  const dismissedKey = 'workflow_suggestions_dismissed'
-  const getDismissed = (): string[] => {
-    try {
-      const stored = sessionStorage.getItem(dismissedKey)
-      return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
-  }
-
-  const dismiss = (id: string) => {
-    try {
-      const current = getDismissed()
-      current.push(id)
-      sessionStorage.setItem(dismissedKey, JSON.stringify(current))
-    } catch {
-      // sessionStorage unavailable
-    }
-    // Force re-render by using a state-like approach (hack with DOM)
-    // Actually, since we read from sessionStorage every render, just trigger one
-    window.dispatchEvent(new Event('storage'))
-  }
 
   if (isLoading || !suggestions || suggestions.length === 0) return null
 
@@ -200,9 +206,61 @@ export function WorkflowSuggestions() {
               navigate(`/${namespace}${suggestion.action_path}`)
             }
           }}
-          onDismiss={() => dismiss(suggestion.id)}
+          onDismiss={() => dismissSuggestion(suggestion.id)}
         />
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// WorkflowSuggestionChips — compact chip row for above chat input
+// ---------------------------------------------------------------------------
+
+function ChipIcon({ icon }: { icon: string }) {
+  const IconComponent = ICON_MAP[icon] || StrategyIcon
+  return <IconComponent />
+}
+
+export function WorkflowSuggestionChips() {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
+  const { data: suggestions, isLoading } = useWorkflowSuggestions()
+
+  if (isLoading || !suggestions || suggestions.length === 0) return null
+
+  const dismissed = getDismissed()
+  const visible = suggestions.filter((s) => !dismissed.includes(s.id))
+
+  if (visible.length === 0) return null
+
+  // Show at most 3 chips
+  const shown = visible.slice(0, 3)
+
+  return (
+    <div className="px-3 py-2 border-t border-border flex-shrink-0">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        <span className="text-[10px] text-text-dim whitespace-nowrap flex-shrink-0">
+          Next:
+        </span>
+        {shown.map((suggestion) => (
+          <button
+            key={suggestion.id}
+            onClick={() => {
+              if (namespace) {
+                navigate(`/${namespace}${suggestion.action_path}`)
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full border border-border-solid bg-surface-alt text-text-muted hover:text-text hover:border-accent/40 hover:bg-accent/5 transition-colors whitespace-nowrap cursor-pointer flex-shrink-0"
+            title={suggestion.detail}
+          >
+            <span className="w-3.5 h-3.5 flex items-center justify-center opacity-70">
+              <ChipIcon icon={suggestion.icon} />
+            </span>
+            {suggestion.action_label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

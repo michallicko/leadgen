@@ -17,6 +17,7 @@ import { useChatContext } from '../../providers/ChatProvider'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { WorkflowProgressStrip } from './WorkflowProgressStrip'
+import { WorkflowSuggestionChips } from './WorkflowSuggestions'
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -145,6 +146,9 @@ export function ChatPanel() {
 
         {/* Workflow progress strip */}
         <WorkflowProgressStrip />
+
+        {/* Suggestion chips — always visible when suggestions exist */}
+        <WorkflowSuggestionChips />
 
         {/* Input */}
         <ChatInput
