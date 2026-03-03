@@ -50,7 +50,8 @@ def list_messages():
                 co.id AS company_id, co.name AS company_name,
                 co.tier, co.domain, co.status AS company_status,
                 o.name AS owner_name,
-                b.name AS tag_name
+                b.name AS tag_name,
+                m.variant_group, m.variant_angle
             FROM messages m
             LEFT JOIN contacts ct ON m.contact_id = ct.id
             LEFT JOIN companies co ON ct.company_id = co.id
@@ -100,6 +101,8 @@ def list_messages():
                 }
                 if r[19]
                 else None,
+                "variant_group": str(r[26]) if r[26] else None,
+                "variant_angle": r[27],
             }
         )
 
@@ -287,16 +290,25 @@ def batch_update_messages():
         return jsonify({"error": "No valid fields"}), 400
 
     set_parts = []
-    params = {"t": tenant_id, "ids": tuple(ids)}
+    params = {"t": tenant_id}
     for k, v in fields.items():
         set_parts.append(f"{k} = :{k}")
         params[k] = v
+
+    # Build individual placeholders for IN clause (SQLite + PG compatible)
+    id_placeholders = []
+    for i, id_val in enumerate(ids):
+        key = f"id_{i}"
+        id_placeholders.append(f":{key}")
+        params[key] = id_val
+
+    in_clause = ", ".join(id_placeholders)
 
     db.session.execute(
         db.text(f"""
             UPDATE messages
             SET {", ".join(set_parts)}
-            WHERE tenant_id = :t AND id IN :ids
+            WHERE tenant_id = :t AND id IN ({in_clause})
         """),
         params,
     )

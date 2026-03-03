@@ -39,11 +39,19 @@ const CHANNEL_LABELS: Record<string, string> = {
   call_script: 'Call',
 }
 
-interface MessageCardProps {
-  message: Message
+const ANGLE_LABELS: Record<string, string> = {
+  pain: 'Pain',
+  opportunity: 'Opportunity',
+  social_proof: 'Social Proof',
 }
 
-export function MessageCard({ message }: MessageCardProps) {
+interface MessageCardProps {
+  message: Message
+  selected?: boolean
+  onToggleSelect?: () => void
+}
+
+export function MessageCard({ message, selected, onToggleSelect }: MessageCardProps) {
   const { toast } = useToast()
   const mutation = useUpdateMessage()
   const [mode, setMode] = useState<'view' | 'edit' | 'reject'>('view')
@@ -127,11 +135,22 @@ export function MessageCard({ message }: MessageCardProps) {
       : 'border-border-solid'
 
   return (
-    <div className={`rounded-lg border ${borderColor} bg-surface p-4 ${opacity} transition-opacity`}>
+    <div className={`rounded-lg border ${borderColor} bg-surface p-4 ${opacity} transition-opacity ${selected ? 'ring-2 ring-accent/40' : ''}`}>
       {/* Card header */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={onToggleSelect}
+            className="w-3.5 h-3.5 rounded border-border-solid accent-accent cursor-pointer"
+          />
+        )}
         <span className="text-xs font-medium text-text-muted">
           Step {message.sequence_step} · {message.variant}
+          {message.variant_angle && (
+            <span className="ml-1 text-[10px] text-text-dim">({ANGLE_LABELS[message.variant_angle] ?? message.variant_angle})</span>
+          )}
         </span>
         <span className="text-xs px-1.5 py-0.5 rounded bg-surface-alt text-text-muted border border-border-solid">
           {CHANNEL_LABELS[message.channel] ?? message.channel}

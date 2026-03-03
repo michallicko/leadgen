@@ -1054,6 +1054,9 @@ class Message(db.Model):
     edit_reason_text = db.Column(db.Text)
     regen_count = db.Column(db.Integer, default=0)
     regen_config = db.Column(JSONB)
+    # A/B variant linking (migration 041)
+    variant_group = db.Column(UUID(as_uuid=False))
+    variant_angle = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 

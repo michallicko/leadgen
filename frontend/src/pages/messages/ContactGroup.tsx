@@ -13,6 +13,8 @@ interface ContactGroupProps {
   companyName: string | null
   companyTier: string | null
   messages: Message[]
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
   onContactClick?: () => void
   onCompanyClick?: () => void
 }
@@ -20,6 +22,7 @@ interface ContactGroupProps {
 export function ContactGroup({
   contactName, contactTitle, contactScore, contactIcp,
   linkedinUrl, companyName, companyTier, messages,
+  selectedIds, onToggleSelect,
   onContactClick, onCompanyClick,
 }: ContactGroupProps) {
   const { toast } = useToast()
@@ -94,7 +97,12 @@ export function ContactGroup({
       {/* Messages grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
         {messages.map((m) => (
-          <MessageCard key={m.id} message={m} />
+          <MessageCard
+            key={m.id}
+            message={m}
+            selected={selectedIds?.has(m.id) ?? false}
+            onToggleSelect={onToggleSelect ? () => onToggleSelect(m.id) : undefined}
+          />
         ))}
       </div>
     </div>
