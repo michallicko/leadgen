@@ -43,6 +43,8 @@ export interface Message {
   regen_config: Record<string, unknown> | null
   label: string | null
   campaign_contact_id: string | null
+  variant_group: string | null
+  variant_angle: string | null
   contact: MessageContact
   company: MessageCompany | null
 }
