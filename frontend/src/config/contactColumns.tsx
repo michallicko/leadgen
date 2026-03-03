@@ -98,6 +98,23 @@ export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
     minWidth: '70px',
     defaultVisible: true,
   },
+  // --- Enrichment summary columns (BL-180) ---
+  {
+    key: 'company_tier',
+    label: 'Co. Tier',
+    minWidth: '100px',
+    shrink: false,
+    defaultVisible: false,
+    render: (c) => <Badge variant="tier" value={c.company_tier} />,
+  },
+  {
+    key: 'enrichment_status',
+    label: 'Enrichment',
+    minWidth: '85px',
+    shrink: false,
+    defaultVisible: false,
+    render: (c) => <Badge variant="enrichment" value={c.enrichment_status} />,
+  },
   // --- Hidden by default ---
   {
     key: 'contact_score',
@@ -190,6 +207,29 @@ export const CONTACT_COLUMNS = defineColumns<ContactListItem>([
     label: 'Source',
     minWidth: '70px',
     defaultVisible: false,
+  },
+  {
+    key: 'company_status',
+    label: 'Co. Status',
+    minWidth: '100px',
+    defaultVisible: false,
+    render: (c) => <Badge variant="status" value={c.company_status} />,
+  },
+  {
+    key: 'last_enriched_at',
+    label: 'Enriched At',
+    sortKey: 'last_enriched_at',
+    minWidth: '100px',
+    defaultVisible: false,
+    render: (c) => {
+      if (!c.last_enriched_at) return <span className="text-text-dim">-</span>
+      const d = new Date(c.last_enriched_at)
+      return (
+        <span className="text-xs text-text-muted tabular-nums">
+          {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
+      )
+    },
   },
 ])
 

@@ -52,6 +52,7 @@ const PILLARS: PillarDef[] = [
     pages: [
       { id: 'contacts', label: 'Contacts', path: 'contacts', minRole: 'viewer' },
       { id: 'companies', label: 'Companies', path: 'companies', minRole: 'viewer' },
+      { id: 'triage', label: 'Triage', path: 'triage', minRole: 'editor' },
       { id: 'import', label: 'Import', path: 'import', minRole: 'editor' },
       { id: 'enrich', label: 'Enrich', path: 'enrich', minRole: 'editor' },
     ],

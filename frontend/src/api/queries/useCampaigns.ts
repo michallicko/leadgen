@@ -296,6 +296,20 @@ export interface CampaignAnalyticsData {
     email: { total: number; queued: number; sent: number; delivered: number; bounced: number; failed: number }
     linkedin: { total: number; queued: number; sent: number; delivered: number; failed: number }
   }
+  engagement: {
+    opened: number
+    replied: number
+    bounced: number
+    clicked: number
+    total_opens: number
+    total_clicks: number
+    hard_bounces: number
+    soft_bounces: number
+    open_rate: number
+    reply_rate: number
+    bounce_rate: number
+    click_rate: number
+  }
   contacts: {
     total: number
     with_email: number

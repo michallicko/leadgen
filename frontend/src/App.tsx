@@ -21,6 +21,7 @@ import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
 import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 import { TokensPage } from './pages/tokens/TokensPage'
+import { TriageReviewPage } from './pages/companies/TriageReviewPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="companies/:companyId" element={<CompanyDetailPage />} />
+              <Route path="triage" element={<TriageReviewPage />} />
               <Route path="import" element={<ImportPage />} />
               <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
