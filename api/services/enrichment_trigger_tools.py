@@ -69,10 +69,7 @@ def _get_tenant_tags(tenant_id):
         """),
         {"t": str(tenant_id)},
     ).fetchall()
-    return [
-        {"id": row[0], "name": row[1], "company_count": row[2]}
-        for row in rows
-    ]
+    return [{"id": row[0], "name": row[1], "company_count": row[2]} for row in rows]
 
 
 def _get_cost_per_item(tenant_id, stage):
@@ -119,8 +116,7 @@ def estimate_enrichment_cost(args: dict, ctx: ToolContext) -> dict:
         return {
             "error": "Please specify a tag_name.",
             "available_tags": [
-                {"name": t["name"], "companies": t["company_count"]}
-                for t in tags
+                {"name": t["name"], "companies": t["company_count"]} for t in tags
             ],
         }
 
@@ -130,8 +126,7 @@ def estimate_enrichment_cost(args: dict, ctx: ToolContext) -> dict:
         return {
             "error": "Tag '{}' not found.".format(tag_name),
             "available_tags": [
-                {"name": t["name"], "companies": t["company_count"]}
-                for t in tags
+                {"name": t["name"], "companies": t["company_count"]} for t in tags
             ],
         }
 
@@ -164,14 +159,16 @@ def estimate_enrichment_cost(args: dict, ctx: ToolContext) -> dict:
         total_cost_usd += stage_cost
         total_eligible += eligible
 
-        stage_estimates.append({
-            "stage": stage,
-            "eligible_count": eligible,
-            "cost_per_item_usd": cost_per_item,
-            "cost_per_item_credits": int(cost_per_item * CREDITS_PER_USD),
-            "total_cost_usd": stage_cost,
-            "total_cost_credits": int(stage_cost * CREDITS_PER_USD),
-        })
+        stage_estimates.append(
+            {
+                "stage": stage,
+                "eligible_count": eligible,
+                "cost_per_item_usd": cost_per_item,
+                "cost_per_item_credits": int(cost_per_item * CREDITS_PER_USD),
+                "total_cost_usd": stage_cost,
+                "total_cost_credits": int(stage_cost * CREDITS_PER_USD),
+            }
+        )
 
     total_cost_credits = int(total_cost_usd * CREDITS_PER_USD)
 
@@ -205,7 +202,8 @@ def estimate_enrichment_cost(args: dict, ctx: ToolContext) -> dict:
                 len(stages),
                 total_cost_credits,
                 total_cost_usd,
-                " Budget sufficient." if can_afford
+                " Budget sufficient."
+                if can_afford
                 else " WARNING: Insufficient budget.",
             )
         ),
@@ -294,6 +292,7 @@ def start_enrichment(args: dict, ctx: ToolContext) -> dict:
 
     # Need to import current_app for thread spawning
     from flask import current_app
+
     app = current_app._get_current_object()
 
     # Spawn threads
