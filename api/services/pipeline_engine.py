@@ -378,11 +378,36 @@ def _process_registry_unified(company_id, tenant_id):
     return result
 
 
+def _load_icp_triage_rules(tenant_id):
+    """Load ICP-derived triage rules from the 'From GTM Strategy' EnrichmentConfig.
+
+    Returns the rules dict or None if no ICP triage config exists.
+    """
+    import json as _json
+    from ..models import EnrichmentConfig
+
+    ec = EnrichmentConfig.query.filter_by(
+        tenant_id=tenant_id, name="From GTM Strategy"
+    ).first()
+    if not ec or not ec.config:
+        return None
+
+    config = ec.config
+    if isinstance(config, str):
+        try:
+            config = _json.loads(config)
+        except (ValueError, TypeError):
+            return None
+
+    return config if isinstance(config, dict) else None
+
+
 def _process_triage(company_id, tenant_id, triage_rules=None):
     """Run triage evaluation on a company using L1 enrichment data.
 
     Reads company fields + L1 raw_response to build the evaluation context,
-    then calls evaluate_triage(). Updates company status on disqualification.
+    then calls evaluate_triage(). When no explicit triage_rules are provided,
+    loads ICP-derived rules from the tenant's GTM Strategy config.
 
     Returns:
         dict with gate_passed, gate_reasons, enrichment_cost_usd
@@ -444,7 +469,12 @@ def _process_triage(company_id, tenant_id, triage_rules=None):
         "qc_flags": qc_flags,
     }
 
-    rules = triage_rules or DEFAULT_RULES
+    # Priority: explicit rules > ICP-derived config > defaults
+    if triage_rules:
+        rules = triage_rules
+    else:
+        icp_rules = _load_icp_triage_rules(tenant_id) if tenant_id else None
+        rules = icp_rules or DEFAULT_RULES
     result = evaluate_triage(company_data, rules)
 
     # Update company status based on triage result

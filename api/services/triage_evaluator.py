@@ -16,6 +16,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _fuzzy_match(value, allowlist):
+    """Case-insensitive substring match of value against any allowlist entry.
+
+    Returns True if the value contains any allowlist term as a substring
+    (or vice versa). This handles ICP terms like "SaaS" matching company
+    industries like "software_saas" or "SaaS & Cloud".
+    """
+    if not value:
+        return False
+    val_lower = value.lower().replace("_", " ")
+    for term in allowlist:
+        term_lower = term.lower().replace("_", " ")
+        if term_lower in val_lower or val_lower in term_lower:
+            return True
+    return False
+
+
 # Default triage rules — conservative, lets most through
 DEFAULT_RULES = {
     "tier_allowlist": [],  # empty = no tier filter
@@ -61,14 +79,14 @@ def evaluate_triage(company_data, rules):
     industry_blocklist = rules.get("industry_blocklist")
     if industry_blocklist:
         industry = company_data.get("industry")
-        if industry in industry_blocklist:
+        if _fuzzy_match(industry, industry_blocklist):
             reasons.append("Industry {} is blocklisted".format(industry))
 
     # Industry allowlist
     industry_allowlist = rules.get("industry_allowlist")
     if industry_allowlist:
         industry = company_data.get("industry")
-        if industry not in industry_allowlist:
+        if not _fuzzy_match(industry, industry_allowlist):
             reasons.append(
                 "Industry {} not in allowlist {}".format(industry, industry_allowlist)
             )
@@ -77,7 +95,7 @@ def evaluate_triage(company_data, rules):
     geo_allowlist = rules.get("geo_allowlist")
     if geo_allowlist:
         geo = company_data.get("geo_region")
-        if geo not in geo_allowlist:
+        if not _fuzzy_match(geo, geo_allowlist):
             reasons.append(
                 "Geo region {} not in allowlist {}".format(geo, geo_allowlist)
             )

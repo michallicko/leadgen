@@ -1,8 +1,6 @@
 """Unit tests for rules-based triage evaluation logic."""
 
-import pytest
-
-from api.services.triage_evaluator import evaluate_triage, DEFAULT_RULES
+from api.services.triage_evaluator import evaluate_triage, DEFAULT_RULES, _fuzzy_match
 
 
 # ---------------------------------------------------------------------------
@@ -328,3 +326,63 @@ class TestCombinedRules:
         assert "reasons" in result
         assert isinstance(result["passed"], bool)
         assert isinstance(result["reasons"], list)
+
+
+# ---------------------------------------------------------------------------
+# Test: Fuzzy matching (BL-139)
+# ---------------------------------------------------------------------------
+
+class TestFuzzyMatch:
+    """Test case-insensitive substring matching for ICP criteria."""
+
+    def test_exact_match(self):
+        assert _fuzzy_match("SaaS", ["SaaS"]) is True
+
+    def test_case_insensitive(self):
+        assert _fuzzy_match("saas", ["SaaS"]) is True
+        assert _fuzzy_match("DACH", ["dach"]) is True
+
+    def test_substring_term_in_value(self):
+        assert _fuzzy_match("software_saas", ["SaaS"]) is True
+
+    def test_underscore_normalized(self):
+        assert _fuzzy_match("software_saas", ["software saas"]) is True
+
+    def test_no_match(self):
+        assert _fuzzy_match("manufacturing", ["SaaS", "FinTech"]) is False
+
+    def test_none_value(self):
+        assert _fuzzy_match(None, ["SaaS"]) is False
+
+    def test_empty_allowlist(self):
+        assert _fuzzy_match("SaaS", []) is False
+
+
+class TestFuzzyIndustryFiltering:
+    def test_icp_saas_matches_software_saas(self):
+        rules = {"industry_allowlist": ["SaaS", "FinTech"]}
+        result = evaluate_triage(_make_company(industry="software_saas"), rules)
+        assert result["passed"] is True
+
+    def test_blocklist_fuzzy_match(self):
+        rules = {"industry_blocklist": ["gambling"]}
+        result = evaluate_triage(_make_company(industry="online_gambling"), rules)
+        assert result["passed"] is False
+
+    def test_no_false_positive_industry(self):
+        rules = {"industry_allowlist": ["SaaS"]}
+        result = evaluate_triage(_make_company(industry="manufacturing"), rules)
+        assert result["passed"] is False
+
+
+class TestFuzzyGeoFiltering:
+    def test_icp_dach_matches_dach_lowercase(self):
+        rules = {"geo_allowlist": ["DACH"]}
+        result = evaluate_triage(_make_company(geo_region="dach"), rules)
+        assert result["passed"] is True
+
+    def test_no_false_positive_geo(self):
+        rules = {"geo_allowlist": ["DACH"]}
+        result = evaluate_triage(_make_company(geo_region="us"), rules)
+        assert result["passed"] is False
+
