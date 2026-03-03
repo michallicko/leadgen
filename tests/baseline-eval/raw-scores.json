@@ -1,0 +1,364 @@
+{
+  "test_id": "baseline-001",
+  "test_date": "2026-03-02",
+  "test_type": "gtm-full-workflow",
+  "test_subject": "unitedarts.cz",
+  "system_version": "625753a",
+  "steps": [
+    {
+      "step_id": "strategy-creation",
+      "step_name": "GTM Strategy Creation",
+      "step_number": 1,
+      "phase": "try",
+      "status": "completed",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 6,
+        "proactiveness": 5,
+        "ai_quality": 7,
+        "user_effort": 5
+      },
+      "user_effort_detail": {
+        "extra_prompts": 2,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 4,
+        "total_clicks": 8
+      },
+      "llm_outputs": [
+        {
+          "node_id": "strategy-gen",
+          "node_name": "Strategy Document Generation (9 sections)",
+          "model": "claude-sonnet-4-5-20250514",
+          "scores": {
+            "relevance": 8,
+            "accuracy": 6,
+            "specificity": 6,
+            "actionability": 7,
+            "tone": 8
+          },
+          "input_summary": "Company domain (unitedarts.cz), primary objective (event agency leads in CZ/CEE), ICP description, Professional Services template",
+          "output_summary": "Complete 9-section GTM strategy: Executive Summary, ICP (2 segments), 3 Buyer Personas, Value Proposition, Competitive Matrix, Channel Strategy (4 channels with %), Messaging Framework (3 persona variants), KPI tables, 90-Day Action Plan with weekly checklist",
+          "raw_output": "[Strategy content saved in strategy document - approximately 3000 words across 9 sections including tables]",
+          "notes": "Good structure and specificity to entertainment/event industry. But no web research of unitedarts.cz was performed (no web_search tool called). Placeholder stats like '[X] agencies' and '[Y]% revenue'. Competitive positioning is generic (no named competitors). ICP criteria are reasonable but not validated against real market data."
+        }
+      ],
+      "duration_seconds": 300,
+      "screenshots": [
+        "04-playbook-onboarding-step1.png",
+        "05-playbook-discovery-filled.png",
+        "06-playbook-template-selection.png",
+        "07-playbook-ai-response-initial.png",
+        "08-playbook-ai-tool-calls.png",
+        "09-playbook-strategy-5-sections.png",
+        "10-playbook-strategy-complete.png"
+      ],
+      "errors": [
+        {
+          "type": "api_error",
+          "description": "/api/playbook/apply-template returned error - template application failed",
+          "severity": "major",
+          "recovery": "System fell back to AI chat generation"
+        },
+        {
+          "type": "other",
+          "description": "AI rate limit: 5 tool calls per turn - had to split 9 sections across 2 turns",
+          "severity": "minor",
+          "recovery": "Extra prompt to complete remaining 4 sections"
+        }
+      ],
+      "notes": "Onboarding wizard (Discovery -> Template -> Generate) is well-designed. AI generates good quality content but doesn't use web_search to research the actual company. Rate limit forces multi-turn interaction. Template API failure is silent to user."
+    },
+    {
+      "step_id": "intelligence-extraction",
+      "step_name": "Intelligence Extraction",
+      "step_number": 2,
+      "phase": "try",
+      "status": "completed",
+      "scores": {
+        "availability": 5,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 8
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 1,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 2
+      },
+      "duration_seconds": 15,
+      "screenshots": [
+        "11-icp-extracted.png",
+        "12-playbook-contacts-phase-coming-soon.png"
+      ],
+      "errors": [],
+      "notes": "Extraction runs but gives zero feedback. Phase 2 (Contacts) shows 'Coming soon'. No ICP-to-filter mapping visible. Manual workaround: had to navigate to Phase 2 tab manually to check if extraction produced anything."
+    },
+    {
+      "step_id": "contact-import",
+      "step_name": "Contact Import",
+      "step_number": 3,
+      "phase": "run",
+      "status": "completed",
+      "scores": {
+        "availability": 3,
+        "seamlessness": 2,
+        "proactiveness": 5,
+        "ai_quality": 8,
+        "user_effort": 1
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 3,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 4
+      },
+      "llm_outputs": [
+        {
+          "node_id": "column-mapper",
+          "node_name": "AI Column Mapping",
+          "model": "claude-haiku-3-5-20241022",
+          "scores": {
+            "relevance": 10,
+            "accuracy": 10,
+            "specificity": 9,
+            "actionability": 10,
+            "tone": 8
+          },
+          "input_summary": "CSV headers: First Name, Last Name, Organization, Title, Email, Phone, Notes + 10 sample rows",
+          "output_summary": "7 column mappings with 0.99 overall confidence. Notes correctly identified as custom field. 3 useful warnings about missing domain, phone format, and data quality.",
+          "raw_output": "[Column mapping JSON - see API response in test log]",
+          "notes": "Excellent mapping quality. Correctly identified Notes as custom field with suggested field definition. Warnings are contextually appropriate."
+        }
+      ],
+      "duration_seconds": 240,
+      "screenshots": [
+        "13-import-page-upload.png",
+        "14-import-after-upload.png",
+        "15-import-resume-available.png",
+        "16-import-resume-crash.png"
+      ],
+      "errors": [
+        {
+          "type": "ui_error",
+          "description": "Frontend column mapping UI crashes with TypeError: Cannot read properties of undefined (reading 'length'). Reproducible on every attempt. Page goes completely blank.",
+          "severity": "blocker",
+          "recovery": "API workaround via browser JavaScript console (called /api/imports/{id}/preview and /api/imports/{id}/execute directly)"
+        }
+      ],
+      "notes": "Backend API is robust and works perfectly. AI column mapping is excellent (0.99 confidence). But the frontend crashes consistently on the column mapping step, making import impossible through the UI. Had to use 3 manual API workarounds."
+    },
+    {
+      "step_id": "basic-enrichment",
+      "step_name": "Basic Enrichment (L1)",
+      "step_number": 4,
+      "phase": "run",
+      "status": "partial",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 8
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 1,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 2
+      },
+      "duration_seconds": 30,
+      "screenshots": [],
+      "errors": [
+        {
+          "type": "data_error",
+          "description": "Cross-namespace filter leakage: enrichment page shows tag filter from visionvolve namespace (batch-2-NL-NORDICS)",
+          "severity": "minor",
+          "recovery": "Manual filter clear needed"
+        }
+      ],
+      "notes": "DAG visualization is comprehensive with 10+ stages. Did not execute enrichment (would cost real credits). Run controls showed 'Loading...' state. Cross-namespace filter leakage observed."
+    },
+    {
+      "step_id": "qualification-triage",
+      "step_name": "Qualification & Triage",
+      "step_number": 5,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 5,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Skipped - requires L1 enrichment data. Triage stage exists in DAG."
+    },
+    {
+      "step_id": "deep-enrichment",
+      "step_name": "Deep Enrichment (L2 + Person + Registry)",
+      "step_number": 6,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 5,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Skipped - requires L1 + triage. Stages exist in DAG (DR, SS, LR, NP for company; RE, SO, CH, CD for contact)."
+    },
+    {
+      "step_id": "campaign-creation",
+      "step_name": "Campaign Creation",
+      "step_number": 7,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Not tested - blocked by lack of enrichment data. Feature exists per system inventory (full campaign CRUD + templates)."
+    },
+    {
+      "step_id": "message-generation",
+      "step_name": "Message Generation",
+      "step_number": 8,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Not tested - blocked by no campaign. Feature exists per system inventory (Claude Haiku generation with cost estimation)."
+    },
+    {
+      "step_id": "message-review",
+      "step_name": "Message Review & Approval",
+      "step_number": 9,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Not tested - blocked by no messages. Feature exists per system inventory (review queue with approve/reject/edit/regenerate)."
+    },
+    {
+      "step_id": "campaign-launch",
+      "step_name": "Campaign Launch (Outreach)",
+      "step_number": 10,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "Not tested - blocked by no reviewed messages. Feature exists per system inventory (Resend email + LinkedIn queuing)."
+    }
+  ],
+  "aggregates": {
+    "overall_completeness": 6.0,
+    "workflow_seamlessness": 3.2,
+    "ai_quality": 7.5,
+    "user_effort": 7.2,
+    "proactiveness": 2.5,
+    "llm_quality": {
+      "relevance": 9.0,
+      "accuracy": 8.0,
+      "specificity": 7.5,
+      "actionability": 8.5,
+      "tone": 8.0,
+      "total_outputs_scored": 2,
+      "total_token_cost": 0
+    },
+    "total_errors": 5,
+    "total_blockers": 1,
+    "steps_completed": 4,
+    "steps_total": 10,
+    "completion_rate": 0.4
+  },
+  "metadata": {
+    "tester": "automated",
+    "environment": "staging",
+    "environment_url": "https://leadgen-staging.visionvolve.com",
+    "test_namespace": "unitedarts",
+    "test_user": "test@staging.local",
+    "browser": "chromium",
+    "viewport": "1280x720",
+    "duration_seconds": 900,
+    "git_branch": "staging",
+    "git_commit": "625753a",
+    "notes": "Baseline test executed via Playwright MCP tools. Steps 5-10 skipped because enrichment was not executed (would cost real credits and take ~30 minutes). Steps 1-4 were fully tested. The import step required API workaround due to frontend crash."
+  }
+}

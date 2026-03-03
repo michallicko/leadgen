@@ -1,0 +1,535 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GTM Baseline Evaluation Scores",
+  "description": "Repeatable scoring framework for end-to-end GTM workflow evaluation. Each test run produces one file conforming to this schema.",
+  "type": "object",
+  "required": ["test_id", "test_date", "test_type", "test_subject", "system_version", "steps", "aggregates", "metadata"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "description": "Unique identifier for this test run (e.g., 'baseline-001')",
+      "pattern": "^[a-z]+-[0-9]+$"
+    },
+    "test_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 date of the test run"
+    },
+    "test_type": {
+      "type": "string",
+      "enum": ["gtm-full-workflow", "gtm-strategy-only", "gtm-enrichment-only", "gtm-outreach-only", "regression"],
+      "description": "Type of test executed"
+    },
+    "test_subject": {
+      "type": "string",
+      "description": "Company/business used as the test subject (e.g., 'unitedarts.cz')"
+    },
+    "system_version": {
+      "type": "string",
+      "description": "Git commit hash or tag identifying the system version under test"
+    },
+    "steps": {
+      "type": "array",
+      "description": "Per-step evaluation results, one entry per workflow step executed",
+      "items": {
+        "$ref": "#/$defs/step_result"
+      }
+    },
+    "aggregates": {
+      "$ref": "#/$defs/aggregate_scores"
+    },
+    "comparison": {
+      "$ref": "#/$defs/comparison_data",
+      "description": "Optional comparison against a previous test run"
+    },
+    "metadata": {
+      "$ref": "#/$defs/test_metadata"
+    }
+  },
+  "$defs": {
+    "step_result": {
+      "type": "object",
+      "required": ["step_id", "step_name", "step_number", "phase", "scores", "user_effort_detail", "status"],
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "enum": [
+            "strategy-creation",
+            "intelligence-extraction",
+            "contact-import",
+            "basic-enrichment",
+            "qualification-triage",
+            "deep-enrichment",
+            "campaign-creation",
+            "message-generation",
+            "message-review",
+            "campaign-launch"
+          ],
+          "description": "Stable identifier for this step (never changes between runs)"
+        },
+        "step_name": {
+          "type": "string",
+          "description": "Human-readable step name"
+        },
+        "step_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Sequential step number in the workflow"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["try", "run", "evaluate", "improve"],
+          "description": "Which flywheel phase this step belongs to"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "partial", "skipped", "blocked", "failed"],
+          "description": "Execution status of this step"
+        },
+        "scores": {
+          "$ref": "#/$defs/step_scores"
+        },
+        "user_effort_detail": {
+          "$ref": "#/$defs/user_effort_detail"
+        },
+        "llm_outputs": {
+          "type": "array",
+          "description": "LLM-generated outputs produced at this step",
+          "items": {
+            "$ref": "#/$defs/llm_output"
+          }
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Wall-clock time for this step (seconds)"
+        },
+        "screenshots": {
+          "type": "array",
+          "description": "Paths to screenshots captured during this step",
+          "items": {
+            "type": "string"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "description": "Errors encountered during this step",
+          "items": {
+            "$ref": "#/$defs/error_record"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text observations about this step"
+        }
+      }
+    },
+    "step_scores": {
+      "type": "object",
+      "description": "Five-dimension scoring for each workflow step",
+      "required": ["availability", "seamlessness", "proactiveness", "ai_quality", "user_effort"],
+      "properties": {
+        "availability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Does this feature exist and work? 0=missing, 5=partial/buggy, 10=fully working as designed"
+        },
+        "seamlessness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "How smooth is the transition from the previous step? 10=automatic, 7=AI suggests next step, 5=user must navigate manually, 3=requires multiple clicks/pages, 0=broken transition"
+        },
+        "proactiveness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Does the system anticipate the next action? 10=auto-proceeds with explanation, 7=suggests concrete next action, 5=shows generic guidance, 3=waits passively, 0=no indication of what to do next"
+        },
+        "ai_quality": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Quality of AI-generated content. null if step has no AI output. 10=excellent, specific, actionable, 7=good with minor issues, 5=acceptable but generic, 3=poor quality needs significant editing, 0=unusable"
+        },
+        "user_effort": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Computed score: 10 - (extra_prompts * 1) - (manual_corrections * 2) - (manual_workarounds * 3) - (unnecessary_clarifications * 1). Floor at 0."
+        }
+      }
+    },
+    "user_effort_detail": {
+      "type": "object",
+      "description": "Breakdown of user effort components (inputs to the user_effort score formula)",
+      "required": ["extra_prompts", "manual_corrections", "manual_workarounds", "unnecessary_clarifications"],
+      "properties": {
+        "extra_prompts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Chat messages beyond the minimum 1 approve/reject per gate. Does NOT count the initial business description or required approvals."
+        },
+        "manual_corrections": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Times the user had to fix AI-generated output (edit a message, correct a strategy section, remap a column)"
+        },
+        "manual_workarounds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Steps the user did manually that should have been automated (copy-paste data, navigate to a different page to trigger something, manually enter data the system should know)"
+        },
+        "unnecessary_clarifications": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Times the system asked something it should already know from context (re-asking business description, asking which contacts when there's only one batch)"
+        },
+        "total_user_messages": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total user messages/actions at this step (for reference, not scored)"
+        },
+        "total_clicks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total UI clicks required at this step (for reference, not scored)"
+        }
+      }
+    },
+    "llm_output": {
+      "type": "object",
+      "description": "Evaluation of a single LLM-generated output",
+      "required": ["node_id", "node_name", "scores"],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Identifier for the LLM node (e.g., 'strategy-gen', 'l1-enricher', 'msg-gen-linkedin-1')"
+        },
+        "node_name": {
+          "type": "string",
+          "description": "Human-readable name (e.g., 'Strategy Document Generation')"
+        },
+        "model": {
+          "type": "string",
+          "description": "LLM model used (e.g., 'claude-haiku-3-5-20241022', 'perplexity-sonar')"
+        },
+        "scores": {
+          "$ref": "#/$defs/llm_scores"
+        },
+        "input_summary": {
+          "type": "string",
+          "description": "Brief description of what was sent to the LLM"
+        },
+        "output_summary": {
+          "type": "string",
+          "description": "Brief description of what the LLM produced"
+        },
+        "raw_output": {
+          "type": "string",
+          "description": "The actual LLM output text (for future analysis and comparison)"
+        },
+        "token_cost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Token/credit cost of this LLM call"
+        },
+        "latency_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Response time in milliseconds"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "llm_scores": {
+      "type": "object",
+      "description": "Five-dimension quality scoring for LLM outputs",
+      "required": ["relevance", "accuracy", "specificity", "actionability", "tone"],
+      "properties": {
+        "relevance": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Does the output fit the context? 10=perfectly relevant to unitedarts.cz and event agencies, 5=somewhat related, 1=completely off-topic"
+        },
+        "accuracy": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Factually correct? 10=all facts verified, 7=minor inaccuracies, 5=some errors but usable, 3=significant errors, 1=mostly wrong"
+        },
+        "specificity": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Specific to this business, not generic? 10=deeply specific (mentions unitedarts.cz services, Czech market details), 5=could apply to any entertainment company, 1=completely generic"
+        },
+        "actionability": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Can you act on it immediately? 10=ready to use as-is, 7=needs minor tweaks, 5=needs significant editing, 3=only directional, 1=not actionable"
+        },
+        "tone": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Appropriate for B2B outreach? 10=professional, warm, not salesy, 7=good but slightly off, 5=acceptable but generic tone, 3=too aggressive/too casual, 1=inappropriate"
+        }
+      }
+    },
+    "error_record": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ui_error", "api_error", "timeout", "data_error", "navigation_error", "auth_error", "other"],
+          "description": "Error category"
+        },
+        "description": {
+          "type": "string",
+          "description": "What went wrong"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["blocker", "major", "minor", "cosmetic"],
+          "description": "How much this impacted the workflow"
+        },
+        "recovery": {
+          "type": "string",
+          "description": "How was it resolved? (e.g., 'page refresh', 'manual workaround', 'could not recover')"
+        },
+        "screenshot": {
+          "type": "string",
+          "description": "Path to error screenshot"
+        }
+      }
+    },
+    "aggregate_scores": {
+      "type": "object",
+      "description": "Aggregate scores computed from all steps. Each is the arithmetic mean of the corresponding per-step score.",
+      "required": [
+        "overall_completeness",
+        "workflow_seamlessness",
+        "ai_quality",
+        "user_effort",
+        "proactiveness",
+        "llm_quality"
+      ],
+      "properties": {
+        "overall_completeness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Mean of all availability scores. Measures: how much of the ideal workflow actually exists and works?"
+        },
+        "workflow_seamlessness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Mean of all seamlessness scores. Measures: how smooth is the end-to-end flow?"
+        },
+        "ai_quality": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Mean of all non-null ai_quality scores. Measures: how good is the AI-generated content?"
+        },
+        "user_effort": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Mean of all user_effort scores. Higher = less effort. Measures: how much extra work does the user have to do?"
+        },
+        "proactiveness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Mean of all proactiveness scores. Measures: does the system anticipate next steps?"
+        },
+        "llm_quality": {
+          "$ref": "#/$defs/llm_aggregate_scores",
+          "description": "Aggregate LLM output quality across all steps"
+        },
+        "total_errors": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total errors encountered across all steps"
+        },
+        "total_blockers": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total blocker-severity errors (steps that could not complete)"
+        },
+        "steps_completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Number of steps that reached 'completed' status"
+        },
+        "steps_total": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Total steps attempted"
+        },
+        "completion_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "steps_completed / steps_total"
+        }
+      }
+    },
+    "llm_aggregate_scores": {
+      "type": "object",
+      "description": "Mean of all LLM output scores across all steps",
+      "properties": {
+        "relevance": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "accuracy": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "specificity": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "actionability": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "tone": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "total_outputs_scored": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of LLM outputs that were scored"
+        },
+        "total_token_cost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total token/credit cost across all LLM calls"
+        }
+      }
+    },
+    "comparison_data": {
+      "type": "object",
+      "description": "Delta comparison against a baseline or previous run",
+      "properties": {
+        "baseline_test_id": {
+          "type": "string",
+          "description": "Test ID being compared against"
+        },
+        "deltas": {
+          "type": "object",
+          "description": "Score differences (current - baseline) for each aggregate",
+          "properties": {
+            "overall_completeness": { "type": "number" },
+            "workflow_seamlessness": { "type": "number" },
+            "ai_quality": { "type": "number" },
+            "user_effort": { "type": "number" },
+            "proactiveness": { "type": "number" }
+          }
+        },
+        "new_errors": {
+          "type": "array",
+          "description": "Errors in current run that were not in baseline",
+          "items": { "type": "string" }
+        },
+        "fixed_errors": {
+          "type": "array",
+          "description": "Errors from baseline that are now resolved",
+          "items": { "type": "string" }
+        },
+        "regression_steps": {
+          "type": "array",
+          "description": "Steps where availability decreased",
+          "items": { "type": "string" }
+        },
+        "improved_steps": {
+          "type": "array",
+          "description": "Steps where availability increased",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "test_metadata": {
+      "type": "object",
+      "required": ["tester", "environment"],
+      "properties": {
+        "tester": {
+          "type": "string",
+          "enum": ["automated", "human", "hybrid"],
+          "description": "Who ran the test"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["staging", "production", "local"],
+          "description": "Environment under test"
+        },
+        "environment_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the environment (e.g., 'https://leadgen-staging.visionvolve.com')"
+        },
+        "test_namespace": {
+          "type": "string",
+          "description": "Namespace used for the test (e.g., 'unitedarts')"
+        },
+        "test_user": {
+          "type": "string",
+          "description": "User account used for testing"
+        },
+        "browser": {
+          "type": "string",
+          "description": "Browser used (e.g., 'chromium', 'firefox')"
+        },
+        "viewport": {
+          "type": "string",
+          "description": "Viewport size (e.g., '1280x720')"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total wall-clock time for the entire test run"
+        },
+        "video_path": {
+          "type": "string",
+          "description": "Path to recorded video of the test run"
+        },
+        "trace_path": {
+          "type": "string",
+          "description": "Path to Playwright trace file"
+        },
+        "git_branch": {
+          "type": "string",
+          "description": "Git branch under test"
+        },
+        "git_commit": {
+          "type": "string",
+          "description": "Full git commit SHA"
+        },
+        "notes": {
+          "type": "string",
+          "description": "General notes about the test run"
+        }
+      }
+    }
+  }
+}

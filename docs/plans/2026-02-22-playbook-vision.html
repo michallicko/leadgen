@@ -1,0 +1,3175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTM Engine Vision — VisionVolve</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Design System Tokens ──────────────────────────── */
+  :root {
+    --vision-purple: #6E2C8B;
+    --vision-purple-dark: #4A1D5E;
+    --vision-purple-light: #9B59B6;
+    --evolve-cyan: #00B8CF;
+    --evolve-cyan-dark: #008B9A;
+    --evolve-cyan-light: #67E8F9;
+    --deep-slate: #404B5C;
+    --slate-light: #6B7280;
+    --soft-cloud: #F8F9FC;
+    --silver-mist: #E5E7EB;
+    --success: #059669;
+    --warning: #D97706;
+    --danger: #DC2626;
+
+    --font-title: 'Lexend Deca', -apple-system, sans-serif;
+    --font-body: 'Work Sans', -apple-system, sans-serif;
+
+    /* Dark theme overrides */
+    --bg-page: #0D0F14;
+    --bg-card: #161923;
+    --bg-card-hover: #1C2030;
+    --bg-elevated: #1E2235;
+    --bg-inset: #12141B;
+    --border-subtle: rgba(110, 44, 139, 0.2);
+    --border-medium: rgba(110, 44, 139, 0.35);
+    --text-primary: #F0F0F5;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --glow-purple: rgba(110, 44, 139, 0.25);
+    --glow-cyan: rgba(0, 184, 207, 0.2);
+  }
+
+  /* ── Reset & Base ──────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-page);
+    color: var(--text-primary);
+    line-height: 1.65;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top Navigation ─────────────────────────────────── */
+  .top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(13, 15, 20, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0 32px;
+    transition: box-shadow 0.3s;
+  }
+
+  .top-nav.scrolled {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .nav-inner {
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+
+  .nav-brand {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 4px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    display: block;
+    padding: 8px 14px;
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .nav-links a:hover {
+    color: var(--text-primary);
+    background: rgba(110, 44, 139, 0.1);
+  }
+
+  /* ── Hero / Cover ──────────────────────────────────── */
+  .hero {
+    position: relative;
+    min-height: 580px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 120px 40px 80px;
+    background: linear-gradient(135deg, #0D0F14 0%, #1a1030 30%, #4A1D5E 60%, #2a1848 80%, #0D0F14 100%);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 30% 40%, rgba(110, 44, 139, 0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 500px 350px at 70% 60%, rgba(0, 184, 207, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(to bottom, transparent, var(--bg-page));
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 100px;
+    background: rgba(110, 44, 139, 0.2);
+    border: 1px solid rgba(110, 44, 139, 0.35);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--vision-purple-light);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero h1 {
+    font-family: var(--font-title);
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(135deg, #FFFFFF 0%, #e0d0f0 40%, var(--evolve-cyan-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    max-width: 700px;
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 40px;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 32px;
+    position: relative;
+    z-index: 1;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .hero-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* ── Layout ────────────────────────────────────────── */
+  .container {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  section {
+    padding: 80px 0;
+    position: relative;
+  }
+
+  section + section {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .section-label {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--evolve-cyan);
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-family: var(--font-title);
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+  }
+
+  .section-desc {
+    font-size: 17px;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 48px;
+    line-height: 1.7;
+  }
+
+  /* ── Flywheel ───────────────────────────────────────── */
+  .flywheel-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 0 20px;
+  }
+
+  .flywheel-container {
+    position: relative;
+    width: 520px;
+    height: 520px;
+  }
+
+  .flywheel-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid rgba(110, 44, 139, 0.15);
+    animation: flywheel-rotate 60s linear infinite;
+  }
+
+  .flywheel-ring::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--vision-purple);
+    border-right-color: var(--evolve-cyan);
+    animation: flywheel-rotate 20s linear infinite;
+  }
+
+  @keyframes flywheel-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Outer glow ring */
+  .flywheel-glow {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, transparent 55%, rgba(110, 44, 139, 0.04) 65%, transparent 75%);
+    animation: flywheel-pulse 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes flywheel-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.03); }
+  }
+
+  /* Flywheel nodes positioned at 4 compass points */
+  .fw-node {
+    position: absolute;
+    width: 140px;
+    text-align: center;
+    z-index: 2;
+  }
+
+  .fw-node-top    { top: -20px;  left: 50%; transform: translateX(-50%); }
+  .fw-node-right  { top: 50%;  right: -30px; transform: translateY(-50%); }
+  .fw-node-bottom { bottom: -20px; left: 50%; transform: translateX(-50%); }
+  .fw-node-left   { top: 50%;  left: -30px; transform: translateY(-50%); }
+
+  .fw-dot {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    border: 3px solid;
+    position: relative;
+    background: var(--bg-page);
+  }
+
+  .fw-dot::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid;
+    opacity: 0.25;
+  }
+
+  .fw-try .fw-dot     { border-color: var(--vision-purple); background: rgba(110, 44, 139, 0.12); }
+  .fw-try .fw-dot::after { border-color: var(--vision-purple); }
+  .fw-run .fw-dot     { border-color: var(--evolve-cyan); background: rgba(0, 184, 207, 0.1); }
+  .fw-run .fw-dot::after { border-color: var(--evolve-cyan); }
+  .fw-eval .fw-dot    { border-color: var(--warning); background: rgba(217, 119, 6, 0.1); }
+  .fw-eval .fw-dot::after { border-color: var(--warning); }
+  .fw-improve .fw-dot { border-color: var(--success); background: rgba(5, 150, 105, 0.1); }
+  .fw-improve .fw-dot::after { border-color: var(--success); }
+
+  .fw-label {
+    font-family: var(--font-title);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .fw-try .fw-label     { color: var(--vision-purple-light); }
+  .fw-run .fw-label     { color: var(--evolve-cyan); }
+  .fw-eval .fw-label    { color: var(--warning); }
+  .fw-improve .fw-label { color: var(--success); }
+
+  .fw-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Center message */
+  .fw-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 3;
+    width: 200px;
+  }
+
+  .fw-center-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+    display: block;
+    animation: flywheel-pulse 3s ease-in-out infinite;
+  }
+
+  .fw-center-text {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .fw-center-text strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  /* Arrow arcs — SVG overlay */
+  .flywheel-arrows {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .flywheel-arrows svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .arrow-path {
+    fill: none;
+    stroke-width: 2;
+    stroke-dasharray: 8 4;
+    opacity: 0.5;
+    animation: arrow-dash 2s linear infinite;
+  }
+
+  @keyframes arrow-dash {
+    to { stroke-dashoffset: -24; }
+  }
+
+  .arrow-try     { stroke: var(--vision-purple-light); }
+  .arrow-run     { stroke: var(--evolve-cyan); }
+  .arrow-eval    { stroke: var(--warning); }
+  .arrow-improve { stroke: var(--success); }
+
+  /* ── Journey Steps ──────────────────────────────────── */
+  .journey-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 48px;
+    position: relative;
+  }
+
+  .journey-steps::before {
+    content: '';
+    position: absolute;
+    left: 39px;
+    top: 40px;
+    bottom: 40px;
+    width: 2px;
+    background: linear-gradient(to bottom,
+      var(--vision-purple) 0%,
+      var(--vision-purple-light) 20%,
+      var(--evolve-cyan-dark) 40%,
+      var(--evolve-cyan) 60%,
+      var(--warning) 80%,
+      var(--success) 100%
+    );
+    border-radius: 2px;
+  }
+
+  .journey-step {
+    display: flex;
+    gap: 28px;
+    padding: 24px 0;
+    position: relative;
+  }
+
+  .journey-number {
+    width: 80px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .journey-dot {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: 2px solid;
+    background: var(--bg-page);
+    margin-bottom: 8px;
+  }
+
+  .journey-step:nth-child(1) .journey-dot { border-color: var(--vision-purple); background: rgba(110, 44, 139, 0.1); }
+  .journey-step:nth-child(2) .journey-dot { border-color: var(--vision-purple-light); background: rgba(155, 89, 182, 0.1); }
+  .journey-step:nth-child(3) .journey-dot { border-color: var(--evolve-cyan-dark); background: rgba(0, 139, 154, 0.1); }
+  .journey-step:nth-child(4) .journey-dot { border-color: var(--evolve-cyan); background: rgba(0, 184, 207, 0.1); }
+  .journey-step:nth-child(5) .journey-dot { border-color: var(--warning); background: rgba(217, 119, 6, 0.1); }
+  .journey-step:nth-child(6) .journey-dot { border-color: var(--success); background: rgba(5, 150, 105, 0.1); }
+
+  .journey-step-num {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .journey-content {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 28px 32px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .journey-content:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .journey-name {
+    font-family: var(--font-title);
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .journey-step:nth-child(1) .journey-name { color: var(--vision-purple-light); }
+  .journey-step:nth-child(2) .journey-name { color: var(--vision-purple-light); }
+  .journey-step:nth-child(3) .journey-name { color: var(--evolve-cyan-dark); }
+  .journey-step:nth-child(4) .journey-name { color: var(--evolve-cyan); }
+  .journey-step:nth-child(5) .journey-name { color: var(--warning); }
+  .journey-step:nth-child(6) .journey-name { color: var(--success); }
+
+  .journey-role {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 10px;
+  }
+
+  .journey-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  .journey-flywheel-tag {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 3px 12px;
+    border-radius: 100px;
+    font-family: var(--font-title);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .tag-try { background: rgba(110, 44, 139, 0.15); border: 1px solid rgba(110, 44, 139, 0.25); color: var(--vision-purple-light); }
+  .tag-run { background: rgba(0, 184, 207, 0.1); border: 1px solid rgba(0, 184, 207, 0.2); color: var(--evolve-cyan); }
+  .tag-evaluate { background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.2); color: var(--warning); }
+  .tag-improve { background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.2); color: var(--success); }
+
+  /* ── North Star / AI Strategist ─────────────────────── */
+  .ns-analogy {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 32px;
+  }
+
+  .ns-analogy-inner {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+  }
+
+  .ns-role {
+    flex: 1;
+    text-align: center;
+    padding: 28px 20px;
+    border-radius: 12px;
+    background: var(--bg-elevated);
+  }
+
+  .ns-role-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .ns-role-title {
+    font-family: var(--font-title);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .ns-role-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .ns-role-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .ns-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .ns-connector-line {
+    width: 80px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan));
+    border-radius: 2px;
+    position: relative;
+  }
+
+  .ns-connector-line::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--evolve-cyan);
+    border-top: 2px solid var(--evolve-cyan);
+    transform: rotate(45deg);
+  }
+
+  .ns-connector-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Evolution timeline */
+  .evolution-track {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+  }
+
+  .evo-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 28px 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  }
+
+  .evo-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+    transform: translateY(-3px);
+  }
+
+  .evo-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .evo-card:hover::before { opacity: 1; }
+
+  .evo-card:nth-child(1)::before { background: var(--text-muted); }
+  .evo-card:nth-child(2)::before { background: var(--vision-purple); }
+  .evo-card:nth-child(3)::before { background: var(--evolve-cyan); }
+  .evo-card:nth-child(4)::before { background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan)); }
+
+  .evo-time {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .evo-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .evo-title {
+    font-family: var(--font-title);
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+  }
+
+  .evo-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ── Founder Section ────────────────────────────────── */
+  .founder-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .founder-quote {
+    grid-column: 1 / -1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-radius: 16px;
+    padding: 40px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .founder-quote::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan));
+  }
+
+  .founder-quote-text {
+    font-family: var(--font-title);
+    font-size: 24px;
+    font-weight: 300;
+    line-height: 1.5;
+    color: var(--text-primary);
+    font-style: italic;
+    max-width: 780px;
+  }
+
+  .founder-quote-attr {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .founder-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 28px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .founder-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .founder-card-icon {
+    font-size: 28px;
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  .founder-card-title {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .founder-card-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ── Intelligence Section ───────────────────────────── */
+  .intel-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 48px;
+  }
+
+  .intel-column {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .intel-column::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .intel-column.intel-yours::before {
+    background: var(--vision-purple);
+  }
+
+  .intel-column.intel-network::before {
+    background: var(--evolve-cyan);
+  }
+
+  .intel-column-icon {
+    font-size: 36px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .intel-column-title {
+    font-family: var(--font-title);
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .intel-column-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .intel-insight {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    transition: border-color 0.2s;
+  }
+
+  .intel-insight:hover {
+    border-color: var(--border-medium);
+  }
+
+  .intel-insight:last-child { margin-bottom: 0; }
+
+  .intel-insight-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .intel-insight strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* ── UI Mockup ─────────────────────────────────────── */
+  .ui-mockup {
+    margin: 56px 0 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .mockup-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    background: var(--bg-inset);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .mockup-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.3;
+  }
+
+  .mockup-dot:nth-child(1) { background: #FF5F57; opacity: 0.7; }
+  .mockup-dot:nth-child(2) { background: #FFBD2E; opacity: 0.7; }
+  .mockup-dot:nth-child(3) { background: #28C840; opacity: 0.7; }
+
+  .mockup-title-text {
+    margin-left: 8px;
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .mockup-body {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    min-height: 420px;
+  }
+
+  /* Stepper */
+  .mockup-stepper {
+    display: flex;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    grid-column: 1 / -1;
+  }
+
+  .stepper-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: default;
+    transition: color 0.2s;
+  }
+
+  .stepper-item.active {
+    color: var(--vision-purple-light);
+    border-bottom-color: var(--vision-purple);
+  }
+
+  .stepper-item.completed {
+    color: var(--success);
+  }
+
+  .stepper-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    border: 1.5px solid currentColor;
+    flex-shrink: 0;
+  }
+
+  .stepper-item.active .stepper-icon {
+    background: var(--vision-purple);
+    border-color: var(--vision-purple);
+    color: white;
+  }
+
+  .stepper-item.completed .stepper-icon {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+  }
+
+  /* Left panel */
+  .mockup-left {
+    padding: 24px;
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mockup-left-header {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .mockup-left-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .mockup-editor {
+    flex: 1;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+  }
+
+  .editor-line {
+    font-size: 14px;
+    line-height: 2;
+    color: var(--text-secondary);
+  }
+
+  .editor-line strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .editor-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 18px;
+    background: var(--evolve-cyan);
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .editor-badge {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(5, 150, 105, 0.15);
+    border: 1px solid rgba(5, 150, 105, 0.3);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--success);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Right panel (chat) */
+  .mockup-right {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-inset);
+  }
+
+  .chat-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chat-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--vision-purple), var(--evolve-cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .chat-header-text {
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .chat-header-status {
+    font-size: 11px;
+    color: var(--success);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chat-header-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--success);
+    border-radius: 50%;
+  }
+
+  .chat-messages {
+    flex: 1;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+  }
+
+  .chat-msg {
+    max-width: 90%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .chat-msg.ai {
+    background: rgba(110, 44, 139, 0.12);
+    border: 1px solid rgba(110, 44, 139, 0.2);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+
+  .chat-msg.user {
+    background: rgba(0, 184, 207, 0.1);
+    border: 1px solid rgba(0, 184, 207, 0.15);
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  .chat-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(5, 150, 105, 0.08);
+    border: 1px solid rgba(5, 150, 105, 0.2);
+    font-size: 12px;
+    color: var(--success);
+    align-self: flex-start;
+    max-width: 90%;
+  }
+
+  .chat-action .check {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--success);
+    flex-shrink: 0;
+  }
+
+  .chat-input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .chat-input {
+    flex: 1;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    padding: 0 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+  }
+
+  .chat-send {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--vision-purple);
+    border: none;
+    color: white;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .persistent-badge {
+    text-align: center;
+    padding: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .persistent-badge strong {
+    color: var(--evolve-cyan);
+    font-weight: 600;
+  }
+
+  /* ── Trait Cards (reused) ────────────────────────────── */
+  .north-star-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 48px;
+  }
+
+  .trait-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 28px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .trait-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .trait-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--vision-purple-dark), var(--vision-purple));
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 14px;
+  }
+
+  .trait-title {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .trait-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ── Unit Economics ───────────────────────────────────── */
+  .economics-hero-quote {
+    font-family: var(--font-title);
+    font-size: 28px;
+    font-weight: 300;
+    text-align: center;
+    color: var(--text-primary);
+    max-width: 700px;
+    margin: 0 auto 56px;
+    line-height: 1.4;
+  }
+
+  .economics-hero-quote strong {
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--success), var(--evolve-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .pricing-tiers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 56px;
+  }
+
+  .pricing-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  }
+
+  .pricing-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+    transform: translateY(-3px);
+  }
+
+  .pricing-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .pricing-card:hover::before { opacity: 1; }
+
+  .pricing-card:nth-child(1)::before { background: var(--vision-purple); }
+  .pricing-card:nth-child(2)::before { background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan)); }
+  .pricing-card:nth-child(3)::before { background: var(--evolve-cyan); }
+
+  .pricing-card:nth-child(2) {
+    border-color: var(--border-medium);
+  }
+
+  .pricing-tier-name {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .pricing-card:nth-child(1) .pricing-tier-name { color: var(--vision-purple-light); }
+  .pricing-card:nth-child(2) .pricing-tier-name { color: var(--evolve-cyan); }
+  .pricing-card:nth-child(3) .pricing-tier-name { color: var(--evolve-cyan-light); }
+
+  .pricing-price {
+    font-family: var(--font-title);
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    letter-spacing: -1px;
+  }
+
+  .pricing-price span {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+
+  .pricing-details {
+    list-style: none;
+    margin: 20px 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pricing-details li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .pricing-details li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .pricing-cost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    margin-top: 20px;
+  }
+
+  .pricing-cost-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .pricing-cost-value {
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .pricing-margin {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  .pricing-margin-value {
+    font-family: var(--font-title);
+    font-size: 52px;
+    font-weight: 800;
+    color: var(--success);
+    line-height: 1;
+    letter-spacing: -2px;
+  }
+
+  .pricing-margin-label {
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--success);
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+
+  /* Cost breakdown */
+  .cost-breakdown {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 48px;
+  }
+
+  .cost-breakdown-title {
+    font-family: var(--font-title);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 28px;
+    color: var(--text-primary);
+  }
+
+  .cost-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cost-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .cost-bar-label {
+    width: 200px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+
+  .cost-bar-label strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .cost-bar-track {
+    flex: 1;
+    height: 32px;
+    background: var(--bg-inset);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .cost-bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    white-space: nowrap;
+    transition: width 0.5s ease;
+  }
+
+  .cost-bar-fill.bar-l2 {
+    background: linear-gradient(90deg, var(--vision-purple-dark), var(--vision-purple));
+    width: 47%;
+  }
+
+  .cost-bar-fill.bar-person {
+    background: linear-gradient(90deg, var(--evolve-cyan-dark), var(--evolve-cyan));
+    width: 22%;
+  }
+
+  .cost-bar-fill.bar-chat {
+    background: linear-gradient(90deg, var(--warning), #F59E0B);
+    width: 16%;
+  }
+
+  .cost-bar-fill.bar-other {
+    background: linear-gradient(90deg, var(--deep-slate), var(--slate-light));
+    width: 15%;
+  }
+
+  .cost-bar-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* Metrics grid */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 48px;
+  }
+
+  .metric-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .metric-box:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .metric-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .metric-box:nth-child(1)::before,
+  .metric-box:nth-child(2)::before { background: var(--vision-purple); }
+  .metric-box:nth-child(3)::before,
+  .metric-box:nth-child(4)::before { background: var(--evolve-cyan); }
+  .metric-box:nth-child(5)::before { background: var(--success); }
+  .metric-box:nth-child(6)::before { background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan)); }
+
+  .metric-value {
+    font-family: var(--font-title);
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .metric-value.accent-purple { color: var(--vision-purple-light); }
+  .metric-value.accent-cyan { color: var(--evolve-cyan); }
+  .metric-value.accent-green { color: var(--success); }
+  .metric-value.accent-gradient {
+    background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .metric-label {
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+  }
+
+  .competitive-note {
+    text-align: center;
+    padding: 24px 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-style: italic;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .competitive-note::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan));
+  }
+
+  .competitive-note strong {
+    color: var(--evolve-cyan);
+    font-weight: 600;
+    font-style: normal;
+  }
+
+  /* ── Roadmap Timeline ───────────────────────────────── */
+  .roadmap-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+  }
+
+  .roadmap-col {
+    position: relative;
+  }
+
+  .roadmap-header {
+    padding: 16px 20px;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+    margin-bottom: 0;
+  }
+
+  .roadmap-header-label {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .roadmap-header-title {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .roadmap-col:nth-child(1) .roadmap-header { background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.2); border-bottom: none; }
+  .roadmap-col:nth-child(1) .roadmap-header-label { color: var(--success); }
+  .roadmap-col:nth-child(1) .roadmap-header-title { color: var(--success); }
+
+  .roadmap-col:nth-child(2) .roadmap-header { background: rgba(0, 184, 207, 0.08); border: 1px solid rgba(0, 184, 207, 0.2); border-bottom: none; }
+  .roadmap-col:nth-child(2) .roadmap-header-label { color: var(--evolve-cyan); }
+  .roadmap-col:nth-child(2) .roadmap-header-title { color: var(--evolve-cyan); }
+
+  .roadmap-col:nth-child(3) .roadmap-header { background: rgba(110, 44, 139, 0.1); border: 1px solid rgba(110, 44, 139, 0.2); border-bottom: none; }
+  .roadmap-col:nth-child(3) .roadmap-header-label { color: var(--vision-purple-light); }
+  .roadmap-col:nth-child(3) .roadmap-header-title { color: var(--vision-purple-light); }
+
+  .roadmap-col:nth-child(4) .roadmap-header { background: rgba(110, 44, 139, 0.06); border: 1px solid rgba(110, 44, 139, 0.12); border-bottom: none; }
+  .roadmap-col:nth-child(4) .roadmap-header-label { color: var(--text-muted); }
+  .roadmap-col:nth-child(4) .roadmap-header-title { color: var(--text-secondary); }
+
+  .roadmap-items {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0 0 12px 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 200px;
+  }
+
+  .roadmap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    transition: background 0.2s;
+  }
+
+  .roadmap-item:hover {
+    background: var(--bg-card-hover);
+  }
+
+  .roadmap-item-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── Features Grid ─────────────────────────────────── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+  }
+
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 28px;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan));
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+  }
+
+  .feature-card:hover::before { opacity: 1; }
+
+  .feature-icon {
+    font-size: 28px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .feature-name {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .feature-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .feature-tag {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  .tag-core {
+    background: rgba(110, 44, 139, 0.15);
+    border: 1px solid rgba(110, 44, 139, 0.25);
+    color: var(--vision-purple-light);
+  }
+
+  .tag-smart {
+    background: rgba(0, 184, 207, 0.1);
+    border: 1px solid rgba(0, 184, 207, 0.2);
+    color: var(--evolve-cyan);
+  }
+
+  .tag-safety {
+    background: rgba(217, 119, 6, 0.1);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+    color: var(--warning);
+  }
+
+  /* ── Path to Fundraise ─────────────────────────────── */
+  .fundraise-timeline {
+    position: relative;
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .fundraise-timeline::before {
+    content: '';
+    position: absolute;
+    left: 39px;
+    top: 40px;
+    bottom: 40px;
+    width: 2px;
+    background: linear-gradient(to bottom,
+      var(--vision-purple) 0%,
+      var(--vision-purple-light) 25%,
+      var(--evolve-cyan) 50%,
+      var(--warning) 75%,
+      var(--success) 100%
+    );
+    border-radius: 2px;
+  }
+
+  .fundraise-phase {
+    display: flex;
+    gap: 28px;
+    padding: 24px 0;
+    position: relative;
+  }
+
+  .fundraise-phase-marker {
+    width: 80px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .fundraise-phase-dot {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: 2px solid;
+    background: var(--bg-page);
+    margin-bottom: 8px;
+  }
+
+  .fundraise-phase:nth-child(1) .fundraise-phase-dot { border-color: var(--vision-purple); background: rgba(110, 44, 139, 0.1); }
+  .fundraise-phase:nth-child(2) .fundraise-phase-dot { border-color: var(--vision-purple-light); background: rgba(155, 89, 182, 0.1); }
+  .fundraise-phase:nth-child(3) .fundraise-phase-dot { border-color: var(--evolve-cyan); background: rgba(0, 184, 207, 0.1); }
+  .fundraise-phase:nth-child(4) .fundraise-phase-dot { border-color: var(--warning); background: rgba(217, 119, 6, 0.1); }
+  .fundraise-phase:nth-child(5) .fundraise-phase-dot { border-color: var(--success); background: rgba(5, 150, 105, 0.1); }
+
+  .fundraise-phase-label {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .fundraise-phase-card {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 28px 32px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .fundraise-phase-card:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .fundraise-phase-title {
+    font-family: var(--font-title);
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .fundraise-phase:nth-child(1) .fundraise-phase-title { color: var(--vision-purple-light); }
+  .fundraise-phase:nth-child(2) .fundraise-phase-title { color: var(--vision-purple-light); }
+  .fundraise-phase:nth-child(3) .fundraise-phase-title { color: var(--evolve-cyan); }
+  .fundraise-phase:nth-child(4) .fundraise-phase-title { color: var(--warning); }
+  .fundraise-phase:nth-child(5) .fundraise-phase-title { color: var(--success); }
+
+  .fundraise-phase-timing {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 10px;
+  }
+
+  .fundraise-phase-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .fundraise-phase-items li {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .fundraise-phase-items li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .fundraise-metrics {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-top: 56px;
+  }
+
+  .fundraise-metric {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 24px 16px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .fundraise-metric:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-card-hover);
+  }
+
+  .fundraise-metric::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .fundraise-metric:nth-child(1)::before { background: var(--success); }
+  .fundraise-metric:nth-child(2)::before { background: var(--evolve-cyan); }
+  .fundraise-metric:nth-child(3)::before { background: var(--success); }
+  .fundraise-metric:nth-child(4)::before { background: var(--vision-purple); }
+  .fundraise-metric:nth-child(5)::before { background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan)); }
+  .fundraise-metric:nth-child(6)::before { background: var(--warning); }
+
+  .fundraise-metric-value {
+    font-family: var(--font-title);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .fundraise-metric:nth-child(1) .fundraise-metric-value { color: var(--success); }
+  .fundraise-metric:nth-child(2) .fundraise-metric-value { color: var(--evolve-cyan); }
+  .fundraise-metric:nth-child(3) .fundraise-metric-value { color: var(--success); }
+  .fundraise-metric:nth-child(4) .fundraise-metric-value { color: var(--vision-purple-light); }
+  .fundraise-metric:nth-child(5) .fundraise-metric-value {
+    background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .fundraise-metric:nth-child(6) .fundraise-metric-value { color: var(--warning); }
+
+  .fundraise-metric-label {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+  }
+
+  .fundraise-founder-note {
+    text-align: center;
+    padding: 24px 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-style: italic;
+    position: relative;
+    overflow: hidden;
+    margin-top: 32px;
+  }
+
+  .fundraise-founder-note::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--vision-purple), var(--evolve-cyan));
+  }
+
+  .fundraise-founder-note strong {
+    color: var(--evolve-cyan);
+    font-weight: 600;
+    font-style: normal;
+  }
+
+  /* ── Footer ────────────────────────────────────────── */
+  .footer {
+    padding: 48px 0;
+    border-top: 1px solid var(--border-subtle);
+    text-align: center;
+  }
+
+  .footer-logo {
+    font-family: var(--font-title);
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .footer-text {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* ── Responsive ────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .hero h1 { font-size: 36px; }
+    .hero { padding: 100px 24px 60px; }
+    .nav-links { display: none; }
+    .flywheel-container { width: 320px; height: 320px; }
+    .fw-node { width: 100px; }
+    .fw-dot { width: 52px; height: 52px; font-size: 22px; }
+    .fw-label { font-size: 14px; }
+    .fw-desc { font-size: 11px; }
+    .fw-center { width: 140px; }
+    .fw-center-icon { font-size: 24px; }
+    .fw-center-text { font-size: 11px; }
+    .fw-node-right { right: -16px; }
+    .fw-node-left { left: -16px; }
+    .journey-steps::before { left: 19px; }
+    .journey-number { width: 40px; }
+    .journey-dot { width: 36px; height: 36px; font-size: 16px; }
+    .north-star-grid { grid-template-columns: 1fr; }
+    .ns-analogy-inner { flex-direction: column; gap: 24px; }
+    .ns-connector { transform: rotate(90deg); }
+    .evolution-track { grid-template-columns: 1fr 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .intel-columns { grid-template-columns: 1fr; }
+    .founder-grid { grid-template-columns: 1fr; }
+    .pricing-tiers { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: 1fr 1fr; }
+    .cost-bar-label { width: 140px; font-size: 12px; }
+    .roadmap-grid { grid-template-columns: 1fr 1fr; }
+    .fundraise-metrics { grid-template-columns: repeat(3, 1fr); }
+    .fundraise-timeline::before { left: 19px; }
+    .fundraise-phase-marker { width: 40px; }
+    .fundraise-phase-dot { width: 36px; height: 36px; font-size: 16px; }
+    .mockup-body { grid-template-columns: 1fr; }
+    .mockup-right { border-top: 1px solid var(--border-subtle); }
+    .mockup-stepper { overflow-x: auto; }
+  }
+
+  @media (max-width: 500px) {
+    .evolution-track { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: 1fr; }
+    .cost-bar-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .cost-bar-label { width: auto; text-align: left; }
+    .roadmap-grid { grid-template-columns: 1fr; }
+    .fundraise-metrics { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── Subtle animations ─────────────────────────────── */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  section { animation: fade-up 0.5s ease-out; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════
+     TOP NAVIGATION
+     ════════════════════════════════════════════════════════ -->
+<nav class="top-nav" id="topNav">
+  <div class="nav-inner">
+    <div class="nav-brand">VisionVolve</div>
+    <ul class="nav-links">
+      <li><a href="#flywheel">Flywheel</a></li>
+      <li><a href="#journey">How It Works</a></li>
+      <li><a href="#strategist">AI Strategist</a></li>
+      <li><a href="#founder">For Founders</a></li>
+      <li><a href="#intelligence">Intelligence</a></li>
+      <li><a href="#economics">Unit Economics</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#fundraise">Fundraise</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════
+     HERO
+     ════════════════════════════════════════════════════════ -->
+<header class="hero">
+  <div class="hero-badge">Product Vision</div>
+  <h1>The Closed-Loop<br>GTM Engine</h1>
+  <p class="hero-subtitle">
+    An AI strategist that doesn't just build your go-to-market plan -- it runs it,
+    measures what works, and gets smarter every cycle. Not a tool. A teammate
+    that compounds your unfair advantage.
+  </p>
+  <div class="hero-meta">
+    <span>VisionVolve Leadgen</span>
+    <span>February 2026</span>
+    <span>Try &rarr; Run &rarr; Evaluate &rarr; Improve</span>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════
+     1. THE FLYWHEEL
+     ════════════════════════════════════════════════════════ -->
+<section id="flywheel">
+  <div class="container">
+    <div class="section-label">01 / The Flywheel</div>
+    <h2 class="section-title">Every Cycle, Your AI Gets Smarter</h2>
+    <p class="section-desc">
+      Most GTM tools are linear: plan, execute, hope. This is a loop. Results feed back
+      into strategy. Every campaign teaches the next one what to do better.
+    </p>
+
+    <div class="flywheel-wrapper">
+      <div class="flywheel-container">
+        <!-- Animated glow ring -->
+        <div class="flywheel-glow"></div>
+
+        <!-- Rotating ring with gradient -->
+        <div class="flywheel-ring"></div>
+
+        <!-- Directional arrows between nodes -->
+        <div class="flywheel-arrows">
+          <svg viewBox="0 0 520 520">
+            <!-- Top to Right arc -->
+            <path class="arrow-path arrow-try" d="M 300 38 Q 440 40 472 180" />
+            <!-- Right to Bottom arc -->
+            <path class="arrow-path arrow-run" d="M 482 320 Q 470 450 340 482" />
+            <!-- Bottom to Left arc -->
+            <path class="arrow-path arrow-eval" d="M 210 490 Q 60 475 40 340" />
+            <!-- Left to Top arc -->
+            <path class="arrow-path arrow-improve" d="M 38 200 Q 50 70 190 40" />
+          </svg>
+        </div>
+
+        <!-- TRY — top -->
+        <div class="fw-node fw-node-top fw-try">
+          <div class="fw-dot">&#9997;&#65039;</div>
+          <div class="fw-label">Try</div>
+          <div class="fw-desc">Build your strategy.<br>ICP, personas, messaging.</div>
+        </div>
+
+        <!-- RUN — right -->
+        <div class="fw-node fw-node-right fw-run">
+          <div class="fw-dot">&#9889;</div>
+          <div class="fw-label">Run</div>
+          <div class="fw-desc">Source contacts.<br>Generate. Launch.</div>
+        </div>
+
+        <!-- EVALUATE — bottom -->
+        <div class="fw-node fw-node-bottom fw-eval">
+          <div class="fw-dot">&#128200;</div>
+          <div class="fw-label">Evaluate</div>
+          <div class="fw-desc">Track replies, meetings.<br>What resonated?</div>
+        </div>
+
+        <!-- IMPROVE — left -->
+        <div class="fw-node fw-node-left fw-improve">
+          <div class="fw-dot">&#129504;</div>
+          <div class="fw-label">Improve</div>
+          <div class="fw-desc">AI refines strategy.<br>Next cycle is better.</div>
+        </div>
+
+        <!-- Center -->
+        <div class="fw-center">
+          <span class="fw-center-icon">&#9883;</span>
+          <div class="fw-center-text">
+            <strong>Compounding Intelligence</strong>
+            Every cycle makes your AI strategist smarter
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     2. HOW IT WORKS — THE FULL JOURNEY
+     ════════════════════════════════════════════════════════ -->
+<section id="journey">
+  <div class="container">
+    <div class="section-label">02 / How It Works</div>
+    <h2 class="section-title">Six Steps, One Continuous Loop</h2>
+    <p class="section-desc">
+      The full journey from zero to compounding intelligence. Each step feeds the next.
+      The loop never stops -- it just gets tighter and faster.
+    </p>
+
+    <div class="journey-steps">
+      <!-- 1. Research -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#128269;</div>
+          <div class="journey-step-num">Step 1</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Research</div>
+          <div class="journey-role">AI as Analyst</div>
+          <p class="journey-desc">
+            AI scrapes your website, researches your market, analyzes competitors, and maps your space.
+            You answer 3-5 key questions about your business. The AI does the rest -- coming back with
+            findings, not more questions.
+          </p>
+          <span class="journey-flywheel-tag tag-try">Try Phase</span>
+        </div>
+      </div>
+
+      <!-- 2. Strategize -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#9997;&#65039;</div>
+          <div class="journey-step-num">Step 2</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Strategize</div>
+          <div class="journey-role">AI as GTM Consultant</div>
+          <p class="journey-desc">
+            AI builds your GTM playbook: ideal customer profile, buyer personas, value propositions,
+            channel strategy, messaging framework. You review, refine, and approve. The AI challenges
+            weak assumptions and fills gaps proactively.
+          </p>
+          <span class="journey-flywheel-tag tag-try">Try Phase</span>
+        </div>
+      </div>
+
+      <!-- 3. Source -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#128101;</div>
+          <div class="journey-step-num">Step 3</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Source</div>
+          <div class="journey-role">AI as Sourcing Assistant</div>
+          <p class="journey-desc">
+            AI finds contacts matching your ICP. Filters by intent signals -- hiring patterns, growth
+            indicators, tech stack clues. Enriches with company data from real websites. You select
+            who to reach and who to skip.
+          </p>
+          <span class="journey-flywheel-tag tag-run">Run Phase</span>
+        </div>
+      </div>
+
+      <!-- 4. Engage -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#9993;&#65039;</div>
+          <div class="journey-step-num">Step 4</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Engage</div>
+          <div class="journey-role">AI as Messaging Coach</div>
+          <p class="journey-desc">
+            AI generates personalized messages for each persona. Calibrates tone, depth, and framing
+            per segment. You review, tweak, and approve. A/B variants launch automatically.
+            Campaigns go out across your chosen channels.
+          </p>
+          <span class="journey-flywheel-tag tag-run">Run Phase</span>
+        </div>
+      </div>
+
+      <!-- 5. Measure -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#128200;</div>
+          <div class="journey-step-num">Step 5</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Measure</div>
+          <div class="journey-role">AI as Performance Analyst</div>
+          <p class="journey-desc">
+            Track open rates, reply rates, meeting rates, pipeline generated. AI surfaces what is
+            working and what fell flat. Not just metrics -- narratives. "ROI framing outperformed
+            innovation framing 3:1 for manufacturing CTOs in DACH."
+          </p>
+          <span class="journey-flywheel-tag tag-evaluate">Evaluate Phase</span>
+        </div>
+      </div>
+
+      <!-- 6. Learn -->
+      <div class="journey-step">
+        <div class="journey-number">
+          <div class="journey-dot">&#129504;</div>
+          <div class="journey-step-num">Step 6</div>
+        </div>
+        <div class="journey-content">
+          <div class="journey-name">Learn</div>
+          <div class="journey-role">AI as Strategist-in-Residence</div>
+          <p class="journey-desc">
+            AI updates your strategy based on real results. Refines ICP scoring. Adjusts messaging
+            frameworks. Reprioritizes channels. The next campaign starts where the last one left
+            off -- not from scratch. The loop closes. Cycle 2 begins smarter than cycle 1.
+          </p>
+          <span class="journey-flywheel-tag tag-improve">Improve Phase</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- UI Mockup -->
+    <div class="ui-mockup">
+      <div class="mockup-titlebar">
+        <div class="mockup-dot"></div>
+        <div class="mockup-dot"></div>
+        <div class="mockup-dot"></div>
+        <span class="mockup-title-text">Playbook -- Series A SaaS Campaign</span>
+      </div>
+
+      <div class="mockup-stepper">
+        <div class="stepper-item completed">
+          <div class="stepper-icon">&#10003;</div>
+          Research
+        </div>
+        <div class="stepper-item completed">
+          <div class="stepper-icon">&#10003;</div>
+          Strategy
+        </div>
+        <div class="stepper-item active">
+          <div class="stepper-icon">3</div>
+          Source
+        </div>
+        <div class="stepper-item">
+          <div class="stepper-icon">4</div>
+          Engage
+        </div>
+        <div class="stepper-item">
+          <div class="stepper-icon">5</div>
+          Measure
+        </div>
+        <div class="stepper-item">
+          <div class="stepper-icon">6</div>
+          Learn
+        </div>
+      </div>
+
+      <div class="mockup-body">
+        <!-- LEFT: Phase content -->
+        <div class="mockup-left">
+          <div class="mockup-left-header">Contact Selection</div>
+          <div class="mockup-left-sub">142 contacts match your ICP criteria</div>
+          <div class="mockup-editor">
+            <div class="editor-line"><strong>ICP Filter Applied:</strong> Series A-B, SaaS, 50-200 employees</div>
+            <div class="editor-line"><strong>Geography:</strong> DACH region, English-speaking roles</div>
+            <div class="editor-line"><strong>Roles:</strong> VP Finance, CFO, Head of FP&amp;A</div>
+            <div class="editor-line"><strong>Enrichment:</strong> 89 company websites scraped</div>
+            <div class="editor-line"><strong>Quality Score:</strong> 4.2 / 5.0 average<span class="editor-cursor"></span></div>
+            <div class="editor-badge">&#9679; Auto-saved 3s ago</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Persistent chat -->
+        <div class="mockup-right">
+          <div class="persistent-badge">
+            <strong>Persistent Chat</strong> -- full history from Research + Strategy available
+          </div>
+          <div class="chat-header">
+            <div class="chat-avatar">&#9733;</div>
+            <div>
+              <div class="chat-header-text">GTM Strategist</div>
+              <div class="chat-header-status">Active</div>
+            </div>
+          </div>
+          <div class="chat-messages">
+            <div class="chat-msg ai">
+              I've scraped 89 company websites from your target list.
+              <strong style="display:block;margin-top:6px;font-size:12px;">Key finding:</strong>
+              23 companies mention "manual forecasting" on their careers page -- these are your warmest leads.
+            </div>
+            <div class="chat-action">
+              <div class="check"></div>
+              Prioritize 23 "manual forecasting" companies
+            </div>
+            <div class="chat-msg user">
+              Yes, let's prioritize those. Also add any that mention Excel-based reporting.
+            </div>
+            <div class="chat-msg ai">
+              Done -- found 8 more. Your priority list is now 31 contacts. Shall I move to message drafting, or do you want to review the full list first?
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <div class="chat-input">Type a message...</div>
+            <div class="chat-send">&#8593;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     3. THE AI STRATEGIST
+     ════════════════════════════════════════════════════════ -->
+<section id="strategist">
+  <div class="container">
+    <div class="section-label">03 / The AI Strategist</div>
+    <h2 class="section-title">From Day-One Competent to Unfair Advantage</h2>
+    <p class="section-desc">
+      The strategist is not static. It learns from every interaction, every campaign result,
+      every decision you make. Here is how it evolves.
+    </p>
+
+    <div class="ns-analogy">
+      <div class="ns-analogy-inner">
+        <div class="ns-role">
+          <span class="ns-role-icon">&#129302;</span>
+          <div class="ns-role-label">The Strategist</div>
+          <div class="ns-role-title">AI Agent</div>
+          <p class="ns-role-desc">
+            Asks the right questions proactively. Does the homework without being asked.
+            Reports back with findings. Makes recommendations. Knows when it has enough.
+          </p>
+        </div>
+        <div class="ns-connector">
+          <div class="ns-connector-label">Reports to</div>
+          <div class="ns-connector-line"></div>
+          <div class="ns-connector-label">Approves &amp; Steers</div>
+        </div>
+        <div class="ns-role">
+          <span class="ns-role-icon">&#128081;</span>
+          <div class="ns-role-label">The CEO</div>
+          <div class="ns-role-title">Founder</div>
+          <p class="ns-role-desc">
+            Approves direction. Steers when needed. Makes the final decisions.
+            Doesn't have to manage -- just leads.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evolution Timeline -->
+    <div class="evolution-track">
+      <div class="evo-card">
+        <div class="evo-time">Day 1</div>
+        <div class="evo-icon">&#128218;</div>
+        <div class="evo-title">Good Strategist</div>
+        <p class="evo-desc">Researches your company, analyzes your market, builds a solid initial GTM strategy. Asks smart questions from the start.</p>
+      </div>
+      <div class="evo-card">
+        <div class="evo-time">Month 1</div>
+        <div class="evo-icon">&#127919;</div>
+        <div class="evo-title">Great Strategist</div>
+        <p class="evo-desc">Learned your market dynamics. Knows which messaging works for which segments. Anticipates your objections before you raise them.</p>
+      </div>
+      <div class="evo-card">
+        <div class="evo-time">Month 6</div>
+        <div class="evo-icon">&#128161;</div>
+        <div class="evo-title">Expert Strategist</div>
+        <p class="evo-desc">Knows your ICP better than you do. Predicts which contacts will convert. Spots market shifts before they hit your pipeline.</p>
+      </div>
+      <div class="evo-card">
+        <div class="evo-time">Year 1</div>
+        <div class="evo-icon">&#128142;</div>
+        <div class="evo-title">Unfair Advantage</div>
+        <p class="evo-desc">Hundreds of cycles of accumulated insight. Cross-customer learnings. An intelligence moat your competitors cannot replicate.</p>
+      </div>
+    </div>
+
+    <!-- Core Traits -->
+    <div class="north-star-grid">
+      <div class="trait-card">
+        <div class="trait-number">1</div>
+        <div class="trait-title">Asks the Right Questions</div>
+        <p class="trait-desc">Proactively identifies gaps in the strategy and asks targeted, specific questions to fill them -- never generic prompts.</p>
+      </div>
+      <div class="trait-card">
+        <div class="trait-number">2</div>
+        <div class="trait-title">Does the Homework</div>
+        <p class="trait-desc">Researches company websites, scrapes data, analyzes markets -- all without being asked. Comes back with findings, not questions.</p>
+      </div>
+      <div class="trait-card">
+        <div class="trait-number">3</div>
+        <div class="trait-title">Reports &amp; Recommends</div>
+        <p class="trait-desc">Presents structured findings with clear recommendations. Not just data dumps -- actionable insights with a point of view.</p>
+      </div>
+      <div class="trait-card">
+        <div class="trait-number">4</div>
+        <div class="trait-title">Checks In, Doesn't Check Out</div>
+        <p class="trait-desc">Follows up when the founder goes quiet. Suggests next steps. Maintains momentum without being pushy.</p>
+      </div>
+      <div class="trait-card">
+        <div class="trait-number">5</div>
+        <div class="trait-title">Knows When It Has Enough</div>
+        <p class="trait-desc">Recognizes when the strategy is specific enough to proceed. Triggers readiness gates and suggests phase transitions.</p>
+      </div>
+      <div class="trait-card">
+        <div class="trait-number">6</div>
+        <div class="trait-title">Adapts in Real Time</div>
+        <p class="trait-desc">Detects frustration, language switches, and topic shifts. Adjusts tone and approach immediately -- no robotic persistence.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     4. FOR THE AI-FIRST FOUNDER
+     ════════════════════════════════════════════════════════ -->
+<section id="founder">
+  <div class="container">
+    <div class="section-label">04 / For the AI-First Founder</div>
+    <h2 class="section-title">You're the CEO, Not the Operator</h2>
+    <p class="section-desc">
+      You're building the future of work while living the loneliest version of it.
+      Your AI strategist should feel like the first real hire you made -- not another
+      dashboard to check.
+    </p>
+
+    <div class="founder-grid">
+      <div class="founder-quote">
+        <p class="founder-quote-text">
+          "You're building the future of work while living the loneliest version of it.
+          Your AI strategist doesn't just execute -- it thinks alongside you."
+        </p>
+        <p class="founder-quote-attr">-- The design principle behind every interaction</p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#127908;</span>
+        <div class="founder-card-title">Voice Dialog</div>
+        <p class="founder-card-desc">
+          Strategize on your commute. Review contacts while walking the dog. Approve messages
+          over morning coffee. Your hands never need to touch a keyboard.
+        </p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#129489;&#8205;&#128187;</span>
+        <div class="founder-card-title">AI Avatar</div>
+        <p class="founder-card-desc">
+          Not text in a chat box -- a face. An animated teammate that presents findings,
+          reacts to your decisions, and makes the room feel less empty.
+        </p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#127760;</span>
+        <div class="founder-card-title">Language-Aware</div>
+        <p class="founder-card-desc">
+          When you switch to Czech mid-sentence because English can't capture the nuance,
+          the AI switches too. No friction, no awkwardness.
+        </p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#128165;</span>
+        <div class="founder-card-title">Frustration Detection</div>
+        <p class="founder-card-desc">
+          Detects tone shifts, terse replies, and signs of fatigue. Adapts immediately --
+          shorter responses, a different angle, or the suggestion to take a break.
+        </p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#128276;</span>
+        <div class="founder-card-title">Proactive Check-Ins</div>
+        <p class="founder-card-desc">
+          Your AI strategist checks in with progress, asks for decisions at the right moments,
+          and nudges when something needs your attention -- without being annoying.
+        </p>
+      </div>
+
+      <div class="founder-card">
+        <span class="founder-card-icon">&#128161;</span>
+        <div class="founder-card-title">Decision-Ready Briefings</div>
+        <p class="founder-card-desc">
+          No raw data, no 50-slide decks. Just "Here's what I found, here's what I recommend,
+          here's what I need from you." Three minutes, max.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     5. INTELLIGENCE THAT COMPOUNDS
+     ════════════════════════════════════════════════════════ -->
+<section id="intelligence">
+  <div class="container">
+    <div class="section-label">05 / Intelligence That Compounds</div>
+    <h2 class="section-title">Two Layers of Learning</h2>
+    <p class="section-desc">
+      Every campaign teaches your AI what works. And anonymized insights from all customers
+      make everyone smarter. This is how you build a moat.
+    </p>
+
+    <div class="intel-columns">
+      <div class="intel-column intel-yours">
+        <span class="intel-column-icon">&#128273;</span>
+        <div class="intel-column-title">Your Data</div>
+        <p class="intel-column-desc">
+          Every campaign result trains YOUR AI on YOUR market. It learns your language,
+          your buyer psychology, your competitive position. No one else gets this data.
+        </p>
+
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#128200;</span>
+          <span><strong>ROI framing</strong> got 3x more replies than innovation framing for DACH manufacturing CTOs</span>
+        </div>
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#128337;</span>
+          <span><strong>Tuesday 9:00 CET</strong> is your best send time for Czech-speaking prospects</span>
+        </div>
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#127919;</span>
+          <span>Contacts who mention <strong>"manual forecasting"</strong> on careers pages convert at 4.2x the average</span>
+        </div>
+      </div>
+
+      <div class="intel-column intel-network">
+        <span class="intel-column-icon">&#127760;</span>
+        <div class="intel-column-title">Network Intelligence</div>
+        <p class="intel-column-desc">
+          Anonymized, aggregated insights from all customers make everyone's AI smarter.
+          Patterns that no single company could discover alone.
+        </p>
+
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#128202;</span>
+          <span><strong>LinkedIn outperforms cold email 3:1</strong> for DACH B2B SaaS across all customer campaigns</span>
+        </div>
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#129300;</span>
+          <span>Manufacturing CTOs respond to <strong>cost-reduction framing</strong>, not innovation language</span>
+        </div>
+        <div class="intel-insight">
+          <span class="intel-insight-icon">&#128640;</span>
+          <span>Companies in <strong>Series A hiring mode</strong> are 2.8x more likely to take a meeting</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     6. KEY FEATURES
+     ════════════════════════════════════════════════════════ -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">06 / Platform Capabilities</div>
+    <h2 class="section-title">Intelligence Built Into Every Interaction</h2>
+    <p class="section-desc">
+      Every feature serves one goal: make the AI feel like a competent colleague,
+      not a tool you have to manage.
+    </p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">&#128172;</span>
+        <div class="feature-name">Persistent Chat</div>
+        <p class="feature-desc">Same conversation thread across all phases. Full history preserved. No context loss, no duplicate questions -- the AI remembers everything.</p>
+        <span class="feature-tag tag-core">Core Architecture</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#9889;</span>
+        <div class="feature-name">Proactive AI</div>
+        <p class="feature-desc">Auto-sends the first message after research. Asks targeted questions based on findings. Suggests next steps without waiting to be prompted.</p>
+        <span class="feature-tag tag-smart">Intelligence</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#128190;</span>
+        <div class="feature-name">Auto-Save</div>
+        <p class="feature-desc">Debounced 2.5-second save. No Save button. No "unsaved changes" dialogs. Just write -- your strategy document is always current.</p>
+        <span class="feature-tag tag-core">Core Architecture</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#129520;</span>
+        <div class="feature-name">Auto-Extract</div>
+        <p class="feature-desc">Structured data (ICP, value props, positioning) extracted silently after every save. The AI reads your strategy doc in real time.</p>
+        <span class="feature-tag tag-smart">Intelligence</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#9745;</span>
+        <div class="feature-name">Action Items</div>
+        <p class="feature-desc">AI suggestions become trackable, checkable items in the chat. Not just ideas -- commitments with accountability.</p>
+        <span class="feature-tag tag-core">Core Architecture</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#128275;</span>
+        <div class="feature-name">Readiness Gates</div>
+        <p class="feature-desc">AI evaluates when your strategy is specific enough to proceed. No premature phase jumps -- quality gates protect your campaign.</p>
+        <span class="feature-tag tag-smart">Intelligence</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#127919;</span>
+        <div class="feature-name">Topic Detection</div>
+        <p class="feature-desc">AI detects when you shift topics mid-conversation. Adapts its context or suggests a phase transition when appropriate.</p>
+        <span class="feature-tag tag-smart">Intelligence</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#127760;</span>
+        <div class="feature-name">Website Scraping</div>
+        <p class="feature-desc">Fetches company websites as the primary data source for enrichment. Real intelligence from real web presence -- not stale database entries.</p>
+        <span class="feature-tag tag-smart">Intelligence</span>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#128161;</span>
+        <div class="feature-name">Frustration Detection</div>
+        <p class="feature-desc">Detects language switching, tone changes, and signs of fatigue. Immediately adapts -- shorter responses, different angle, or a break suggestion.</p>
+        <span class="feature-tag tag-safety">Safety Net</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     7. UNIT ECONOMICS
+     ════════════════════════════════════════════════════════ -->
+<section id="economics">
+  <div class="container">
+    <div class="section-label">07 / Unit Economics</div>
+    <h2 class="section-title">Unit Economics</h2>
+    <p class="section-desc">
+      AI-native architecture means AI-native margins. Every dollar of compute
+      translates to outsized value for the customer.
+    </p>
+
+    <p class="economics-hero-quote">
+      AI costs are <strong>$1-17/user/month</strong>. That's <strong>97% margin</strong> at SaaS pricing.
+    </p>
+
+    <!-- Pricing Tiers -->
+    <div class="pricing-tiers">
+      <!-- Starter -->
+      <div class="pricing-card">
+        <div class="pricing-tier-name">Starter</div>
+        <div class="pricing-price">$49 <span>/mo</span></div>
+        <ul class="pricing-details">
+          <li>50 companies, 100 contacts</li>
+          <li>20 chat interactions</li>
+          <li>50 outreach messages</li>
+        </ul>
+        <div class="pricing-cost-row">
+          <span class="pricing-cost-label">AI Cost</span>
+          <span class="pricing-cost-value">$1.44/mo</span>
+        </div>
+        <div class="pricing-margin">
+          <div class="pricing-margin-value">97%</div>
+          <div class="pricing-margin-label">Gross Margin</div>
+        </div>
+      </div>
+
+      <!-- Growth -->
+      <div class="pricing-card">
+        <div class="pricing-tier-name">Growth</div>
+        <div class="pricing-price">$149 <span>/mo</span></div>
+        <ul class="pricing-details">
+          <li>200 companies, 500 contacts</li>
+          <li>100 chat interactions</li>
+          <li>200 outreach messages</li>
+        </ul>
+        <div class="pricing-cost-row">
+          <span class="pricing-cost-label">AI Cost</span>
+          <span class="pricing-cost-value">$6.28/mo</span>
+        </div>
+        <div class="pricing-margin">
+          <div class="pricing-margin-value">96%</div>
+          <div class="pricing-margin-label">Gross Margin</div>
+        </div>
+      </div>
+
+      <!-- Scale -->
+      <div class="pricing-card">
+        <div class="pricing-tier-name">Scale</div>
+        <div class="pricing-price">$399 <span>/mo</span></div>
+        <ul class="pricing-details">
+          <li>500 companies, 1500 contacts</li>
+          <li>300 chat interactions</li>
+          <li>500 outreach messages</li>
+        </ul>
+        <div class="pricing-cost-row">
+          <span class="pricing-cost-label">AI Cost</span>
+          <span class="pricing-cost-value">$17.12/mo</span>
+        </div>
+        <div class="pricing-margin">
+          <div class="pricing-margin-value">96%</div>
+          <div class="pricing-margin-label">Gross Margin</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost Breakdown -->
+    <div class="cost-breakdown">
+      <div class="cost-breakdown-title">Where the AI Spend Goes</div>
+      <div class="cost-bars">
+        <div class="cost-bar-row">
+          <div class="cost-bar-label"><strong>L2 Enrichment</strong><br><span class="cost-bar-subtitle">Sonnet 4.5 -- the brain</span></div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill bar-l2">47%</div>
+          </div>
+        </div>
+        <div class="cost-bar-row">
+          <div class="cost-bar-label"><strong>Person Enrichment</strong><br><span class="cost-bar-subtitle">Contact intelligence</span></div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill bar-person">22%</div>
+          </div>
+        </div>
+        <div class="cost-bar-row">
+          <div class="cost-bar-label"><strong>Playbook Chat</strong><br><span class="cost-bar-subtitle">Strategy guidance</span></div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill bar-chat">16%</div>
+          </div>
+        </div>
+        <div class="cost-bar-row">
+          <div class="cost-bar-label"><strong>Everything Else</strong><br><span class="cost-bar-subtitle">L1, messages, misc</span></div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill bar-other">15%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-box">
+        <div class="metric-value accent-purple">$0.015</div>
+        <div class="metric-label">Per Company<br>Fully Enriched</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-value accent-purple">$0.004</div>
+        <div class="metric-label">Per Contact<br>Researched</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-value accent-cyan">$0.008</div>
+        <div class="metric-label">Per Chat<br>Turn</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-value accent-cyan">$0.0016</div>
+        <div class="metric-label">Per Outreach<br>Message</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-value accent-green">25</div>
+        <div class="metric-label">Users to<br>Break Even</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-value accent-gradient">80+</div>
+        <div class="metric-label">Months Runway<br>4M CZK Investment</div>
+      </div>
+    </div>
+
+    <!-- Competitive Context -->
+    <div class="competitive-note">
+      <strong>10-100x cheaper</strong> than manual research. <strong>30-300x cheaper</strong> than data vendors like ZoomInfo.
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     8. ROADMAP — WHAT'S BUILT VS WHAT'S NEXT
+     ════════════════════════════════════════════════════════ -->
+<section id="roadmap">
+  <div class="container">
+    <div class="section-label">08 / Roadmap</div>
+    <h2 class="section-title">What's Built vs What's Next</h2>
+    <p class="section-desc">
+      We ship in working increments. Here is where we are and where we are heading --
+      each column is a horizon.
+    </p>
+
+    <div class="roadmap-grid">
+      <!-- Built Today -->
+      <div class="roadmap-col">
+        <div class="roadmap-header">
+          <div class="roadmap-header-label">Shipped</div>
+          <div class="roadmap-header-title">Built Today</div>
+        </div>
+        <div class="roadmap-items">
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Enrichment pipeline (L1 + L2 + Person)
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Website scraping in L1
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Proactive AI chat
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Auto-save + auto-extract
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Markdown rendering
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            PostgreSQL backend + JWT auth
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#10003;</span>
+            Multi-tenant namespace routing
+          </div>
+        </div>
+      </div>
+
+      <!-- Building Now -->
+      <div class="roadmap-col">
+        <div class="roadmap-header">
+          <div class="roadmap-header-label">In Progress</div>
+          <div class="roadmap-header-title">Building Now</div>
+        </div>
+        <div class="roadmap-items">
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#9881;</span>
+            Multi-phase playbook UI
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#9881;</span>
+            Phase transitions + readiness gates
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#9881;</span>
+            Action items in chat
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#9881;</span>
+            Rich-text strategy editor (Tiptap)
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#9881;</span>
+            Staging + CI pipeline
+          </div>
+        </div>
+      </div>
+
+      <!-- Next -->
+      <div class="roadmap-col">
+        <div class="roadmap-header">
+          <div class="roadmap-header-label">Next Quarter</div>
+          <div class="roadmap-header-title">Up Next</div>
+        </div>
+        <div class="roadmap-items">
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128204;</span>
+            Contact selection + filtering UI
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128204;</span>
+            Message generation per persona
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128204;</span>
+            Campaign launch + sequencing
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128204;</span>
+            Performance dashboards
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128204;</span>
+            Voice dialog (hands-free GTM)
+          </div>
+        </div>
+      </div>
+
+      <!-- Future -->
+      <div class="roadmap-col">
+        <div class="roadmap-header">
+          <div class="roadmap-header-label">Horizon</div>
+          <div class="roadmap-header-title">Future</div>
+        </div>
+        <div class="roadmap-items">
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128302;</span>
+            AI avatar with presence
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128302;</span>
+            Continuous learning loop
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128302;</span>
+            Cross-customer intelligence
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128302;</span>
+            Multi-language adaptation
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-item-icon">&#128302;</span>
+            Predictive conversion scoring
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     9. PATH TO FUNDRAISE
+     ════════════════════════════════════════════════════════ -->
+<section id="fundraise">
+  <div class="container">
+    <div class="section-label">09 / Path to Fundraise</div>
+    <h2 class="section-title">50 customers. &#8364;200K ARR. Then raise on your terms.</h2>
+
+    <div class="fundraise-timeline">
+      <!-- Phase 1 -->
+      <div class="fundraise-phase">
+        <div class="fundraise-phase-marker">
+          <div class="fundraise-phase-dot">&#9881;</div>
+          <div class="fundraise-phase-label">Phase 1</div>
+        </div>
+        <div class="fundraise-phase-card">
+          <div class="fundraise-phase-title">Foundation</div>
+          <div class="fundraise-phase-timing">Weeks 1-4</div>
+          <ul class="fundraise-phase-items">
+            <li>Ship multi-phase playbook (Buckets 1-2)</li>
+            <li>Strategy &rarr; Contact selection flow working end-to-end</li>
+            <li>Self-funded: 4M CZK committed</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 2 -->
+      <div class="fundraise-phase">
+        <div class="fundraise-phase-marker">
+          <div class="fundraise-phase-dot">&#9889;</div>
+          <div class="fundraise-phase-label">Phase 2</div>
+        </div>
+        <div class="fundraise-phase-card">
+          <div class="fundraise-phase-title">Full Loop</div>
+          <div class="fundraise-phase-timing">Weeks 5-8</div>
+          <ul class="fundraise-phase-items">
+            <li>Ship message generation + campaign launch (Bucket 3)</li>
+            <li>Complete Try &rarr; Run cycle operational</li>
+            <li>Dogfood: use it for own DACH expansion</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 3 -->
+      <div class="fundraise-phase">
+        <div class="fundraise-phase-marker">
+          <div class="fundraise-phase-dot">&#128176;</div>
+          <div class="fundraise-phase-label">Phase 3</div>
+        </div>
+        <div class="fundraise-phase-card">
+          <div class="fundraise-phase-title">First Revenue</div>
+          <div class="fundraise-phase-timing">Weeks 9-14</div>
+          <ul class="fundraise-phase-items">
+            <li>10 beta users from founder's network</li>
+            <li>Iterate based on real usage</li>
+            <li>First MRR: target &#8364;1.5K/mo (10 &times; &#8364;149)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 4 -->
+      <div class="fundraise-phase">
+        <div class="fundraise-phase-marker">
+          <div class="fundraise-phase-dot">&#128200;</div>
+          <div class="fundraise-phase-label">Phase 4</div>
+        </div>
+        <div class="fundraise-phase-card">
+          <div class="fundraise-phase-title">Scale to 50</div>
+          <div class="fundraise-phase-timing">Months 5-9</div>
+          <ul class="fundraise-phase-items">
+            <li>Content marketing + product-led growth</li>
+            <li>Expand from founder's network to cold outreach (eat your own cooking)</li>
+            <li>Target: 50 customers, &#8364;16.7K MRR, &#8364;200K ARR</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 5 -->
+      <div class="fundraise-phase">
+        <div class="fundraise-phase-marker">
+          <div class="fundraise-phase-dot">&#127942;</div>
+          <div class="fundraise-phase-label">Phase 5</div>
+        </div>
+        <div class="fundraise-phase-card">
+          <div class="fundraise-phase-title">Raise</div>
+          <div class="fundraise-phase-timing">Month 10</div>
+          <ul class="fundraise-phase-items">
+            <li>50 paying customers, &#8364;200K ARR</li>
+            <li>94% gross margins proven</li>
+            <li>Compounding data from 50 customers feeding learning loop</li>
+            <li>Raise &#8364;500K-1M for engineering team + go-to-market</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="fundraise-metrics">
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">&#8364;200K</div>
+        <div class="fundraise-metric-label">ARR Target</div>
+      </div>
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">50</div>
+        <div class="fundraise-metric-label">Customers</div>
+      </div>
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">94%</div>
+        <div class="fundraise-metric-label">Gross Margin</div>
+      </div>
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">10mo</div>
+        <div class="fundraise-metric-label">To Fundraise</div>
+      </div>
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">&#8364;0</div>
+        <div class="fundraise-metric-label">External Funding to Get There</div>
+      </div>
+      <div class="fundraise-metric">
+        <div class="fundraise-metric-value">4M CZK</div>
+        <div class="fundraise-metric-label">Founder Investment</div>
+      </div>
+    </div>
+
+    <!-- Founder Credentials -->
+    <div class="fundraise-founder-note">
+      Founded by <strong>ex-Fortune 50 executive</strong> and <strong>Silicon Valley startup operator</strong>. Self-funded to profitability.
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     FOOTER
+     ════════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-logo">VisionVolve</div>
+    <p class="footer-text">Closed-Loop GTM Engine -- Product Vision -- February 2026</p>
+  </div>
+</footer>
+
+<!-- ════════════════════════════════════════════════════════
+     SCROLL BEHAVIOR
+     ════════════════════════════════════════════════════════ -->
+<script>
+  // Add shadow to nav on scroll
+  const nav = document.getElementById('topNav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+  }, { passive: true });
+</script>
+
+</body>
+</html>
