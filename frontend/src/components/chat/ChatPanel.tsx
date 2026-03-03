@@ -16,6 +16,7 @@
 import { useChatContext } from '../../providers/ChatProvider'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
+import { PhaseTransitionBanner } from './PhaseTransitionBanner'
 import { WorkflowProgressStrip } from './WorkflowProgressStrip'
 import { WorkflowSuggestionChips } from './WorkflowSuggestions'
 
@@ -146,6 +147,9 @@ export function ChatPanel() {
 
         {/* Workflow progress strip */}
         <WorkflowProgressStrip />
+
+        {/* Phase transition banner — shown when current phase is complete (BL-170) */}
+        <PhaseTransitionBanner />
 
         {/* Suggestion chips — always visible when suggestions exist */}
         <WorkflowSuggestionChips />

@@ -258,11 +258,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               }
             }
 
-            // BL-135: Refresh workflow suggestions & status after tool calls
+            // BL-135 + BL-170: Refresh workflow suggestions, status & phase transition after tool calls
             if (doneData.toolCalls && doneData.toolCalls.length > 0) {
               queryClient.invalidateQueries({ queryKey: ['workflow-suggestions'] })
               queryClient.invalidateQueries({ queryKey: ['workflow-status'] })
               queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
+              queryClient.invalidateQueries({ queryKey: ['phase-transition'] })
             }
           },
           onError: () => {
