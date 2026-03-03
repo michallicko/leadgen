@@ -4,9 +4,9 @@
  */
 
 import { useState, useMemo, useCallback } from 'react'
+import { useParams } from 'react-router'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useTags } from '../../api/queries/useTags'
-import { getNamespaceFromPath } from '../../lib/auth'
 import { filterOptions, STATUS_DISPLAY, TIER_DISPLAY } from '../../lib/display'
 import { STAGES } from './stageConfig'
 import type { FilterConfig } from '../../components/ui/FilterBar'
@@ -22,8 +22,10 @@ function defaultEnabledStages(): Record<string, boolean> {
 }
 
 export function useEnrichState() {
-  // Namespace prefix for localStorage keys to prevent cross-tenant state leakage
-  const ns = getNamespaceFromPath() ?? '_'
+  // Namespace prefix for localStorage keys to prevent cross-tenant state leakage.
+  // Use React Router's useParams for reactive namespace tracking (not window.location).
+  const { namespace } = useParams<{ namespace: string }>()
+  const ns = namespace ?? '_'
   const nsKey = (suffix: string) => `en_${ns}_${suffix}`
 
   // Filter state (persisted per namespace)
@@ -61,6 +63,17 @@ export function useEnrichState() {
 
   // Pipeline run ID
   const [pipelineRunId, setPipelineRunId] = useState<string | null>(null)
+
+  // Reset non-persisted state when namespace changes to prevent cross-tenant leakage.
+  // Uses render-time key comparison (React-recommended "derive state from props" pattern)
+  // instead of useEffect to avoid cascading renders.
+  const [prevNs, setPrevNs] = useState(ns)
+  if (prevNs !== ns) {
+    setPrevNs(ns)
+    setDagMode('configure')
+    setReEnrichConfig({})
+    setPipelineRunId(null)
+  }
 
   // Tags data for filter options
   const { data: tagsData } = useTags()
