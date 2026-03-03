@@ -40,7 +40,7 @@ interface ChatResponse {
 }
 
 export interface ResearchStatus {
-  status: 'not_started' | 'in_progress' | 'completed'
+  status: 'not_started' | 'in_progress' | 'completed' | 'failed'
   company?: { id: string; name: string; domain: string; status: string }
   enrichment_data?: Record<string, unknown>
 }
