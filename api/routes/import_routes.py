@@ -46,7 +46,33 @@ CLAUDE_TO_FRONTEND = {
     "company.description": "description",
 }
 
-FRONTEND_TO_CLAUDE = {v: k for k, v in CLAUDE_TO_FRONTEND.items()}
+# Explicit reverse mapping: frontend field name → Claude dotted format.
+# Built manually (not auto-reversed) to handle one-to-many cases correctly.
+FRONTEND_TO_CLAUDE = {
+    "first_name": "contact.first_name",
+    "last_name": "contact.last_name",
+    "email": "contact.email_address",
+    "phone": "contact.phone_number",
+    "mobile": "contact.mobile",
+    "job_title": "contact.job_title",
+    "linkedin_url": "contact.linkedin_url",
+    "notes": "contact.notes",
+    "seniority_level": "contact.seniority_level",
+    "department": "contact.department",
+    "contact_source": "contact.contact_source",
+    "language": "contact.language",
+    "company_name": "company.name",
+    "domain": "company.domain",
+    "industry": "company.industry",
+    "employee_count": "company.company_size",
+    "business_model": "company.business_model",
+    "description": "company.description",
+    # "location" is ambiguous (could be city or country) — map to city as best guess
+    "location": "contact.location_city",
+}
+
+# Targets that indicate the column should be skipped (not mapped)
+_SKIP_TARGETS = frozenset({"skip", "ignore", "unmapped", ""})
 
 
 def _translate_mapping_to_claude(mapping):
@@ -59,7 +85,11 @@ def _translate_mapping_to_claude(mapping):
     new_mappings = []
     for m in translated.get("mappings", []):
         target = m.get("target")
-        if target and "." not in target and "custom" not in (target or ""):
+        # Clear skip/null targets so apply_mapping ignores them
+        if not target or target.lower() in _SKIP_TARGETS:
+            m = dict(m)
+            m["target"] = None
+        elif "." not in target and "custom" not in (target or ""):
             m = dict(m)
             m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
         new_mappings.append(m)
