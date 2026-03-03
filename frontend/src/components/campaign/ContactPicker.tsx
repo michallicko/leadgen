@@ -15,11 +15,11 @@ import {
 
 const ENRICHMENT_BADGE: Record<string, { label: string; classes: string }> = {
   L2: {
-    label: 'L2',
+    label: 'Full',
     classes: 'bg-success/15 text-success border-success/30',
   },
   L1: {
-    label: 'L1',
+    label: 'Basic',
     classes: 'bg-warning/15 text-warning border-warning/30',
   },
   None: {

@@ -27,7 +27,7 @@ export function CampaignPicker({ onConfirm, onClose, isLoading }: CampaignPicker
       >
         <div className="px-4 py-3 border-b border-border-solid">
           <h3 className="text-sm font-semibold text-text">Assign to Campaign</h3>
-          <p className="text-xs text-text-muted mt-0.5">Select a campaign to add selected entities to</p>
+          <p className="text-xs text-text-muted mt-0.5">Select a campaign to add the selected items to</p>
         </div>
 
         <div className="px-3 py-2 border-b border-border-solid">
