@@ -1,4 +1,5 @@
 """Tests for company detail API — new enrichment fields (BL-046)."""
+
 import json
 
 import pytest
@@ -152,8 +153,131 @@ class TestCompanyDetailNewFields:
         # New market fields (AC-3)
         assert modules["market"]["media_sentiment"] == "Positive coverage in TechCrunch"
         assert modules["market"]["press_releases"] == "Q4 results published"
-        assert modules["market"]["thought_leadership"] == "CEO keynote at SaaS conference"
+        assert (
+            modules["market"]["thought_leadership"] == "CEO keynote at SaaS conference"
+        )
 
         # Opportunity fields
-        assert modules["opportunity"]["pain_hypothesis"] == "Manual processes in supply chain"
-        assert modules["opportunity"]["ai_opportunities"] == "Automate QC with computer vision"
+        assert (
+            modules["opportunity"]["pain_hypothesis"]
+            == "Manual processes in supply chain"
+        )
+        assert (
+            modules["opportunity"]["ai_opportunities"]
+            == "Automate QC with computer vision"
+        )
+
+    def test_new_l2_signals_fields(self, client, db, seed_companies_contacts):
+        """BL-156: 6 new signals fields are returned in API response."""
+        from api.models import CompanyEnrichmentSignals
+
+        company = seed_companies_contacts["companies"][0]
+        signals = CompanyEnrichmentSignals(
+            company_id=company.id,
+            digital_initiatives="Cloud-first strategy",
+            regulatory_pressure="GDPR compliance deadline Q3 2026",
+            employee_sentiment="High engagement per Glassdoor",
+            digital_maturity_score="7",
+            fiscal_year_end="December",
+            it_spend_indicators="$2M annual cloud budget",
+            tech_stack_categories="CRM: Salesforce, ERP: SAP",
+        )
+        db.session.add(signals)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get(f"/api/companies/{company.id}", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        sig = data["enrichment_l2"]["modules"]["signals"]
+        assert sig["regulatory_pressure"] == "GDPR compliance deadline Q3 2026"
+        assert sig["employee_sentiment"] == "High engagement per Glassdoor"
+        assert sig["digital_maturity_score"] == "7"
+        assert sig["fiscal_year_end"] == "December"
+        assert sig["it_spend_indicators"] == "$2M annual cloud budget"
+        assert sig["tech_stack_categories"] == "CRM: Salesforce, ERP: SAP"
+
+    def test_new_l2_market_fields(self, client, db, seed_companies_contacts):
+        """BL-156: 5 new market fields are returned in API response."""
+        from api.models import CompanyEnrichmentMarket
+
+        company = seed_companies_contacts["companies"][0]
+        market = CompanyEnrichmentMarket(
+            company_id=company.id,
+            recent_news="IPO rumored",
+            expansion="Opened DACH office in Munich",
+            workflow_ai_evidence="Uses UiPath for invoice processing",
+            revenue_trend="15% YoY growth",
+            growth_signals="Hiring 50+ engineers in Q1",
+            ma_activity="Acquired DataCo in 2025",
+        )
+        db.session.add(market)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get(f"/api/companies/{company.id}", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        mkt = data["enrichment_l2"]["modules"]["market"]
+        assert mkt["expansion"] == "Opened DACH office in Munich"
+        assert mkt["workflow_ai_evidence"] == "Uses UiPath for invoice processing"
+        assert mkt["revenue_trend"] == "15% YoY growth"
+        assert mkt["growth_signals"] == "Hiring 50+ engineers in Q1"
+        assert mkt["ma_activity"] == "Acquired DataCo in 2025"
+
+    def test_new_l2_opportunity_fields(self, client, db, seed_companies_contacts):
+        """BL-156: pitch_framing field is returned in opportunity module."""
+        from api.models import CompanyEnrichmentOpportunity
+
+        company = seed_companies_contacts["companies"][0]
+        opp = CompanyEnrichmentOpportunity(
+            company_id=company.id,
+            pain_hypothesis="Manual data entry slows operations",
+            pitch_framing="Position as ROI-driven automation partner",
+        )
+        db.session.add(opp)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get(f"/api/companies/{company.id}", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        opp_data = data["enrichment_l2"]["modules"]["opportunity"]
+        assert opp_data["pitch_framing"] == "Position as ROI-driven automation partner"
+
+    def test_new_l2_fields_null_when_absent(self, client, db, seed_companies_contacts):
+        """BL-156: New fields are null when not populated (no error)."""
+        from api.models import CompanyEnrichmentSignals
+
+        company = seed_companies_contacts["companies"][0]
+        # Create signals with only old fields, new fields stay None
+        signals = CompanyEnrichmentSignals(
+            company_id=company.id,
+            digital_initiatives="Some initiative",
+        )
+        db.session.add(signals)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get(f"/api/companies/{company.id}", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        sig = data["enrichment_l2"]["modules"]["signals"]
+        assert sig["regulatory_pressure"] is None
+        assert sig["employee_sentiment"] is None
+        assert sig["digital_maturity_score"] is None
+        assert sig["fiscal_year_end"] is None
+        assert sig["it_spend_indicators"] is None
+        assert sig["tech_stack_categories"] is None

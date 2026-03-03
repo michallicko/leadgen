@@ -474,6 +474,11 @@ def get_contact(contact_id):
                    career_trajectory, previous_companies,
                    speaking_engagements, publications,
                    twitter_handle, github_username,
+                   education, certifications, expertise_areas,
+                   budget_signals, buying_signals, pain_indicators,
+                   technology_interests, personalization_angle,
+                   connection_points, conversation_starters,
+                   objection_prediction,
                    enriched_at, enrichment_cost_usd
             FROM contact_enrichment
             WHERE contact_id = :id
@@ -495,9 +500,20 @@ def get_contact(contact_id):
             "publications": enrich_row[9],
             "twitter_handle": enrich_row[10],
             "github_username": enrich_row[11],
-            "enriched_at": _iso(enrich_row[12]),
-            "enrichment_cost_usd": float(enrich_row[13])
-            if enrich_row[13] is not None
+            "education": enrich_row[12],
+            "certifications": enrich_row[13],
+            "expertise_areas": _parse_jsonb(enrich_row[14]),
+            "budget_signals": enrich_row[15],
+            "buying_signals": enrich_row[16],
+            "pain_indicators": enrich_row[17],
+            "technology_interests": _parse_jsonb(enrich_row[18]),
+            "personalization_angle": enrich_row[19],
+            "connection_points": _parse_jsonb(enrich_row[20]),
+            "conversation_starters": enrich_row[21],
+            "objection_prediction": enrich_row[22],
+            "enriched_at": _iso(enrich_row[23]),
+            "enrichment_cost_usd": float(enrich_row[24])
+            if enrich_row[24] is not None
             else None,
         }
     else:

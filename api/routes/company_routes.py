@@ -791,7 +791,8 @@ def get_company(company_id):
         db.text("""
             SELECT recent_news, funding_history, eu_grants,
                    media_sentiment, press_releases, thought_leadership,
-                   revenue_trend, growth_signals, ma_activity,
+                   expansion, workflow_ai_evidence, revenue_trend,
+                   growth_signals, ma_activity,
                    enriched_at, enrichment_cost_usd
             FROM company_enrichment_market
             WHERE company_id = :id
@@ -806,12 +807,14 @@ def get_company(company_id):
             "media_sentiment": mkt_row[3],
             "press_releases": mkt_row[4],
             "thought_leadership": mkt_row[5],
-            "revenue_trend": mkt_row[6],
-            "growth_signals": mkt_row[7],
-            "ma_activity": mkt_row[8],
-            "enriched_at": _iso(mkt_row[9]),
-            "enrichment_cost_usd": float(mkt_row[10])
-            if mkt_row[10] is not None
+            "expansion": mkt_row[6],
+            "workflow_ai_evidence": mkt_row[7],
+            "revenue_trend": mkt_row[8],
+            "growth_signals": mkt_row[9],
+            "ma_activity": mkt_row[10],
+            "enriched_at": _iso(mkt_row[11]),
+            "enrichment_cost_usd": float(mkt_row[12])
+            if mkt_row[12] is not None
             else None,
         }
 
