@@ -1,5 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router'
+import { useMemo } from 'react'
 import { apiFetch } from '../client'
+import { getNamespaceFromPath } from '../../lib/auth'
+
+/** Return current namespace slug, re-computed when the URL changes. */
+function useNamespace(): string {
+  const location = useLocation()
+  return useMemo(() => getNamespaceFromPath(location.pathname) ?? '', [location.pathname])
+}
 
 export interface StrategyDocument {
   id: string
@@ -31,14 +40,15 @@ interface ChatResponse {
 }
 
 export interface ResearchStatus {
-  status: 'not_started' | 'in_progress' | 'completed'
+  status: 'not_started' | 'in_progress' | 'completed' | 'failed'
   company?: { id: string; name: string; domain: string; status: string }
   enrichment_data?: Record<string, unknown>
 }
 
 export function usePlaybookDocument() {
+  const ns = useNamespace()
   return useQuery({
-    queryKey: ['playbook'],
+    queryKey: ['playbook', ns],
     queryFn: () => apiFetch<StrategyDocument>('/playbook'),
   })
 }
@@ -51,8 +61,9 @@ export function useSavePlaybook() {
 }
 
 export function usePlaybookChat(enabled = true) {
+  const ns = useNamespace()
   return useQuery({
-    queryKey: ['playbook', 'chat'],
+    queryKey: ['playbook', 'chat', ns],
     queryFn: () => apiFetch<ChatResponse>('/playbook/chat'),
     enabled,
   })
@@ -95,8 +106,9 @@ export function useExtractStrategy() {
 }
 
 export function useResearchStatus(enabled: boolean) {
+  const ns = useNamespace()
   return useQuery({
-    queryKey: ['playbook', 'research'],
+    queryKey: ['playbook', 'research', ns],
     queryFn: () => apiFetch<ResearchStatus>('/playbook/research'),
     enabled,
     refetchInterval: (query) => {

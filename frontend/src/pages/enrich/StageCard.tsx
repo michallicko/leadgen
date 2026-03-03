@@ -442,7 +442,7 @@ export function StageCard({
                     className="flex items-center gap-1 text-[0.65rem] text-error hover:text-error/80 transition-colors w-full"
                   >
                     <span className={`transition-transform ${showFailed ? 'rotate-90' : ''}`}>&#9654;</span>
-                    {progress.failed_items.length} failed entit{progress.failed_items.length === 1 ? 'y' : 'ies'}
+                    {progress.failed_items.length} failed item{progress.failed_items.length === 1 ? '' : 's'}
                   </button>
                   {showFailed && (
                     <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">

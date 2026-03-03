@@ -136,9 +136,9 @@ export function useEnrichState() {
       },
       {
         key: 'entityIds',
-        label: 'Entity IDs',
+        label: 'Specific IDs',
         type: 'search' as const,
-        placeholder: 'Paste entity IDs (comma-separated)...',
+        placeholder: 'Paste company or contact IDs (comma-separated)...',
       },
       {
         key: 'limit',
