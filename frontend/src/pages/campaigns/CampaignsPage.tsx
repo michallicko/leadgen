@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import {
   useCampaigns,
@@ -12,6 +12,7 @@ import { DataTable, type Column } from '../../components/ui/DataTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { CampaignsEmptyState } from '../../components/onboarding/SmartEmptyState'
 import { useToast } from '../../components/ui/Toast'
+import { useStrategyDefaults } from '../../hooks/useStrategyDefaults'
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-[#8B92A0]/10 text-text-muted border-[#8B92A0]/20',
@@ -43,11 +44,23 @@ export function CampaignsPage() {
   const cloneCampaign = useCloneCampaign()
   const { toast } = useToast()
 
+  const strategyDefaults = useStrategyDefaults()
+
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newTemplateId, setNewTemplateId] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  // BL-178: Auto-fill campaign name from strategy when opening create dialog
+  useEffect(() => {
+    if (showCreate && !newName && strategyDefaults.campaignNameSuggestion) {
+      setNewName(strategyDefaults.campaignNameSuggestion)
+    }
+    if (showCreate && !newDesc && strategyDefaults.targetAudience) {
+      setNewDesc(`Target: ${strategyDefaults.targetAudience}`)
+    }
+  }, [showCreate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const campaigns = useMemo(() => data?.campaigns ?? [], [data])
   const templates = useMemo(() => templateData?.templates ?? [], [templateData])
@@ -216,6 +229,15 @@ export function CampaignsPage() {
       {showCreate && (
         <div className="px-6 py-4 bg-surface-alt border-b border-border">
           <div className="flex flex-col gap-3 max-w-lg">
+            {strategyDefaults.hasStrategy && (
+              <p className="text-xs text-accent-cyan flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 1v4M6 11V8M1 6h4M11 6H8" />
+                  <circle cx="6" cy="6" r="1.5" />
+                </svg>
+                Pre-filled from your strategy. Edit any field to override.
+              </p>
+            )}
             <input
               type="text"
               value={newName}

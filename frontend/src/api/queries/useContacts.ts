@@ -28,6 +28,11 @@ export interface ContactListItem {
   linkedin_activity_level: string | null
   language: string | null
   contact_source: string | null
+  // Enrichment summary fields (BL-180)
+  company_tier: string | null
+  company_status: string | null
+  enrichment_status: string | null
+  last_enriched_at: string | null
 }
 
 interface ContactsPage {

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { useUpdateMessage, type Message } from '../../api/queries/useMessages'
+import { useUpdateMessage, useMarkMessageSent, type Message } from '../../api/queries/useMessages'
 import { useToast } from '../../components/ui/Toast'
 
 const EDIT_REASONS = [
@@ -39,13 +39,22 @@ const CHANNEL_LABELS: Record<string, string> = {
   call_script: 'Call',
 }
 
-interface MessageCardProps {
-  message: Message
+const ANGLE_LABELS: Record<string, string> = {
+  pain: 'Pain',
+  opportunity: 'Opportunity',
+  social_proof: 'Social Proof',
 }
 
-export function MessageCard({ message }: MessageCardProps) {
+interface MessageCardProps {
+  message: Message
+  selected?: boolean
+  onToggleSelect?: () => void
+}
+
+export function MessageCard({ message, selected, onToggleSelect }: MessageCardProps) {
   const { toast } = useToast()
   const mutation = useUpdateMessage()
+  const markSentMutation = useMarkMessageSent()
   const [mode, setMode] = useState<'view' | 'edit' | 'reject'>('view')
   const [editBody, setEditBody] = useState(message.body)
   const [editReason, setEditReason] = useState('')
@@ -115,9 +124,30 @@ export function MessageCard({ message }: MessageCardProps) {
     }
   }, [message.id, mutation, toast])
 
+  const handleSendViaLinkedIn = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(message.body)
+      toast('Message copied to clipboard', 'success')
+    } catch {
+      toast('Failed to copy message', 'error')
+      return
+    }
+    if (message.contact.linkedin_url) {
+      window.open(message.contact.linkedin_url, '_blank', 'noopener')
+    }
+    try {
+      await markSentMutation.mutateAsync({ id: message.id, channel: 'linkedin' })
+      toast('Marked as sent via LinkedIn', 'success')
+    } catch {
+      toast('Failed to mark as sent', 'error')
+    }
+  }, [message.id, message.body, message.contact.linkedin_url, markSentMutation, toast])
+
   const isDraft = message.status === 'draft'
   const isApproved = message.status === 'approved'
   const isRejected = message.status === 'rejected'
+  const isLinkedInChannel = message.channel === 'linkedin_connect' || message.channel === 'linkedin_message'
+  const hasLinkedInUrl = !!message.contact.linkedin_url
 
   const opacity = isApproved ? 'opacity-60' : isRejected ? 'opacity-40' : ''
   const borderColor = isApproved
@@ -127,11 +157,22 @@ export function MessageCard({ message }: MessageCardProps) {
       : 'border-border-solid'
 
   return (
-    <div className={`rounded-lg border ${borderColor} bg-surface p-4 ${opacity} transition-opacity`}>
+    <div className={`rounded-lg border ${borderColor} bg-surface p-4 ${opacity} transition-opacity ${selected ? 'ring-2 ring-accent/40' : ''}`}>
       {/* Card header */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={onToggleSelect}
+            className="w-3.5 h-3.5 rounded border-border-solid accent-accent cursor-pointer"
+          />
+        )}
         <span className="text-xs font-medium text-text-muted">
           Step {message.sequence_step} · {message.variant}
+          {message.variant_angle && (
+            <span className="ml-1 text-[10px] text-text-dim">({ANGLE_LABELS[message.variant_angle] ?? message.variant_angle})</span>
+          )}
         </span>
         <span className="text-xs px-1.5 py-0.5 rounded bg-surface-alt text-text-muted border border-border-solid">
           {CHANNEL_LABELS[message.channel] ?? message.channel}
@@ -236,6 +277,18 @@ export function MessageCard({ message }: MessageCardProps) {
               <button onClick={() => setMode('edit')} className="px-2.5 py-1 text-xs text-accent-cyan hover:bg-accent/10 rounded transition-colors">Edit</button>
               <button onClick={() => setMode('reject')} className="px-2.5 py-1 text-xs text-error hover:bg-error/10 rounded transition-colors">Reject</button>
             </>
+          )}
+          {isApproved && isLinkedInChannel && hasLinkedInUrl && (
+            <button
+              onClick={handleSendViaLinkedIn}
+              disabled={markSentMutation.isPending}
+              className="px-2.5 py-1 text-xs text-[#0A66C2] hover:bg-[#0A66C2]/10 rounded transition-colors flex items-center gap-1"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 8V5M8 8V6.5a1.5 1.5 0 10-3 0M4 3.5v.01" />
+              </svg>
+              {markSentMutation.isPending ? 'Sending...' : 'Send via LinkedIn'}
+            </button>
           )}
           {(isApproved || isRejected) && (
             <button onClick={handleReset} disabled={mutation.isPending} className="px-2.5 py-1 text-xs text-text-muted hover:text-text hover:bg-surface-alt rounded transition-colors">Reset to Draft</button>

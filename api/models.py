@@ -1054,6 +1054,9 @@ class Message(db.Model):
     edit_reason_text = db.Column(db.Text)
     regen_count = db.Column(db.Integer, default=0)
     regen_config = db.Column(JSONB)
+    # A/B variant linking (migration 041)
+    variant_group = db.Column(UUID(as_uuid=False))
+    variant_angle = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
@@ -1575,6 +1578,14 @@ class EmailSendLog(db.Model):
     to_email = db.Column(db.Text)
     sent_at = db.Column(db.DateTime(timezone=True))
     delivered_at = db.Column(db.DateTime(timezone=True))
+    # Engagement tracking (migration 041)
+    opened_at = db.Column(db.DateTime(timezone=True))
+    open_count = db.Column(db.Integer, default=0)
+    replied_at = db.Column(db.DateTime(timezone=True))
+    bounced_at = db.Column(db.DateTime(timezone=True))
+    bounce_type = db.Column(db.Text)  # 'hard' or 'soft'
+    clicked_at = db.Column(db.DateTime(timezone=True))
+    click_count = db.Column(db.Integer, default=0)
     error = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
@@ -1591,6 +1602,13 @@ class EmailSendLog(db.Model):
             "delivered_at": self.delivered_at.isoformat()
             if self.delivered_at
             else None,
+            "opened_at": self.opened_at.isoformat() if self.opened_at else None,
+            "open_count": self.open_count or 0,
+            "replied_at": self.replied_at.isoformat() if self.replied_at else None,
+            "bounced_at": self.bounced_at.isoformat() if self.bounced_at else None,
+            "bounce_type": self.bounce_type,
+            "clicked_at": self.clicked_at.isoformat() if self.clicked_at else None,
+            "click_count": self.click_count or 0,
             "error": self.error,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

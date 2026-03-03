@@ -96,6 +96,7 @@ ALLOWED_SORT = {
     "ai_champion_score",
     "authority_score",
     "linkedin_activity_level",
+    "last_enriched_at",
 }
 
 
@@ -260,7 +261,11 @@ def list_contacts():
                 ct.linkedin_url, ct.phone_number,
                 ct.ai_champion_score, ct.authority_score,
                 ct.linkedin_activity_level, ct.language,
-                ct.contact_source
+                ct.contact_source,
+                co.tier AS company_tier,
+                co.status AS company_status_raw,
+                ct.processed_enrich,
+                ct.last_enriched_at
             FROM contacts ct
             {joins}
             WHERE {where_clause}
@@ -290,6 +295,32 @@ def list_contacts():
         for tr in tag_rows:
             tag_map.setdefault(str(tr[0]), []).append(tr[1])
 
+    # Batch lookup: which contacts have enrichment data
+    enrich_map: dict[str, bool] = {cid: False for cid in contact_ids}
+    if contact_ids:
+        placeholders = ", ".join(f":eid_{i}" for i in range(len(contact_ids)))
+        enrich_params = {f"eid_{i}": cid for i, cid in enumerate(contact_ids)}
+        enrich_rows = db.session.execute(
+            db.text(f"""
+                SELECT ce.contact_id
+                FROM contact_enrichment ce
+                WHERE ce.contact_id IN ({placeholders})
+            """),
+            enrich_params,
+        ).fetchall()
+        for er in enrich_rows:
+            enrich_map[str(er[0])] = True
+
+    def _enrichment_status(processed_enrich, has_enrichment, last_enriched_at):
+        """Derive a compact enrichment status label."""
+        if has_enrichment:
+            return "enriched"
+        if processed_enrich:
+            return "processed"
+        if last_enriched_at:
+            return "partial"
+        return "none"
+
     contacts = []
     for r in rows:
         cid = str(r[0])
@@ -300,6 +331,9 @@ def list_contacts():
         raw_contact_score = r[7]
         raw_ai_champion = int(r[17]) if r[17] is not None else None
         raw_authority = int(r[18]) if r[18] is not None else None
+        has_enrichment = enrich_map.get(cid, False)
+        processed = bool(r[24]) if r[24] is not None else False
+        last_enriched = r[25]
         contacts.append(
             {
                 "id": cid,
@@ -330,6 +364,14 @@ def list_contacts():
                 "linkedin_activity_level": display_linkedin_activity(r[19]),
                 "language": display_language(r[20]),
                 "contact_source": display_contact_source(r[21]),
+                "company_tier": display_tier(r[22]),
+                "company_status": display_status(r[23])
+                if r[23]
+                else None,  # co.status raw
+                "enrichment_status": _enrichment_status(
+                    processed, has_enrichment, last_enriched
+                ),
+                "last_enriched_at": _iso(last_enriched),
             }
         )
 

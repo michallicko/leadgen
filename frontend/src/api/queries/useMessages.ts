@@ -43,6 +43,8 @@ export interface Message {
   regen_config: Record<string, unknown> | null
   label: string | null
   campaign_contact_id: string | null
+  variant_group: string | null
+  variant_angle: string | null
   contact: MessageContact
   company: MessageCompany | null
 }
@@ -210,6 +212,25 @@ export function useRegenerateMessage() {
       qc.invalidateQueries({ queryKey: ['review-queue'] })
       qc.invalidateQueries({ queryKey: ['messages'] })
       qc.invalidateQueries({ queryKey: ['review-summary'] })
+    },
+  })
+}
+
+// ── Mark Sent (LinkedIn / manual channels) ──────────
+
+export function useMarkMessageSent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, channel }: { id: string; channel: string }) =>
+      apiFetch<{ ok: boolean; status: string; channel: string }>(
+        `/messages/${id}/mark-sent`,
+        { method: 'POST', body: { channel } },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages'] })
+      qc.invalidateQueries({ queryKey: ['review-queue'] })
+      qc.invalidateQueries({ queryKey: ['review-summary'] })
+      qc.invalidateQueries({ queryKey: ['campaign-analytics'] })
     },
   })
 }

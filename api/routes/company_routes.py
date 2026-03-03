@@ -1123,6 +1123,186 @@ def update_company(company_id):
     return jsonify({"ok": True})
 
 
+# ── Triage Review (BL-176) ────────────────────────────────
+VALID_TRIAGE_ACTIONS = {"pass", "review", "disqualify"}
+
+
+@companies_bp.route("/api/companies/<company_id>/triage", methods=["PATCH"])
+@require_role("editor")
+def triage_company(company_id):
+    """Apply a triage decision to a company.
+
+    Body: { action: "pass"|"review"|"disqualify", reason?: string }
+    - pass: sets status to triage_passed
+    - review: sets status to needs_review (keep for manual follow-up)
+    - disqualify: sets status to triage_disqualified, reason required
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    action = (body.get("action") or "").strip().lower()
+    reason = (body.get("reason") or "").strip()
+
+    if action not in VALID_TRIAGE_ACTIONS:
+        return (
+            jsonify(
+                {
+                    "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(VALID_TRIAGE_ACTIONS))}"
+                }
+            ),
+            400,
+        )
+
+    if action == "disqualify" and not reason:
+        return jsonify({"error": "Reason is required for disqualification"}), 400
+
+    # Verify company belongs to tenant
+    row = db.session.execute(
+        db.text("SELECT id, status FROM companies WHERE id = :id AND tenant_id = :t"),
+        {"id": company_id, "t": tenant_id},
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
+
+    status_map = {
+        "pass": "triage_passed",
+        "review": "needs_review",
+        "disqualify": "triage_disqualified",
+    }
+    new_status = status_map[action]
+
+    # Build update — use CURRENT_TIMESTAMP for SQLite compat
+    ts_fn = "CURRENT_TIMESTAMP" if db.engine.dialect.name == "sqlite" else "now()"
+    set_parts = ["status = :new_status", f"updated_at = {ts_fn}"]
+    params: dict = {"id": company_id, "new_status": new_status}
+
+    if reason:
+        set_parts.append("triage_notes = :reason")
+        params["reason"] = reason
+
+    db.session.execute(
+        db.text(f"UPDATE companies SET {', '.join(set_parts)} WHERE id = :id"),
+        params,
+    )
+    db.session.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "company_id": str(company_id),
+            "action": action,
+            "status": new_status,
+        }
+    )
+
+
+@companies_bp.route("/api/companies/triage-queue", methods=["GET"])
+@require_auth
+def triage_queue():
+    """Return companies pending triage review.
+
+    These are companies that completed L1 enrichment and have a triage_score
+    but haven't been explicitly passed/disqualified yet.
+    Sorted by triage_score descending (best candidates first).
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    page = max(1, request.args.get("page", 1, type=int))
+    page_size = min(100, max(1, request.args.get("page_size", 25, type=int)))
+    offset = (page - 1) * page_size
+
+    # Companies that have L1 enrichment but are still "new" or "needs_review"
+    # (not yet triage_passed or triage_disqualified)
+    where_clause = """
+        c.tenant_id = :t
+        AND c.status IS NOT NULL
+        AND c.status NOT IN ('triage_passed', 'triage_disqualified')
+        AND EXISTS (
+            SELECT 1 FROM company_enrichment_l1 l1 WHERE l1.company_id = c.id
+        )
+    """
+    params: dict = {"t": tenant_id}
+
+    tag_name = request.args.get("tag_name", "").strip()
+    if tag_name:
+        where_clause += """ AND EXISTS (
+            SELECT 1 FROM company_tag_assignments cta
+            JOIN tags bt ON bt.id = cta.tag_id
+            WHERE cta.company_id = c.id AND bt.name = :tag_name
+        )"""
+        params["tag_name"] = tag_name
+
+    # Count
+    total = (
+        db.session.execute(
+            db.text(f"""
+                SELECT COUNT(*)
+                FROM companies c
+                WHERE {where_clause}
+            """),
+            params,
+        ).scalar()
+        or 0
+    )
+
+    import math
+
+    pages = max(1, math.ceil(total / page_size))
+
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                c.id, c.name, c.domain, c.tier, c.status,
+                c.triage_score, c.triage_notes, c.industry,
+                c.hq_country, c.company_size, c.revenue_range,
+                o.name AS owner_name,
+                l1.pre_score, l1.confidence
+            FROM companies c
+            LEFT JOIN owners o ON c.owner_id = o.id
+            LEFT JOIN company_enrichment_l1 l1 ON l1.company_id = c.id
+            WHERE {where_clause}
+            ORDER BY c.triage_score DESC NULLS LAST, c.name ASC
+            LIMIT :limit OFFSET :offset
+        """),
+        {**params, "limit": page_size, "offset": offset},
+    ).fetchall()
+
+    companies = []
+    for r in rows:
+        companies.append(
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "domain": r[2],
+                "tier": display_tier(r[3]),
+                "status": display_status(r[4]),
+                "triage_score": float(r[5]) if r[5] is not None else None,
+                "triage_notes": r[6],
+                "industry": display_industry(r[7]),
+                "hq_country": r[8],
+                "company_size": display_company_size(r[9]),
+                "revenue_range": display_revenue_range(r[10]),
+                "owner_name": r[11],
+                "pre_score": float(r[12]) if r[12] is not None else None,
+                "confidence": float(r[13]) if r[13] is not None else None,
+            }
+        )
+
+    return jsonify(
+        {
+            "companies": companies,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+    )
+
+
 @companies_bp.route("/api/companies/<company_id>/enrich-registry", methods=["POST"])
 @require_auth
 def enrich_registry(company_id):
