@@ -15,6 +15,7 @@ interface DagControlsProps {
   onRun: () => void
   onStop: () => void
   isLoading: boolean
+  estimateError?: boolean
   onLoadConfig?: (config: Record<string, unknown>) => void
   getConfigSnapshot?: () => Record<string, unknown>
 }
@@ -39,6 +40,7 @@ export function DagControls({
   onRun,
   onStop,
   isLoading,
+  estimateError,
   onLoadConfig,
   getConfigSnapshot,
 }: DagControlsProps) {
@@ -103,6 +105,9 @@ export function DagControls({
                 `Run ${enabledCount} stage${enabledCount !== 1 ? 's' : ''}`
               )}
             </button>
+            {estimateError && !isLoading && (
+              <span className="text-xs text-warning">Cost estimate unavailable</span>
+            )}
           </>
         )}
 

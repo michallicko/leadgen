@@ -6,6 +6,7 @@
 
 import { useNavigate, useParams } from 'react-router'
 import { EmptyState } from '../ui/EmptyState'
+import { withRev } from '../../lib/revision'
 import { useOnboardingStatus } from '../../hooks/useOnboarding'
 
 /**
@@ -48,7 +49,7 @@ export function ContactsEmptyState() {
       }
       action={{
         label: 'Import Contacts',
-        onClick: () => navigate(`/${namespace}/import`),
+        onClick: () => navigate(withRev(`/${namespace}/import`)),
       }}
     />
   )
@@ -110,11 +111,11 @@ export function MessagesEmptyState() {
         hasCampaigns
           ? {
               label: 'View Campaigns',
-              onClick: () => navigate(`/${namespace}/campaigns`),
+              onClick: () => navigate(withRev(`/${namespace}/campaigns`)),
             }
           : {
               label: 'Create Campaign',
-              onClick: () => navigate(`/${namespace}/campaigns`),
+              onClick: () => navigate(withRev(`/${namespace}/campaigns`)),
             }
       }
     />
@@ -150,7 +151,7 @@ export function EnrichEmptyState() {
       description="Import contacts first, then use the enrichment pipeline to fill in company data, verify emails, and score your prospects."
       action={{
         label: 'Import Contacts',
-        onClick: () => navigate(`/${namespace}/import`),
+        onClick: () => navigate(withRev(`/${namespace}/import`)),
       }}
     />
   )

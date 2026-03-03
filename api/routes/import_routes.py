@@ -17,6 +17,55 @@ imports_bp = Blueprint("imports", __name__)
 
 MAX_CSV_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Bidirectional mapping: Claude AI target names → frontend target field names.
+# Claude returns "contact.email_address" but the frontend expects "email", etc.
+CLAUDE_TO_FRONTEND = {
+    "contact.first_name": "first_name",
+    "contact.last_name": "last_name",
+    "contact.email_address": "email",
+    "contact.email": "email",
+    "contact.phone_number": "phone",
+    "contact.phone": "phone",
+    "contact.mobile": "mobile",
+    "contact.job_title": "job_title",
+    "contact.linkedin_url": "linkedin_url",
+    "contact.notes": "notes",
+    "contact.location_city": "location",
+    "contact.location_country": "location",
+    "contact.seniority_level": "seniority_level",
+    "contact.department": "department",
+    "contact.contact_source": "contact_source",
+    "contact.language": "language",
+    "company.name": "company_name",
+    "company.domain": "domain",
+    "company.industry": "industry",
+    "company.hq_city": "location",
+    "company.hq_country": "location",
+    "company.company_size": "employee_count",
+    "company.business_model": "business_model",
+    "company.description": "description",
+}
+
+FRONTEND_TO_CLAUDE = {v: k for k, v in CLAUDE_TO_FRONTEND.items()}
+
+
+def _translate_mapping_to_claude(mapping):
+    """Translate frontend target field names back to Claude dotted format.
+
+    The frontend sends targets like "email", "domain" but apply_mapping()
+    expects "contact.email_address", "company.domain", etc.
+    """
+    translated = dict(mapping)
+    new_mappings = []
+    for m in translated.get("mappings", []):
+        target = m.get("target")
+        if target and "." not in target and "custom" not in (target or ""):
+            m = dict(m)
+            m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
+        new_mappings.append(m)
+    translated["mappings"] = new_mappings
+    return translated
+
 
 def _auto_create_custom_field_defs(tenant_id, mapping):
     """Scan mapping for custom.* targets and auto-create missing definitions.
@@ -129,10 +178,16 @@ def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_
         suggestion = m.get("suggested_custom_field") or {}
         custom_display_name = suggestion.get("field_label") if is_custom else None
 
+        # Translate Claude AI target names to frontend-expected field names.
+        # e.g. "company.domain" → "domain", "contact.email_address" → "email"
+        frontend_target = target
+        if target and not is_custom:
+            frontend_target = CLAUDE_TO_FRONTEND.get(target, target)
+
         columns.append(
             {
                 "source_column": m.get("csv_header", ""),
-                "target_field": target,
+                "target_field": frontend_target,
                 "sample_values": m.get("sample_values", []),
                 "confidence": confidence,
                 "is_custom": is_custom,
@@ -404,6 +459,8 @@ def preview_import(job_id):
     body = request.get_json(silent=True) or {}
     mapping = body.get("mapping")
     if mapping:
+        # Translate frontend field names back to Claude dotted format for storage
+        mapping = _translate_mapping_to_claude(mapping)
         job.column_mapping = (
             json.dumps(mapping) if isinstance(mapping, dict) else mapping
         )

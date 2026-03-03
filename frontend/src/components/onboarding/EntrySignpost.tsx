@@ -5,6 +5,7 @@
  */
 
 import { useNavigate, useParams } from 'react-router'
+import { withRev } from '../../lib/revision'
 import { usePatchOnboardingSettings } from '../../hooks/useOnboarding'
 
 interface PathCard {
@@ -91,16 +92,17 @@ export function EntrySignpost() {
   const patchSettings = usePatchOnboardingSettings()
 
   const handlePathSelect = (card: PathCard) => {
-    // Persist the selection
+    // Persist the selection, then navigate (preserving ?rev= for staging)
+    const target = withRev(`/${namespace}/${card.route}`)
     patchSettings.mutate(
       { onboarding_path: card.id },
       {
         onSuccess: () => {
-          navigate(`/${namespace}/${card.route}`)
+          navigate(target)
         },
         onError: () => {
           // Navigate anyway even if persistence fails
-          navigate(`/${namespace}/${card.route}`)
+          navigate(target)
         },
       },
     )

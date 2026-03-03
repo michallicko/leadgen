@@ -49,6 +49,18 @@ export function useEnrichPipeline(filters: EnrichFilters) {
   const [totalCost, setTotalCost] = useState(0)
   const pollTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
+  // Reset pipeline state when tag changes to prevent cross-tag/namespace leakage.
+  // Uses render-time key comparison to avoid cascading renders from useEffect.
+  // The poll interval is cleaned up by the useEffect below (its cleanup runs on tag change).
+  const [prevTag, setPrevTag] = useState(filters.tag)
+  if (prevTag !== filters.tag) {
+    setPrevTag(filters.tag)
+    setDagMode('configure')
+    setStageProgress({})
+    setTotalCost(0)
+    setPipelineRunId(null)
+  }
+
   // Poll for status
   const poll = useCallback(async () => {
     if (!filters.tag) return
@@ -139,7 +151,8 @@ export function useEnrichPipeline(filters: EnrichFilters) {
     setPipelineRunId(null)
   }, [])
 
-  // Check for existing running pipeline on mount
+  // Check for existing running pipeline when tag changes.
+  // State reset is handled above in the render-time comparison.
   useEffect(() => {
     if (!filters.tag) return
 
