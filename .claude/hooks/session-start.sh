@@ -46,6 +46,27 @@ fi
 CTX+="\\n**Rebase rule**: ONLY rebase onto \`origin/staging\`. Never onto \`main\`, \`origin/main\`, or another feature branch.\\n"
 CTX+="To sync: \`make sync\` (fetches + rebases onto origin/staging).\\n"
 
+# --- SDLC enforcement context ---
+SDLC_PROJECT=""
+if [ -f "CLAUDE.md" ]; then
+    SDLC_PROJECT=$(grep -o 'backlog-project: [a-z0-9_-]*' CLAUDE.md | head -1 | cut -d' ' -f2 || true)
+fi
+
+if [ -n "$SDLC_PROJECT" ]; then
+  LAST_COMMIT="$(git log --oneline -1 2>/dev/null || echo "none")"
+  CTX+="\\n## SDLC Enforcement Active — Project: ${SDLC_PROJECT}\\n\\n"
+  CTX+="**MANDATORY FIRST ACTION**: Call \`backlog_onboard('${SDLC_PROJECT}')\` to load sprint context, directives, and recommended items.\\n\\n"
+  CTX+="**Before writing any code:**\\n"
+  CTX+="  1. \`backlog_claim_item('${SDLC_PROJECT}', '<short_id>', '<agent_id>')\` — claim the item\\n"
+  CTX+="  2. \`backlog_update_item('${SDLC_PROJECT}', '<short_id>', status='Building')\` — set status\\n\\n"
+  CTX+="**After completing work:**\\n"
+  CTX+="  3. \`backlog_update_item('${SDLC_PROJECT}', '<short_id>', status='PR Open')\` — when PR created\\n"
+  CTX+="  4. \`backlog_update_item('${SDLC_PROJECT}', '<short_id>', status='Done')\` — when merged\\n"
+  CTX+="  5. \`backlog_release_item('${SDLC_PROJECT}', '<short_id>')\` — release claim\\n\\n"
+  CTX+="**Last commit**: ${LAST_COMMIT}\\n\\n"
+  CTX+="Backlog service is the SINGLE SOURCE OF TRUTH. Every status change must be pushed immediately.\\n"
+fi
+
 # Show other active agents from registry
 REGISTRY="${MAIN_WORKTREE:-$WORKTREE_ROOT}/.worktrees/registry.json"
 if [ -f "$REGISTRY" ] && [ -s "$REGISTRY" ]; then

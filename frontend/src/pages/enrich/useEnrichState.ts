@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react'
+import { useParams } from 'react-router'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useTags } from '../../api/queries/useTags'
 import { filterOptions, STATUS_DISPLAY, TIER_DISPLAY } from '../../lib/display'
@@ -21,27 +22,33 @@ function defaultEnabledStages(): Record<string, boolean> {
 }
 
 export function useEnrichState() {
-  // Filter state (persisted)
-  const [search, setSearch] = useLocalStorage('en_filter_search', '')
-  const [tag, setTag] = useLocalStorage('en_filter_tag', '')
-  const [owner, setOwner] = useLocalStorage('en_filter_owner', '')
-  const [tier, setTier] = useLocalStorage('en_filter_tier', '')
-  const [status, setStatus] = useLocalStorage('en_filter_status', '')
-  const [entityIds, setEntityIds] = useLocalStorage('en_filter_ids', '')
-  const [limit, setLimit] = useLocalStorage('en_filter_limit', '')
+  // Namespace prefix for localStorage keys to prevent cross-tenant state leakage.
+  // Use React Router's useParams for reactive namespace tracking (not window.location).
+  const { namespace } = useParams<{ namespace: string }>()
+  const ns = namespace ?? '_'
+  const nsKey = (suffix: string) => `en_${ns}_${suffix}`
+
+  // Filter state (persisted per namespace)
+  const [search, setSearch] = useLocalStorage(nsKey('filter_search'), '')
+  const [tag, setTag] = useLocalStorage(nsKey('filter_tag'), '')
+  const [owner, setOwner] = useLocalStorage(nsKey('filter_owner'), '')
+  const [tier, setTier] = useLocalStorage(nsKey('filter_tier'), '')
+  const [status, setStatus] = useLocalStorage(nsKey('filter_status'), '')
+  const [entityIds, setEntityIds] = useLocalStorage(nsKey('filter_ids'), '')
+  const [limit, setLimit] = useLocalStorage(nsKey('filter_limit'), '')
 
   // DAG mode
   const [dagMode, setDagMode] = useState<DagMode>('configure')
 
   // Stage toggles
   const [enabledStages, setEnabledStages] = useLocalStorage<Record<string, boolean>>(
-    'en_enabled_stages',
+    nsKey('enabled_stages'),
     defaultEnabledStages(),
   )
 
   // Soft dep config per stage
   const [softDepsConfig, setSoftDepsConfig] = useLocalStorage<Record<string, boolean>>(
-    'en_soft_deps',
+    nsKey('soft_deps'),
     {},
   )
 
@@ -50,12 +57,23 @@ export function useEnrichState() {
 
   // Boost mode per stage
   const [boostStages, setBoostStages] = useLocalStorage<Record<string, boolean>>(
-    'en_boost_stages',
+    nsKey('boost_stages'),
     {},
   )
 
   // Pipeline run ID
   const [pipelineRunId, setPipelineRunId] = useState<string | null>(null)
+
+  // Reset non-persisted state when namespace changes to prevent cross-tenant leakage.
+  // Uses render-time key comparison (React-recommended "derive state from props" pattern)
+  // instead of useEffect to avoid cascading renders.
+  const [prevNs, setPrevNs] = useState(ns)
+  if (prevNs !== ns) {
+    setPrevNs(ns)
+    setDagMode('configure')
+    setReEnrichConfig({})
+    setPipelineRunId(null)
+  }
 
   // Tags data for filter options
   const { data: tagsData } = useTags()
@@ -118,9 +136,9 @@ export function useEnrichState() {
       },
       {
         key: 'entityIds',
-        label: 'Entity IDs',
+        label: 'Specific IDs',
         type: 'search' as const,
-        placeholder: 'Paste entity IDs (comma-separated)...',
+        placeholder: 'Paste company or contact IDs (comma-separated)...',
       },
       {
         key: 'limit',

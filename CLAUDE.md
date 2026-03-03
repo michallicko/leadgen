@@ -167,11 +167,42 @@ Opens:
 ### Running Tests
 
 ```bash
-make test        # Unit tests (pytest)
-make test-e2e    # Playwright browser tests (requires make dev running)
-make test-all    # Both
-make lint        # Ruff + ESLint
+make test           # Unit tests — full suite (pytest)
+make test-changed   # Unit tests — only changed files vs origin/staging
+make test-e2e       # Playwright browser tests (requires make dev running)
+make test-all       # Full unit + enrichment + E2E
+make lint           # Ruff + ESLint — full
+make lint-changed   # Ruff — only changed Python files
 ```
+
+### Testing Strategy — Context-Aware by Default
+
+**During development (feature branches):**
+- Use `make test-changed` — auto-detects changed files vs origin/staging and runs only matching tests
+- Use `make lint-changed` — lints only changed Python files
+- Frontend: `cd frontend && npx tsc --noEmit` (type check only)
+- **NEVER run `make test` or full pytest suite** during feature development — it wastes 5+ minutes
+- **NEVER run E2E tests** per feature — E2E runs only at sprint completion
+
+**CI/CD for staging PRs (context-aware):**
+- GitHub Actions detects changed `.py` files and maps them to test files
+- Only changed Python files are linted (ruff check + format)
+- Frontend TypeScript check runs only when `.ts`/`.tsx` files changed
+- ESLint is skipped (runs only on main PRs)
+- **No E2E** — E2E runs at sprint completion, not per PR
+
+**CI/CD for main PRs (full suite):**
+- Full `pytest tests/unit/` — all unit tests
+- Full `ruff check api/` + `ruff format --check api/` — all Python lint
+- Full `npx tsc --noEmit` + `npm run lint` — TypeScript + ESLint
+- Full E2E suite — this is the quality gate
+- This is the ONLY time full suite runs
+
+**Sprint completion (E2E validation):**
+- After all sprint PRs merged to staging
+- Run full E2E baseline + deep workflow tests against staging root
+- Validates sprint scope delivered with no regression
+- If E2E fails, fix and retest before merging staging → main
 
 ### Database
 
@@ -184,9 +215,9 @@ make db-reset    # Empty local DB (then db-pull to restore)
 
 1. Start dev server first — `make dev` (or `DEV_SLOT=N make dev` in a worktree)
 2. Use HMR — Vite picks up React changes instantly, Flask auto-reloads
-3. Run unit tests frequently — `make test` is fast (SQLite in-memory)
-4. Run E2E against dev server — `make test-e2e`
-5. Local first, staging second — only deploy when `make test-all` passes
+3. Run changed unit tests frequently — `make test-changed` is fast (SQLite in-memory)
+4. Local first, staging second — deploy revision for acceptance verification
+5. E2E runs at sprint completion only — not per feature, not per PR
 
 ### Worktree Commands
 
@@ -254,10 +285,12 @@ make sync             # Fetch + rebase onto origin/staging
 make agents           # List active agents from registry
 make pr-scan          # Check open PRs for file conflicts
 make db-pull          # Pull staging DB to local PG
-make test             # Unit tests (pytest)
+make test             # Unit tests — full suite (pytest)
+make test-changed     # Unit tests — only changed files (context-aware)
 make test-e2e         # Playwright browser tests
 make test-all         # Unit + E2E tests
-make lint             # Ruff + ESLint
+make lint             # Ruff + ESLint — full
+make lint-changed     # Ruff — only changed Python files
 
 # Deployment (use /deploy skill — never run these directly)
 bash deploy/teardown-revision.sh [commit]
@@ -371,7 +404,7 @@ Gate sequence (mandatory before any PR):
 2. **Code quality + Security** (parallel):
    - feature-dev:code-reviewer (confidence >= 80%)
    - security-scanner agent (no Critical/Important findings)
-3. **QA**: unit + E2E tests pass
+3. **QA**: unit tests pass (`make test-changed`); E2E runs at sprint completion, not per PR
 4. **Docs**: ARCHITECTURE.md, CHANGELOG.md, ADR (if applicable) updated
 5. **Backlog**: items updated to Done
 
@@ -379,9 +412,10 @@ Gate order: spec compliance -> code quality + security (parallel) -> QA -> docs 
 
 ### Test Requirements
 
-- All new code must have tests (TDD preferred)
-- Run: `make test` (unit) and `make test-e2e` (Playwright)
-- All lint checks pass: `make lint` (Ruff + ESLint)
+- All new code must have unit tests (TDD preferred)
+- Run: `make test-changed` (context-aware unit tests)
+- All lint checks pass: `make lint-changed` (changed files) or `make lint` (full, pre-merge)
+- E2E (Playwright) runs at sprint completion only — after all sprint PRs merge to staging
 
 ## Definition of Done (Project-Specific Detail)
 
@@ -389,10 +423,9 @@ A feature is **done** when ALL quality gates above pass AND:
 
 ### Staging Verification
 - [ ] Deployed to staging revision (`deploy-revision.sh`)
-- [ ] Playwright E2E tests pass against staging revision (run by agent, NOT the user)
-- [ ] Acceptance criteria verified via Playwright against the revision
-- [ ] No regressions in existing E2E tests
-- [ ] Tear down revision container after tests pass (free staging resources)
+- [ ] Acceptance criteria verified against the revision (manual or targeted Playwright spec)
+- [ ] Tear down revision container after verification (free staging resources)
+- [ ] Full E2E regression — runs at sprint completion after all PRs merge, NOT per feature
 
 ### Security Audit
 - [ ] Input validation at all system boundaries
@@ -407,9 +440,11 @@ A feature is **done** when ALL quality gates above pass AND:
 - [ ] User notified: "Feature X is ready for testing on staging"
 
 ### Testing Responsibilities
-- **Agents do**: Deploy to staging revision, run Playwright E2E, verify acceptance criteria, tear down revision, code review, security audit, merge to staging
-- **User does**: Manual testing on staging root AFTER features are merged. User tests the integrated experience, not individual revisions.
-- **Flow**: Agent builds -> Agent deploys rev -> Agent runs E2E -> Agent reviews -> Agent merges to staging -> User tests on staging root
+- **Agents do**: Deploy to staging revision, verify acceptance criteria against revision, tear down revision, code review, security audit, merge to staging
+- **Sprint QA agent does**: Run full E2E suite AFTER all sprint PRs merged to staging — validates sprint scope + no regression
+- **User does**: Manual testing on staging root AFTER sprint QA passes. User tests the integrated experience, not individual revisions.
+- **Flow**: Agent builds -> Agent deploys rev -> Agent verifies acceptance criteria -> Agent reviews -> Agent merges to staging -> Sprint QA runs E2E -> User tests on staging root
+- **E2E is sprint-level**: Never run E2E per feature or per PR — it runs once per sprint after all items land
 - **Manual test scripts**: `docs/testing/sprint-{N}-manual-tests.md` -- used by the user for staging root testing
 
 ## Code Standards

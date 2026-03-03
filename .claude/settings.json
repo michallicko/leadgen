@@ -47,6 +47,17 @@
             "statusMessage": "Checking git command..."
           }
         ]
+      },
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-commit.sh",
+            "timeout": 5,
+            "statusMessage": "Checking commit message..."
+          }
+        ]
       }
     ]
   }

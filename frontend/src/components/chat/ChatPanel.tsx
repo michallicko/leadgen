@@ -16,6 +16,7 @@
 import { useChatContext } from '../../providers/ChatProvider'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
+import { WorkflowProgressStrip } from './WorkflowProgressStrip'
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -141,6 +142,9 @@ export function ChatPanel() {
           toolCalls={toolCalls}
           isThinking={isThinking}
         />
+
+        {/* Workflow progress strip */}
+        <WorkflowProgressStrip />
 
         {/* Input */}
         <ChatInput

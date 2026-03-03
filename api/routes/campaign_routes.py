@@ -78,9 +78,7 @@ def _build_strategy_generation_config(extracted: dict) -> dict:
     vp = extracted.get("value_proposition")
     if vp:
         if isinstance(vp, dict):
-            config["value_proposition"] = ", ".join(
-                str(v) for v in vp.values() if v
-            )
+            config["value_proposition"] = ", ".join(str(v) for v in vp.values() if v)
         else:
             config["value_proposition"] = str(vp)
 
@@ -107,9 +105,7 @@ def _build_strategy_generation_config(extracted: dict) -> dict:
     # Build custom_instructions from strategy context
     instructions_parts = []
     if config.get("value_proposition"):
-        instructions_parts.append(
-            f"Value proposition: {config['value_proposition']}"
-        )
+        instructions_parts.append(f"Value proposition: {config['value_proposition']}")
     if config.get("messaging_angles"):
         instructions_parts.append(
             "Messaging angles: " + ", ".join(config["messaging_angles"])
@@ -119,12 +115,10 @@ def _build_strategy_generation_config(extracted: dict) -> dict:
             f"Competitive positioning: {config['competitive_positioning']}"
         )
     if config.get("target_persona"):
-        instructions_parts.append(
-            f"Target persona: {config['target_persona']}"
-        )
+        instructions_parts.append(f"Target persona: {config['target_persona']}")
     if instructions_parts:
-        config["custom_instructions"] = (
-            "Pre-filled from GTM Strategy:\n" + "\n".join(instructions_parts)
+        config["custom_instructions"] = "Pre-filled from GTM Strategy:\n" + "\n".join(
+            instructions_parts
         )
 
     return config
@@ -2881,7 +2875,9 @@ def auto_setup_campaign():
 
     # Determine which company statuses qualify
     QUALIFIED_STATUSES = ("triage_passed", "enriched_l2", "enriched", "synced")
-    status_idx = QUALIFIED_STATUSES.index(min_status) if min_status in QUALIFIED_STATUSES else 0
+    status_idx = (
+        QUALIFIED_STATUSES.index(min_status) if min_status in QUALIFIED_STATUSES else 0
+    )
     qualified_statuses = QUALIFIED_STATUSES[status_idx:]
 
     # Find qualified contacts with company and contact info
@@ -2908,9 +2904,7 @@ def auto_setup_campaign():
     ).fetchall()
 
     if not rows:
-        return jsonify(
-            {"error": "No qualified contacts found. Run triage first."}
-        ), 422
+        return jsonify({"error": "No qualified contacts found. Run triage first."}), 422
 
     # Load strategy for auto-config
     strat_doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
@@ -3019,7 +3013,11 @@ def _generate_campaign_name(extracted: dict, contact_count: int) -> str:
     if isinstance(icp, dict):
         industries = icp.get("industries", [])
         if industries and isinstance(industries, list):
-            focus = industries[0] if len(industries) == 1 else f"{len(industries)} industries"
+            focus = (
+                industries[0]
+                if len(industries) == 1
+                else f"{len(industries)} industries"
+            )
         geos = icp.get("geographies", [])
         if geos and isinstance(geos, list) and not focus:
             focus = geos[0] if len(geos) == 1 else f"{len(geos)} markets"

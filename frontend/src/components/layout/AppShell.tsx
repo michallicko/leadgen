@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Outlet, Navigate, useParams } from 'react-router'
+import { Outlet, Navigate, useParams, useLocation } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useTokenBudget } from '../../hooks/useTokenBudget'
 import {
@@ -50,6 +50,7 @@ function MobileFAB() {
 export function AppShell() {
   const { isAuthenticated, isLoading, user } = useAuth()
   const { namespace } = useParams<{ namespace: string }>()
+  const location = useLocation()
   const { data: onboardingStatus } = useOnboardingStatus()
 
   // Persist current namespace to localStorage for session recovery
@@ -83,12 +84,19 @@ export function AppShell() {
   const showSignpost = shouldShowSignpost(onboardingStatus)
   const showChecklist = shouldShowChecklist(onboardingStatus)
 
+  // Pages the signpost navigates to — bypass signpost when user has already
+  // clicked through so the target page actually renders.
+  const SIGNPOST_TARGET_PAGES = ['playbook', 'import']
+  const currentSubpage = location.pathname.split('/').filter(Boolean)[1] || ''
+  const onSignpostTarget = SIGNPOST_TARGET_PAGES.includes(currentSubpage)
+  const renderSignpost = showSignpost && !onSignpostTarget
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppNav />
       <BudgetWarningBanner />
       <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
-        {showSignpost ? (
+        {renderSignpost ? (
           <EntrySignpost />
         ) : (
           <>

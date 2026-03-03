@@ -7,23 +7,161 @@ on:
     branches: [main, staging]
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+      python_files: ${{ steps.changes.outputs.python_files }}
+      has_python: ${{ steps.changes.outputs.has_python }}
+      has_frontend: ${{ steps.changes.outputs.has_frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files and set mode
+        id: changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # PRs to main always run full suite
+          if [ "$BASE_REF" = "main" ]; then
+            echo "mode=full" >> $GITHUB_OUTPUT
+            echo "has_python=true" >> $GITHUB_OUTPUT
+            echo "has_frontend=true" >> $GITHUB_OUTPUT
+            echo "python_files=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For staging PRs and feature pushes: context-aware (targeted)
+          echo "mode=targeted" >> $GITHUB_OUTPUT
+
+          # Determine base ref for diff
+          if [ -n "$BASE_REF" ]; then
+            BASE="origin/$BASE_REF"
+          else
+            BASE="origin/staging"
+          fi
+
+          CHANGED_PY=$(git diff --name-only "$BASE"...HEAD -- '*.py' 2>/dev/null | tr '\n' ' ')
+          CHANGED_TS=$(git diff --name-only "$BASE"...HEAD -- '*.ts' '*.tsx' 2>/dev/null | tr '\n' ' ')
+
+          echo "python_files=$CHANGED_PY" >> $GITHUB_OUTPUT
+
+          if [ -n "$CHANGED_PY" ]; then
+            echo "has_python=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_python=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -n "$CHANGED_TS" ]; then
+            echo "has_frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_frontend=false" >> $GITHUB_OUTPUT
+          fi
+
   lint:
+    needs: detect-changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
       - run: pip install ruff
-      - run: ruff check api/
-      - run: ruff format --check api/
+
+      # Full lint for main PRs
+      - name: Full Python lint
+        if: needs.detect-changes.outputs.mode == 'full'
+        run: ruff check api/ && ruff format --check api/
+
+      # Targeted lint for staging PRs — only changed Python files
+      - name: Targeted Python lint
+        if: needs.detect-changes.outputs.mode == 'targeted' && needs.detect-changes.outputs.has_python == 'true'
+        env:
+          CHANGED_PY: ${{ needs.detect-changes.outputs.python_files }}
+        run: |
+          if [ -n "$CHANGED_PY" ]; then
+            echo "Linting changed files: $CHANGED_PY"
+            ruff check $CHANGED_PY
+            ruff format --check $CHANGED_PY
+          fi
+
+      - name: Skip lint (no Python changes)
+        if: needs.detect-changes.outputs.mode == 'targeted' && needs.detect-changes.outputs.has_python == 'false'
+        run: echo "No Python files changed, skipping lint"
 
   test:
+    needs: detect-changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
       - run: pip install -r requirements-dev.txt
-      - run: pytest tests/unit/ -v --tb=short
+
+      # Full test suite for main PRs
+      - name: Full test suite
+        if: needs.detect-changes.outputs.mode == 'full'
+        run: pytest tests/unit/ -v --tb=short
+
+      # Targeted tests for staging PRs — map changed source files to test files
+      - name: Targeted tests for changed files
+        if: needs.detect-changes.outputs.mode == 'targeted' && needs.detect-changes.outputs.has_python == 'true'
+        env:
+          CHANGED_PY: ${{ needs.detect-changes.outputs.python_files }}
+        run: |
+          TEST_FILES=""
+          for f in $CHANGED_PY; do
+            base=$(basename "$f" .py)
+            # Look for test files matching the source file name
+            found=$(find tests/ -name "test_${base}.py" -o -name "test_${base}_*.py" 2>/dev/null | tr '\n' ' ')
+            TEST_FILES="$TEST_FILES $found"
+
+            # Also check if the changed file IS a test file
+            if echo "$f" | grep -q "^tests/"; then
+              TEST_FILES="$TEST_FILES $f"
+            fi
+          done
+          # Deduplicate
+          TEST_FILES=$(echo "$TEST_FILES" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+          if [ -n "$(echo "$TEST_FILES" | tr -d ' ')" ]; then
+            echo "Running targeted tests: $TEST_FILES"
+            pytest $TEST_FILES -v --tb=short --timeout=60
+          else
+            echo "No matching test files found for changed sources, skipping"
+          fi
+
+      - name: Skip tests (no Python changes)
+        if: needs.detect-changes.outputs.mode == 'targeted' && needs.detect-changes.outputs.has_python == 'false'
+        run: echo "No Python files changed, skipping tests"
+
+  frontend-check:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_frontend == 'true' || needs.detect-changes.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: TypeScript type check
+        run: cd frontend && npx tsc --noEmit
+
+      - name: ESLint
+        if: needs.detect-changes.outputs.mode == 'full'
+        run: cd frontend && npm run lint

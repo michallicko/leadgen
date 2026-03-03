@@ -18,6 +18,15 @@ if [ "$BEHIND" -gt 0 ]; then
 fi
 CTX+="]"
 
+# --- SDLC reminder ---
+SDLC_PROJECT=""
+if [ -f "CLAUDE.md" ]; then
+    SDLC_PROJECT=$(grep -o 'backlog-project: [a-z0-9_-]*' CLAUDE.md | head -1 | cut -d' ' -f2 || true)
+fi
+if [ -n "$SDLC_PROJECT" ]; then
+  CTX+=" [SDLC: ${SDLC_PROJECT} | Claim items before coding, update status on transitions, release when done]"
+fi
+
 # Escape for JSON
 CTX_ESCAPED="${CTX//\\/\\\\}"
 CTX_ESCAPED="${CTX_ESCAPED//\"/\\\"}"

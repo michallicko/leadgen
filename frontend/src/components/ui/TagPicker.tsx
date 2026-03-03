@@ -54,7 +54,7 @@ export function TagPicker({ onConfirm, onClose, isLoading }: TagPickerProps) {
       >
         <div className="px-4 py-3 border-b border-border-solid">
           <h3 className="text-sm font-semibold text-text">Add Tags</h3>
-          <p className="text-xs text-text-muted mt-0.5">Select tags to add to selected entities</p>
+          <p className="text-xs text-text-muted mt-0.5">Select tags to apply to the selected items</p>
         </div>
 
         <div className="flex-1 overflow-auto px-2 py-2">

@@ -293,6 +293,11 @@ def apply_mapping(row, mapping_result):
             continue
         target = m["target"]
 
+        # Skip targets that don't contain an entity.field separator
+        # (e.g. "skip", "ignore", or frontend names that weren't translated)
+        if "." not in target:
+            continue
+
         value = str(value).strip() if value else None
         if not value:
             continue

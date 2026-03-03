@@ -200,7 +200,7 @@ const STAGE_DEFS: StageDef[] = [
     icon: 'QC',
     color: '#06d6a0',
     bg: 'rgba(6,214,160,0.08)',
-    description: 'Automated data quality check: validates completeness, consistency, and accuracy across all enriched fields. Flags entities needing manual review before outreach.',
+    description: 'Automated data quality check: validates completeness, consistency, and accuracy across all enriched fields. Flags companies and contacts needing manual review before outreach.',
     fields: ['Quality Flags', 'Data Completeness'],
     row: 4,
     available: true,

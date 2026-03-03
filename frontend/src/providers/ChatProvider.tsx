@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { usePlaybookChat, useNewThread } from '../api/queries/usePlaybook'
 import { useSSE } from '../hooks/useSSE'
@@ -108,6 +109,7 @@ function setStoredOpen(open: boolean) {
 export function ChatProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
+  const queryClient = useQueryClient()
 
   // Server state — only fetch when authenticated
   const chatQuery = usePlaybookChat(isAuthenticated)
@@ -255,6 +257,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 })
               }
             }
+
+            // BL-135: Refresh workflow suggestions & status after tool calls
+            if (doneData.toolCalls && doneData.toolCalls.length > 0) {
+              queryClient.invalidateQueries({ queryKey: ['workflow-suggestions'] })
+              queryClient.invalidateQueries({ queryKey: ['workflow-status'] })
+              queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
+            }
           },
           onError: () => {
             setStreamingText('')
@@ -315,7 +324,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
       )
     },
-    [sse, chatQuery, currentPage],
+    [sse, chatQuery, currentPage, queryClient],
   )
 
   // ---------------------------------------------------------------------------

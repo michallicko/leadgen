@@ -93,17 +93,17 @@ const COLUMNS: Column<ContactRow>[] = [
 ]
 
 function IcpBadge({ fit }: { fit: string | null }) {
-  if (!fit || fit === 'unknown') {
+  if (!fit || fit === 'unknown' || fit === 'Unknown') {
     return <span className="text-text-dim text-xs">--</span>
   }
-  const color =
-    fit === 'strong_fit' || fit === 'Strong Fit'
-      ? 'text-green-400'
-      : fit === 'moderate_fit' || fit === 'Moderate Fit'
-        ? 'text-amber-400'
-        : 'text-text-dim'
-  const label = fit.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  return <span className={`text-xs font-medium ${color}`}>{label}</span>
+  const isMatch =
+    fit === 'strong_fit' || fit === 'Strong Fit' ||
+    fit === 'moderate_fit' || fit === 'Moderate Fit'
+  return (
+    <span className={`text-xs font-medium ${isMatch ? 'text-green-400' : 'text-text-dim'}`}>
+      {isMatch ? 'Match' : 'No Match'}
+    </span>
+  )
 }
 
 // ── Filter chips ─────────────────────────────────────────────

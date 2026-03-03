@@ -42,16 +42,16 @@ interface CostEstimatorProps {
 // ── Stage display names ──────────────────────────────────────
 
 const STAGE_LABELS: Record<string, string> = {
-  l1: 'L1 Company',
-  l2: 'L2 Company',
-  signals: 'Signals',
-  registry: 'Registry',
-  news: 'News',
-  person: 'Person',
-  social: 'Social',
-  career: 'Career',
+  l1: 'Company Profile',
+  l2: 'Deep Research',
+  signals: 'Strategic Signals',
+  registry: 'Legal & Registry',
+  news: 'News & PR',
+  person: 'Role & Employment',
+  social: 'Social & Online',
+  career: 'Career History',
   contact_details: 'Contact Details',
-  qc: 'QC',
+  qc: 'Quality Check',
 }
 
 // ── Hook ─────────────────────────────────────────────────────

@@ -41,10 +41,11 @@ function horizonToDate(days: number): string {
   return d.toISOString()
 }
 
+/** Convert USD cost to credits (1 credit = $0.001) */
 function fmtCost(v: number): string {
   if (v === 0) return 'free'
-  if (v < 0.01) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(2)}`
+  const credits = Math.ceil(v / 0.001)
+  return `${credits.toLocaleString()} cr`
 }
 
 export function StageCard({
@@ -441,7 +442,7 @@ export function StageCard({
                     className="flex items-center gap-1 text-[0.65rem] text-error hover:text-error/80 transition-colors w-full"
                   >
                     <span className={`transition-transform ${showFailed ? 'rotate-90' : ''}`}>&#9654;</span>
-                    {progress.failed_items.length} failed entit{progress.failed_items.length === 1 ? 'y' : 'ies'}
+                    {progress.failed_items.length} failed item{progress.failed_items.length === 1 ? '' : 's'}
                   </button>
                   {showFailed && (
                     <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">

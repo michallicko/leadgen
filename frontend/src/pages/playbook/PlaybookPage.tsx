@@ -21,6 +21,7 @@ import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/pla
 import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
+import { TemplateSelector } from '../../components/playbook/TemplateSelector'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -30,7 +31,7 @@ import {
   useTriggerResearch,
   useResearchStatus,
 } from '../../api/queries/usePlaybook'
-import { useCreateStrategyTemplate } from '../../api/queries/useStrategyTemplates'
+import { useCreateStrategyTemplate, useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
@@ -109,7 +110,7 @@ export function PlaybookPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { phase: urlPhase } = useParams<{ phase: string }>()
+  const { namespace, phase: urlPhase } = useParams<{ namespace: string; phase: string }>()
 
   // Chat state from provider (persists across navigation)
   const {
@@ -137,6 +138,14 @@ export function PlaybookPage() {
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
   const triggerResearch = useTriggerResearch()
+
+  // Template application (BL-138)
+  const applyTemplateMutation = useApplyStrategyTemplate({
+    onError: () => {
+      toast('Template could not be applied. The AI will generate your strategy instead.', 'error')
+    },
+  })
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
@@ -200,7 +209,7 @@ export function PlaybookPage() {
   }, [docQuery.data, isDirty, docRefetch])
 
   // ---------------------------------------------------------------------------
-  // Auto-refresh when research completes
+  // Auto-refresh when research completes or fails
   // ---------------------------------------------------------------------------
 
   const prevResearchStatus = useRef<string | null>(null)
@@ -209,11 +218,16 @@ export function PlaybookPage() {
     if (!status) return
     if (prevResearchStatus.current === 'in_progress' && status === 'completed') {
       // Research just finished -- refresh the document to pick up enrichment data
-      queryClient.invalidateQueries({ queryKey: ['playbook'] })
+      queryClient.invalidateQueries({ queryKey: ['playbook', namespace] })
       toast('Company research completed', 'info')
     }
+    if (prevResearchStatus.current === 'in_progress' && status === 'failed') {
+      // Research failed or timed out -- still refresh (may have partial data)
+      queryClient.invalidateQueries({ queryKey: ['playbook'] })
+      toast('Company research could not complete. The AI can still help with your strategy.', 'error')
+    }
     prevResearchStatus.current = status
-  }, [researchQuery.data?.status, queryClient, toast])
+  }, [researchQuery.data?.status, queryClient, toast, namespace])
 
   // ---------------------------------------------------------------------------
   // Handle AI document changes (from ChatProvider)
@@ -231,9 +245,9 @@ export function PlaybookPage() {
     } else {
       // No unsaved changes -- safe to auto-refresh the editor
       // Update lastSavedContentRef so the debounced save sees no diff and skips
-      queryClient.invalidateQueries({ queryKey: ['playbook'], exact: true }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['playbook', namespace], exact: true }).then(() => {
         // After refetch, update the saved content ref to match server state
-        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook'])
+        const newContent = queryClient.getQueryData<{ content?: string }>(['playbook', namespace])
         if (newContent?.content) {
           lastSavedContentRef.current = newContent.content
           setEditedContent(null)
@@ -248,7 +262,7 @@ export function PlaybookPage() {
     }
 
     clearDocumentChanged()
-  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged])
+  }, [documentChanged, saveStatus, isDirty, queryClient, toast, clearDocumentChanged, namespace])
 
   // ---------------------------------------------------------------------------
   // Per-section save progress indicator (BL-151)
@@ -398,6 +412,7 @@ export function PlaybookPage() {
       if (extractedData) {
         setExtractionResult(extractedData)
         setTriageSynced(synced)
+        toast('ICP criteria extracted successfully', 'success')
       } else {
         toast('Strategy data extracted but no structured data found. Try adding more detail to your strategy.', 'info')
       }
@@ -520,6 +535,31 @@ export function PlaybookPage() {
   )
 
   // ---------------------------------------------------------------------------
+  // Template selection handler (BL-138)
+  // ---------------------------------------------------------------------------
+
+  const handleTemplateSelect = useCallback(
+    async (templateId: string | null) => {
+      if (!templateId) {
+        // "Start fresh" — skip template, go to onboarding form
+        setShowTemplateSelector(false)
+        return
+      }
+      try {
+        await applyTemplateMutation.mutateAsync(templateId)
+        // Template applied — skip onboarding entirely, show the editor
+        setSkipped(true)
+        setShowTemplateSelector(false)
+      } catch {
+        // Error toast is handled by the mutation's onError callback.
+        // Don't block the user — close the template selector and proceed.
+        setShowTemplateSelector(false)
+      }
+    },
+    [applyTemplateMutation],
+  )
+
+  // ---------------------------------------------------------------------------
   // Save as Template handler
   // ---------------------------------------------------------------------------
 
@@ -608,11 +648,25 @@ export function PlaybookPage() {
   const needsOnboarding = docQuery.data && !docContent.trim()
 
   if (needsOnboarding && !skipped) {
+    // Show template selector first; after selection (or "Start fresh"), show the onboarding form
+    if (showTemplateSelector) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <TemplateSelector
+            onSelect={handleTemplateSelect}
+            onBack={() => setShowTemplateSelector(false)}
+            isApplying={applyTemplateMutation.isPending}
+          />
+        </div>
+      )
+    }
+
     return (
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
         onGenerate={handleOnboardGenerate}
         isGenerating={isStreaming}
+        onBrowseTemplates={() => setShowTemplateSelector(true)}
       />
     )
   }
@@ -650,12 +704,19 @@ export function PlaybookPage() {
           )}
         </div>
 
-        {/* Research-in-progress indicator */}
+        {/* Research status indicator */}
         {researchTriggered && researchQuery.data?.status === 'in_progress' && (
           <div className="flex items-center gap-1.5 ml-1">
             <span className="w-3 h-3 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
             <span className="text-xs text-accent-cyan font-medium">
               Researching...
+            </span>
+          </div>
+        )}
+        {researchTriggered && researchQuery.data?.status === 'failed' && (
+          <div className="flex items-center gap-1.5 ml-1">
+            <span className="text-xs text-text-muted">
+              Research incomplete
             </span>
           </div>
         )}
@@ -779,9 +840,9 @@ export function PlaybookPage() {
         </div>
       )}
 
-      {/* Extraction summary dialog */}
+      {/* Extraction summary side panel */}
       {extractionResult && (
-        <ExtractionSummaryDialog
+        <ExtractionSidePanel
           data={extractionResult}
           triageSynced={triageSynced}
           onConfirm={handleExtractionConfirm}
@@ -834,17 +895,17 @@ export function PlaybookPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Extraction Summary Dialog
+// Extraction Side Panel
 // ---------------------------------------------------------------------------
 
-interface ExtractionSummaryDialogProps {
+interface ExtractionSidePanelProps {
   data: Record<string, unknown>
   triageSynced?: boolean
   onConfirm: () => void
   onDismiss: () => void
 }
 
-function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: ExtractionSummaryDialogProps) {
+function ExtractionSidePanel({ data, triageSynced, onConfirm, onDismiss }: ExtractionSidePanelProps) {
   const icp = data.icp as Record<string, unknown> | undefined
   const personas = data.personas as Array<Record<string, unknown>> | undefined
   const messaging = data.messaging as Record<string, unknown> | undefined
@@ -863,10 +924,14 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
 
   const hasIcp = industries.length > 0 || geographies.length > 0 || titlePatterns.length > 0
 
+  // Slide-in animation state
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true))
+  }, [])
+
   // Auto-advance countdown when ICP data is present
   const [countdown, setCountdown] = useState(hasIcp ? 5 : 0)
-  const countdownRef = useRef(countdown)
-  countdownRef.current = countdown
 
   useEffect(() => {
     if (!hasIcp) return
@@ -884,7 +949,9 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
 
   // Trigger onConfirm when countdown reaches 0
   const onConfirmRef = useRef(onConfirm)
-  onConfirmRef.current = onConfirm
+  useEffect(() => {
+    onConfirmRef.current = onConfirm
+  }, [onConfirm])
   useEffect(() => {
     if (hasIcp && countdown === 0) {
       onConfirmRef.current()
@@ -897,16 +964,25 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
   }, [])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-surface border border-border-solid rounded-lg shadow-lg max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="px-6 pt-5 pb-3 flex items-center gap-3 border-b border-border">
-          <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="text-success">
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      onClick={(e) => { if (e.target === e.currentTarget) { cancelCountdown(); onDismiss() } }}
+    >
+      {/* Translucent backdrop -- lets strategy peek through */}
+      <div className="absolute inset-0 bg-black/20" />
+
+      {/* Side panel */}
+      <div
+        className={`relative w-full max-w-md h-full bg-surface border-l border-accent-cyan/30 shadow-xl shadow-black/20 flex flex-col transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        {/* Header -- cyan accent for AI action */}
+        <div className="px-5 pt-5 pb-3 flex items-center gap-3 border-b border-accent-cyan/20">
+          <div className="w-8 h-8 rounded-lg bg-accent-cyan/10 flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="text-accent-cyan">
               <path d="M4 9l3.5 3.5 6.5-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-text">Extraction Complete</h3>
             <p className="text-xs text-text-muted">
               {hasIcp
@@ -914,21 +990,30 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
                 : 'Basic data extracted. Add ICP details for better contact filtering.'}
             </p>
           </div>
+          <button
+            onClick={() => { cancelCountdown(); onDismiss() }}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer border-0"
+            title="Close"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M3 3l8 8M11 3l-8 8" />
+            </svg>
+          </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+        <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
           {/* ICP section */}
           {(industries.length > 0 || geographies.length > 0) && (
             <ExtractionSection title="Target Market">
               {industries.length > 0 && (
-                <ExtractionRow label="Industries" values={industries} />
+                <ExtractionPills label="Industries" values={industries} />
               )}
               {geographies.length > 0 && (
-                <ExtractionRow label="Geographies" values={geographies} />
+                <ExtractionPills label="Geographies" values={geographies} />
               )}
               {companySize && (companySize.min || companySize.max) ? (
-                <ExtractionRow
+                <ExtractionPills
                   label="Company Size"
                   values={[`${companySize.min || 0} - ${companySize.max || '1000+'} employees`]}
                 />
@@ -939,7 +1024,7 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
           {/* Personas section */}
           {titlePatterns.length > 0 && (
             <ExtractionSection title="Target Roles">
-              <ExtractionRow label="Job Titles" values={titlePatterns} />
+              <ExtractionPills label="Job Titles" values={titlePatterns} />
             </ExtractionSection>
           )}
 
@@ -947,13 +1032,13 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
           {(techSignals.length > 0 || triggers.length > 0 || disqualifiers.length > 0) && (
             <ExtractionSection title="Signals">
               {techSignals.length > 0 && (
-                <ExtractionRow label="Tech Signals" values={techSignals} />
+                <ExtractionPills label="Tech Signals" values={techSignals} />
               )}
               {triggers.length > 0 && (
-                <ExtractionRow label="Triggers" values={triggers} />
+                <ExtractionPills label="Triggers" values={triggers} />
               )}
               {disqualifiers.length > 0 && (
-                <ExtractionRow label="Disqualifiers" values={disqualifiers} color="text-error" />
+                <ExtractionPills label="Disqualifiers" values={disqualifiers} variant="error" />
               )}
             </ExtractionSection>
           )}
@@ -962,10 +1047,10 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
           {(themes.length > 0 || primaryChannel) && (
             <ExtractionSection title="Messaging">
               {themes.length > 0 && (
-                <ExtractionRow label="Themes" values={themes} />
+                <ExtractionPills label="Themes" values={themes} />
               )}
               {primaryChannel && (
-                <ExtractionRow label="Primary Channel" values={[primaryChannel]} />
+                <ExtractionPills label="Primary Channel" values={[primaryChannel]} />
               )}
             </ExtractionSection>
           )}
@@ -993,30 +1078,30 @@ function ExtractionSummaryDialog({ data, triageSynced, onConfirm, onDismiss }: E
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+        <div className="px-5 py-4 border-t border-border flex flex-col gap-3">
           <button
-            onClick={() => { cancelCountdown(); onDismiss() }}
-            className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+            onClick={() => { cancelCountdown(); onConfirm() }}
+            className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-accent-cyan text-white hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            Stay on Strategy
+            {hasIcp ? 'Confirm & Continue' : 'OK'}
+            {hasIcp && (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7h8M8 3l3 4-3 4" />
+              </svg>
+            )}
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => { cancelCountdown(); onDismiss() }}
+              className="px-3 py-1.5 text-xs font-medium rounded-md text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer border-0"
+            >
+              Stay on Strategy
+            </button>
             {hasIcp && countdown > 0 && (
               <span className="text-xs text-text-dim">
                 Advancing in {countdown}s...
               </span>
             )}
-            <button
-              onClick={() => { cancelCountdown(); onConfirm() }}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer flex items-center gap-2"
-            >
-              {hasIcp ? 'Continue to Contacts' : 'OK'}
-              {hasIcp && (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 7h8M8 3l3 4-3 4" />
-                </svg>
-              )}
-            </button>
           </div>
         </div>
       </div>
@@ -1028,20 +1113,23 @@ function ExtractionSection({ title, children }: { title: string; children: React
   return (
     <div>
       <h4 className="text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">{title}</h4>
-      <div className="space-y-1.5">{children}</div>
+      <div className="space-y-2">{children}</div>
     </div>
   )
 }
 
-function ExtractionRow({ label, values, color }: { label: string; values: string[]; color?: string }) {
+function ExtractionPills({ label, values, variant }: { label: string; values: string[]; variant?: 'error' }) {
+  const pillColor = variant === 'error'
+    ? 'bg-error/10 border-error/20 text-error'
+    : 'bg-accent-cyan/8 border-accent-cyan/20 text-text'
   return (
-    <div className="flex gap-2">
-      <span className="text-xs text-text-muted w-24 flex-shrink-0 pt-0.5">{label}</span>
-      <div className="flex flex-wrap gap-1">
+    <div>
+      <span className="text-xs text-text-muted mb-1 block">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
         {values.map((v, i) => (
           <span
             key={i}
-            className={`inline-flex px-2 py-0.5 text-xs rounded-md bg-surface-alt border border-border ${color ?? 'text-text'}`}
+            className={`inline-flex px-2.5 py-1 text-xs rounded-full border ${pillColor}`}
           >
             {v}
           </span>

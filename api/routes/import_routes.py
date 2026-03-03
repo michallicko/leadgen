@@ -17,6 +17,85 @@ imports_bp = Blueprint("imports", __name__)
 
 MAX_CSV_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Bidirectional mapping: Claude AI target names → frontend target field names.
+# Claude returns "contact.email_address" but the frontend expects "email", etc.
+CLAUDE_TO_FRONTEND = {
+    "contact.first_name": "first_name",
+    "contact.last_name": "last_name",
+    "contact.email_address": "email",
+    "contact.email": "email",
+    "contact.phone_number": "phone",
+    "contact.phone": "phone",
+    "contact.mobile": "mobile",
+    "contact.job_title": "job_title",
+    "contact.linkedin_url": "linkedin_url",
+    "contact.notes": "notes",
+    "contact.location_city": "location",
+    "contact.location_country": "location",
+    "contact.seniority_level": "seniority_level",
+    "contact.department": "department",
+    "contact.contact_source": "contact_source",
+    "contact.language": "language",
+    "company.name": "company_name",
+    "company.domain": "domain",
+    "company.industry": "industry",
+    "company.hq_city": "location",
+    "company.hq_country": "location",
+    "company.company_size": "employee_count",
+    "company.business_model": "business_model",
+    "company.description": "description",
+}
+
+# Explicit reverse mapping: frontend field name → Claude dotted format.
+# Built manually (not auto-reversed) to handle one-to-many cases correctly.
+FRONTEND_TO_CLAUDE = {
+    "first_name": "contact.first_name",
+    "last_name": "contact.last_name",
+    "email": "contact.email_address",
+    "phone": "contact.phone_number",
+    "mobile": "contact.mobile",
+    "job_title": "contact.job_title",
+    "linkedin_url": "contact.linkedin_url",
+    "notes": "contact.notes",
+    "seniority_level": "contact.seniority_level",
+    "department": "contact.department",
+    "contact_source": "contact.contact_source",
+    "language": "contact.language",
+    "company_name": "company.name",
+    "domain": "company.domain",
+    "industry": "company.industry",
+    "employee_count": "company.company_size",
+    "business_model": "company.business_model",
+    "description": "company.description",
+    # "location" is ambiguous (could be city or country) — map to city as best guess
+    "location": "contact.location_city",
+}
+
+# Targets that indicate the column should be skipped (not mapped)
+_SKIP_TARGETS = frozenset({"skip", "ignore", "unmapped", ""})
+
+
+def _translate_mapping_to_claude(mapping):
+    """Translate frontend target field names back to Claude dotted format.
+
+    The frontend sends targets like "email", "domain" but apply_mapping()
+    expects "contact.email_address", "company.domain", etc.
+    """
+    translated = dict(mapping)
+    new_mappings = []
+    for m in translated.get("mappings", []):
+        target = m.get("target")
+        # Clear skip/null targets so apply_mapping ignores them
+        if not target or target.lower() in _SKIP_TARGETS:
+            m = dict(m)
+            m["target"] = None
+        elif "." not in target and "custom" not in (target or ""):
+            m = dict(m)
+            m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
+        new_mappings.append(m)
+    translated["mappings"] = new_mappings
+    return translated
+
 
 def _auto_create_custom_field_defs(tenant_id, mapping):
     """Scan mapping for custom.* targets and auto-create missing definitions.
@@ -102,7 +181,53 @@ def _rows_to_csv_text(headers, rows):
     return output.getvalue()
 
 
-def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_defs):
+# Secondary target normalization for common variations Claude may return
+# that don't appear in CLAUDE_TO_FRONTEND (which only maps dotted names).
+_TARGET_NORMALIZE = {
+    "title": "job_title",
+    "company": "company_name",
+    "company_name": "company_name",
+    "website": "domain",
+    "url": "domain",
+    "phone_number": "phone",
+    "mobile_phone": "mobile",
+    "linkedin": "linkedin_url",
+    "email_address": "email",
+    "first": "first_name",
+    "last": "last_name",
+    "fname": "first_name",
+    "lname": "last_name",
+    "size": "employee_count",
+    "employees": "employee_count",
+    "role": "job_title",
+    "position": "job_title",
+    "city": "location",
+    "country": "location",
+    "desc": "description",
+}
+
+# Valid frontend target field values (from MappingStep TARGET_OPTIONS)
+_VALID_FRONTEND_TARGETS = {
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "mobile",
+    "job_title",
+    "linkedin_url",
+    "notes",
+    "company_name",
+    "domain",
+    "industry",
+    "employee_count",
+    "location",
+    "description",
+}
+
+
+def _build_upload_response(
+    job_id, filename, total_rows, mapping_result, custom_defs, sample_rows=None
+):
     """Transform raw Claude mapping result into the shape the frontend expects.
 
     The frontend UploadResponse expects:
@@ -110,6 +235,10 @@ def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_
 
     where ColumnMapping is:
       { source_column, target_field, sample_values, confidence, is_custom, custom_display_name? }
+
+    Args:
+        sample_rows: list of dicts (CSV rows) to extract sample values from.
+            If None, falls back to whatever Claude returned in the mapping.
     """
     columns = []
     for m in mapping_result.get("mappings", []):
@@ -129,11 +258,33 @@ def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_
         suggestion = m.get("suggested_custom_field") or {}
         custom_display_name = suggestion.get("field_label") if is_custom else None
 
+        # Translate Claude AI target names to frontend-expected field names.
+        # e.g. "company.domain" → "domain", "contact.email_address" → "email"
+        frontend_target = target
+        if target and not is_custom:
+            frontend_target = CLAUDE_TO_FRONTEND.get(target, target)
+            # Secondary normalization for bare names Claude sometimes returns
+            if frontend_target not in _VALID_FRONTEND_TARGETS:
+                frontend_target = _TARGET_NORMALIZE.get(
+                    frontend_target.lower(), frontend_target
+                )
+
+        # Populate sample values from actual CSV data when available
+        csv_header = m.get("csv_header", "")
+        if sample_rows and csv_header:
+            samples = [
+                str(row.get(csv_header, ""))
+                for row in sample_rows[:3]
+                if row.get(csv_header)
+            ]
+        else:
+            samples = m.get("sample_values", [])
+
         columns.append(
             {
-                "source_column": m.get("csv_header", ""),
-                "target_field": target,
-                "sample_values": m.get("sample_values", []),
+                "source_column": csv_header,
+                "target_field": frontend_target,
+                "sample_values": samples,
                 "confidence": confidence,
                 "is_custom": is_custom,
                 "custom_display_name": custom_display_name,
@@ -292,6 +443,7 @@ def upload_csv():
             len(rows),
             mapping_result,
             [d.to_dict() for d in updated_custom_defs],
+            sample_rows=sample_rows,
         )
     ), 201
 
@@ -374,6 +526,9 @@ def remap_import(job_id):
         is_active=True,
     ).all()
 
+    # Parse sample rows from stored data for sample_values display
+    stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
+
     return jsonify(
         _build_upload_response(
             job.id,
@@ -381,6 +536,7 @@ def remap_import(job_id):
             job.total_rows,
             mapping_result,
             [d.to_dict() for d in updated_custom_defs],
+            sample_rows=stored_samples,
         )
     )
 
@@ -404,6 +560,8 @@ def preview_import(job_id):
     body = request.get_json(silent=True) or {}
     mapping = body.get("mapping")
     if mapping:
+        # Translate frontend field names back to Claude dotted format for storage
+        mapping = _translate_mapping_to_claude(mapping)
         job.column_mapping = (
             json.dumps(mapping) if isinstance(mapping, dict) else mapping
         )
@@ -643,7 +801,15 @@ def import_status(job_id):
     mapping = None
     if job.status in ("uploaded", "mapped", "previewed"):
         raw = ImportJob._parse_jsonb(job.column_mapping) or {}
-        resp = _build_upload_response(job.id, job.filename, job.total_rows, raw, [])
+        stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
+        resp = _build_upload_response(
+            job.id,
+            job.filename,
+            job.total_rows,
+            raw,
+            [],
+            sample_rows=stored_samples,
+        )
         mapping = resp["columns"]
 
     return jsonify(
