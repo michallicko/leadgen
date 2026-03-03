@@ -270,6 +270,62 @@ def regen_message(message_id):
     return jsonify(result)
 
 
+@messages_bp.route("/api/messages/<message_id>/mark-sent", methods=["POST"])
+@require_role("editor")
+def mark_message_sent(message_id):
+    """Mark a message as manually sent via a given channel (e.g. linkedin).
+
+    Body: { "channel": "linkedin" }
+    Sets status='sent', sent_at=now(), and records the send channel.
+    Only approved messages can be marked as sent.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    channel = body.get("channel")
+    if not channel:
+        return jsonify({"error": "channel is required"}), 400
+
+    allowed_channels = {"linkedin", "email", "call", "other"}
+    if channel not in allowed_channels:
+        return jsonify(
+            {
+                "error": f"Invalid channel. Must be one of: {', '.join(sorted(allowed_channels))}"
+            }
+        ), 400
+
+    # Verify message belongs to tenant and is in an approvable state
+    msg = db.session.execute(
+        db.text("""
+            SELECT id, status FROM messages
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": message_id, "t": tenant_id},
+    ).fetchone()
+
+    if not msg:
+        return jsonify({"error": "Message not found"}), 404
+
+    if msg[1] not in ("approved", "sent"):
+        return jsonify({"error": "Only approved messages can be marked as sent"}), 409
+
+    db.session.execute(
+        db.text("""
+            UPDATE messages
+            SET status = 'sent',
+                sent_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND tenant_id = :t
+        """),
+        {"id": message_id, "t": tenant_id},
+    )
+    db.session.commit()
+
+    return jsonify({"ok": True, "status": "sent", "channel": channel})
+
+
 @messages_bp.route("/api/messages/batch", methods=["PATCH"])
 @require_role("editor")
 def batch_update_messages():

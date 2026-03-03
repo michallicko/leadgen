@@ -17,6 +17,7 @@ import { useChatContext } from '../../providers/ChatProvider'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { PhaseTransitionBanner } from './PhaseTransitionBanner'
+import { WelcomeBackBanner } from './WelcomeBackBanner'
 import { WorkflowProgressStrip } from './WorkflowProgressStrip'
 import { WorkflowSuggestionChips } from './WorkflowSuggestions'
 
@@ -134,6 +135,9 @@ export function ChatPanel() {
             </button>
           </div>
         </div>
+
+        {/* Welcome back banner (BL-179) — shown after >1 hour absence */}
+        <WelcomeBackBanner />
 
         {/* Messages */}
         <ChatMessages
