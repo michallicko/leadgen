@@ -640,6 +640,81 @@ class TestTriageGateIntegration:
             assert row[0] == "triage_disqualified"
 
 
+
+# ---------------------------------------------------------------------------
+# BL-139: ICP-derived triage rules loading
+# ---------------------------------------------------------------------------
+
+class TestICPTriageRulesLoading:
+    """Test that triage loads ICP rules from EnrichmentConfig."""
+
+    def _setup_company_for_triage(self, db, company, tier="tier_1",
+                                   industry="software_saas", b2b=True):
+        from sqlalchemy import text as sa_text
+        db.session.execute(sa_text("""
+            UPDATE companies SET tier = :tier, industry = :industry WHERE id = :id
+        """), {"tier": tier, "industry": industry, "id": str(company.id)})
+        raw = json.dumps({"b2b": b2b, "company_name": "Test"})
+        db.session.execute(sa_text("""
+            INSERT INTO company_enrichment_l1 (company_id, raw_response, qc_flags, enrichment_cost_usd)
+            VALUES (:cid, :raw, '[]', 0)
+            ON CONFLICT (company_id) DO UPDATE SET raw_response = :raw, qc_flags = '[]'
+        """), {"cid": str(company.id), "raw": raw})
+        db.session.commit()
+
+    def test_triage_uses_icp_config(self, app, db, seed_tenant):
+        from api.models import EnrichmentConfig
+        from api.services.pipeline_engine import _process_triage
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+        with app.app_context():
+            self._setup_company_for_triage(db, company, industry="manufacturing", b2b=True)
+            ec = EnrichmentConfig(tenant_id=seed_tenant.id, name="From GTM Strategy",
+                config=json.dumps({"industry_allowlist": ["SaaS"]}), is_default=False)
+            db.session.add(ec)
+            db.session.commit()
+            result = _process_triage(str(company.id), str(seed_tenant.id))
+            assert result["gate_passed"] is False
+
+    def test_falls_back_to_defaults(self, app, db, seed_tenant):
+        from api.services.pipeline_engine import _process_triage
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+        with app.app_context():
+            self._setup_company_for_triage(db, company, industry="anything", b2b=True)
+            result = _process_triage(str(company.id), str(seed_tenant.id))
+            assert result["gate_passed"] is True
+
+    def test_explicit_rules_override_icp(self, app, db, seed_tenant):
+        from api.models import EnrichmentConfig
+        from api.services.pipeline_engine import _process_triage
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+        with app.app_context():
+            self._setup_company_for_triage(db, company, industry="software_saas", b2b=True)
+            ec = EnrichmentConfig(tenant_id=seed_tenant.id, name="From GTM Strategy",
+                config=json.dumps({"industry_allowlist": ["SaaS"]}), is_default=False)
+            db.session.add(ec)
+            db.session.commit()
+            result = _process_triage(str(company.id), str(seed_tenant.id),
+                                     triage_rules={"industry_allowlist": ["healthcare"]})
+            assert result["gate_passed"] is False
+
+    def test_icp_fuzzy_industry_match(self, app, db, seed_tenant):
+        from api.models import EnrichmentConfig
+        from api.services.pipeline_engine import _process_triage
+        data = _seed_dag_data(db, seed_tenant)
+        company = data["companies"][0]
+        with app.app_context():
+            self._setup_company_for_triage(db, company, industry="software_saas", b2b=True)
+            ec = EnrichmentConfig(tenant_id=seed_tenant.id, name="From GTM Strategy",
+                config=json.dumps({"industry_allowlist": ["SaaS", "FinTech"]}), is_default=False)
+            db.session.add(ec)
+            db.session.commit()
+            result = _process_triage(str(company.id), str(seed_tenant.id))
+            assert result["gate_passed"] is True
+
+
 # ---------------------------------------------------------------------------
 # L2 enrichment integration
 # ---------------------------------------------------------------------------
