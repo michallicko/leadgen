@@ -58,19 +58,47 @@ export function ContactsEmptyState() {
 /**
  * Context-aware empty state for the Campaigns page.
  * Shows different messaging depending on whether contacts exist.
- * No CTA button — the page header already has a "New Campaign" button.
+ * Includes a CTA button to create the first campaign.
  */
-export function CampaignsEmptyState() {
+export function CampaignsEmptyState({ onCreateClick }: { onCreateClick?: () => void }) {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
   const { data: onboardingStatus } = useOnboardingStatus()
   const hasContacts = (onboardingStatus?.contact_count ?? 0) > 0
 
   return (
     <EmptyState
+      icon={
+        <svg
+          viewBox="0 0 24 24"
+          className="w-12 h-12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 9l3 3 5-5" />
+          <path d="M9 17h6" />
+        </svg>
+      }
       title={hasContacts ? 'Ready to reach out' : 'No campaigns yet'}
       description={
         hasContacts
-          ? `You have ${onboardingStatus?.contact_count} contacts ready. Create a campaign to start reaching out.`
-          : 'Import contacts first, then create a campaign to start outreach.'
+          ? `You have ${onboardingStatus?.contact_count} contacts ready. Create your first outreach campaign to start reaching out.`
+          : 'Create your first outreach campaign from qualified contacts. Import contacts first to get started.'
+      }
+      action={
+        hasContacts
+          ? {
+              label: 'Create Campaign',
+              onClick: () => onCreateClick?.(),
+            }
+          : {
+              label: 'Import Contacts',
+              onClick: () => navigate(withRev(`/${namespace}/import`)),
+            }
       }
     />
   )
