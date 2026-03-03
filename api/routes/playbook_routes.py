@@ -547,44 +547,53 @@ def playbook_contacts():
         LEFT JOIN owners o ON ct.owner_id = o.id
     """
 
-    # Count total
-    total = (
-        db.session.execute(
+    # Execute queries with safety wrapper for invalid enum values in filters
+    try:
+        # Count total
+        total = (
+            db.session.execute(
+                db.text(
+                    "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
+                        joins, where_clause
+                    )
+                ),
+                params,
+            ).scalar()
+            or 0
+        )
+
+        pages = max(1, math.ceil(total / per_page))
+        offset = (page - 1) * per_page
+
+        order = "ct.{} {} NULLS LAST".format(
+            sort_field, "ASC" if sort_dir == "asc" else "DESC"
+        )
+
+        rows = db.session.execute(
             db.text(
-                "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
-                    joins, where_clause
-                )
+                """
+                SELECT
+                    ct.id, ct.first_name, ct.last_name, ct.job_title,
+                    co.id AS company_id, co.name AS company_name,
+                    ct.email_address, ct.seniority_level,
+                    ct.contact_score, ct.icp_fit,
+                    co.industry, co.company_size, co.status AS company_status
+                FROM contacts ct
+                {joins}
+                WHERE {where}
+                ORDER BY {order}
+                LIMIT :limit OFFSET :offset
+            """.format(joins=joins, where=where_clause, order=order)
             ),
-            params,
-        ).scalar()
-        or 0
-    )
-
-    pages = max(1, math.ceil(total / per_page))
-    offset = (page - 1) * per_page
-
-    order = "ct.{} {} NULLS LAST".format(
-        sort_field, "ASC" if sort_dir == "asc" else "DESC"
-    )
-
-    rows = db.session.execute(
-        db.text(
-            """
-            SELECT
-                ct.id, ct.first_name, ct.last_name, ct.job_title,
-                co.id AS company_id, co.name AS company_name,
-                ct.email_address, ct.seniority_level,
-                ct.contact_score, ct.icp_fit,
-                co.industry, co.company_size, co.status AS company_status
-            FROM contacts ct
-            {joins}
-            WHERE {where}
-            ORDER BY {order}
-            LIMIT :limit OFFSET :offset
-        """.format(joins=joins, where=where_clause, order=order)
-        ),
-        {**params, "limit": per_page, "offset": offset},
-    ).fetchall()
+            {**params, "limit": per_page, "offset": offset},
+        ).fetchall()
+    except Exception as e:
+        # Invalid filter values (e.g. bad enum) — roll back and return empty
+        logger.warning("playbook_contacts query failed: %s", e)
+        db.session.rollback()
+        total = 0
+        pages = 1
+        rows = []
 
     contacts = []
     for r in rows:

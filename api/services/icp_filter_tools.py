@@ -39,6 +39,38 @@ def _parse_jsonb(val):
 # ---------------------------------------------------------------------------
 
 
+def _employee_range_to_sizes(min_emp: int, max_emp: int) -> list[str]:
+    """Map an employee count range to matching company_size enum values.
+
+    Thresholds (approximate):
+        micro:      1-9
+        small:      10-49
+        medium:     50-249
+        mid_market: 250-999
+        enterprise: 1000+
+    """
+    # Map each size bucket to its employee range (lower, upper)
+    buckets = [
+        ("micro", 1, 9),
+        ("small", 10, 49),
+        ("medium", 50, 249),
+        ("mid_market", 250, 999),
+        ("enterprise", 1000, 999_999),
+    ]
+    result = []
+    for label, lo, hi in buckets:
+        # Bucket overlaps with [min_emp, max_emp] if lo <= max_emp and hi >= min_emp
+        if lo <= max_emp and hi >= min_emp:
+            result.append(label)
+    return result
+
+
+# Valid company_size enum values in the database
+_VALID_COMPANY_SIZES = frozenset(
+    ["micro", "small", "medium", "mid_market", "enterprise", "startup", "smb"]
+)
+
+
 def _map_icp_to_filters(icp: dict) -> dict:
     """Map ICP extracted_data fields to contact filter parameters.
 
@@ -63,17 +95,22 @@ def _map_icp_to_filters(icp: dict) -> dict:
     if company_size:
         # company_size can be a dict {min, max} or a list of range labels
         if isinstance(company_size, list):
-            filters["company_sizes"] = company_size
+            # Filter to only valid enum values
+            valid = [v for v in company_size if v in _VALID_COMPANY_SIZES]
+            if valid:
+                filters["company_sizes"] = valid
         elif isinstance(company_size, dict):
-            # Build a descriptive label from min/max
+            # Map numeric employee range to company_size enum values
             min_s = company_size.get("min")
             max_s = company_size.get("max")
             if min_s is not None or max_s is not None:
-                label = "{}-{}".format(
-                    min_s if min_s is not None else "1",
-                    max_s if max_s is not None else "10000+",
-                )
-                filters["company_sizes"] = [label]
+                min_emp = int(min_s) if min_s is not None else 1
+                max_emp = int(max_s) if max_s is not None else 999_999
+                if max_emp < min_emp:
+                    max_emp = 999_999
+                sizes = _employee_range_to_sizes(min_emp, max_emp)
+                if sizes:
+                    filters["company_sizes"] = sizes
 
     # Collect seniority levels from personas
     personas = icp.get("personas", [])
