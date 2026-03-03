@@ -208,14 +208,26 @@ _TARGET_NORMALIZE = {
 
 # Valid frontend target field values (from MappingStep TARGET_OPTIONS)
 _VALID_FRONTEND_TARGETS = {
-    "first_name", "last_name", "email", "phone", "mobile",
-    "job_title", "linkedin_url", "notes",
-    "company_name", "domain", "industry", "employee_count", "location", "description",
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "mobile",
+    "job_title",
+    "linkedin_url",
+    "notes",
+    "company_name",
+    "domain",
+    "industry",
+    "employee_count",
+    "location",
+    "description",
 }
 
 
-def _build_upload_response(job_id, filename, total_rows, mapping_result, custom_defs,
-                           sample_rows=None):
+def _build_upload_response(
+    job_id, filename, total_rows, mapping_result, custom_defs, sample_rows=None
+):
     """Transform raw Claude mapping result into the shape the frontend expects.
 
     The frontend UploadResponse expects:
@@ -791,7 +803,11 @@ def import_status(job_id):
         raw = ImportJob._parse_jsonb(job.column_mapping) or {}
         stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
         resp = _build_upload_response(
-            job.id, job.filename, job.total_rows, raw, [],
+            job.id,
+            job.filename,
+            job.total_rows,
+            raw,
+            [],
             sample_rows=stored_samples,
         )
         mapping = resp["columns"]
