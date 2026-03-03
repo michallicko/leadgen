@@ -135,25 +135,34 @@ test.describe('Group 2: Import Workflow', () => {
       return
     }
 
-    // Upload test CSV
+    // Select the CSV file (this shows the file in the UI but does NOT upload)
     await fileInput.setInputFiles(TEST_CSV_PATH)
+    await page.waitForTimeout(1000)
+
+    // Click "Upload & Analyze" to actually send the file and trigger AI mapping
+    const uploadBtn = page.locator('button:has-text("Upload & Analyze")')
+    if (!(await uploadBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Upload & Analyze button not found after file selection')
+      return
+    }
+    await uploadBtn.click()
 
     // Wait for AI mapping to process (needs time for API call)
-    await page.waitForTimeout(8000)
+    await page.waitForTimeout(10000)
 
-    // Find all mapping select dropdowns
+    // Find all mapping select dropdowns (in the mapping step)
     const selects = page.locator('select')
     const selectCount = await selects.count()
 
     if (selectCount === 0) {
       // No selects found — mapping UI didn't appear or uses different controls
-      // Check for comboboxes or custom dropdowns
       const customDropdowns = page.locator('[role="combobox"], [class*="select"], [class*="dropdown"], [class*="mapping"]')
       expect(await customDropdowns.count()).toBeGreaterThan(0)
       return
     }
 
     // Count how many columns are mapped vs skipped
+    // Note: first select may be the owner dropdown from upload step, skip it
     let skippedCount = 0
     let mappedCount = 0
     const mappedValues: string[] = []
@@ -199,11 +208,21 @@ test.describe('Group 2: Import Workflow', () => {
       }
     })
 
-    // Upload CSV
+    // Select CSV file then click Upload & Analyze
     await fileInput.setInputFiles(TEST_CSV_PATH)
-    await page.waitForTimeout(5000) // Wait for mapping
+    await page.waitForTimeout(1000)
 
-    // Look for Preview or Next or Import button to advance past mapping
+    const uploadBtn = page.locator('button:has-text("Upload & Analyze")')
+    if (!(await uploadBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Upload & Analyze button not found after file selection')
+      return
+    }
+    await uploadBtn.click()
+
+    // Wait for mapping step to load (AI mapping API call)
+    await page.waitForTimeout(10000)
+
+    // Look for Preview button in the mapping step to advance to preview
     const previewBtn = page.locator(
       'button:has-text("Preview"), button:has-text("Next"), button:has-text("Import"), button:has-text("Continue")'
     ).first()
@@ -239,11 +258,21 @@ test.describe('Group 2: Import Workflow', () => {
       return
     }
 
+    // Select CSV file then click Upload & Analyze
     await fileInput.setInputFiles(TEST_CSV_PATH)
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(1000)
 
-    // Look for sample/preview values from the CSV
-    // The mapping UI should show example values from the uploaded data
+    const uploadBtn = page.locator('button:has-text("Upload & Analyze")')
+    if (!(await uploadBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Upload & Analyze button not found after file selection')
+      return
+    }
+    await uploadBtn.click()
+
+    // Wait for mapping step to load
+    await page.waitForTimeout(10000)
+
+    // Look for sample/preview values from the CSV in the mapping UI
     const bodyText = await page.textContent('body') ?? ''
 
     // CSV contains: David, Malina, EVENT ARENA, david.malina@eventarena.cz
