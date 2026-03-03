@@ -1,8 +1,57 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useCallback, type ReactNode } from 'react'
 import { Badge } from './Badge'
 import { SourceTooltip, type SourceInfo } from './SourceTooltip'
 
 export type { SourceInfo } from './SourceTooltip'
+
+/* ---- CopyButton: inline copy-to-clipboard with feedback ---- */
+
+export function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Fallback for older browsers / non-HTTPS
+      const ta = document.createElement('textarea')
+      ta.value = value
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+  }, [value])
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      data-testid="copy-button"
+      className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded text-text-dim hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors opacity-0 group-hover/field:opacity-100 focus:opacity-100 shrink-0"
+      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
+      title={copied ? 'Copied!' : 'Copy'}
+    >
+      {copied ? (
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13 4L6 11L3 8" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="5" y="5" width="9" height="9" rx="1.5" />
+          <path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" />
+        </svg>
+      )}
+    </button>
+  )
+}
 
 /* ---- FieldGrid: 2-column responsive layout ---- */
 
@@ -23,16 +72,22 @@ interface FieldProps {
 }
 
 export function Field({ label, value, className = '', source }: FieldProps) {
-  const display = value === null || value === undefined || value === ''
+  const isEmpty = value === null || value === undefined || value === ''
+  const display = isEmpty
     ? '-'
     : typeof value === 'boolean'
       ? value ? 'Yes' : 'No'
       : String(value)
 
+  const copyValue = isEmpty ? null : String(value)
+
   return (
-    <div className={className}>
+    <div className={`group/field ${className}`}>
       <dt className="text-xs text-text-muted mb-0.5">{label}{source && <SourceTooltip source={source} />}</dt>
-      <dd className="text-sm text-text">{display}</dd>
+      <dd className="text-sm text-text flex items-start">
+        <span className="min-w-0">{display}</span>
+        {copyValue && <CopyButton value={copyValue} />}
+      </dd>
     </div>
   )
 }
@@ -46,17 +101,21 @@ interface FieldLinkProps {
 }
 
 export function FieldLink({ label, value, href }: FieldLinkProps) {
+  const displayText = value || href || null
+  const copyValue = displayText && displayText !== '-' ? displayText : null
+
   return (
-    <div>
+    <div className="group/field">
       <dt className="text-xs text-text-muted mb-0.5">{label}</dt>
-      <dd className="text-sm">
+      <dd className="text-sm flex items-start">
         {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline min-w-0">
             {value || href}
           </a>
         ) : (
-          <span className="text-text">{value || '-'}</span>
+          <span className="text-text min-w-0">{value || '-'}</span>
         )}
+        {copyValue && <CopyButton value={copyValue} />}
       </dd>
     </div>
   )

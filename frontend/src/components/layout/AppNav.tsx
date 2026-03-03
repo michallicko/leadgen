@@ -9,6 +9,7 @@ import { Link, useLocation } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useNamespace } from '../../hooks/useNamespace'
 import { useChatContext, useHasUnread } from '../../providers/ChatProvider'
+import { useNudgeCount } from '../../hooks/useWorkflowSuggestions'
 import { type Role, setLastNamespace } from '../../lib/auth'
 import { getRevision, clearRevision } from '../../lib/revision'
 import { apiFetch } from '../../api/client'
@@ -316,11 +317,16 @@ export function AppNav() {
 // ---- Chat toggle button sub-component ----
 
 function ChatToggleButton() {
-  const { toggleChat, isOnPlaybookPage } = useChatContext()
+  const { toggleChat, isOnPlaybookPage, isOpen } = useChatContext()
   const hasUnread = useHasUnread()
+  const { data: nudgeCount = 0 } = useNudgeCount(!isOnPlaybookPage)
 
   // Don't show toggle on playbook page — chat is inline there
   if (isOnPlaybookPage) return null
+
+  // Show badge: nudge count when panel is closed, or unread dot
+  const showNudgeBadge = !isOpen && nudgeCount > 0
+  const showUnreadDot = hasUnread && !showNudgeBadge
 
   return (
     <button
@@ -340,7 +346,12 @@ function ChatToggleButton() {
       >
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
-      {hasUnread && (
+      {showNudgeBadge && (
+        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-accent-cyan text-white text-[10px] font-bold rounded-full leading-none">
+          {nudgeCount}
+        </span>
+      )}
+      {showUnreadDot && (
         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent-cyan rounded-full" />
       )}
     </button>

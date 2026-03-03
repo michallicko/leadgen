@@ -13,6 +13,7 @@ from api.services.l2_enricher import enrich_l2
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_news_response():
     return {
         "recent_news": "Jan 2026: Secured EUR 5M Series A",
@@ -139,18 +140,20 @@ def _setup_company_with_l1(db):
         """),
         {
             "cid": company_id,
-            "raw": json.dumps({
-                "company_name": "TestCorp",
-                "summary": "A B2B SaaS platform for workflow automation",
-                "b2b": True,
-                "industry": "software_saas",
-                "revenue_eur_m": 10.0,
-                "employees": 120,
-                "hq": "Berlin, Germany",
-                "ownership": "VC-backed",
-                "markets": ["DACH", "Nordics"],
-                "business_model": "saas",
-            }),
+            "raw": json.dumps(
+                {
+                    "company_name": "TestCorp",
+                    "summary": "A B2B SaaS platform for workflow automation",
+                    "b2b": True,
+                    "industry": "software_saas",
+                    "revenue_eur_m": 10.0,
+                    "employees": 120,
+                    "hq": "Berlin, Germany",
+                    "ownership": "VC-backed",
+                    "markets": ["DACH", "Nordics"],
+                    "business_model": "saas",
+                }
+            ),
             "conf": 0.85,
             "qc": json.dumps([]),
         },
@@ -163,6 +166,7 @@ def _setup_company_with_l1(db):
 # Test: Basic enrichment success
 # ---------------------------------------------------------------------------
 
+
 class TestL2EnrichmentSuccess:
     """Test successful L2 enrichment flow."""
 
@@ -170,10 +174,16 @@ class TestL2EnrichmentSuccess:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch, anthro_patch:
                 result = enrich_l2(company_id)
 
@@ -185,10 +195,16 @@ class TestL2EnrichmentSuccess:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch, anthro_patch:
                 enrich_l2(company_id)
 
@@ -205,10 +221,16 @@ class TestL2EnrichmentSuccess:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch, anthro_patch:
                 enrich_l2(company_id)
 
@@ -222,10 +244,16 @@ class TestL2EnrichmentSuccess:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch, anthro_patch:
                 result = enrich_l2(company_id)
 
@@ -237,6 +265,7 @@ class TestL2EnrichmentSuccess:
 # Test: L1 data loading
 # ---------------------------------------------------------------------------
 
+
 class TestL1DataLoading:
     """Test that L2 reads and uses L1 data in prompts."""
 
@@ -244,10 +273,16 @@ class TestL1DataLoading:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch, anthro_patch as anthro_p:
                 enrich_l2(company_id)
 
@@ -262,10 +297,16 @@ class TestL1DataLoading:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch as pplx_p, anthro_patch:
                 enrich_l2(company_id)
 
@@ -280,6 +321,7 @@ class TestL1DataLoading:
 # Test: Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestL2ErrorHandling:
     """Test error scenarios in L2 enrichment."""
 
@@ -289,12 +331,15 @@ class TestL2ErrorHandling:
             pplx_cls = MagicMock()
             pplx_instance = pplx_cls.return_value
             from requests.exceptions import HTTPError
+
             pplx_instance.query.side_effect = HTTPError("503 Service Unavailable")
 
             anthro_cls = MagicMock()
 
-            with patch("api.services.l2_enricher.PerplexityClient", pplx_cls), \
-                 patch("api.services.l2_enricher.AnthropicClient", anthro_cls):
+            with (
+                patch("api.services.l2_enricher.PerplexityClient", pplx_cls),
+                patch("api.services.l2_enricher.AnthropicClient", anthro_cls),
+            ):
                 result = enrich_l2(company_id)
 
             assert result.get("error") is not None
@@ -309,7 +354,9 @@ class TestL2ErrorHandling:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
 
             pplx_cls = MagicMock()
             pplx_instance = pplx_cls.return_value
@@ -319,8 +366,10 @@ class TestL2ErrorHandling:
             anthro_instance = anthro_cls.return_value
             anthro_instance.query.side_effect = Exception("Anthropic API down")
 
-            with patch("api.services.l2_enricher.PerplexityClient", pplx_cls), \
-                 patch("api.services.l2_enricher.AnthropicClient", anthro_cls):
+            with (
+                patch("api.services.l2_enricher.PerplexityClient", pplx_cls),
+                patch("api.services.l2_enricher.AnthropicClient", anthro_cls),
+            ):
                 result = enrich_l2(company_id)
 
             assert result["enrichment_cost_usd"] > 0
@@ -342,8 +391,12 @@ class TestL2ErrorHandling:
             bad_resp.output_tokens = 400
             bad_resp.cost_usd = 0.003
 
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
             pplx_cls = MagicMock()
             pplx_instance = pplx_cls.return_value
@@ -353,8 +406,10 @@ class TestL2ErrorHandling:
             anthro_instance = anthro_cls.return_value
             anthro_instance.query.return_value = synthesis_resp
 
-            with patch("api.services.l2_enricher.PerplexityClient", pplx_cls), \
-                 patch("api.services.l2_enricher.AnthropicClient", anthro_cls):
+            with (
+                patch("api.services.l2_enricher.PerplexityClient", pplx_cls),
+                patch("api.services.l2_enricher.AnthropicClient", anthro_cls),
+            ):
                 result = enrich_l2(company_id)
 
             assert "enrichment_cost_usd" in result
@@ -364,6 +419,7 @@ class TestL2ErrorHandling:
 # Test: Boost mode
 # ---------------------------------------------------------------------------
 
+
 class TestL2BoostMode:
     """Test boost model selection for L2."""
 
@@ -371,10 +427,16 @@ class TestL2BoostMode:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.002)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch as pplx_p, anthro_patch:
                 enrich_l2(company_id, boost=False)
 
@@ -387,10 +449,16 @@ class TestL2BoostMode:
         with app.app_context():
             company_id = _setup_company_with_l1(db)
             news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.010)
-            strategic_resp = _make_mock_pplx_response(_make_strategic_response(), cost=0.008)
-            synthesis_resp = _make_mock_anthropic_response(_make_synthesis_response(), cost=0.004)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.008
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
 
-            pplx_patch, anthro_patch = _patch_clients(news_resp, strategic_resp, synthesis_resp)
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
             with pplx_patch as pplx_p, anthro_patch:
                 enrich_l2(company_id, boost=True)
 
@@ -398,3 +466,134 @@ class TestL2BoostMode:
             for call in pplx_instance.query.call_args_list:
                 model = call[1].get("model")
                 assert model == "sonar-reasoning-pro"
+
+
+# ---------------------------------------------------------------------------
+# Test: BL-152 — L2 enricher writes to split tables
+# ---------------------------------------------------------------------------
+
+
+class TestL2SplitTableWrites:
+    """Verify L2 enrichment data is written to the 4 split module tables."""
+
+    def test_writes_to_profile_table(self, app, db):
+        with app.app_context():
+            company_id = _setup_company_with_l1(db)
+            news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
+
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
+            with pplx_patch, anthro_patch:
+                enrich_l2(company_id)
+
+            row = db.session.execute(
+                sa_text(
+                    "SELECT company_intel, leadership_team, certifications, expansion "
+                    "FROM company_enrichment_profile WHERE company_id = :cid"
+                ),
+                {"cid": company_id},
+            ).fetchone()
+            assert row is not None
+            assert row[0] is not None  # company_intel (executive_brief)
+            assert row[1] == "CEO: John Smith, CTO: Jane Doe"  # leadership_team
+            assert row[2] == "ISO 27001"  # certifications
+            assert row[3] == "Opened Berlin office, Nov 2025"  # expansion
+
+    def test_writes_to_signals_table(self, app, db):
+        with app.app_context():
+            company_id = _setup_company_with_l1(db)
+            news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
+
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
+            with pplx_patch, anthro_patch:
+                enrich_l2(company_id)
+
+            row = db.session.execute(
+                sa_text(
+                    "SELECT digital_initiatives, hiring_signals, "
+                    "       regulatory_pressure, employee_sentiment "
+                    "FROM company_enrichment_signals WHERE company_id = :cid"
+                ),
+                {"cid": company_id},
+            ).fetchone()
+            assert row is not None
+            assert row[0] == "Migrated to AWS, Oct 2025"  # digital_initiatives
+            assert row[1] == "5 open roles in engineering"  # hiring_signals
+            assert row[2] == "NIS2 deadline Q4 2025"  # regulatory_pressure
+            assert row[3] == "Glassdoor: 4.2/5 (45 reviews)"  # employee_sentiment
+
+    def test_writes_to_market_table(self, app, db):
+        with app.app_context():
+            company_id = _setup_company_with_l1(db)
+            news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
+
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
+            with pplx_patch, anthro_patch:
+                enrich_l2(company_id)
+
+            row = db.session.execute(
+                sa_text(
+                    "SELECT recent_news, funding_history, revenue_trend, growth_signals "
+                    "FROM company_enrichment_market WHERE company_id = :cid"
+                ),
+                {"cid": company_id},
+            ).fetchone()
+            assert row is not None
+            assert "Series A" in row[0]  # recent_news
+            assert "EUR 5M" in row[1]  # funding_history
+            assert "growing" in row[2]  # revenue_trend
+            assert "Headcount" in row[3]  # growth_signals
+
+    def test_writes_to_opportunity_table(self, app, db):
+        with app.app_context():
+            company_id = _setup_company_with_l1(db)
+            news_resp = _make_mock_pplx_response(_make_news_response(), cost=0.003)
+            strategic_resp = _make_mock_pplx_response(
+                _make_strategic_response(), cost=0.002
+            )
+            synthesis_resp = _make_mock_anthropic_response(
+                _make_synthesis_response(), cost=0.004
+            )
+
+            pplx_patch, anthro_patch = _patch_clients(
+                news_resp, strategic_resp, synthesis_resp
+            )
+            with pplx_patch, anthro_patch:
+                enrich_l2(company_id)
+
+            row = db.session.execute(
+                sa_text(
+                    "SELECT pain_hypothesis, ai_opportunities, pitch_framing, "
+                    "       competitor_ai_moves "
+                    "FROM company_enrichment_opportunity WHERE company_id = :cid"
+                ),
+                {"cid": company_id},
+            ).fetchone()
+            assert row is not None
+            assert row[0] is not None  # pain_hypothesis
+            assert row[1] is not None  # ai_opportunities
+            assert row[2] == "growth_acceleration"  # pitch_framing
+            assert "Competitor X" in row[3]  # competitor_ai_moves

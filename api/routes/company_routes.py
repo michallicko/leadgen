@@ -721,7 +721,7 @@ def get_company(company_id):
     prof_row = db.session.execute(
         db.text("""
             SELECT company_intel, key_products, customer_segments, competitors,
-                   tech_stack, leadership_team, certifications,
+                   tech_stack, leadership_team, certifications, expansion,
                    enriched_at, enrichment_cost_usd
             FROM company_enrichment_profile
             WHERE company_id = :id
@@ -737,9 +737,10 @@ def get_company(company_id):
             "tech_stack": prof_row[4],
             "leadership_team": prof_row[5],
             "certifications": prof_row[6],
-            "enriched_at": _iso(prof_row[7]),
-            "enrichment_cost_usd": float(prof_row[8])
-            if prof_row[8] is not None
+            "expansion": prof_row[7],
+            "enriched_at": _iso(prof_row[8]),
+            "enrichment_cost_usd": float(prof_row[9])
+            if prof_row[9] is not None
             else None,
         }
 
@@ -750,6 +751,9 @@ def get_company(company_id):
                    ai_hiring, tech_partnerships, competitor_ai_moves,
                    ai_adoption_level, news_confidence, growth_indicators,
                    job_posting_count, hiring_departments,
+                   workflow_ai_evidence, regulatory_pressure, employee_sentiment,
+                   tech_stack_categories, fiscal_year_end,
+                   digital_maturity_score, it_spend_indicators,
                    enriched_at, enrichment_cost_usd
             FROM company_enrichment_signals
             WHERE company_id = :id
@@ -769,9 +773,16 @@ def get_company(company_id):
             "growth_indicators": sig_row[8],
             "job_posting_count": sig_row[9],
             "hiring_departments": _parse_jsonb(sig_row[10]),
-            "enriched_at": _iso(sig_row[11]),
-            "enrichment_cost_usd": float(sig_row[12])
-            if sig_row[12] is not None
+            "workflow_ai_evidence": sig_row[11],
+            "regulatory_pressure": sig_row[12],
+            "employee_sentiment": sig_row[13],
+            "tech_stack_categories": sig_row[14],
+            "fiscal_year_end": sig_row[15],
+            "digital_maturity_score": sig_row[16],
+            "it_spend_indicators": sig_row[17],
+            "enriched_at": _iso(sig_row[18]),
+            "enrichment_cost_usd": float(sig_row[19])
+            if sig_row[19] is not None
             else None,
         }
 
@@ -780,6 +791,8 @@ def get_company(company_id):
         db.text("""
             SELECT recent_news, funding_history, eu_grants,
                    media_sentiment, press_releases, thought_leadership,
+                   expansion, workflow_ai_evidence, revenue_trend,
+                   growth_signals, ma_activity,
                    enriched_at, enrichment_cost_usd
             FROM company_enrichment_market
             WHERE company_id = :id
@@ -794,9 +807,14 @@ def get_company(company_id):
             "media_sentiment": mkt_row[3],
             "press_releases": mkt_row[4],
             "thought_leadership": mkt_row[5],
-            "enriched_at": _iso(mkt_row[6]),
-            "enrichment_cost_usd": float(mkt_row[7])
-            if mkt_row[7] is not None
+            "expansion": mkt_row[6],
+            "workflow_ai_evidence": mkt_row[7],
+            "revenue_trend": mkt_row[8],
+            "growth_signals": mkt_row[9],
+            "ma_activity": mkt_row[10],
+            "enriched_at": _iso(mkt_row[11]),
+            "enrichment_cost_usd": float(mkt_row[12])
+            if mkt_row[12] is not None
             else None,
         }
 
@@ -805,7 +823,7 @@ def get_company(company_id):
         db.text("""
             SELECT pain_hypothesis, relevant_case_study, ai_opportunities,
                    quick_wins, industry_pain_points, cross_functional_pain,
-                   adoption_barriers,
+                   adoption_barriers, pitch_framing, competitor_ai_moves,
                    enriched_at, enrichment_cost_usd
             FROM company_enrichment_opportunity
             WHERE company_id = :id
@@ -821,9 +839,11 @@ def get_company(company_id):
             "industry_pain_points": opp_row[4],
             "cross_functional_pain": opp_row[5],
             "adoption_barriers": opp_row[6],
-            "enriched_at": _iso(opp_row[7]),
-            "enrichment_cost_usd": float(opp_row[8])
-            if opp_row[8] is not None
+            "pitch_framing": opp_row[7],
+            "competitor_ai_moves": opp_row[8],
+            "enriched_at": _iso(opp_row[9]),
+            "enrichment_cost_usd": float(opp_row[10])
+            if opp_row[10] is not None
             else None,
         }
 

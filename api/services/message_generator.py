@@ -406,14 +406,21 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
 
 
 def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, dict]:
-    """Load company and enrichment data for a contact."""
+    """Load company and enrichment data for a contact.
+
+    BL-173: Enhanced to include company_size, verified_employees,
+    verified_revenue, and richer L2/person fields for grounded
+    message personalization.
+    """
     company_data = {}
     enrichment_data = {"l2": {}, "person": {}}
 
     if company_id:
         row = db.session.execute(
             db.text("""
-                SELECT name, domain, industry, hq_country, summary
+                SELECT name, domain, industry, hq_country, summary,
+                       company_size, verified_employees, verified_revenue_eur_m,
+                       tier, business_model
                 FROM companies WHERE id = :id
             """),
             {"id": company_id},
@@ -425,11 +432,21 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
                 "industry": row[2],
                 "hq_country": row[3],
                 "summary": row[4],
+                "company_size": row[5],
+                "employee_count": str(int(row[6])) if row[6] else None,
+                "revenue_eur_m": str(round(float(row[7]), 1)) if row[7] else None,
+                "tier": row[8],
+                "business_model": row[9],
             }
 
+        # BL-173: Load full L2 enrichment for grounded personalization
         l2_row = db.session.execute(
             db.text("""
-                SELECT company_intel, recent_news, ai_opportunities
+                SELECT company_intel, recent_news, ai_opportunities,
+                       pain_hypothesis, key_products, customer_segments,
+                       competitors, tech_stack, hiring_signals,
+                       digital_initiatives, pitch_framing, growth_signals,
+                       expansion, ma_activity
                 FROM company_enrichment_l2 WHERE company_id = :id
             """),
             {"id": company_id},
@@ -439,11 +456,25 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
                 "company_intel": l2_row[0],
                 "recent_news": l2_row[1],
                 "ai_opportunities": l2_row[2],
+                "pain_hypothesis": l2_row[3],
+                "key_products": l2_row[4],
+                "customer_segments": l2_row[5],
+                "competitors": l2_row[6],
+                "tech_stack": l2_row[7],
+                "hiring_signals": l2_row[8],
+                "digital_initiatives": l2_row[9],
+                "pitch_framing": l2_row[10],
+                "growth_signals": l2_row[11],
+                "expansion": l2_row[12],
+                "ma_activity": l2_row[13],
             }
 
+    # BL-173: Load richer person enrichment for grounded personalization
     person_row = db.session.execute(
         db.text("""
-            SELECT person_summary, relationship_synthesis
+            SELECT person_summary, relationship_synthesis,
+                   career_trajectory, speaking_engagements, publications,
+                   ai_champion_score, authority_score
             FROM contact_enrichment WHERE contact_id = :id
         """),
         {"id": contact_id},
@@ -452,6 +483,11 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
         enrichment_data["person"] = {
             "person_summary": person_row[0],
             "relationship_synthesis": person_row[1],
+            "career_trajectory": person_row[2],
+            "speaking_engagements": person_row[3],
+            "publications": person_row[4],
+            "ai_champion_score": person_row[5],
+            "authority_score": person_row[6],
         }
 
     return company_data, enrichment_data

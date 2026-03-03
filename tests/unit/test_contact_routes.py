@@ -1,4 +1,5 @@
 """Unit tests for contact routes."""
+
 from tests.conftest import auth_header
 
 
@@ -89,9 +90,15 @@ class TestListContacts:
     def test_sort_by_contact_score_desc(self, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        resp = client.get("/api/contacts?sort=contact_score&sort_dir=desc", headers=headers)
+        resp = client.get(
+            "/api/contacts?sort=contact_score&sort_dir=desc", headers=headers
+        )
         data = resp.get_json()
-        scores = [c["contact_score"] for c in data["contacts"] if c["contact_score"] is not None]
+        scores = [
+            c["contact_score"]
+            for c in data["contacts"]
+            if c["contact_score"] is not None
+        ]
         assert scores == sorted(scores, reverse=True)
 
     def test_display_values(self, client, seed_companies_contacts):
@@ -109,6 +116,7 @@ class TestListContacts:
 
     def test_tenant_isolation(self, client, db, seed_companies_contacts):
         from api.models import Contact, Tenant
+
         other = Tenant(name="Other Corp", slug="other-corp", is_active=True)
         db.session.add(other)
         db.session.flush()
@@ -143,7 +151,9 @@ class TestGetContact:
         resp = client.get(f"/api/contacts/{contact_id}", headers=headers)
         data = resp.get_json()
         assert data["enrichment"] is not None
-        assert data["enrichment"]["person_summary"] == "Experienced CEO with AI background"
+        assert (
+            data["enrichment"]["person_summary"] == "Experienced CEO with AI background"
+        )
 
     def test_get_with_messages(self, client, seed_companies_contacts):
         headers = auth_header(client)
@@ -157,8 +167,85 @@ class TestGetContact:
     def test_get_not_found(self, client, seed_companies_contacts):
         headers = auth_header(client)
         headers["X-Namespace"] = "test-corp"
-        resp = client.get("/api/contacts/00000000-0000-0000-0000-000000000000", headers=headers)
+        resp = client.get(
+            "/api/contacts/00000000-0000-0000-0000-000000000000", headers=headers
+        )
         assert resp.status_code == 404
+
+    def test_new_enrichment_fields_returned(self, client, db, seed_companies_contacts):
+        """BL-184: 11 new person enrichment fields returned in API response."""
+        import json as _json
+
+        from api.models import ContactEnrichment
+
+        contact = seed_companies_contacts["contacts"][
+            1
+        ]  # Jane Smith (no enrichment yet)
+        ce = ContactEnrichment(
+            contact_id=contact.id,
+            person_summary="Senior VP with procurement background",
+            education="MBA, Stanford University",
+            certifications="PMP, Six Sigma Black Belt",
+            expertise_areas=_json.dumps(["procurement", "supply chain", "AI"]),
+            budget_signals="Controls $5M annual tech budget",
+            buying_signals="Evaluating AI vendors in Q2",
+            pain_indicators="Manual reporting takes 20hrs/week",
+            technology_interests=_json.dumps(["RPA", "ML", "data analytics"]),
+            personalization_angle="Stanford AI Lab connection",
+            connection_points=_json.dumps(
+                ["AI conference speaker", "supply chain blog"]
+            ),
+            conversation_starters="Ask about recent supply chain AI talk",
+            objection_prediction="Budget concerns - show ROI in 90 days",
+        )
+        db.session.add(ce)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        resp = client.get(f"/api/contacts/{contact.id}", headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+
+        enr = data["enrichment"]
+        assert enr is not None
+        assert enr["education"] == "MBA, Stanford University"
+        assert enr["certifications"] == "PMP, Six Sigma Black Belt"
+        assert enr["budget_signals"] == "Controls $5M annual tech budget"
+        assert enr["buying_signals"] == "Evaluating AI vendors in Q2"
+        assert enr["pain_indicators"] == "Manual reporting takes 20hrs/week"
+        assert enr["personalization_angle"] == "Stanford AI Lab connection"
+        assert enr["conversation_starters"] == "Ask about recent supply chain AI talk"
+        assert enr["objection_prediction"] == "Budget concerns - show ROI in 90 days"
+        # JSONB fields
+        assert "procurement" in enr["expertise_areas"]
+        assert "RPA" in enr["technology_interests"]
+        assert "AI conference speaker" in enr["connection_points"]
+
+    def test_new_enrichment_fields_null_when_absent(
+        self, client, seed_companies_contacts
+    ):
+        """BL-184: New fields return null for contacts enriched before BL-153."""
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        # John Doe has old-style enrichment (only person_summary etc.)
+        contact_id = seed_companies_contacts["contacts"][0].id
+        resp = client.get(f"/api/contacts/{contact_id}", headers=headers)
+        data = resp.get_json()
+
+        enr = data["enrichment"]
+        assert enr is not None
+        assert enr["person_summary"] == "Experienced CEO with AI background"
+        # New fields should be null, not missing
+        assert enr["education"] is None
+        assert enr["certifications"] is None
+        assert enr["budget_signals"] is None
+        assert enr["buying_signals"] is None
+        assert enr["pain_indicators"] is None
+        assert enr["personalization_angle"] is None
+        assert enr["conversation_starters"] is None
+        assert enr["objection_prediction"] is None
 
 
 class TestPatchContact:

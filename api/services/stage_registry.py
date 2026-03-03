@@ -300,6 +300,12 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
             "type": "text",
             "table": "company_enrichment_profile",
         },
+        {
+            "key": "expansion",
+            "label": "Expansion",
+            "type": "text",
+            "table": "company_enrichment_profile",
+        },
         # Market module
         {
             "key": "recent_news",
@@ -334,6 +340,24 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {
             "key": "thought_leadership",
             "label": "Thought Leadership",
+            "type": "text",
+            "table": "company_enrichment_market",
+        },
+        {
+            "key": "revenue_trend",
+            "label": "Revenue Trend",
+            "type": "text",
+            "table": "company_enrichment_market",
+        },
+        {
+            "key": "growth_signals",
+            "label": "Growth Signals",
+            "type": "text",
+            "table": "company_enrichment_market",
+        },
+        {
+            "key": "ma_activity",
+            "label": "M&A Activity",
             "type": "text",
             "table": "company_enrichment_market",
         },
@@ -377,6 +401,18 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
         {
             "key": "adoption_barriers",
             "label": "Adoption Barriers",
+            "type": "text",
+            "table": "company_enrichment_opportunity",
+        },
+        {
+            "key": "pitch_framing",
+            "label": "Pitch Framing",
+            "type": "text",
+            "table": "company_enrichment_opportunity",
+        },
+        {
+            "key": "competitor_ai_moves",
+            "label": "Competitor AI Moves",
             "type": "text",
             "table": "company_enrichment_opportunity",
         },
@@ -586,6 +622,42 @@ STAGE_FIELDS: Dict[str, List[dict]] = {
             "key": "hiring_departments",
             "label": "Hiring Departments",
             "type": "json",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "workflow_ai_evidence",
+            "label": "AI/Automation Evidence",
+            "type": "text",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "regulatory_pressure",
+            "label": "Regulatory Pressure",
+            "type": "text",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "employee_sentiment",
+            "label": "Employee Sentiment",
+            "type": "text",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "tech_stack_categories",
+            "label": "Tech Stack Categories",
+            "type": "text",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "digital_maturity_score",
+            "label": "Digital Maturity",
+            "type": "text",
+            "table": "company_enrichment_signals",
+        },
+        {
+            "key": "it_spend_indicators",
+            "label": "IT Spend Indicators",
+            "type": "text",
             "table": "company_enrichment_signals",
         },
     ],

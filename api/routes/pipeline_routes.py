@@ -720,6 +720,164 @@ def pipeline_dag_status():
     )
 
 
+# ---------------------------------------------------------------------------
+# BL-171: Unified Pipeline Runner — single-click full enrichment chain
+# ---------------------------------------------------------------------------
+
+
+@pipeline_bp.route("/api/pipeline/run-full", methods=["POST"])
+@require_auth
+def pipeline_run_full():
+    """BL-171: Single-click full enrichment chain (L1 → Triage → L2 → Person).
+
+    Automatically selects stages based on what data is missing and runs
+    the full DAG pipeline. Returns progress through each stage.
+
+    Body:
+        tag_name (str): required — batch to enrich
+        owner (str): optional — filter by owner name
+        tier_filter (list): optional — limit to specific tiers
+        sample_size (int): optional — max entities per stage
+        skip_stages (list): optional — stages to skip (e.g., ["registry"])
+        include_stages (list): optional — extra stages beyond core chain
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    tag_name = body.get("tag_name", "")
+    owner_name = body.get("owner", "")
+    tier_filter = body.get("tier_filter", [])
+    sample_size = body.get("sample_size")
+    skip_stages = set(body.get("skip_stages", []))
+    include_stages = body.get("include_stages", [])
+
+    if not tag_name:
+        return jsonify({"error": "tag_name is required"}), 400
+
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
+    if err:
+        return err
+
+    owner_id = _resolve_owner(tenant_id, owner_name)
+
+    # Check no pipeline already running for this tag
+    existing = db.session.execute(
+        text("""
+            SELECT id FROM pipeline_runs
+            WHERE tenant_id = :t AND tag_id = :b
+              AND status IN ('running', 'stopping')
+            LIMIT 1
+        """),
+        {"t": str(tenant_id), "b": str(tag_id)},
+    ).fetchone()
+    if existing:
+        return jsonify({"error": "A pipeline is already running for this tag"}), 409
+
+    # Core full-chain stages (always in this order)
+    core_stages = ["l1", "l2", "person"]
+
+    # Build the final stage list
+    stages = [s for s in core_stages if s not in skip_stages]
+
+    # Add any extra requested stages (e.g., registry, signals, news)
+    for s in include_stages:
+        if s not in stages and s in STAGE_REGISTRY:
+            stages.append(s)
+
+    # Validate
+    invalid = [s for s in stages if s not in STAGE_REGISTRY]
+    if invalid:
+        return jsonify({"error": f"Unknown stages: {', '.join(invalid)}"}), 400
+
+    if not stages:
+        return jsonify({"error": "No stages to run after applying skip_stages"}), 400
+
+    # Build soft_deps for proper ordering
+    soft_deps = {}
+    for s in stages:
+        reg = STAGE_REGISTRY.get(s, {})
+        sdeps = reg.get("soft_deps", [])
+        active_soft = [d for d in sdeps if d in stages]
+        if active_soft:
+            soft_deps[s] = active_soft
+
+    # Topological sort
+    try:
+        sorted_stages = topo_sort(stages, soft_deps)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    # Build config
+    config = {"mode": "dag", "stages": sorted_stages, "full_pipeline": True}
+    if tier_filter:
+        config["tier_filter"] = tier_filter
+    if owner_name:
+        config["owner"] = owner_name
+    if soft_deps:
+        config["soft_deps"] = soft_deps
+    if sample_size:
+        config["sample_size"] = int(sample_size)
+
+    # Create pipeline_run record
+    pipeline_run = PipelineRun(
+        tenant_id=str(tenant_id),
+        tag_id=str(tag_id),
+        owner_id=str(owner_id) if owner_id else None,
+        status="running",
+        config=json.dumps(config),
+    )
+    db.session.add(pipeline_run)
+    db.session.flush()
+    pipeline_run_id = str(pipeline_run.id)
+
+    # Create stage_run records
+    stage_run_ids = {}
+    for stage_code in sorted_stages:
+        stage_config = dict(config)
+        stage_config["pipeline_run_id"] = pipeline_run_id
+
+        sr = StageRun(
+            tenant_id=str(tenant_id),
+            tag_id=str(tag_id),
+            owner_id=str(owner_id) if owner_id else None,
+            stage=stage_code,
+            status="pending",
+            total=0,
+            config=json.dumps(stage_config),
+        )
+        db.session.add(sr)
+        db.session.flush()
+        stage_run_ids[stage_code] = str(sr.id)
+
+    pipeline_run.stages = json.dumps(stage_run_ids)
+    db.session.commit()
+
+    # Spawn DAG threads
+    start_dag_pipeline(
+        current_app._get_current_object(),
+        pipeline_run_id,
+        sorted_stages,
+        tenant_id,
+        tag_id,
+        owner_id=owner_id,
+        tier_filter=tier_filter,
+        stage_run_ids=stage_run_ids,
+        soft_deps_enabled=soft_deps,
+        sample_size=int(sample_size) if sample_size else None,
+    )
+
+    return jsonify(
+        {
+            "pipeline_run_id": pipeline_run_id,
+            "stage_run_ids": stage_run_ids,
+            "stage_order": sorted_stages,
+            "mode": "full_pipeline",
+        }
+    ), 201
+
+
 @pipeline_bp.route("/api/pipeline/dag-stop", methods=["POST"])
 @require_auth
 def pipeline_dag_stop():

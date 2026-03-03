@@ -638,15 +638,20 @@ def _synthesize(
 def _upsert_l2_enrichment(
     company_id, news_data, strategic_data, synthesis_data, total_cost, l1_data=None
 ):
-    """Insert or update the company_enrichment_l2 record.
+    """Insert or update L2 enrichment data across split module tables.
 
-    Includes Phase 1 (data loss fix) and Phase 2 (new high-value) columns.
+    Writes to both the old company_enrichment_l2 table (backward compat)
+    and the 4 split module tables that the API reads from:
+    - company_enrichment_profile
+    - company_enrichment_signals
+    - company_enrichment_market
+    - company_enrichment_opportunity
     """
     quick_wins = synthesis_data.get("quick_wins")
     if quick_wins and not isinstance(quick_wins, str):
         quick_wins = json.dumps(quick_wins)
 
-    params = _build_l2_params(
+    l2_params = _build_l2_params(
         company_id,
         news_data,
         strategic_data,
@@ -656,7 +661,10 @@ def _upsert_l2_enrichment(
         l1_data=l1_data,
     )
 
-    # Column list shared by INSERT and ON CONFLICT UPDATE
+    now = l2_params["enriched_at"]
+    l1 = l1_data or {}
+
+    # --- Write to old company_enrichment_l2 (backward compat) ---
     _COLUMNS = (
         "company_intel",
         "recent_news",
@@ -681,7 +689,6 @@ def _upsert_l2_enrichment(
         "cross_functional_pain",
         "adoption_barriers",
         "competitor_ai_moves",
-        # Phase 1: previously lost fields
         "expansion",
         "workflow_ai_evidence",
         "revenue_trend",
@@ -689,7 +696,6 @@ def _upsert_l2_enrichment(
         "regulatory_pressure",
         "employee_sentiment",
         "pitch_framing",
-        # Phase 2: new high-value fields
         "ma_activity",
         "tech_stack_categories",
         "fiscal_year_end",
@@ -701,7 +707,6 @@ def _upsert_l2_enrichment(
     val_list = ", ".join(f":{c}" for c in _COLUMNS)
     update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in _COLUMNS)
 
-    # Try PostgreSQL upsert first, fall back to SQLite
     try:
         db.session.execute(
             text(f"""
@@ -717,11 +722,10 @@ def _upsert_l2_enrichment(
                     enriched_at = EXCLUDED.enriched_at,
                     enrichment_cost_usd = EXCLUDED.enrichment_cost_usd
             """),
-            params,
+            l2_params,
         )
     except Exception:
         db.session.rollback()
-        # SQLite fallback
         db.session.execute(
             text(f"""
                 INSERT OR REPLACE INTO company_enrichment_l2 (
@@ -732,8 +736,183 @@ def _upsert_l2_enrichment(
                     :enriched_at, :cost
                 )
             """),
+            l2_params,
+        )
+
+    # --- Write to split module tables (what the API reads) ---
+    _upsert_split_profile(
+        company_id, news_data, strategic_data, synthesis_data, l1, now, total_cost
+    )
+    _upsert_split_signals(company_id, news_data, strategic_data, now, total_cost)
+    _upsert_split_market(company_id, news_data, strategic_data, now, total_cost)
+    _upsert_split_opportunity(company_id, synthesis_data, quick_wins, now, total_cost)
+
+
+def _upsert_module(table_name, columns, params):
+    """Generic upsert helper for a split module table."""
+    col_list = ", ".join(columns)
+    val_list = ", ".join(f":{c}" for c in columns)
+    update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+    try:
+        db.session.execute(
+            text(f"""
+                INSERT INTO {table_name} (company_id, {col_list}, enriched_at, enrichment_cost_usd)
+                VALUES (:cid, {val_list}, :enriched_at, :cost)
+                ON CONFLICT (company_id) DO UPDATE SET
+                    {update_list},
+                    enriched_at = EXCLUDED.enriched_at,
+                    enrichment_cost_usd = EXCLUDED.enrichment_cost_usd
+            """),
             params,
         )
+    except Exception:
+        db.session.rollback()
+        db.session.execute(
+            text(f"""
+                INSERT OR REPLACE INTO {table_name} (company_id, {col_list}, enriched_at, enrichment_cost_usd)
+                VALUES (:cid, {val_list}, :enriched_at, :cost)
+            """),
+            params,
+        )
+
+
+def _upsert_split_profile(
+    company_id, news_data, strategic_data, synthesis_data, l1, now, total_cost
+):
+    """Upsert company_enrichment_profile."""
+    cols = (
+        "company_intel",
+        "key_products",
+        "customer_segments",
+        "competitors",
+        "tech_stack",
+        "leadership_team",
+        "certifications",
+        "expansion",
+    )
+    _upsert_module(
+        "company_enrichment_profile",
+        cols,
+        {
+            "cid": company_id,
+            "company_intel": _to_text(synthesis_data.get("executive_brief")),
+            "key_products": l1.get("key_products")
+            or l1.get("products")
+            or synthesis_data.get("key_products"),
+            "customer_segments": l1.get("customer_segments")
+            or synthesis_data.get("customer_segments"),
+            "competitors": l1.get("competitors") or synthesis_data.get("competitors"),
+            "tech_stack": news_data.get("digital_initiatives"),
+            "leadership_team": strategic_data.get("leadership_team"),
+            "certifications": strategic_data.get("certifications"),
+            "expansion": news_data.get("expansion"),
+            "enriched_at": now,
+            "cost": round(total_cost * 0.30, 4),
+        },
+    )
+
+
+def _upsert_split_signals(company_id, news_data, strategic_data, now, total_cost):
+    """Upsert company_enrichment_signals."""
+    cols = (
+        "digital_initiatives",
+        "leadership_changes",
+        "hiring_signals",
+        "ai_hiring",
+        "tech_partnerships",
+        "competitor_ai_moves",
+        "news_confidence",
+        "workflow_ai_evidence",
+        "regulatory_pressure",
+        "employee_sentiment",
+        "tech_stack_categories",
+        "fiscal_year_end",
+        "digital_maturity_score",
+        "it_spend_indicators",
+    )
+    _upsert_module(
+        "company_enrichment_signals",
+        cols,
+        {
+            "cid": company_id,
+            "digital_initiatives": news_data.get("digital_initiatives"),
+            "leadership_changes": news_data.get("leadership_changes"),
+            "hiring_signals": strategic_data.get("other_hiring_signals"),
+            "ai_hiring": strategic_data.get("ai_transformation_roles"),
+            "tech_partnerships": strategic_data.get("vendor_partnerships"),
+            "competitor_ai_moves": None,  # set from synthesis in opportunity table
+            "news_confidence": news_data.get("news_confidence"),
+            "workflow_ai_evidence": news_data.get("workflow_ai_evidence"),
+            "regulatory_pressure": strategic_data.get("regulatory_pressure"),
+            "employee_sentiment": strategic_data.get("employee_sentiment"),
+            "tech_stack_categories": strategic_data.get("tech_stack_categories"),
+            "fiscal_year_end": strategic_data.get("fiscal_year_end"),
+            "digital_maturity_score": strategic_data.get("digital_maturity_score"),
+            "it_spend_indicators": strategic_data.get("it_spend_indicators"),
+            "enriched_at": now,
+            "cost": round(total_cost * 0.25, 4),
+        },
+    )
+
+
+def _upsert_split_market(company_id, news_data, strategic_data, now, total_cost):
+    """Upsert company_enrichment_market."""
+    cols = (
+        "recent_news",
+        "funding_history",
+        "eu_grants",
+        "revenue_trend",
+        "growth_signals",
+        "ma_activity",
+    )
+    _upsert_module(
+        "company_enrichment_market",
+        cols,
+        {
+            "cid": company_id,
+            "recent_news": _to_text(news_data.get("recent_news")),
+            "funding_history": news_data.get("funding"),
+            "eu_grants": strategic_data.get("eu_grants"),
+            "revenue_trend": news_data.get("revenue_trend"),
+            "growth_signals": news_data.get("growth_signals"),
+            "ma_activity": news_data.get("ma_activity"),
+            "enriched_at": now,
+            "cost": round(total_cost * 0.20, 4),
+        },
+    )
+
+
+def _upsert_split_opportunity(company_id, synthesis_data, quick_wins, now, total_cost):
+    """Upsert company_enrichment_opportunity."""
+    cols = (
+        "pain_hypothesis",
+        "relevant_case_study",
+        "ai_opportunities",
+        "quick_wins",
+        "industry_pain_points",
+        "cross_functional_pain",
+        "adoption_barriers",
+        "pitch_framing",
+        "competitor_ai_moves",
+    )
+    _upsert_module(
+        "company_enrichment_opportunity",
+        cols,
+        {
+            "cid": company_id,
+            "pain_hypothesis": _to_text(synthesis_data.get("pain_hypothesis")),
+            "relevant_case_study": None,
+            "ai_opportunities": _to_text(synthesis_data.get("ai_opportunities")),
+            "quick_wins": quick_wins,
+            "industry_pain_points": synthesis_data.get("industry_pain_points"),
+            "cross_functional_pain": synthesis_data.get("cross_functional_pain"),
+            "adoption_barriers": synthesis_data.get("adoption_barriers"),
+            "pitch_framing": synthesis_data.get("pitch_framing"),
+            "competitor_ai_moves": synthesis_data.get("competitor_ai_moves"),
+            "enriched_at": now,
+            "cost": round(total_cost * 0.25, 4),
+        },
+    )
 
 
 def _build_l2_params(
