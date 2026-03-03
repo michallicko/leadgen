@@ -11,6 +11,8 @@ from ..models import (
     CompanyEnrichmentL1,
     Contact,
     Message,
+    PipelineRun,
+    StageRun,
     StrategyDocument,
     Tenant,
     User,
@@ -378,8 +380,14 @@ def get_workflow_suggestions():
     """Return proactive next-step suggestions based on namespace workflow state.
 
     Inspects what the user has done (strategy, contacts, enrichment, messages,
-    campaigns) and suggests the most logical next action. Returns a list of
-    suggestion objects with icon, summary, action label, and navigation target.
+    campaigns) and suggests the most logical next action. Also detects recent
+    events (enrichment completion, message generation) and returns event-driven
+    nudges with higher priority. BL-135 + BL-169.
+
+    Returns:
+        suggestions: list of suggestion objects with icon, summary, action label,
+            navigation target, nudge_type, and optional action_type for auto-nav.
+        nudge_count: number of event-driven nudges (for notification badge).
     """
     tenant_id = resolve_tenant()
     if not tenant_id:
@@ -418,6 +426,9 @@ def get_workflow_suggestions():
         Campaign.status.in_(["generating", "review", "active"]),
     ).count()
 
+    # Event detection for nudges (BL-169)
+    event_context = _detect_workflow_events(tenant_id)
+
     suggestions = _build_workflow_suggestions(
         tenant_id=tenant_id,
         has_strategy=has_strategy,
@@ -429,9 +440,109 @@ def get_workflow_suggestions():
         message_count=message_count,
         campaign_count=campaign_count,
         active_campaigns=active_campaigns,
+        event_context=event_context,
     )
 
-    return jsonify({"suggestions": suggestions})
+    # Count event-driven nudges for notification badge
+    nudge_count = sum(1 for s in suggestions if s.get("nudge_type") == "event")
+
+    return jsonify({"suggestions": suggestions, "nudge_count": nudge_count})
+
+
+def _detect_workflow_events(tenant_id):
+    """Detect recent workflow events for event-driven nudges (BL-169).
+
+    Returns a dict with event flags and context data for nudge generation.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    # Look back 24 hours for recent events
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    events = {
+        "enrichment_just_completed": False,
+        "enrichment_running": False,
+        "messages_just_generated": False,
+        "triage_completed": False,
+        "triage_passed": 0,
+        "triage_disqualified": 0,
+        "l2_completed_count": 0,
+        "person_completed_count": 0,
+        "recent_pipeline": None,
+    }
+
+    # Check for recently completed pipeline runs
+    recent_pipeline = (
+        PipelineRun.query.filter(
+            PipelineRun.tenant_id == tenant_id,
+            PipelineRun.status == "completed",
+            PipelineRun.completed_at >= cutoff,
+        )
+        .order_by(PipelineRun.completed_at.desc())
+        .first()
+    )
+
+    if recent_pipeline:
+        events["enrichment_just_completed"] = True
+        events["recent_pipeline"] = {
+            "l1_done": recent_pipeline.l1_done or 0,
+            "l2_done": recent_pipeline.l2_done or 0,
+            "person_done": recent_pipeline.person_done or 0,
+            "total_companies": recent_pipeline.total_companies or 0,
+            "completed_at": (
+                recent_pipeline.completed_at.isoformat()
+                if recent_pipeline.completed_at
+                else None
+            ),
+        }
+
+    # Check for running pipeline
+    running_pipeline = PipelineRun.query.filter_by(
+        tenant_id=tenant_id, status="running"
+    ).first()
+    if running_pipeline:
+        events["enrichment_running"] = True
+
+    # Check for recently completed stage runs (triage, L2, person)
+    recent_stages = (
+        StageRun.query.filter(
+            StageRun.tenant_id == tenant_id,
+            StageRun.status == "completed",
+            StageRun.completed_at >= cutoff,
+        )
+        .all()
+    )
+
+    for stage in recent_stages:
+        if stage.stage == "triage":
+            events["triage_completed"] = True
+        elif stage.stage == "l2_deep_research":
+            events["l2_completed_count"] += stage.done or 0
+        elif stage.stage == "person":
+            events["person_completed_count"] += stage.done or 0
+
+    # Count triage results (passed vs disqualified) from company statuses
+    if events["triage_completed"]:
+        events["triage_passed"] = Company.query.filter(
+            Company.tenant_id == tenant_id,
+            Company.status == "triage_passed",
+        ).count()
+        events["triage_disqualified"] = Company.query.filter(
+            Company.tenant_id == tenant_id,
+            Company.status == "triage_disqualified",
+        ).count()
+
+    # Check for recently generated messages
+    recent_messages = Message.query.filter(
+        Message.tenant_id == tenant_id,
+        Message.status == "draft",
+        Message.created_at >= cutoff,
+    ).count()
+    if recent_messages > 0:
+        events["messages_just_generated"] = True
+        events["recent_message_count"] = recent_messages
+
+    return events
 
 
 def _build_workflow_suggestions(
@@ -446,9 +557,150 @@ def _build_workflow_suggestions(
     message_count,
     campaign_count,
     active_campaigns,
+    event_context=None,
 ):
-    """Build ordered list of workflow suggestions based on namespace state."""
+    """Build ordered list of workflow suggestions based on namespace state.
+
+    Includes event-driven nudges (BL-169) when recent events are detected.
+    Each suggestion now includes:
+    - nudge_type: "step" (normal workflow) or "event" (triggered by a recent event)
+    - action_type: "navigate" (default) or "navigate_and_act" (auto-navigate + start action)
+    """
     suggestions = []
+    events = event_context or {}
+
+    # -----------------------------------------------------------------------
+    # Event-driven nudges (BL-169) — highest priority, inserted first
+    # -----------------------------------------------------------------------
+
+    # Nudge: Triage just completed
+    if events.get("triage_completed"):
+        passed = events.get("triage_passed", 0)
+        disqualified = events.get("triage_disqualified", 0)
+        if passed > 0:
+            suggestions.append(
+                {
+                    "id": "nudge-triage-complete",
+                    "icon": "enrich",
+                    "summary": "Triage complete: {} passed, {} disqualified".format(
+                        passed, disqualified
+                    ),
+                    "detail": (
+                        "Ready for deep enrichment on the {} qualified companies?".format(
+                            passed
+                        )
+                    ),
+                    "action_label": "Run Deep Enrichment",
+                    "action_path": "/enrich",
+                    "action_type": "navigate",
+                    "nudge_type": "event",
+                    "priority": 0,
+                }
+            )
+
+    # Nudge: Enrichment just completed
+    if events.get("enrichment_just_completed"):
+        pipeline = events.get("recent_pipeline", {})
+        l2_done = pipeline.get("l2_done", 0)
+        person_done = pipeline.get("person_done", 0)
+
+        summary_parts = []
+        if l2_done > 0:
+            summary_parts.append("{} companies deep-enriched".format(l2_done))
+        if person_done > 0:
+            summary_parts.append("{} contacts enriched".format(person_done))
+
+        if summary_parts:
+            suggestions.append(
+                {
+                    "id": "nudge-enrichment-complete",
+                    "icon": "enrich",
+                    "summary": "Enrichment complete: {}".format(
+                        ", ".join(summary_parts)
+                    ),
+                    "detail": (
+                        "Review enrichment results and refine your "
+                        "strategy with new insights, or proceed to messaging."
+                    ),
+                    "action_label": "Review Results",
+                    "action_path": "/enrich",
+                    "action_type": "navigate",
+                    "nudge_type": "event",
+                    "priority": 0,
+                }
+            )
+
+    # Nudge: L2 stage completed (without full pipeline complete)
+    if (
+        events.get("l2_completed_count", 0) > 0
+        and not events.get("enrichment_just_completed")
+    ):
+        suggestions.append(
+            {
+                "id": "nudge-l2-complete",
+                "icon": "enrich",
+                "summary": "Deep research done for {} companies".format(
+                    events["l2_completed_count"]
+                ),
+                "detail": (
+                    "L2 enrichment revealed competitor intel, AI opportunities, "
+                    "and pain points. Review the data or proceed to person enrichment."
+                ),
+                "action_label": "View Enriched Companies",
+                "action_path": "/companies",
+                "action_type": "navigate",
+                "nudge_type": "event",
+                "priority": 0,
+            }
+        )
+
+    # Nudge: Person enrichment stage completed
+    if (
+        events.get("person_completed_count", 0) > 0
+        and not events.get("enrichment_just_completed")
+    ):
+        suggestions.append(
+            {
+                "id": "nudge-person-complete",
+                "icon": "contacts",
+                "summary": "{} contacts enriched with person intel".format(
+                    events["person_completed_count"]
+                ),
+                "detail": (
+                    "Person profiles are ready. You can now generate "
+                    "personalized outreach messages."
+                ),
+                "action_label": "View Contacts",
+                "action_path": "/contacts",
+                "action_type": "navigate",
+                "nudge_type": "event",
+                "priority": 0,
+            }
+        )
+
+    # Nudge: Messages just generated
+    if events.get("messages_just_generated"):
+        count = events.get("recent_message_count", 0)
+        suggestions.append(
+            {
+                "id": "nudge-messages-ready",
+                "icon": "messages",
+                "summary": "{} new messages ready for review".format(count),
+                "detail": (
+                    "The AI has generated outreach messages. "
+                    "Review and approve them before sending."
+                ),
+                "action_label": "Review Messages",
+                "action_path": "/messages",
+                "action_type": "navigate",
+                "nudge_type": "event",
+                "priority": 0,
+            }
+        )
+
+    # -----------------------------------------------------------------------
+    # Regular workflow suggestions (original BL-135 logic)
+    # -----------------------------------------------------------------------
 
     # Phase 1: No strategy yet
     if not has_strategy:
@@ -463,9 +715,12 @@ def _build_workflow_suggestions(
                 ),
                 "action_label": "Open Playbook",
                 "action_path": "/playbook",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
+        suggestions.sort(key=lambda s: s["priority"])
         return suggestions
 
     # Phase 2: Strategy exists but no extracted data (ICP etc.)
@@ -481,9 +736,12 @@ def _build_workflow_suggestions(
                 ),
                 "action_label": "Refine Strategy",
                 "action_path": "/playbook",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
+        suggestions.sort(key=lambda s: s["priority"])
         return suggestions
 
     # Phase 3: Strategy extracted but no contacts
@@ -499,9 +757,12 @@ def _build_workflow_suggestions(
                 ),
                 "action_label": "Import Contacts",
                 "action_path": "/import",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
+        suggestions.sort(key=lambda s: s["priority"])
         return suggestions
 
     # Phase 4: Contacts exist but not enriched
@@ -511,13 +772,17 @@ def _build_workflow_suggestions(
             {
                 "id": "start-enrichment",
                 "icon": "enrich",
-                "summary": f"{contact_count} contacts imported ({company_count} companies)",
+                "summary": "{} contacts imported ({} companies)".format(
+                    contact_count, company_count
+                ),
                 "detail": (
                     "Run enrichment to gather company intel, tech stack, "
                     "and AI opportunities for personalized outreach."
                 ),
                 "action_label": "Start Enrichment",
                 "action_path": "/enrich",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
@@ -526,13 +791,19 @@ def _build_workflow_suggestions(
             {
                 "id": "continue-enrichment",
                 "icon": "enrich",
-                "summary": f"{enriched_count}/{company_count} companies enriched",
+                "summary": "{}/{} companies enriched".format(
+                    enriched_count, company_count
+                ),
                 "detail": (
-                    f"{unenriched} companies still need enrichment. "
-                    "Continue to get full coverage for your outreach."
+                    "{} companies still need enrichment. "
+                    "Continue to get full coverage for your outreach.".format(
+                        unenriched
+                    )
                 ),
                 "action_label": "Continue Enrichment",
                 "action_path": "/enrich",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 2,
             }
         )
@@ -543,13 +814,17 @@ def _build_workflow_suggestions(
             {
                 "id": "create-campaign",
                 "icon": "campaign",
-                "summary": f"{enriched_count} companies enriched — ready for outreach",
+                "summary": "{} companies enriched — ready for outreach".format(
+                    enriched_count
+                ),
                 "detail": (
                     "Create a campaign to generate personalized messages "
                     "using your strategy and enrichment data."
                 ),
                 "action_label": "Create Campaign",
                 "action_path": "/campaigns",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
@@ -567,6 +842,8 @@ def _build_workflow_suggestions(
                 ),
                 "action_label": "View Campaigns",
                 "action_path": "/campaigns",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 1,
             }
         )
@@ -581,13 +858,15 @@ def _build_workflow_suggestions(
                 {
                     "id": "review-messages",
                     "icon": "messages",
-                    "summary": f"{draft_count} draft messages ready for review",
+                    "summary": "{} draft messages ready for review".format(draft_count),
                     "detail": (
                         "Review and approve your outreach messages before "
                         "sending them to prospects."
                     ),
                     "action_label": "Review Messages",
                     "action_path": "/messages",
+                    "action_type": "navigate",
+                    "nudge_type": "step",
                     "priority": 1,
                 }
             )
@@ -605,6 +884,8 @@ def _build_workflow_suggestions(
                 ),
                 "action_label": "Open Playbook",
                 "action_path": "/playbook",
+                "action_type": "navigate",
+                "nudge_type": "step",
                 "priority": 3,
             }
         )
@@ -613,3 +894,129 @@ def _build_workflow_suggestions(
     suggestions.sort(key=lambda s: s["priority"])
 
     return suggestions
+
+
+# ---------------------------------------------------------------------------
+# Phase Transition Detection (BL-170)
+# ---------------------------------------------------------------------------
+
+@tenants_bp.route("/phase-transition", methods=["GET"])
+@require_auth
+def get_phase_transition():
+    """Check if the user's current workflow phase is complete and suggest advancement.
+
+    Returns transition info: whether a transition is available, what the
+    current and next phases are, and a CTA for the user. BL-170.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    workflow = compute_workflow_state(tenant_id)
+    current_phase = workflow["current_phase"]
+    next_action = workflow.get("next_action", {})
+    context = workflow.get("context", {})
+
+    transition = _detect_phase_transition(current_phase, next_action, context)
+
+    return jsonify({
+        "current_phase": current_phase,
+        "current_phase_label": workflow["current_phase_label"],
+        "progress_pct": workflow["progress_pct"],
+        "transition": transition,
+    })
+
+
+def _detect_phase_transition(current_phase, next_action, context):
+    """Detect if a phase transition is ready and build the transition object.
+
+    Returns a dict with:
+    - ready: bool — whether the phase is complete and transition is available
+    - next_phase_label: str — human label for the next phase
+    - cta_label: str — call-to-action text for the button
+    - cta_path: str — navigation path for the CTA
+    - message: str — descriptive message about what was completed
+    """
+    from ..services.workflow_state import PHASE_LABELS, WORKFLOW_PHASES
+
+    # Phases where we detect completion and suggest transition
+    TRANSITION_TRIGGERS = {
+        "strategy_ready": {
+            "check": lambda ctx: True,  # Strategy is ready = contacts phase
+            "message": "Your strategy is ready with ICP and personas extracted.",
+            "cta_label": "Import Contacts",
+            "cta_path": "/import",
+        },
+        "contacts_imported": {
+            "check": lambda ctx: ctx.get("contacts", {}).get("total", 0) > 0,
+            "message": "Contacts imported successfully.",
+            "cta_label": "Start Enrichment",
+            "cta_path": "/enrich",
+        },
+        "enrichment_done": {
+            "check": lambda ctx: (
+                ctx.get("enrichment", {}).get("enriched_contacts", 0) > 0
+                and not ctx.get("enrichment", {}).get("is_running")
+            ),
+            "message": "Enrichment complete. Review and select qualified contacts.",
+            "cta_label": "Select Contacts",
+            "cta_path": "/playbook/contacts",
+        },
+        "qualified_reviewed": {
+            "check": lambda ctx: (
+                ctx.get("qualification", {}).get("selected_contacts", 0) > 0
+            ),
+            "message": "Contacts selected and qualified.",
+            "cta_label": "Generate Messages",
+            "cta_path": "/playbook/messages",
+        },
+        "messages_generated": {
+            "check": lambda ctx: (
+                ctx.get("messages", {}).get("total", 0) > 0
+            ),
+            "message": "Messages generated. Review and approve them.",
+            "cta_label": "Review Messages",
+            "cta_path": "/messages",
+        },
+        "messages_approved": {
+            "check": lambda ctx: (
+                ctx.get("messages", {}).get("approved", 0) > 0
+            ),
+            "message": "Messages approved and ready for campaign.",
+            "cta_label": "Create Campaign",
+            "cta_path": "/campaigns",
+        },
+        "campaign_created": {
+            "check": lambda ctx: (
+                ctx.get("campaign", {}).get("exists", False)
+            ),
+            "message": "Campaign created. Ready to launch.",
+            "cta_label": "Launch Campaign",
+            "cta_path": "/campaigns",
+        },
+    }
+
+    trigger = TRANSITION_TRIGGERS.get(current_phase)
+    if not trigger:
+        return {"ready": False}
+
+    if not trigger["check"](context):
+        return {"ready": False}
+
+    # Find next phase
+    try:
+        phase_idx = WORKFLOW_PHASES.index(current_phase)
+        next_phase = WORKFLOW_PHASES[phase_idx + 1] if phase_idx + 1 < len(WORKFLOW_PHASES) else None
+    except (ValueError, IndexError):
+        next_phase = None
+
+    next_label = PHASE_LABELS.get(next_phase, "") if next_phase else ""
+
+    return {
+        "ready": True,
+        "next_phase": next_phase,
+        "next_phase_label": next_label,
+        "cta_label": trigger["cta_label"],
+        "cta_path": trigger["cta_path"],
+        "message": trigger["message"],
+    }
