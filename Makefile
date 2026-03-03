@@ -1,4 +1,4 @@
-.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-e2e test-all lint backlog
+.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-changed test-e2e test-all lint lint-changed backlog
 
 # Slot computation from DEV_SLOT env var (default 0)
 SLOT       ?= $(or $(DEV_SLOT),0)
@@ -91,7 +91,37 @@ backlog:
 	@(sleep 0.5 && open http://localhost:8090 2>/dev/null || xdg-open http://localhost:8090 2>/dev/null || true) &
 	@cd docs/backlog && python3 -m http.server 8090
 
-## Run linters
+## Run targeted tests on changed files only (vs origin/staging)
+test-changed:
+	@CHANGED=$$(git diff --name-only origin/staging...HEAD -- '*.py' 2>/dev/null); \
+	TEST_FILES=""; \
+	for f in $$CHANGED; do \
+		base=$$(basename "$$f" .py); \
+		found=$$(find tests/ -name "test_$${base}.py" -o -name "test_$${base}_*.py" 2>/dev/null); \
+		TEST_FILES="$$TEST_FILES $$found"; \
+		if echo "$$f" | grep -q "^tests/"; then \
+			TEST_FILES="$$TEST_FILES $$f"; \
+		fi; \
+	done; \
+	TEST_FILES=$$(echo "$$TEST_FILES" | tr ' ' '\n' | sort -u | tr '\n' ' '); \
+	if [ -n "$$(echo "$$TEST_FILES" | tr -d ' ')" ]; then \
+		echo "Running targeted tests: $$TEST_FILES"; \
+		pytest $$TEST_FILES -v --timeout=60; \
+	else \
+		echo "No test files to run for changed sources"; \
+	fi
+
+## Lint only changed Python files (vs origin/staging)
+lint-changed:
+	@CHANGED=$$(git diff --name-only origin/staging...HEAD -- '*.py' 2>/dev/null | tr '\n' ' '); \
+	if [ -n "$$CHANGED" ]; then \
+		echo "Linting changed files: $$CHANGED"; \
+		ruff check $$CHANGED && ruff format --check $$CHANGED; \
+	else \
+		echo "No Python files changed, skipping lint"; \
+	fi
+
+## Run linters (full)
 lint:
 	ruff check api/ && ruff format --check api/
 	cd frontend && npm run lint

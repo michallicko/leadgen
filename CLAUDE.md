@@ -167,11 +167,36 @@ Opens:
 ### Running Tests
 
 ```bash
-make test        # Unit tests (pytest)
-make test-e2e    # Playwright browser tests (requires make dev running)
-make test-all    # Both
-make lint        # Ruff + ESLint
+make test           # Unit tests — full suite (pytest)
+make test-changed   # Unit tests — only changed files vs origin/staging
+make test-e2e       # Playwright browser tests (requires make dev running)
+make test-all       # Full unit + enrichment + E2E
+make lint           # Ruff + ESLint — full
+make lint-changed   # Ruff — only changed Python files
 ```
+
+### Testing Strategy — Context-Aware by Default
+
+**During development (feature branches):**
+- Use `make test-changed` — auto-detects changed files vs origin/staging and runs only matching tests
+- Use `make lint-changed` — lints only changed Python files
+- `api/routes/import_routes.py` → `pytest tests/unit/test_import_routes.py`
+- `api/services/playbook_service.py` → `pytest tests/unit/test_playbook*.py`
+- Frontend: `cd frontend && npx tsc --noEmit` (type check only)
+- E2E: run targeted spec files, not the full suite
+- **NEVER run `make test` or full pytest suite** during feature development — it wastes 5+ minutes
+
+**CI/CD for staging PRs (context-aware):**
+- GitHub Actions detects changed `.py` files and maps them to test files
+- Only changed Python files are linted (ruff check + format)
+- Frontend TypeScript check runs only when `.ts`/`.tsx` files changed
+- ESLint is skipped (runs only on main PRs)
+
+**CI/CD for main PRs (full suite):**
+- Full `pytest tests/unit/` — all unit tests
+- Full `ruff check api/` + `ruff format --check api/` — all Python lint
+- Full `npx tsc --noEmit` + `npm run lint` — TypeScript + ESLint
+- This is the quality gate — no shortcuts
 
 ### Database
 
@@ -254,10 +279,12 @@ make sync             # Fetch + rebase onto origin/staging
 make agents           # List active agents from registry
 make pr-scan          # Check open PRs for file conflicts
 make db-pull          # Pull staging DB to local PG
-make test             # Unit tests (pytest)
+make test             # Unit tests — full suite (pytest)
+make test-changed     # Unit tests — only changed files (context-aware)
 make test-e2e         # Playwright browser tests
 make test-all         # Unit + E2E tests
-make lint             # Ruff + ESLint
+make lint             # Ruff + ESLint — full
+make lint-changed     # Ruff — only changed Python files
 
 # Deployment (use /deploy skill — never run these directly)
 bash deploy/teardown-revision.sh [commit]
