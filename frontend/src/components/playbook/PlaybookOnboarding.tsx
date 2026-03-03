@@ -12,6 +12,8 @@ interface PlaybookOnboardingProps {
   onGenerate: (payload: OnboardingPayload) => void
   /** True while the AI is streaming (disables resubmit) */
   isGenerating: boolean
+  /** Open the template selector (optional — if not provided, "Browse Templates" link is hidden) */
+  onBrowseTemplates?: () => void
 }
 
 export interface OnboardingPayload {
@@ -28,6 +30,7 @@ export function PlaybookOnboarding({
   onSkip,
   onGenerate,
   isGenerating,
+  onBrowseTemplates,
 }: PlaybookOnboardingProps) {
   const { namespace } = useParams<{ namespace: string }>()
   const { tenant } = useTenantBySlug(namespace)
@@ -101,7 +104,16 @@ export function PlaybookOnboarding({
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-4 flex items-center justify-center gap-4">
+          {onBrowseTemplates && (
+            <button
+              type="button"
+              onClick={onBrowseTemplates}
+              className="text-sm text-text-muted hover:text-text transition-colors bg-transparent border-none cursor-pointer p-0"
+            >
+              Browse templates
+            </button>
+          )}
           <button
             type="button"
             onClick={onSkip}

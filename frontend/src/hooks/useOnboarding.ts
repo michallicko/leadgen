@@ -49,8 +49,9 @@ export function isNamespaceEmpty(status: OnboardingStatus | undefined): boolean 
 
 export function shouldShowSignpost(status: OnboardingStatus | undefined): boolean {
   if (!status) return false
-  // Show signpost when namespace is truly empty (no data at all)
-  return isNamespaceEmpty(status)
+  // Show signpost when namespace has no contacts and no strategy.
+  // Campaign count is not checked — empty campaigns shouldn't block the signpost.
+  return status.contact_count === 0 && !status.has_strategy
 }
 
 export function shouldShowChecklist(status: OnboardingStatus | undefined): boolean {

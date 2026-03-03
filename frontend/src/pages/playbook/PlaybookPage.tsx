@@ -21,6 +21,7 @@ import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/pla
 import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
+import { TemplateSelector } from '../../components/playbook/TemplateSelector'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -30,7 +31,7 @@ import {
   useTriggerResearch,
   useResearchStatus,
 } from '../../api/queries/usePlaybook'
-import { useCreateStrategyTemplate } from '../../api/queries/useStrategyTemplates'
+import { useCreateStrategyTemplate, useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
@@ -137,6 +138,14 @@ export function PlaybookPage() {
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
   const triggerResearch = useTriggerResearch()
+
+  // Template application (BL-138)
+  const applyTemplateMutation = useApplyStrategyTemplate({
+    onError: () => {
+      toast('Template could not be applied. The AI will generate your strategy instead.', 'error')
+    },
+  })
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
@@ -521,6 +530,31 @@ export function PlaybookPage() {
   )
 
   // ---------------------------------------------------------------------------
+  // Template selection handler (BL-138)
+  // ---------------------------------------------------------------------------
+
+  const handleTemplateSelect = useCallback(
+    async (templateId: string | null) => {
+      if (!templateId) {
+        // "Start fresh" — skip template, go to onboarding form
+        setShowTemplateSelector(false)
+        return
+      }
+      try {
+        await applyTemplateMutation.mutateAsync(templateId)
+        // Template applied — skip onboarding entirely, show the editor
+        setSkipped(true)
+        setShowTemplateSelector(false)
+      } catch {
+        // Error toast is handled by the mutation's onError callback.
+        // Don't block the user — close the template selector and proceed.
+        setShowTemplateSelector(false)
+      }
+    },
+    [applyTemplateMutation],
+  )
+
+  // ---------------------------------------------------------------------------
   // Save as Template handler
   // ---------------------------------------------------------------------------
 
@@ -609,11 +643,25 @@ export function PlaybookPage() {
   const needsOnboarding = docQuery.data && !docContent.trim()
 
   if (needsOnboarding && !skipped) {
+    // Show template selector first; after selection (or "Start fresh"), show the onboarding form
+    if (showTemplateSelector) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <TemplateSelector
+            onSelect={handleTemplateSelect}
+            onBack={() => setShowTemplateSelector(false)}
+            isApplying={applyTemplateMutation.isPending}
+          />
+        </div>
+      )
+    }
+
     return (
       <PlaybookOnboarding
         onSkip={() => setSkipped(true)}
         onGenerate={handleOnboardGenerate}
         isGenerating={isStreaming}
+        onBrowseTemplates={() => setShowTemplateSelector(true)}
       />
     )
   }
