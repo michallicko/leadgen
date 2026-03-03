@@ -74,3 +74,84 @@ export function CampaignsEmptyState() {
     />
   )
 }
+
+/**
+ * Context-aware empty state for the Messages page.
+ * Shows different messaging depending on whether campaigns exist.
+ */
+export function MessagesEmptyState() {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
+  const { data: onboardingStatus } = useOnboardingStatus()
+  const hasCampaigns = (onboardingStatus?.campaign_count ?? 0) > 0
+
+  return (
+    <EmptyState
+      icon={
+        <svg
+          viewBox="0 0 24 24"
+          className="w-12 h-12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      }
+      title={hasCampaigns ? 'No messages generated yet' : 'No messages yet'}
+      description={
+        hasCampaigns
+          ? 'Open a campaign and generate messages for your contacts. The AI will draft personalized outreach for each contact.'
+          : 'Create a campaign first, then generate messages for your contacts.'
+      }
+      action={
+        hasCampaigns
+          ? {
+              label: 'View Campaigns',
+              onClick: () => navigate(`/${namespace}/campaigns`),
+            }
+          : {
+              label: 'Create Campaign',
+              onClick: () => navigate(`/${namespace}/campaigns`),
+            }
+      }
+    />
+  )
+}
+
+/**
+ * Context-aware empty state for the Enrich page.
+ * Shows when the namespace has no contacts to enrich.
+ */
+export function EnrichEmptyState() {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
+
+  return (
+    <EmptyState
+      icon={
+        <svg
+          viewBox="0 0 24 24"
+          className="w-12 h-12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+          <path d="M11 8v6M8 11h6" />
+        </svg>
+      }
+      title="No contacts to enrich"
+      description="Import contacts first, then use the enrichment pipeline to fill in company data, verify emails, and score your prospects."
+      action={{
+        label: 'Import Contacts',
+        onClick: () => navigate(`/${namespace}/import`),
+      }}
+    />
+  )
+}

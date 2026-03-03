@@ -20,6 +20,7 @@ def create_app():
     from .services.analyze_tools import ANALYZE_TOOLS
     from .services.campaign_tools import CAMPAIGN_TOOLS
     from .services.enrichment_gap_tools import ENRICHMENT_TOOLS
+    from .services.enrichment_trigger_tools import ENRICHMENT_TRIGGER_TOOLS
     from .services.icp_filter_tools import ICP_FILTER_TOOLS
     from .services.search_tools import SEARCH_TOOLS
     from .services.strategy_tools import STRATEGY_TOOLS
@@ -32,6 +33,7 @@ def create_app():
         + CAMPAIGN_TOOLS
         + ICP_FILTER_TOOLS
         + ENRICHMENT_TOOLS
+        + ENRICHMENT_TRIGGER_TOOLS
     ):
         try:
             register_tool(tool)

@@ -49,8 +49,8 @@ export function isNamespaceEmpty(status: OnboardingStatus | undefined): boolean 
 
 export function shouldShowSignpost(status: OnboardingStatus | undefined): boolean {
   if (!status) return false
-  // Show signpost when namespace is empty and no path has been selected yet
-  return isNamespaceEmpty(status) && !status.onboarding_path
+  // Show signpost when namespace is truly empty (no data at all)
+  return isNamespaceEmpty(status)
 }
 
 export function shouldShowChecklist(status: OnboardingStatus | undefined): boolean {
@@ -60,8 +60,8 @@ export function shouldShowChecklist(status: OnboardingStatus | undefined): boole
   if (status.checklist_dismissed) return false
   const allComplete =
     status.has_strategy && status.contact_count > 0 && status.campaign_count > 0
-  // Don't show if everything is already done or nothing has started and no path chosen
+  // Don't show if everything is already done or nothing has started yet
   if (allComplete) return false
-  if (isNamespaceEmpty(status) && !status.onboarding_path) return false
+  if (isNamespaceEmpty(status)) return false
   return true
 }

@@ -1,0 +1,388 @@
+{
+  "test_id": "baseline-002",
+  "test_date": "2026-03-02",
+  "test_type": "gtm-full-workflow",
+  "test_subject": "unitedarts.cz",
+  "system_version": "95234c2",
+  "steps": [
+    {
+      "step_id": "strategy-creation",
+      "step_name": "GTM Strategy Creation",
+      "step_number": 1,
+      "phase": "try",
+      "status": "completed",
+      "scores": {
+        "availability": 8,
+        "seamlessness": 7,
+        "proactiveness": 7,
+        "ai_quality": 7,
+        "user_effort": 8
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 1,
+        "total_clicks": 3
+      },
+      "llm_outputs": [
+        {
+          "node_id": "strategy-update",
+          "node_name": "Strategy Document Update (4 sections personalized)",
+          "model": "claude-sonnet-4-5-20250514",
+          "scores": {
+            "relevance": 9,
+            "accuracy": 7,
+            "specificity": 8,
+            "actionability": 7,
+            "tone": 8
+          },
+          "input_summary": "Business description with specific acts (Losers Cirque, Duo React, Duo Elevate), reference clients (Microsoft, Skoda, O2, Mercedes-Benz, CSOB), and service offerings",
+          "output_summary": "Updated 4 strategy sections (Executive Summary, Value Proposition, Competitive Positioning, Messaging Framework) with specific company details. Added reference clients, flagship acts, and service model throughout.",
+          "raw_output": "[Strategy sections updated in-place -- see strategy document]",
+          "notes": "Significant improvement over baseline-001: auto-executed tools without re-prompting, completed in single turn. Still no web_search to research unitedarts.cz. Good personalization with specific company details. Proactive next-step suggestion."
+        }
+      ],
+      "duration_seconds": 35,
+      "screenshots": [
+        "04-playbook-existing-strategy.png",
+        "05-playbook-strategy-updated.png"
+      ],
+      "errors": [],
+      "notes": "Major improvement: AI auto-executed tools (BL-150 fix) and completed update in single turn (1 user message). Strategy was updated rather than regenerated since it already existed from baseline-001. No web_search used (BL-137 still missing). Proactive next-step suggestion to move to Contacts phase."
+    },
+    {
+      "step_id": "intelligence-extraction",
+      "step_name": "Intelligence Extraction",
+      "step_number": 2,
+      "phase": "try",
+      "status": "completed",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 4,
+        "proactiveness": 5,
+        "ai_quality": 7,
+        "user_effort": 7
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 1,
+        "total_user_messages": 0,
+        "total_clicks": 1
+      },
+      "llm_outputs": [
+        {
+          "node_id": "extraction-followup",
+          "node_name": "Post-Extraction Strategy Questions",
+          "model": "claude-sonnet-4-5-20250514",
+          "scores": {
+            "relevance": 8,
+            "accuracy": 8,
+            "specificity": 8,
+            "actionability": 7,
+            "tone": 8
+          },
+          "input_summary": "ICP extraction triggered via button click",
+          "output_summary": "3 strategic clarification questions: (1) Are reference clients direct or agency referrals? (2) Should outreach weight Creative Directors 60/40? (3) Prioritize Germany in DACH?",
+          "raw_output": "1. Your 'Trusted by' list (Microsoft, Skoda, O2, Mercedes-Benz, CSOB) is powerful—but are these direct clients or event agency clients? If they're end-clients, your messaging should emphasize 'We've performed for Fortune 500 companies' to event agencies. If they're agency referrals, lead with that instead. Which is it?\n2. Persona 1 (Event Manager) is your primary recommender, but Persona 2 (Creative Director) is final decision-maker. Your 90-Day Action Plan targets both equally via LinkedIn + email. Should we weight outreach 60/40 toward Creative Directors first, since they approve budgets?\n3. Your DACH region is Tier 2, but it's 3 countries. Want to split it—prioritize Germany (largest market) first, then Austria/Switzerland? Or test all three equally in Phase 1?",
+          "notes": "New behavior vs baseline-001: AI proactively asked strategy-refining questions after extraction. Questions are smart and relevant. But no extraction summary was shown (what was extracted: industries, geography, company size, etc.). The questions are unnecessarily clarifying -- could have been answered from the strategy text."
+        }
+      ],
+      "duration_seconds": 10,
+      "screenshots": [
+        "06-icp-extracted-toast.png",
+        "07-playbook-contacts-phase.png"
+      ],
+      "errors": [],
+      "notes": "Improvements: (1) Toast notification 'Strategy data extracted successfully' now appears (was silent in baseline-001). (2) AI asks 3 follow-up questions after extraction (proactive behavior). Still missing: extraction summary showing what was extracted. Phase 2 Contacts still shows 'Coming soon'. No auto-advance to contacts phase (BL-114)."
+    },
+    {
+      "step_id": "contact-import",
+      "step_name": "Contact Import",
+      "step_number": 3,
+      "phase": "run",
+      "status": "partial",
+      "scores": {
+        "availability": 6,
+        "seamlessness": 2,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 1
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 3,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 12
+      },
+      "duration_seconds": 180,
+      "screenshots": [
+        "08-import-page.png",
+        "09-import-column-mapping.png",
+        "10-import-columns-mapped.png",
+        "11-import-preview-error.png"
+      ],
+      "errors": [
+        {
+          "type": "data_error",
+          "description": "AI column mapping results not applied to dropdowns -- all fields default to '-- Skip --' despite showing 'high' confidence. User must manually map all 7 columns.",
+          "severity": "major",
+          "recovery": "Manual column mapping (7 dropdown selections)"
+        },
+        {
+          "type": "api_error",
+          "description": "Preview step returns 500 Internal Server Error from /api/imports/{id}/preview",
+          "severity": "blocker",
+          "recovery": "Could not recover -- import not completed through UI"
+        }
+      ],
+      "notes": "MAJOR PROGRESS: Column mapping UI no longer crashes (BUG-001 from baseline-001 FIXED). The 3-step wizard renders fully. However: (1) AI mapping results don't populate the dropdowns (all show Skip), requiring manual mapping of all 7 columns. (2) Sample Values column is empty. (3) Preview step returns 500 error. Net: UI crash fixed but end-to-end import still not functional through UI. Contacts already exist from baseline-001 test."
+    },
+    {
+      "step_id": "basic-enrichment",
+      "step_name": "Basic Enrichment (L1)",
+      "step_number": 4,
+      "phase": "run",
+      "status": "partial",
+      "scores": {
+        "availability": 8,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 8
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 1,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 2
+      },
+      "duration_seconds": 15,
+      "screenshots": [
+        "12-enrich-page.png"
+      ],
+      "errors": [
+        {
+          "type": "data_error",
+          "description": "Cross-namespace filter leakage: enrichment page shows tag 'batch-2-NL-NORDICS[OPS/FIN]' from visionvolve namespace while in unitedarts namespace",
+          "severity": "minor",
+          "recovery": "Manual filter change needed"
+        },
+        {
+          "type": "api_error",
+          "description": "Console errors: 500 on /api/enrich/staging-status and /api/enrich/estimate due to wrong tag filter",
+          "severity": "minor",
+          "recovery": "Would need to select correct tag"
+        }
+      ],
+      "notes": "DAG visualization comprehensive with 10 stages. Run button now shows 'Run 10 stages' (improved from baseline-001 'Loading...' state -- BL-148 partially fixed). Cross-namespace filter leakage still present (BL-142 not fixed). Did not execute enrichment (real credits). Namespace dropdown showed 'visionvolve' on this page despite URL being unitedarts (regression)."
+    },
+    {
+      "step_id": "qualification-triage",
+      "step_name": "Qualification & Triage",
+      "step_number": 5,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 5,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - requires L1 enrichment data. Triage stage exists in DAG (zero-cost, rules-based). No ICP criteria appear pre-loaded from strategy extraction (BL-139 untested)."
+    },
+    {
+      "step_id": "deep-enrichment",
+      "step_name": "Deep Enrichment (L2 + Person + Registry)",
+      "step_number": 6,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 5,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - requires L1 + triage. All stages visible in DAG."
+    },
+    {
+      "step_id": "campaign-creation",
+      "step_name": "Campaign Creation",
+      "step_number": 7,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - blocked by no enrichment data. Campaigns page loads with 'New Campaign' button and clean empty state. Feature confirmed present."
+    },
+    {
+      "step_id": "message-generation",
+      "step_name": "Message Generation",
+      "step_number": 8,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - blocked by no campaign."
+    },
+    {
+      "step_id": "message-review",
+      "step_name": "Message Review & Approval",
+      "step_number": 9,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - blocked by no messages."
+    },
+    {
+      "step_id": "campaign-launch",
+      "step_name": "Campaign Launch (Outreach)",
+      "step_number": 10,
+      "phase": "run",
+      "status": "skipped",
+      "scores": {
+        "availability": 7,
+        "seamlessness": 3,
+        "proactiveness": 2,
+        "ai_quality": null,
+        "user_effort": 10
+      },
+      "user_effort_detail": {
+        "extra_prompts": 0,
+        "manual_corrections": 0,
+        "manual_workarounds": 0,
+        "unnecessary_clarifications": 0,
+        "total_user_messages": 0,
+        "total_clicks": 0
+      },
+      "notes": "UNTESTED - blocked by no reviewed messages."
+    }
+  ],
+  "aggregates": {
+    "overall_completeness": 6.7,
+    "workflow_seamlessness": 3.4,
+    "ai_quality": 7.0,
+    "user_effort": 7.4,
+    "proactiveness": 2.8,
+    "llm_quality": {
+      "relevance": 8.5,
+      "accuracy": 7.5,
+      "specificity": 8.0,
+      "actionability": 7.0,
+      "tone": 8.0,
+      "total_outputs_scored": 2,
+      "total_token_cost": 0
+    },
+    "total_errors": 4,
+    "total_blockers": 1,
+    "steps_completed": 2,
+    "steps_total": 10,
+    "completion_rate": 0.2
+  },
+  "comparison": {
+    "baseline_test_id": "baseline-001",
+    "deltas": {
+      "overall_completeness": 0.7,
+      "workflow_seamlessness": 0.2,
+      "ai_quality": -0.5,
+      "user_effort": 0.2,
+      "proactiveness": 0.2
+    },
+    "new_errors": [
+      "Import preview API returns 500 Internal Server Error",
+      "AI column mapping results not applied to dropdowns (all default to Skip)",
+      "Sample Values column empty in column mapping UI",
+      "Namespace dropdown shows visionvolve on enrich page despite unitedarts URL"
+    ],
+    "fixed_errors": [
+      "Import column mapping UI no longer crashes (BUG-001 from baseline-001 FIXED)",
+      "Enrichment Run button now shows 'Run 10 stages' instead of stuck 'Loading...' (BL-148 improved)"
+    ],
+    "regression_steps": [
+      "contact-import (status: completed->partial, new backend error on preview)"
+    ],
+    "improved_steps": [
+      "strategy-creation (auto-execute tools, proactive next step, single turn)",
+      "intelligence-extraction (toast notification, AI follow-up questions)",
+      "basic-enrichment (Run button now functional instead of Loading...)"
+    ]
+  },
+  "metadata": {
+    "tester": "automated",
+    "environment": "staging",
+    "environment_url": "https://leadgen-staging.visionvolve.com",
+    "test_namespace": "unitedarts",
+    "test_user": "test@staging.local",
+    "browser": "chromium",
+    "viewport": "1280x720",
+    "duration_seconds": 600,
+    "git_branch": "staging",
+    "git_commit": "95234c2",
+    "notes": "Baseline-002 run against Sprint 5 build. Same test subject and contacts as baseline-001. Strategy already existed from baseline-001 (tested update flow rather than creation from scratch). 10 contacts already present from baseline-001 import. Steps 5-10 untested (same reason as baseline-001: no enrichment execution). Key improvements: strategy auto-execution, extraction toast, import UI crash fixed. Key regressions: import preview 500 error, AI mapping not applied to dropdowns."
+  }
+}

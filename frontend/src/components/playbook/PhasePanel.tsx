@@ -46,6 +46,7 @@ export function PhasePanel({
         <ContactsPhasePanel
           extractedData={extractedData ?? {}}
           existingSelections={existingSelections}
+          onPhaseAdvance={onPhaseAdvance}
         />
       )
     }

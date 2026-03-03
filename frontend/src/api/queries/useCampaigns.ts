@@ -97,6 +97,33 @@ export function useCreateCampaign() {
   })
 }
 
+export interface AutoSetupResult {
+  id: string
+  name: string
+  status: string
+  total_contacts: number
+  with_email: number
+  with_linkedin: number
+  strategy_prefilled: boolean
+  generation_config: Record<string, unknown>
+  template_config: TemplateStep[]
+  created_at: string
+}
+
+export function useAutoSetupCampaign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data?: { name?: string; description?: string; owner_id?: string; min_status?: string }) =>
+      apiFetch<AutoSetupResult>('/campaigns/auto-setup', {
+        method: 'POST',
+        body: data || {},
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
 export function useUpdateCampaign() {
   const qc = useQueryClient()
   return useMutation({

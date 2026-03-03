@@ -35,6 +35,11 @@ class TestOnboardingStatus:
         assert data["has_strategy"] is False
         assert data["onboarding_path"] is None
         assert data["checklist_dismissed"] is False
+        # Workflow state (BL-144)
+        assert data["workflow_phase"] == "no_strategy"
+        assert data["completed_phases"] == []
+        assert data["progress_pct"] == 0
+        assert data["next_action"]["action"] == "create_strategy"
 
     def test_requires_namespace(self, client, seed_super_admin):
         headers = auth_header(client)
@@ -98,7 +103,88 @@ class TestOnboardingStatus:
         headers["X-Namespace"] = seed_tenant.slug
         resp = client.get("/api/tenants/onboarding-status", headers=headers)
         assert resp.status_code == 200
-        assert resp.get_json()["has_strategy"] is True
+        data = resp.get_json()
+        assert data["has_strategy"] is True
+        # Strategy with content but no ICP → strategy_draft
+        assert data["workflow_phase"] == "strategy_draft"
+
+    def test_strategy_with_icp_is_strategy_ready(
+        self, client, seed_admin_with_tenant, seed_tenant, db
+    ):
+        from api.models import StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content="# Strategy\nFull strategy here.",
+            extracted_data={"icp": {"industry": "SaaS", "size": "50-200"}},
+            status="draft",
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.get("/api/tenants/onboarding-status", headers=headers)
+        data = resp.get_json()
+        assert data["workflow_phase"] == "strategy_ready"
+        assert data["next_action"]["action"] == "import_contacts"
+
+    def test_contacts_imported_phase(
+        self, client, seed_admin_with_tenant, seed_tenant, db
+    ):
+        from api.models import Contact, StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content="# Strategy",
+            extracted_data={"icp": {"industry": "SaaS"}},
+            status="draft",
+        )
+        db.session.add(doc)
+        c = Contact(
+            tenant_id=seed_tenant.id,
+            first_name="Test",
+            last_name="User",
+            email_address="test@example.com",
+        )
+        db.session.add(c)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.get("/api/tenants/onboarding-status", headers=headers)
+        data = resp.get_json()
+        assert data["workflow_phase"] == "contacts_imported"
+        assert data["next_action"]["action"] == "run_enrichment"
+
+    def test_enrichment_done_phase(
+        self, client, seed_admin_with_tenant, seed_tenant, db
+    ):
+        from api.models import Contact, StrategyDocument
+
+        doc = StrategyDocument(
+            tenant_id=seed_tenant.id,
+            content="# Strategy",
+            extracted_data={"icp": {"industry": "SaaS"}},
+            status="draft",
+        )
+        db.session.add(doc)
+        c = Contact(
+            tenant_id=seed_tenant.id,
+            first_name="Test",
+            last_name="User",
+            email_address="test@example.com",
+            processed_enrich=True,
+        )
+        db.session.add(c)
+        db.session.commit()
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = seed_tenant.slug
+        resp = client.get("/api/tenants/onboarding-status", headers=headers)
+        data = resp.get_json()
+        assert data["workflow_phase"] == "enrichment_done"
+        assert data["next_action"]["action"] == "select_contacts"
 
     def test_empty_strategy_not_detected(
         self, client, seed_admin_with_tenant, seed_tenant, db

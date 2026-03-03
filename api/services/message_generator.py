@@ -109,13 +109,15 @@ def _run_generation(app, campaign_id: str, tenant_id: str, user_id: str):
 
 
 def _load_strategy_data(tenant_id: str) -> dict | None:
-    """Load the tenant's playbook strategy extracted_data, if available.
+    """Load the tenant's playbook strategy extracted_data and content.
 
-    Returns the extracted_data dict or None if no playbook exists.
+    Returns the extracted_data dict (with an extra 'strategy_content' key
+    containing relevant sections from the strategy document) or None if no
+    playbook exists.
     """
     row = db.session.execute(
         db.text("""
-            SELECT extracted_data
+            SELECT extracted_data, content
             FROM strategy_documents
             WHERE tenant_id = :t
             ORDER BY updated_at DESC
@@ -124,7 +126,7 @@ def _load_strategy_data(tenant_id: str) -> dict | None:
         {"t": tenant_id},
     ).fetchone()
 
-    if not row or not row[0]:
+    if not row or (not row[0] and not row[1]):
         return None
 
     data = row[0]
@@ -132,13 +134,73 @@ def _load_strategy_data(tenant_id: str) -> dict | None:
         try:
             data = json.loads(data)
         except (json.JSONDecodeError, ValueError):
-            return None
+            data = {}
+
+    if not data:
+        data = {}
+
+    # Attach relevant sections from the strategy document content
+    strategy_content = row[1] if row[1] else ""
+    if strategy_content:
+        # Extract messaging-relevant sections (truncate to avoid prompt bloat)
+        relevant = _extract_messaging_sections(strategy_content)
+        if relevant:
+            data["strategy_content"] = relevant
 
     # Only return if there's meaningful content
-    if not data or (isinstance(data, dict) and not any(data.values())):
+    if not any(data.values()):
         return None
 
     return data
+
+
+def _extract_messaging_sections(content: str, max_chars: int = 2000) -> str:
+    """Extract messaging-relevant sections from strategy document markdown.
+
+    Looks for sections on value proposition, messaging, competitive positioning,
+    and channel strategy. Returns a concatenation of those sections, truncated
+    to max_chars for prompt efficiency.
+    """
+    import re
+
+    # Section headers that contain messaging-relevant content
+    RELEVANT_KEYWORDS = [
+        "value proposition",
+        "messaging",
+        "competitive",
+        "positioning",
+        "channel strategy",
+        "buyer persona",
+        "pain point",
+        "proof point",
+        "tone",
+        "outreach",
+        "90-day",
+        "action plan",
+    ]
+
+    # Split into sections by markdown headings
+    sections = re.split(r"(?m)^(#{1,3}\s+.+)$", content)
+    relevant_parts = []
+
+    for i, section in enumerate(sections):
+        # Check if this is a heading that matches our keywords
+        header_match = re.match(r"^#{1,3}\s+(.+)$", section.strip())
+        if header_match:
+            header_text = header_match.group(1).lower()
+            if any(kw in header_text for kw in RELEVANT_KEYWORDS):
+                # Include this heading and the next section (body)
+                body = sections[i + 1].strip() if i + 1 < len(sections) else ""
+                if body:
+                    relevant_parts.append(f"{section.strip()}\n{body}")
+
+    result = "\n\n".join(relevant_parts)
+
+    # Truncate to avoid prompt bloat
+    if len(result) > max_chars:
+        result = result[:max_chars] + "..."
+
+    return result
 
 
 def _generate_all(campaign_id: str, tenant_id: str, user_id: str):

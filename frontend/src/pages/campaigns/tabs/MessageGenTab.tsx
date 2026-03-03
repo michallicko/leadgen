@@ -212,6 +212,16 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
       {/* Generation config (tone + instructions) */}
       {templateConfig.length > 0 && (
         <div className="space-y-3 mt-4">
+          {typeof generationConfig.custom_instructions === 'string' &&
+            generationConfig.custom_instructions.startsWith('Pre-filled from GTM Strategy') ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/5 border border-accent/20">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-accent-hover flex-shrink-0">
+                  <path d="M7 1L9 5H13L10 8l1.5 5L7 10 2.5 13 4 8 1 5h4L7 1z" />
+                </svg>
+                <span className="text-xs font-medium text-accent-hover">Pre-filled from GTM Strategy</span>
+                <span className="text-[10px] text-text-dim">You can edit below</span>
+              </div>
+            ) : null}
           {isEditable ? (
             <>
               <EditableSelect

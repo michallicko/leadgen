@@ -33,7 +33,14 @@ CHANNEL_CONSTRAINTS = {
 SYSTEM_PROMPT = """You are an expert B2B outreach copywriter. You write personalized, \
 concise outreach messages that feel human-written, not AI-generated. \
 You avoid cliches, buzzwords, and generic pitches. Every message references \
-specific details about the recipient and their company to show genuine research."""
+specific details about the recipient and their company to show genuine research.
+
+When a STRATEGY section is provided, you MUST incorporate its messaging angles, \
+value propositions, and tone guidelines into the message. The strategy represents \
+the sender's GTM positioning — your message should feel like it comes from someone \
+who deeply understands their own product's value and the prospect's pain points. \
+Never contradict the strategy's positioning or use messaging angles not aligned \
+with it."""
 
 
 FORMALITY_INSTRUCTIONS = {
@@ -177,6 +184,13 @@ def _build_strategy_section(strategy_data: dict) -> str:
             ch_parts.append(f"Cadence: {channels['cadence']}")
         if ch_parts:
             lines.append("Channel Strategy: " + "; ".join(ch_parts))
+
+    # Strategy document content (richer context from the playbook markdown)
+    strategy_content = strategy_data.get("strategy_content")
+    if strategy_content:
+        lines.append("")
+        lines.append("Strategy Document Excerpts:")
+        lines.append(strategy_content)
 
     return "\n".join(lines) if lines else ""
 

@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Vision to Execution — VisionVolve GTM Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --vision-purple: #6E2C8B;
+  --vision-purple-dark: #4A1D5E;
+  --vision-purple-light: #9B59B6;
+  --evolve-cyan: #00B8CF;
+  --evolve-cyan-dark: #008B9A;
+  --evolve-cyan-light: #67E8F9;
+  --deep-slate: #404B5C;
+  --slate-light: #6B7280;
+  --soft-cloud: #F8F9FC;
+  --silver-mist: #E5E7EB;
+  --success: #059669;
+  --warning: #D97706;
+  --danger: #DC2626;
+  --magenta: #E91E63;
+  --font-title: 'Lexend Deca', -apple-system, sans-serif;
+  --font-body: 'Work Sans', -apple-system, sans-serif;
+  --bg-page: #0D0F14;
+  --bg-card: #161923;
+  --bg-card-hover: #1C2030;
+  --bg-elevated: #1E2235;
+  --bg-inset: #12141B;
+  --border-subtle: rgba(110, 44, 139, 0.2);
+  --border-medium: rgba(110, 44, 139, 0.35);
+  --text-primary: #F0F0F5;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --glow-purple: rgba(110, 44, 139, 0.25);
+  --glow-cyan: rgba(0, 184, 207, 0.2);
+  --must: #DC2626;
+  --should: #D97706;
+  --could: #3B82F6;
+  --wont: #6B7280;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.65;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Navigation ──────────────────────────────── */
+.top-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(13, 15, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 32px;
+  transition: box-shadow 0.3s;
+}
+.top-nav.scrolled { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3); }
+.nav-inner {
+  max-width: 1120px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; height: 56px;
+}
+.nav-brand {
+  font-family: var(--font-title); font-size: 16px; font-weight: 700;
+  background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  text-decoration: none;
+}
+.nav-links { display: flex; gap: 4px; list-style: none; }
+.nav-links a {
+  display: block; padding: 8px 14px;
+  font-family: var(--font-title); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-muted); text-decoration: none; border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+}
+.nav-links a:hover { color: var(--text-primary); background: rgba(110, 44, 139, 0.1); }
+
+/* ── Layout ──────────────────────────────────── */
+.container { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+section { padding: 80px 0; position: relative; }
+section + section { border-top: 1px solid var(--border-subtle); }
+.section-label {
+  font-family: var(--font-title); font-size: 11px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--evolve-cyan); margin-bottom: 12px;
+}
+.section-title {
+  font-family: var(--font-title); font-size: 36px; font-weight: 700;
+  letter-spacing: -0.5px; margin-bottom: 16px; color: var(--text-primary);
+}
+.section-desc {
+  font-size: 17px; color: var(--text-secondary);
+  max-width: 640px; margin-bottom: 48px; line-height: 1.7;
+}
+
+/* ── Hero ─────────────────────────────────────── */
+.hero {
+  position: relative; min-height: 480px;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-align: center; padding: 120px 40px 80px;
+  background: linear-gradient(135deg, #0D0F14 0%, #1a1030 30%, #4A1D5E 60%, #2a1848 80%, #0D0F14 100%);
+  overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 30% 40%, rgba(110, 44, 139, 0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 350px at 70% 60%, rgba(0, 184, 207, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 120px;
+  background: linear-gradient(to bottom, transparent, var(--bg-page)); pointer-events: none;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 18px; border-radius: 100px;
+  background: rgba(110, 44, 139, 0.2); border: 1px solid rgba(110, 44, 139, 0.35);
+  font-size: 13px; font-weight: 500; color: var(--vision-purple-light);
+  letter-spacing: 0.5px; text-transform: uppercase;
+  margin-bottom: 32px; position: relative; z-index: 1;
+}
+.hero h1 {
+  font-family: var(--font-title); font-size: 52px; font-weight: 800;
+  line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 20px;
+  position: relative; z-index: 1;
+  background: linear-gradient(135deg, #FFFFFF 0%, #e0d0f0 40%, var(--evolve-cyan-light) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-subtitle {
+  font-size: 20px; font-weight: 300; color: var(--text-secondary);
+  max-width: 700px; line-height: 1.6; position: relative; z-index: 1; margin-bottom: 40px;
+}
+.hero-stats {
+  display: flex; gap: 48px; position: relative; z-index: 1;
+}
+.hero-stat { text-align: center; }
+.hero-stat-value {
+  font-family: var(--font-title); font-size: 32px; font-weight: 700;
+  background: linear-gradient(135deg, var(--vision-purple-light), var(--evolve-cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+/* ── Flywheel Pillars ──────────────────────────── */
+.pillars-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.pillar-card {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 14px; padding: 28px 24px; position: relative;
+  overflow: hidden; transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.pillar-card:hover { border-color: var(--border-medium); background: var(--bg-card-hover); transform: translateY(-2px); }
+.pillar-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.pillar-try::before { background: var(--vision-purple); }
+.pillar-run::before { background: var(--evolve-cyan); }
+.pillar-evaluate::before { background: var(--warning); }
+.pillar-improve::before { background: var(--success); }
+.pillar-icon { font-size: 32px; margin-bottom: 14px; display: block; }
+.pillar-name {
+  font-family: var(--font-title); font-size: 18px; font-weight: 700; margin-bottom: 6px;
+}
+.pillar-try .pillar-name { color: var(--vision-purple-light); }
+.pillar-run .pillar-name { color: var(--evolve-cyan); }
+.pillar-evaluate .pillar-name { color: var(--warning); }
+.pillar-improve .pillar-name { color: var(--success); }
+.pillar-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+
+.capability-row { margin-bottom: 12px; }
+.capability-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.capability-name { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.capability-pct { font-family: var(--font-title); font-size: 11px; font-weight: 600; }
+.pct-high { color: var(--success); }
+.pct-mid { color: var(--warning); }
+.pct-low { color: var(--danger); }
+.pct-zero { color: var(--text-muted); }
+.progress-track {
+  width: 100%; height: 6px; background: var(--bg-inset);
+  border-radius: 3px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.fill-high { background: var(--success); }
+.fill-mid { background: var(--warning); }
+.fill-low { background: var(--danger); }
+.fill-zero { background: var(--text-muted); width: 0 !important; }
+
+/* ── Timeline ──────────────────────────────────── */
+.timeline-container { position: relative; padding: 20px 0; }
+.timeline-months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-bottom: 24px; }
+.timeline-month {
+  text-align: center; padding: 12px 0;
+  font-family: var(--font-title); font-size: 14px; font-weight: 600;
+  border-bottom: 3px solid var(--border-subtle); position: relative;
+}
+.timeline-month.active { border-bottom-color: var(--evolve-cyan); color: var(--evolve-cyan); }
+.timeline-weeks {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px;
+  margin-bottom: 32px; position: relative;
+}
+.timeline-week {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 6px; padding: 8px 4px; text-align: center;
+  font-size: 10px; font-family: var(--font-title); font-weight: 500;
+  color: var(--text-muted); position: relative; min-height: 36px;
+  display: flex; align-items: center; justify-content: center;
+}
+.timeline-week.has-milestone {
+  background: rgba(110, 44, 139, 0.15); border-color: var(--vision-purple);
+  color: var(--vision-purple-light); cursor: pointer;
+}
+.timeline-week.has-milestone:hover { background: rgba(110, 44, 139, 0.25); }
+.timeline-week.today-marker {
+  border-color: var(--evolve-cyan); box-shadow: 0 0 12px var(--glow-cyan);
+}
+.timeline-week.today-marker::after {
+  content: 'TODAY'; position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; font-weight: 700; color: var(--evolve-cyan);
+  letter-spacing: 1px; white-space: nowrap;
+}
+
+.milestone-tooltip {
+  display: none; position: absolute; bottom: calc(100% + 12px); left: 50%;
+  transform: translateX(-50%); background: var(--bg-elevated);
+  border: 1px solid var(--border-medium); border-radius: 10px;
+  padding: 14px 18px; min-width: 220px; z-index: 50;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+.timeline-week:hover .milestone-tooltip { display: block; }
+.milestone-tooltip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--border-medium);
+}
+.tooltip-title {
+  font-family: var(--font-title); font-size: 13px; font-weight: 600;
+  color: var(--text-primary); margin-bottom: 6px;
+}
+.tooltip-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+.milestone-lanes { display: grid; grid-template-columns: 80px 1fr; gap: 0; }
+.lane-label {
+  font-family: var(--font-title); font-size: 11px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted);
+  padding: 10px 8px 10px 0; border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center;
+}
+.lane-bar-container {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px;
+  padding: 8px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.lane-cell {
+  height: 28px; border-radius: 4px; font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-title); font-weight: 500; letter-spacing: 0.3px;
+}
+.lane-cell.filled { color: white; }
+.lane-sales { background: rgba(110, 44, 139, 0.3); }
+.lane-sales.filled { background: var(--vision-purple); }
+.lane-product { background: rgba(0, 184, 207, 0.15); }
+.lane-product.filled { background: var(--evolve-cyan-dark); }
+.lane-content { background: rgba(217, 119, 6, 0.15); }
+.lane-content.filled { background: var(--warning); }
+
+/* ── MVP Scope ─────────────────────────────────── */
+.scope-container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.scope-box {
+  background: var(--bg-card); border-radius: 14px; padding: 28px;
+  border: 2px solid; position: relative; overflow: hidden;
+}
+.scope-mvp { border-color: var(--success); }
+.scope-mvp::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--success);
+}
+.scope-post { border-color: var(--border-subtle); }
+.scope-post::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--text-muted);
+}
+.scope-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.scope-title {
+  font-family: var(--font-title); font-size: 20px; font-weight: 700;
+}
+.scope-mvp .scope-title { color: var(--success); }
+.scope-post .scope-title { color: var(--text-muted); }
+.scope-count {
+  font-family: var(--font-title); font-size: 13px; font-weight: 600;
+  padding: 4px 12px; border-radius: 100px;
+}
+.scope-mvp .scope-count { background: rgba(5, 150, 105, 0.15); color: var(--success); }
+.scope-post .scope-count { background: rgba(107, 114, 128, 0.15); color: var(--text-muted); }
+
+.scope-area {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--bg-inset);
+  border: 1px solid var(--border-subtle); border-radius: 8px;
+  margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);
+}
+.scope-area-name { font-weight: 500; }
+.scope-area-tasks {
+  font-family: var(--font-title); font-size: 11px; font-weight: 600;
+  color: var(--text-muted);
+}
+.scope-area:last-child { margin-bottom: 0; }
+
+/* ── Backlog ───────────────────────────────────── */
+.filter-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+}
+.filter-group { display: flex; gap: 4px; align-items: center; }
+.filter-group-label {
+  font-family: var(--font-title); font-size: 11px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted);
+  margin-right: 4px;
+}
+.filter-btn {
+  padding: 6px 14px; border-radius: 100px; border: 1px solid var(--border-subtle);
+  background: var(--bg-card); color: var(--text-secondary);
+  font-family: var(--font-title); font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+}
+.filter-btn:hover { border-color: var(--border-medium); background: var(--bg-card-hover); }
+.filter-btn.active { color: white; }
+.filter-btn.active[data-priority="must"] { background: var(--must); border-color: var(--must); }
+.filter-btn.active[data-priority="should"] { background: var(--should); border-color: var(--should); }
+.filter-btn.active[data-priority="could"] { background: var(--could); border-color: var(--could); }
+.filter-btn.active[data-priority="wont"] { background: var(--wont); border-color: var(--wont); }
+.filter-btn.active[data-status="done"] { background: var(--success); border-color: var(--success); }
+.filter-btn.active[data-status="partial"] { background: var(--warning); border-color: var(--warning); }
+.filter-btn.active[data-status="not-started"] { background: var(--danger); border-color: var(--danger); }
+.filter-btn.active[data-workstream] { background: var(--vision-purple); border-color: var(--vision-purple); }
+
+.filter-divider {
+  width: 1px; height: 24px; background: var(--border-subtle); margin: 0 8px;
+}
+
+.backlog-count {
+  font-family: var(--font-title); font-size: 13px; color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.backlog-count span { color: var(--evolve-cyan); font-weight: 600; }
+
+.backlog-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.backlog-card {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 12px; padding: 20px; position: relative;
+  overflow: hidden; transition: border-color 0.2s, background 0.2s;
+  border-left: 3px solid;
+}
+.backlog-card:hover { border-color: var(--border-medium); background: var(--bg-card-hover); }
+.backlog-card[data-priority="must"] { border-left-color: var(--must); }
+.backlog-card[data-priority="should"] { border-left-color: var(--should); }
+.backlog-card[data-priority="could"] { border-left-color: var(--could); }
+.backlog-card[data-priority="wont"] { border-left-color: var(--wont); }
+
+.backlog-card-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 8px; gap: 12px;
+}
+.backlog-id {
+  font-family: var(--font-title); font-size: 11px; font-weight: 600;
+  color: var(--text-muted); letter-spacing: 0.5px; white-space: nowrap;
+}
+.backlog-title {
+  font-family: var(--font-title); font-size: 14px; font-weight: 600;
+  color: var(--text-primary); line-height: 1.4; flex: 1;
+}
+.backlog-meta {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;
+}
+.backlog-tag {
+  padding: 2px 10px; border-radius: 100px; font-size: 10px;
+  font-family: var(--font-title); font-weight: 600; letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.tag-must { background: rgba(220, 38, 38, 0.15); color: var(--must); border: 1px solid rgba(220, 38, 38, 0.3); }
+.tag-should { background: rgba(217, 119, 6, 0.15); color: var(--should); border: 1px solid rgba(217, 119, 6, 0.3); }
+.tag-could { background: rgba(59, 130, 246, 0.15); color: var(--could); border: 1px solid rgba(59, 130, 246, 0.3); }
+.tag-wont { background: rgba(107, 114, 128, 0.15); color: var(--wont); border: 1px solid rgba(107, 114, 128, 0.3); }
+
+.tag-effort {
+  background: rgba(110, 44, 139, 0.15); color: var(--vision-purple-light);
+  border: 1px solid rgba(110, 44, 139, 0.3);
+}
+.tag-done {
+  background: rgba(5, 150, 105, 0.15); color: var(--success);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+.tag-partial {
+  background: rgba(217, 119, 6, 0.15); color: var(--warning);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+}
+.tag-not-started {
+  background: rgba(220, 38, 38, 0.1); color: #F87171;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+.tag-in-progress {
+  background: rgba(0, 184, 207, 0.15); color: var(--evolve-cyan);
+  border: 1px solid rgba(0, 184, 207, 0.3);
+}
+.tag-pillar {
+  background: rgba(0, 184, 207, 0.1); color: var(--evolve-cyan-light);
+  border: 1px solid rgba(0, 184, 207, 0.15);
+}
+.tag-workstream {
+  background: var(--bg-inset); color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.backlog-card.hidden { display: none; }
+
+/* ── Unit Economics ─────────────────────────────── */
+.econ-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.econ-card {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 14px; padding: 24px; text-align: center;
+  position: relative; overflow: hidden;
+}
+.econ-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.econ-card:nth-child(1)::before { background: var(--success); }
+.econ-card:nth-child(2)::before { background: var(--evolve-cyan); }
+.econ-card:nth-child(3)::before { background: var(--vision-purple); }
+.econ-card:nth-child(4)::before { background: var(--warning); }
+.econ-value {
+  font-family: var(--font-title); font-size: 32px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.econ-card:nth-child(1) .econ-value { color: var(--success); }
+.econ-card:nth-child(2) .econ-value { color: var(--evolve-cyan); }
+.econ-card:nth-child(3) .econ-value { color: var(--vision-purple-light); }
+.econ-card:nth-child(4) .econ-value { color: var(--warning); }
+.econ-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.econ-detail { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+.econ-tiers {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+}
+.tier-card {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 14px; padding: 28px; text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.tier-card:hover { border-color: var(--border-medium); transform: translateY(-2px); }
+.tier-card.featured { border-color: var(--evolve-cyan); }
+.tier-card.featured::before {
+  content: 'MOST POPULAR'; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+  background: var(--evolve-cyan); color: var(--bg-page);
+  font-family: var(--font-title); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; padding: 3px 12px; border-radius: 0 0 6px 6px;
+}
+.tier-name {
+  font-family: var(--font-title); font-size: 16px; font-weight: 600;
+  color: var(--text-primary); margin-bottom: 8px;
+}
+.tier-price {
+  font-family: var(--font-title); font-size: 36px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.tier-card:nth-child(1) .tier-price { color: var(--text-secondary); }
+.tier-card:nth-child(2) .tier-price { color: var(--evolve-cyan); }
+.tier-card:nth-child(3) .tier-price { color: var(--vision-purple-light); }
+.tier-period { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.tier-margin {
+  font-family: var(--font-title); font-size: 13px; font-weight: 600;
+  color: var(--success); margin-bottom: 12px;
+}
+.tier-details { font-size: 12px; color: var(--text-secondary); line-height: 1.8; text-align: left; }
+.tier-details li { list-style: none; padding-left: 16px; position: relative; }
+.tier-details li::before {
+  content: ''; position: absolute; left: 0; top: 8px;
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.tier-card:nth-child(1) .tier-details li::before { background: var(--text-muted); }
+.tier-card:nth-child(2) .tier-details li::before { background: var(--evolve-cyan); }
+.tier-card:nth-child(3) .tier-details li::before { background: var(--vision-purple-light); }
+
+/* ── Critical Path ─────────────────────────────── */
+.critical-path { position: relative; padding-left: 32px; }
+.critical-path::before {
+  content: ''; position: absolute; left: 11px; top: 8px; bottom: 8px;
+  width: 2px; background: linear-gradient(to bottom, var(--danger), var(--warning), var(--success));
+  border-radius: 2px;
+}
+.cp-node {
+  position: relative; padding: 16px 0 16px 28px; display: flex; gap: 16px; align-items: flex-start;
+}
+.cp-dot {
+  position: absolute; left: -26px; top: 20px;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid; background: var(--bg-page);
+}
+.cp-dot.done { border-color: var(--success); background: var(--success); }
+.cp-dot.in-progress { border-color: var(--warning); background: var(--warning); }
+.cp-dot.not-started { border-color: var(--danger); }
+.cp-content {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 10px; padding: 16px 20px; flex: 1;
+  transition: border-color 0.2s;
+}
+.cp-content:hover { border-color: var(--border-medium); }
+.cp-title {
+  font-family: var(--font-title); font-size: 14px; font-weight: 600;
+  color: var(--text-primary); margin-bottom: 4px;
+}
+.cp-detail { font-size: 12px; color: var(--text-secondary); }
+.cp-effort {
+  font-family: var(--font-title); font-size: 10px; font-weight: 600;
+  color: var(--text-muted); letter-spacing: 0.5px;
+  padding: 2px 8px; background: var(--bg-inset); border-radius: 4px;
+  white-space: nowrap; align-self: center;
+}
+
+/* ── Footer ────────────────────────────────────── */
+.page-footer {
+  padding: 40px 0; border-top: 1px solid var(--border-subtle);
+  text-align: center;
+}
+.footer-text { font-size: 13px; color: var(--text-muted); }
+.footer-text a { color: var(--evolve-cyan); text-decoration: none; }
+.footer-date { font-size: 11px; color: var(--text-muted); margin-top: 8px; opacity: 0.6; }
+
+/* ── Responsive ────────────────────────────────── */
+@media (max-width: 900px) {
+  .pillars-grid { grid-template-columns: repeat(2, 1fr); }
+  .econ-grid { grid-template-columns: repeat(2, 1fr); }
+  .econ-tiers { grid-template-columns: 1fr; }
+  .scope-container { grid-template-columns: 1fr; }
+  .backlog-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 36px; }
+  .hero-stats { gap: 24px; }
+  .timeline-weeks { grid-template-columns: repeat(6, 1fr); }
+  .lane-bar-container { grid-template-columns: repeat(6, 1fr); }
+}
+@media (max-width: 600px) {
+  .pillars-grid { grid-template-columns: 1fr; }
+  .econ-grid { grid-template-columns: 1fr; }
+  .hero-stats { flex-direction: column; gap: 16px; }
+  .filter-bar { flex-direction: column; }
+  .nav-links { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="top-nav" id="topNav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">VisionVolve GTM Engine</a>
+    <ul class="nav-links">
+      <li><a href="#pillars">Pillars</a></li>
+      <li><a href="#timeline">Timeline</a></li>
+      <li><a href="#scope">MVP Scope</a></li>
+      <li><a href="#backlog">Backlog</a></li>
+      <li><a href="#economics">Economics</a></li>
+      <li><a href="#critical-path">Critical Path</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-badge">Execution Roadmap</div>
+  <h1>From Vision<br>to Execution</h1>
+  <p class="hero-subtitle">
+    A living map connecting product vision, go-to-market strategy, and engineering backlog
+    into one unified execution plan. Every task traces back to a pillar. Every pillar drives revenue.
+  </p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-value">20</div>
+      <div class="hero-stat-label">Capabilities</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">90</div>
+      <div class="hero-stat-label">Day Sprint</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">50</div>
+      <div class="hero-stat-label">Customer Target</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">89%</div>
+      <div class="hero-stat-label">Gross Margin</div>
+    </div>
+  </div>
+</header>
+
+<!-- Vision Pillars -->
+<section id="pillars">
+  <div class="container">
+    <div class="section-label">Flywheel Phases</div>
+    <div class="section-title">Four Pillars of the GTM Engine</div>
+    <p class="section-desc">
+      The product operates as a flywheel: Try (build strategy), Run (execute outreach),
+      Evaluate (measure results), Improve (learn and adapt). Each capability maps to a phase.
+    </p>
+
+    <div class="pillars-grid">
+      <!-- TRY -->
+      <div class="pillar-card pillar-try">
+        <span class="pillar-icon">&#127919;</span>
+        <div class="pillar-name">Try</div>
+        <div class="pillar-desc">Research, strategize, and build the GTM playbook with AI guidance.</div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Onboarding / Self-Research</span>
+            <span class="capability-pct pct-high">80%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-high" style="width:80%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Strategy Editor</span>
+            <span class="capability-pct pct-high">90%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-high" style="width:90%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Playbook Chat</span>
+            <span class="capability-pct pct-mid">50%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-mid" style="width:50%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Multi-Phase Flow</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Auto-Save / Auto-Extract</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Landing Page</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- RUN -->
+      <div class="pillar-card pillar-run">
+        <span class="pillar-icon">&#128640;</span>
+        <div class="pillar-name">Run</div>
+        <div class="pillar-desc">Select contacts, generate messages, and launch personalized campaigns.</div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Contact Selection</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Message Generation</span>
+            <span class="capability-pct pct-mid">60%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-mid" style="width:60%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Campaign Launch</span>
+            <span class="capability-pct pct-mid">60%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-mid" style="width:60%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Enrichment Pipeline</span>
+            <span class="capability-pct pct-high">95%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-high" style="width:95%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Auth & Multi-Tenancy</span>
+            <span class="capability-pct pct-high">85%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-high" style="width:85%"></div></div>
+        </div>
+      </div>
+
+      <!-- EVALUATE -->
+      <div class="pillar-card pillar-evaluate">
+        <span class="pillar-icon">&#128202;</span>
+        <div class="pillar-name">Evaluate</div>
+        <div class="pillar-desc">Track performance, measure what works, and surface actionable insights.</div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Analytics / Metrics</span>
+            <span class="capability-pct pct-low">10%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-low" style="width:10%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Evaluate Loop</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Markdown Rendering</span>
+            <span class="capability-pct pct-mid">50%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-mid" style="width:50%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Billing / Payments</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- IMPROVE -->
+      <div class="pillar-card pillar-improve">
+        <span class="pillar-icon">&#129504;</span>
+        <div class="pillar-name">Improve</div>
+        <div class="pillar-desc">AI learns from results, refines strategy, and compounds intelligence over time.</div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Improve Loop</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Frustration Detection</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Cross-User Learning</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">Voice Dialog</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+        <div class="capability-row">
+          <div class="capability-header">
+            <span class="capability-name">AI Avatar</span>
+            <span class="capability-pct pct-zero">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill fill-zero" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GTM Timeline -->
+<section id="timeline">
+  <div class="container">
+    <div class="section-label">90-Day Sprint</div>
+    <div class="section-title">Go-to-Market Execution Calendar</div>
+    <p class="section-desc">
+      Three months from first customer to fundraise-ready. Each week maps sales, product,
+      and content actions to build momentum toward 10 paying customers.
+    </p>
+
+    <div class="timeline-container">
+      <div class="timeline-months">
+        <div class="timeline-month active">March 2026 &mdash; Phase 1: Founder-Led Sales</div>
+        <div class="timeline-month">April 2026 &mdash; Close Pipeline</div>
+        <div class="timeline-month">May 2026 &mdash; Hit 10 Customers</div>
+      </div>
+
+      <div class="timeline-weeks">
+        <div class="timeline-week has-milestone today-marker">
+          W1
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Convert Existing Pipeline</div>
+            <div class="tooltip-desc">Convert United Arts + CTO friend to paid subscriptions. Fix onboarding friction. Choose product name.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W2
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Warm Introductions</div>
+            <div class="tooltip-desc">Get 3 intros from Alzbeta. Polish self-research feature. Register domain.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W3
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">First Cold Outreach</div>
+            <div class="tooltip-desc">Send first 10 cold outreach messages. Demo with 3 warm intro leads. Landing page goes live.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W4
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Scale Outreach</div>
+            <div class="tooltip-desc">Send next 15 cold outreach. 3+ demos. Start tracking metrics. First LinkedIn post.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W5
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Close Trials</div>
+            <div class="tooltip-desc">Follow up trials, close 2-3. Onboarding automation (email sequences). 3 LinkedIn posts.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W6
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Second Batch</div>
+            <div class="tooltip-desc">25 more cold outreach. Performance tracking foundation. United Arts case study draft.</div>
+          </div>
+        </div>
+        <div class="timeline-week">W7</div>
+        <div class="timeline-week has-milestone">
+          W8
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">7-8 Customers</div>
+            <div class="tooltip-desc">Close to 7-8 total customers. First intelligence insights iteration.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W9
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Referral Launch</div>
+            <div class="tooltip-desc">Ask all customers for referrals. In-app referral tracking. Case study published.</div>
+          </div>
+        </div>
+        <div class="timeline-week">W10</div>
+        <div class="timeline-week has-milestone">
+          W11
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">Agency Dinner</div>
+            <div class="tooltip-desc">3-4 more demos. Usage analytics dashboard. Plan agency dinner event.</div>
+          </div>
+        </div>
+        <div class="timeline-week has-milestone">
+          W12
+          <div class="milestone-tooltip">
+            <div class="tooltip-title">10 Customers</div>
+            <div class="tooltip-desc">Hit 10 customer target. Retrospective. Month 3 results post. EUR 1,500 MRR.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lanes -->
+      <div class="milestone-lanes">
+        <div class="lane-label">Sales</div>
+        <div class="lane-bar-container">
+          <div class="lane-cell lane-sales filled" title="Convert pipeline">Conv</div>
+          <div class="lane-cell lane-sales filled" title="Warm intros">Warm</div>
+          <div class="lane-cell lane-sales filled" title="Cold outreach 1">Cold</div>
+          <div class="lane-cell lane-sales filled" title="Demos">Demo</div>
+          <div class="lane-cell lane-sales filled" title="Close trials">Close</div>
+          <div class="lane-cell lane-sales filled" title="Cold batch 2">Cold</div>
+          <div class="lane-cell lane-sales filled" title="Follow up">F/U</div>
+          <div class="lane-cell lane-sales filled" title="Close to 8">Close</div>
+          <div class="lane-cell lane-sales filled" title="Referrals">Refer</div>
+          <div class="lane-cell lane-sales filled" title="Cold batch 3">Cold</div>
+          <div class="lane-cell lane-sales filled" title="Demos">Demo</div>
+          <div class="lane-cell lane-sales filled" title="Hit 10">10!</div>
+        </div>
+
+        <div class="lane-label">Product</div>
+        <div class="lane-bar-container">
+          <div class="lane-cell lane-product filled" title="Fix friction">Fix</div>
+          <div class="lane-cell lane-product filled" title="Polish">UX</div>
+          <div class="lane-cell lane-product filled" title="Landing page">Land</div>
+          <div class="lane-cell lane-product filled" title="Metrics">Trk</div>
+          <div class="lane-cell lane-product filled" title="Email automation">Auto</div>
+          <div class="lane-cell lane-product filled" title="Tracking">Perf</div>
+          <div class="lane-cell lane-product filled" title="Msg quality">Msg</div>
+          <div class="lane-cell lane-product filled" title="Intel insights">Intel</div>
+          <div class="lane-cell lane-product filled" title="Referral UI">Ref</div>
+          <div class="lane-cell lane-product filled" title="DE enrichment">DE</div>
+          <div class="lane-cell lane-product filled" title="Analytics">Dash</div>
+          <div class="lane-cell lane-product filled" title="Retro">Rev</div>
+        </div>
+
+        <div class="lane-label">Content</div>
+        <div class="lane-bar-container">
+          <div class="lane-cell lane-content filled" title="Choose name">Name</div>
+          <div class="lane-cell lane-content filled" title="Register domain">DNS</div>
+          <div class="lane-cell lane-content" title="Landing page content"></div>
+          <div class="lane-cell lane-content filled" title="1st LinkedIn post">LI 1</div>
+          <div class="lane-cell lane-content filled" title="3 posts">3x</div>
+          <div class="lane-cell lane-content filled" title="3 posts">3x</div>
+          <div class="lane-cell lane-content filled" title="3 posts">3x</div>
+          <div class="lane-cell lane-content filled" title="Case study draft">Case</div>
+          <div class="lane-cell lane-content filled" title="Case published">Pub</div>
+          <div class="lane-cell lane-content filled" title="Schedule set">Sched</div>
+          <div class="lane-cell lane-content filled" title="Dinner plan">Dnr</div>
+          <div class="lane-cell lane-content filled" title="Results post">Post</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MVP Scope -->
+<section id="scope">
+  <div class="container">
+    <div class="section-label">Scope Definition</div>
+    <div class="section-title">MVP vs Post-MVP Boundary</div>
+    <p class="section-desc">
+      Sharp focus on what matters for the first 10 paying customers.
+      Everything else is intentionally deferred.
+    </p>
+
+    <div class="scope-container">
+      <div class="scope-box scope-mvp">
+        <div class="scope-header">
+          <div class="scope-title">MVP (Weeks 1-8)</div>
+          <div class="scope-count">14 tasks</div>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Multi-Phase Playbook Infrastructure</span>
+          <span class="scope-area-tasks">10 items (PB-001 to PB-010)</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Auto-Save + Auto-Extract</span>
+          <span class="scope-area-tasks">1 item</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Markdown Rendering in Chat</span>
+          <span class="scope-area-tasks">1 item</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Proactive First AI Message</span>
+          <span class="scope-area-tasks">1 item</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Landing Page + Demo CTA</span>
+          <span class="scope-area-tasks">1 item</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Self-Service Signup + Password Reset</span>
+          <span class="scope-area-tasks">2 items</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Language Matching (Czech)</span>
+          <span class="scope-area-tasks">1 item</span>
+        </div>
+      </div>
+
+      <div class="scope-box scope-post">
+        <div class="scope-header">
+          <div class="scope-title">Post-MVP</div>
+          <div class="scope-count">20+ tasks</div>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Contact Selection Panel</span>
+          <span class="scope-area-tasks">5 items (Bucket 2)</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Message Review Panel</span>
+          <span class="scope-area-tasks">5 items (Bucket 3)</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Billing / Stripe Integration</span>
+          <span class="scope-area-tasks">L effort</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Chat Enhancements (Action Items)</span>
+          <span class="scope-area-tasks">6 items (Bucket 4)</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Analytics Dashboard</span>
+          <span class="scope-area-tasks">M effort</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Evaluate + Improve Loops</span>
+          <span class="scope-area-tasks">XL each</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Voice Dialog + AI Avatar</span>
+          <span class="scope-area-tasks">XL each</span>
+        </div>
+        <div class="scope-area">
+          <span class="scope-area-name">Cross-User Learning</span>
+          <span class="scope-area-tasks">XL effort</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Backlog -->
+<section id="backlog">
+  <div class="container">
+    <div class="section-label">Execution Backlog</div>
+    <div class="section-title">All Backlog Items</div>
+    <p class="section-desc">
+      Every work item from the product backlog and playbook implementation plan,
+      prioritized by MoSCoW, with status and effort estimates.
+    </p>
+
+    <div class="filter-bar" id="filterBar">
+      <div class="filter-group">
+        <span class="filter-group-label">Priority</span>
+        <button class="filter-btn active" data-priority="all" onclick="filterBacklog()">All</button>
+        <button class="filter-btn" data-priority="must" onclick="toggleFilter(this, 'priority')">Must</button>
+        <button class="filter-btn" data-priority="should" onclick="toggleFilter(this, 'priority')">Should</button>
+        <button class="filter-btn" data-priority="could" onclick="toggleFilter(this, 'priority')">Could</button>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <span class="filter-group-label">Status</span>
+        <button class="filter-btn" data-status="done" onclick="toggleFilter(this, 'status')">Done</button>
+        <button class="filter-btn" data-status="partial" onclick="toggleFilter(this, 'status')">Partial</button>
+        <button class="filter-btn" data-status="not-started" onclick="toggleFilter(this, 'status')">Not Started</button>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <span class="filter-group-label">Workstream</span>
+        <button class="filter-btn" data-workstream="platform" onclick="toggleFilter(this, 'workstream')">Platform</button>
+        <button class="filter-btn" data-workstream="contact-intel" onclick="toggleFilter(this, 'workstream')">Contact Intel</button>
+        <button class="filter-btn" data-workstream="outreach" onclick="toggleFilter(this, 'workstream')">Outreach</button>
+        <button class="filter-btn" data-workstream="playbook" onclick="toggleFilter(this, 'workstream')">Playbook</button>
+      </div>
+    </div>
+
+    <div class="backlog-count">Showing <span id="visibleCount">0</span> of <span id="totalCount">0</span> items</div>
+
+    <div class="backlog-grid" id="backlogGrid">
+
+      <!-- MUST HAVE items from BACKLOG.md -->
+      <div class="backlog-card" data-priority="must" data-status="done" data-workstream="platform" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-001</span>
+          <span class="backlog-title">Contacts & Companies Screens</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">L</span>
+          <span class="backlog-tag tag-done">Done</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="done" data-workstream="platform" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-002</span>
+          <span class="backlog-title">L1 Workflow Postgres Migration</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-done">Done</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="platform" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-003</span>
+          <span class="backlog-title">Full Workflow Migration (L2/Person/Orchestrator)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">XL</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-011</span>
+          <span class="backlog-title">Import Phase 2 -- Enrichment & Export</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-013</span>
+          <span class="backlog-title">Email Validation</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="partial" data-workstream="platform" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-015</span>
+          <span class="backlog-title">Python Pipeline Engine</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">L</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="done" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-031</span>
+          <span class="backlog-title">Campaign CRUD + Data Model</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-done">Done</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="done" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-035</span>
+          <span class="backlog-title">Message Generation Engine</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">XL</span>
+          <span class="backlog-tag tag-done">Done</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="partial" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-045</span>
+          <span class="backlog-title">Message Review Workflow</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">XL</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <!-- Playbook items from PB backlog -->
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="playbook" data-pillar="try">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-001..010</span>
+          <span class="backlog-title">Multi-Phase Playbook Infrastructure (Bucket 1)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">14 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Try</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="playbook" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-011..015</span>
+          <span class="backlog-title">Contact Selection Phase (Bucket 2)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">8 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="playbook" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-016..020</span>
+          <span class="backlog-title">Message Review Phase (Bucket 3)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">10 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="playbook" data-pillar="try">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-021..026</span>
+          <span class="backlog-title">Chat Enhancements (Bucket 4)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">9 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Try</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="not-started" data-workstream="playbook" data-pillar="improve">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-027..030</span>
+          <span class="backlog-title">Intelligence & Polish (Bucket 5)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">6 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Improve</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="could" data-status="not-started" data-workstream="playbook" data-pillar="improve">
+        <div class="backlog-card-header">
+          <span class="backlog-id">PB-031..034</span>
+          <span class="backlog-title">Future Vision (Bucket 6)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-could">Could</span>
+          <span class="backlog-tag tag-effort">20 pts</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Playbook</span>
+          <span class="backlog-tag tag-pillar">Improve</span>
+        </div>
+      </div>
+
+      <!-- SHOULD HAVE items -->
+      <div class="backlog-card" data-priority="should" data-status="partial" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-004</span>
+          <span class="backlog-title">LinkedIn CSV Ingestion</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">S</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="partial" data-workstream="platform" data-pillar="evaluate">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-005</span>
+          <span class="backlog-title">Stage Runs Tracking</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Evaluate</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="done" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-006</span>
+          <span class="backlog-title">Contact List Import & Cleanup</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-done">Phase 1 Done</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="not-started" data-workstream="platform" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-007</span>
+          <span class="backlog-title">CRM Integration Framework</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">L</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-008</span>
+          <span class="backlog-title">HubSpot CRM Integration</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-019</span>
+          <span class="backlog-title">Employment Verification</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="partial" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-020</span>
+          <span class="backlog-title">Personal LinkedIn Connections Import</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">S</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-021</span>
+          <span class="backlog-title">Data Normalization</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="should" data-status="partial" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-025</span>
+          <span class="backlog-title">Gmail Contacts Import</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-should">Should</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <!-- COULD HAVE items -->
+      <div class="backlog-card" data-priority="could" data-status="not-started" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-028</span>
+          <span class="backlog-title">Influencer Signal Ingest</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-could">Could</span>
+          <span class="backlog-tag tag-effort">L</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="could" data-status="not-started" data-workstream="outreach" data-pillar="improve">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-047</span>
+          <span class="backlog-title">Voice Dialog Mode + AI Avatar</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-could">Could</span>
+          <span class="backlog-tag tag-effort">XL</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Improve</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="could" data-status="not-started" data-workstream="platform" data-pillar="improve">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-048</span>
+          <span class="backlog-title">Continuous Learning Loop</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-could">Could</span>
+          <span class="backlog-tag tag-effort">XL</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Platform</span>
+          <span class="backlog-tag tag-pillar">Improve</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-030</span>
+          <span class="backlog-title">Resend Email Integration (Dual-Mode)</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-039</span>
+          <span class="backlog-title">Lemlist CSV Export</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="not-started" data-workstream="outreach" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-043</span>
+          <span class="backlog-title">A/B Variant Generation</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">M</span>
+          <span class="backlog-tag tag-not-started">Not Started</span>
+          <span class="backlog-tag tag-workstream">Outreach</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+      <div class="backlog-card" data-priority="must" data-status="partial" data-workstream="contact-intel" data-pillar="run">
+        <div class="backlog-card-header">
+          <span class="backlog-id">BL-017</span>
+          <span class="backlog-title">Company Enrichment Modules</span>
+        </div>
+        <div class="backlog-meta">
+          <span class="backlog-tag tag-must">Must</span>
+          <span class="backlog-tag tag-effort">L</span>
+          <span class="backlog-tag tag-in-progress">In Progress</span>
+          <span class="backlog-tag tag-workstream">Contact Intel</span>
+          <span class="backlog-tag tag-pillar">Run</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Unit Economics -->
+<section id="economics">
+  <div class="container">
+    <div class="section-label">Business Model</div>
+    <div class="section-title">Unit Economics</div>
+    <p class="section-desc">
+      AI API costs are remarkably low. The real challenge is customer acquisition, not margin.
+      Every user is profitable from day one.
+    </p>
+
+    <div class="econ-grid">
+      <div class="econ-card">
+        <div class="econ-value">$0.015</div>
+        <div class="econ-label">Per Company</div>
+        <div class="econ-detail">Full pipeline: L1 profile + L2 deep research + AI synthesis. 4 API calls.</div>
+      </div>
+      <div class="econ-card">
+        <div class="econ-value">$0.004</div>
+        <div class="econ-label">Per Contact</div>
+        <div class="econ-detail">Person enrichment: profile research + signals + synthesis. 3 API calls.</div>
+      </div>
+      <div class="econ-card">
+        <div class="econ-value">$6.28</div>
+        <div class="econ-label">Medium User / Month</div>
+        <div class="econ-detail">200 companies, 500 contacts, 200 messages, 100 chat turns. All-in API cost.</div>
+      </div>
+      <div class="econ-card">
+        <div class="econ-value">25</div>
+        <div class="econ-label">Break-Even Users</div>
+        <div class="econ-detail">At EUR 149 avg price with EUR 2K/mo fixed costs. Cash-flow positive.</div>
+      </div>
+    </div>
+
+    <div class="econ-tiers">
+      <div class="tier-card" style="position:relative">
+        <div class="tier-name">Starter</div>
+        <div class="tier-price">EUR 49</div>
+        <div class="tier-period">per month</div>
+        <div class="tier-margin">88% gross margin</div>
+        <ul class="tier-details">
+          <li>50 companies / month</li>
+          <li>100 contacts</li>
+          <li>200 messages</li>
+          <li>Solo founder / small agency</li>
+        </ul>
+      </div>
+      <div class="tier-card featured" style="position:relative">
+        <div class="tier-name">Growth</div>
+        <div class="tier-price">EUR 149</div>
+        <div class="tier-period">per month</div>
+        <div class="tier-margin">89% gross margin</div>
+        <ul class="tier-details">
+          <li>200 companies / month</li>
+          <li>500 contacts</li>
+          <li>1,000 messages</li>
+          <li>Active agency / sales team</li>
+        </ul>
+      </div>
+      <div class="tier-card" style="position:relative">
+        <div class="tier-name">Scale</div>
+        <div class="tier-price">EUR 399</div>
+        <div class="tier-period">per month</div>
+        <div class="tier-margin">87% gross margin</div>
+        <ul class="tier-details">
+          <li>500 companies / month</li>
+          <li>1,500 contacts</li>
+          <li>3,000 messages</li>
+          <li>Multi-client agency / power user</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Critical Path -->
+<section id="critical-path">
+  <div class="container">
+    <div class="section-label">Dependencies</div>
+    <div class="section-title">Critical Path to MVP</div>
+    <p class="section-desc">
+      The longest dependency chain from today to "demo-ready." Each node must complete
+      before the next can begin. Total estimated: 6-8 weeks of focused execution.
+    </p>
+
+    <div class="critical-path">
+      <div class="cp-node">
+        <div class="cp-dot done"></div>
+        <div class="cp-content">
+          <div class="cp-title">Enrichment Pipeline</div>
+          <div class="cp-detail">L1 + L2 + Person enrichment, PostgreSQL backend, multi-tenancy, JWT auth. Fully operational.</div>
+        </div>
+        <div class="cp-effort">DONE</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot done"></div>
+        <div class="cp-content">
+          <div class="cp-title">Strategy Editor + Chat</div>
+          <div class="cp-detail">Tiptap editor, 8-section template, Claude Haiku chat with SSE streaming. Functional.</div>
+        </div>
+        <div class="cp-effort">DONE</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">Auto-Save + Auto-Extract + Markdown in Chat</div>
+          <div class="cp-detail">Debounced save, silent extraction, formatted AI responses. Table-stakes UX polish.</div>
+        </div>
+        <div class="cp-effort">S + S</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">DB Migration + Model Update (PB-001, PB-002)</div>
+          <div class="cp-detail">Add phase + playbook_selections columns. Foundation for multi-phase flow.</div>
+        </div>
+        <div class="cp-effort">S + S</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">Phase API + Phase Instructions (PB-003, PB-005)</div>
+          <div class="cp-detail">PUT /api/playbook/phase with validation gates. Per-phase system prompts. Can run in parallel.</div>
+        </div>
+        <div class="cp-effort">M + M</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">Frontend Route + PhaseIndicator + TopBar (PB-006..008)</div>
+          <div class="cp-detail">URL routing, visual stepper, phase-aware action buttons. Sequential build.</div>
+        </div>
+        <div class="cp-effort">S + M + M</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">StrategyPanel + Phase Guard (PB-009, PB-010)</div>
+          <div class="cp-detail">Extract editor into panel, implement client + server validation for phase transitions.</div>
+        </div>
+        <div class="cp-effort">M + S</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">Self-Service Signup + Password Reset</div>
+          <div class="cp-detail">Cannot onboard trial users without this. Day-one table stakes for paid product.</div>
+        </div>
+        <div class="cp-effort">M</div>
+      </div>
+
+      <div class="cp-node">
+        <div class="cp-dot not-started"></div>
+        <div class="cp-content">
+          <div class="cp-title">Landing Page + Demo CTA</div>
+          <div class="cp-detail">Repurpose vision page, register domain, add Calendly embed. First public presence.</div>
+        </div>
+        <div class="cp-effort">S</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="page-footer">
+  <div class="container">
+    <div class="footer-text">
+      <a href="index.html">GTM Engine Vision</a> &mdash; VisionVolve
+    </div>
+    <div class="footer-date">Snapshot generated 2026-02-22. Data sourced from gap analysis, GTM strategy, unit economics, and implementation backlog.</div>
+  </div>
+</footer>
+
+<script>
+// ── Navigation scroll effect ──
+const topNav = document.getElementById('topNav');
+window.addEventListener('scroll', () => {
+  topNav.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// ── Backlog filtering ──
+const grid = document.getElementById('backlogGrid');
+const cards = grid.querySelectorAll('.backlog-card');
+const totalCount = document.getElementById('totalCount');
+const visibleCount = document.getElementById('visibleCount');
+totalCount.textContent = cards.length;
+
+let activeFilters = { priority: null, status: null, workstream: null };
+
+function toggleFilter(btn, group) {
+  const val = btn.dataset.priority || btn.dataset.status || btn.dataset.workstream;
+  const allBtns = document.querySelectorAll(`.filter-btn[data-${group}]`);
+  const allBtn = document.querySelector(`.filter-btn[data-priority="all"]`);
+
+  if (btn.classList.contains('active')) {
+    btn.classList.remove('active');
+    activeFilters[group] = null;
+  } else {
+    allBtns.forEach(b => b.classList.remove('active'));
+    if (allBtn && group === 'priority') allBtn.classList.remove('active');
+    btn.classList.add('active');
+    activeFilters[group] = val;
+  }
+
+  applyFilters();
+}
+
+function filterBacklog() {
+  // Reset all filters (All button clicked)
+  activeFilters = { priority: null, status: null, workstream: null };
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.filter-btn[data-priority="all"]').classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  let count = 0;
+  cards.forEach(card => {
+    let show = true;
+    if (activeFilters.priority && card.dataset.priority !== activeFilters.priority) show = false;
+    if (activeFilters.status && card.dataset.status !== activeFilters.status) show = false;
+    if (activeFilters.workstream && card.dataset.workstream !== activeFilters.workstream) show = false;
+
+    card.classList.toggle('hidden', !show);
+    if (show) count++;
+  });
+  visibleCount.textContent = count;
+
+  // Check if no specific filters are active, highlight All
+  const anyActive = activeFilters.priority || activeFilters.status || activeFilters.workstream;
+  const allBtn = document.querySelector('.filter-btn[data-priority="all"]');
+  if (!anyActive && allBtn) {
+    allBtn.classList.add('active');
+  }
+}
+
+// Init count
+applyFilters();
+
+// ── Smooth scroll for nav links ──
+document.querySelectorAll('.nav-links a').forEach(link => {
+  link.addEventListener('click', (e) => {
+    const href = link.getAttribute('href');
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) {
+        const offset = 72; // nav height
+        const y = target.getBoundingClientRect().top + window.pageYOffset - offset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }
+  });
+});
+</script>
+</body>
+</html>

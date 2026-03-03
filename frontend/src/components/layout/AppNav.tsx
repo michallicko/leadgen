@@ -9,7 +9,7 @@ import { Link, useLocation } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useNamespace } from '../../hooks/useNamespace'
 import { useChatContext, useHasUnread } from '../../providers/ChatProvider'
-import { type Role } from '../../lib/auth'
+import { type Role, setLastNamespace } from '../../lib/auth'
 import { getRevision, clearRevision } from '../../lib/revision'
 import { apiFetch } from '../../api/client'
 
@@ -377,6 +377,9 @@ function NamespaceSwitcher() {
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newNs = e.target.value
     if (!newNs || newNs === namespace) return
+
+    // Persist namespace selection
+    setLastNamespace(newNs)
 
     // Preserve current sub-page
     const path = window.location.pathname

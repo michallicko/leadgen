@@ -52,6 +52,84 @@ def _parse_jsonb(v):
     return v
 
 
+def _build_strategy_generation_config(extracted: dict) -> dict:
+    """Build generation_config from strategy extracted_data.
+
+    Extracts tone, messaging angles, value proposition, and target persona
+    into a generation_config dict that guides message generation.
+    """
+    config = {}
+
+    # Tone from messaging framework
+    messaging = extracted.get("messaging", {})
+    if isinstance(messaging, dict):
+        if messaging.get("tone"):
+            config["tone"] = messaging["tone"]
+        # Messaging angles/themes become custom_instructions
+        angles = messaging.get("angles") or messaging.get("themes") or []
+        if angles and isinstance(angles, list):
+            config["messaging_angles"] = angles
+        # Proof points
+        proof = messaging.get("proof_points") or []
+        if proof and isinstance(proof, list):
+            config["proof_points"] = proof
+
+    # Value proposition
+    vp = extracted.get("value_proposition")
+    if vp:
+        if isinstance(vp, dict):
+            config["value_proposition"] = ", ".join(
+                str(v) for v in vp.values() if v
+            )
+        else:
+            config["value_proposition"] = str(vp)
+
+    # Competitive positioning
+    comp = extracted.get("competitive_positioning")
+    if comp:
+        if isinstance(comp, list):
+            config["competitive_positioning"] = ", ".join(str(c) for c in comp)
+        elif isinstance(comp, str):
+            config["competitive_positioning"] = comp
+
+    # Buyer personas (first one as target persona)
+    personas = extracted.get("personas")
+    if personas and isinstance(personas, list) and len(personas) > 0:
+        first = personas[0]
+        if isinstance(first, dict):
+            persona_desc = first.get("title_patterns", [])
+            if persona_desc:
+                config["target_persona"] = ", ".join(persona_desc)
+            pains = first.get("pain_points", [])
+            if pains:
+                config["target_pain_points"] = pains
+
+    # Build custom_instructions from strategy context
+    instructions_parts = []
+    if config.get("value_proposition"):
+        instructions_parts.append(
+            f"Value proposition: {config['value_proposition']}"
+        )
+    if config.get("messaging_angles"):
+        instructions_parts.append(
+            "Messaging angles: " + ", ".join(config["messaging_angles"])
+        )
+    if config.get("competitive_positioning"):
+        instructions_parts.append(
+            f"Competitive positioning: {config['competitive_positioning']}"
+        )
+    if config.get("target_persona"):
+        instructions_parts.append(
+            f"Target persona: {config['target_persona']}"
+        )
+    if instructions_parts:
+        config["custom_instructions"] = (
+            "Pre-filled from GTM Strategy:\n" + "\n".join(instructions_parts)
+        )
+
+    return config
+
+
 @campaigns_bp.route("/api/campaigns", methods=["GET"])
 @require_auth
 def list_campaigns():
@@ -131,9 +209,17 @@ def create_campaign():
             template_config = _parse_jsonb(tpl[0]) or []
             generation_config = _parse_jsonb(tpl[1]) or {}
 
-    # Auto-populate from strategy when strategy_id is provided
+    # Auto-populate from strategy
     target_criteria = body.get("target_criteria", {})
     channel = body.get("channel")
+    strategy_prefilled = False
+
+    # Auto-find strategy if not explicitly provided
+    if not strategy_id:
+        strat_doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+        if strat_doc and strat_doc.extracted_data:
+            strategy_id = str(strat_doc.id)
+
     if strategy_id:
         strat_doc = StrategyDocument.query.filter_by(
             id=strategy_id, tenant_id=tenant_id
@@ -141,17 +227,17 @@ def create_campaign():
         if strat_doc and strat_doc.extracted_data:
             extracted = _parse_jsonb(strat_doc.extracted_data)
             if extracted and isinstance(extracted, dict):
+                strategy_prefilled = True
+
                 # Auto-populate target_criteria from ICP (body arg overrides)
                 if not target_criteria:
                     icp = extracted.get("icp", {})
                     if icp and isinstance(icp, dict):
                         target_criteria = icp
 
-                # Auto-populate tone from messaging (only if no template config)
+                # Auto-populate generation_config from strategy
                 if not generation_config:
-                    messaging = extracted.get("messaging", {})
-                    if isinstance(messaging, dict) and messaging.get("tone"):
-                        generation_config["tone"] = messaging["tone"]
+                    generation_config = _build_strategy_generation_config(extracted)
 
                 # Auto-populate channel from channels.primary
                 if not channel:
@@ -181,14 +267,17 @@ def create_campaign():
     db.session.add(campaign)
     db.session.commit()
 
-    return jsonify(
-        {
-            "id": str(campaign.id),
-            "name": name,
-            "status": "Draft",
-            "created_at": _format_ts(campaign.created_at),
-        }
-    ), 201
+    result = {
+        "id": str(campaign.id),
+        "name": name,
+        "status": "Draft",
+        "created_at": _format_ts(campaign.created_at),
+    }
+    if strategy_prefilled:
+        result["strategy_prefilled"] = True
+        result["generation_config"] = generation_config
+
+    return jsonify(result), 201
 
 
 @campaigns_bp.route("/api/campaigns/<campaign_id>", methods=["GET"])
@@ -2759,3 +2848,183 @@ def conflict_check(campaign_id):
             "issues": issues,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# BL-147: Campaign Auto-Setup from Qualified Contacts
+# ---------------------------------------------------------------------------
+
+
+@campaigns_bp.route("/api/campaigns/auto-setup", methods=["POST"])
+@require_role("editor")
+def auto_setup_campaign():
+    """Create a draft campaign pre-populated with qualified contacts.
+
+    Finds all triage-passed contacts (via their companies), auto-names the
+    campaign from strategy context, assigns per-contact channels based on
+    available contact info (email -> email, LinkedIn URL -> linkedin_message),
+    and pre-fills generation_config from the strategy.
+
+    Returns the created campaign with contact count and strategy_prefilled flag.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+
+    # Optional overrides
+    name_override = (body.get("name") or "").strip()
+    description = body.get("description", "")
+    owner_id = body.get("owner_id")
+    min_status = body.get("min_status", "triage_passed")
+
+    # Determine which company statuses qualify
+    QUALIFIED_STATUSES = ("triage_passed", "enriched_l2", "enriched", "synced")
+    status_idx = QUALIFIED_STATUSES.index(min_status) if min_status in QUALIFIED_STATUSES else 0
+    qualified_statuses = QUALIFIED_STATUSES[status_idx:]
+
+    # Find qualified contacts with company and contact info
+    placeholders = ", ".join(f":s{i}" for i in range(len(qualified_statuses)))
+    params = {"t": tenant_id}
+    for i, s in enumerate(qualified_statuses):
+        params[f"s{i}"] = s
+
+    rows = db.session.execute(
+        db.text(f"""
+            SELECT
+                ct.id AS contact_id,
+                ct.first_name, ct.last_name,
+                ct.email_address, ct.linkedin_url,
+                co.name AS company_name,
+                co.id AS company_id
+            FROM contacts ct
+            JOIN companies co ON ct.company_id = co.id
+            WHERE ct.tenant_id = :t
+                AND co.status IN ({placeholders})
+            ORDER BY ct.contact_score DESC NULLS LAST, co.name ASC
+        """),
+        params,
+    ).fetchall()
+
+    if not rows:
+        return jsonify(
+            {"error": "No qualified contacts found. Run triage first."}
+        ), 422
+
+    # Load strategy for auto-config
+    strat_doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    strategy_id = str(strat_doc.id) if strat_doc else None
+    extracted = (
+        _parse_jsonb(strat_doc.extracted_data)
+        if strat_doc and strat_doc.extracted_data
+        else {}
+    )
+    generation_config = (
+        _build_strategy_generation_config(extracted)
+        if extracted and isinstance(extracted, dict)
+        else {}
+    )
+
+    # Auto-generate campaign name
+    if name_override:
+        campaign_name = name_override
+    else:
+        campaign_name = _generate_campaign_name(extracted, len(rows))
+
+    # Build template_config with default email + LinkedIn connect steps
+    template_config = [
+        {
+            "step": 1,
+            "label": "Connection Request",
+            "channel": "linkedin_connect",
+            "enabled": True,
+        },
+        {
+            "step": 2,
+            "label": "Follow-up Email",
+            "channel": "email",
+            "enabled": True,
+        },
+        {
+            "step": 3,
+            "label": "LinkedIn Message",
+            "channel": "linkedin_message",
+            "enabled": True,
+        },
+    ]
+
+    # Create campaign
+    campaign = Campaign(
+        tenant_id=tenant_id,
+        name=campaign_name,
+        description=description,
+        owner_id=owner_id,
+        status="draft",
+        strategy_id=strategy_id,
+        template_config=json.dumps(template_config),
+        generation_config=json.dumps(generation_config),
+        total_contacts=len(rows),
+    )
+    db.session.add(campaign)
+    db.session.flush()
+
+    # Add qualified contacts to campaign
+    for row in rows:
+        contact_id = row[0]
+        cc = CampaignContact(
+            campaign_id=campaign.id,
+            contact_id=contact_id,
+            tenant_id=tenant_id,
+            status="pending",
+        )
+        db.session.add(cc)
+
+    db.session.commit()
+
+    # Count by channel capability
+    with_email = sum(1 for r in rows if r[3])
+    with_linkedin = sum(1 for r in rows if r[4])
+
+    return jsonify(
+        {
+            "id": str(campaign.id),
+            "name": campaign_name,
+            "status": "Draft",
+            "total_contacts": len(rows),
+            "with_email": with_email,
+            "with_linkedin": with_linkedin,
+            "strategy_prefilled": bool(extracted),
+            "generation_config": generation_config,
+            "template_config": template_config,
+            "created_at": _format_ts(campaign.created_at),
+        }
+    ), 201
+
+
+def _generate_campaign_name(extracted: dict, contact_count: int) -> str:
+    """Generate a campaign name from strategy context.
+
+    Format: "{ICP focus} — {Quarter} {Year}" or fallback to generic name.
+    """
+    from datetime import datetime
+
+    now = datetime.now()
+    quarter = f"Q{(now.month - 1) // 3 + 1}"
+    year = now.year
+
+    # Try to extract focus from ICP
+    icp = extracted.get("icp", {}) if extracted else {}
+    focus = ""
+    if isinstance(icp, dict):
+        industries = icp.get("industries", [])
+        if industries and isinstance(industries, list):
+            focus = industries[0] if len(industries) == 1 else f"{len(industries)} industries"
+        geos = icp.get("geographies", [])
+        if geos and isinstance(geos, list) and not focus:
+            focus = geos[0] if len(geos) == 1 else f"{len(geos)} markets"
+
+    if focus:
+        return f"{focus} — {quarter} {year}"
+
+    return f"Outreach Campaign — {quarter} {year} ({contact_count} contacts)"

@@ -2,7 +2,7 @@
  * App shell — wraps authenticated pages with nav + container.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Navigate, useParams } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { useTokenBudget } from '../../hooks/useTokenBudget'
@@ -11,7 +11,7 @@ import {
   shouldShowSignpost,
   shouldShowChecklist,
 } from '../../hooks/useOnboarding'
-import { getDefaultNamespace } from '../../lib/auth'
+import { getDefaultNamespace, setLastNamespace } from '../../lib/auth'
 import { AppNav } from './AppNav'
 import { ChatPanel } from '../chat/ChatPanel'
 import { useChatContext } from '../../providers/ChatProvider'
@@ -51,6 +51,13 @@ export function AppShell() {
   const { isAuthenticated, isLoading, user } = useAuth()
   const { namespace } = useParams<{ namespace: string }>()
   const { data: onboardingStatus } = useOnboardingStatus()
+
+  // Persist current namespace to localStorage for session recovery
+  useEffect(() => {
+    if (namespace) {
+      setLastNamespace(namespace)
+    }
+  }, [namespace])
 
   if (isLoading) {
     return (
