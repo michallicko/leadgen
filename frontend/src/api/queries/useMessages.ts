@@ -214,6 +214,25 @@ export function useRegenerateMessage() {
   })
 }
 
+// ── Mark Sent (LinkedIn / manual channels) ──────────
+
+export function useMarkMessageSent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, channel }: { id: string; channel: string }) =>
+      apiFetch<{ ok: boolean; status: string; channel: string }>(
+        `/messages/${id}/mark-sent`,
+        { method: 'POST', body: { channel } },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['messages'] })
+      qc.invalidateQueries({ queryKey: ['review-queue'] })
+      qc.invalidateQueries({ queryKey: ['review-summary'] })
+      qc.invalidateQueries({ queryKey: ['campaign-analytics'] })
+    },
+  })
+}
+
 // ── Disqualify Contact ──────────────────────────────
 
 export function useDisqualifyContact() {

@@ -3,6 +3,7 @@ import {
   useReviewQueue,
   useUpdateMessage,
   useRegenerateMessage,
+  useMarkMessageSent,
   type ReviewQueueItem,
 } from '../../api/queries/useMessages'
 import { useToast } from '../ui/Toast'
@@ -59,6 +60,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
   const { data, isLoading, refetch } = useReviewQueue(campaignId, { status: statusFilter })
   const updateMutation = useUpdateMessage()
   const regenMutation = useRegenerateMessage()
+  const markSentMutation = useMarkMessageSent()
 
   // Navigation state
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -235,6 +237,38 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
     setActionCounts(c => ({ ...c, skipped: c.skipped + 1 }))
     advance()
   }, [advance])
+
+  const handleSendViaLinkedIn = useCallback(async () => {
+    if (!current) return
+    const linkedinUrl = current.contact.linkedin_url
+    const msgBody = current.message.body
+
+    // Copy message to clipboard
+    try {
+      await navigator.clipboard.writeText(msgBody)
+      toast('Message copied to clipboard', 'success')
+    } catch {
+      toast('Failed to copy message', 'error')
+      return
+    }
+
+    // Open LinkedIn profile in new tab
+    if (linkedinUrl) {
+      window.open(linkedinUrl, '_blank', 'noopener')
+    }
+
+    // Mark as sent
+    try {
+      await markSentMutation.mutateAsync({
+        id: current.message.id,
+        channel: 'linkedin',
+      })
+      toast('Marked as sent via LinkedIn', 'success')
+      advance()
+    } catch {
+      toast('Failed to mark as sent', 'error')
+    }
+  }, [current, markSentMutation, toast, advance])
 
   // ── Keyboard shortcuts ───────────────────────────────
 
@@ -850,6 +884,23 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
                 >
                   Regenerate
                 </button>
+
+                {/* Send via LinkedIn — shown for approved LI messages with a LinkedIn URL */}
+                {(msg.status === 'approved' || msg.status === 'draft') &&
+                  (msg.channel === 'linkedin_connect' || msg.channel === 'linkedin_message') &&
+                  contact.linkedin_url && (
+                  <button
+                    onClick={handleSendViaLinkedIn}
+                    disabled={markSentMutation.isPending}
+                    className="px-5 py-2 bg-[#0A66C2] text-white text-sm font-medium rounded-lg hover:bg-[#004182] disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                    title="Copy message and open LinkedIn profile"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4.5 9.5V6M9.5 9.5V7.75a1.75 1.75 0 10-3.5 0M4.5 4.25v.01" />
+                    </svg>
+                    {markSentMutation.isPending ? 'Sending...' : 'Send via LinkedIn'}
+                  </button>
+                )}
 
                 {/* Spacer */}
                 <div className="flex-1" />
