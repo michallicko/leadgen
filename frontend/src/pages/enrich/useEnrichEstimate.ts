@@ -102,5 +102,6 @@ export function useEnrichEstimate(
     },
     enabled: !!filters.tag && apiStages.length > 0,
     staleTime: 10_000,
+    retry: 0,
   })
 }

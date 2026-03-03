@@ -6,6 +6,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useTags } from '../../api/queries/useTags'
+import { getNamespaceFromPath } from '../../lib/auth'
 import { filterOptions, STATUS_DISPLAY, TIER_DISPLAY } from '../../lib/display'
 import { STAGES } from './stageConfig'
 import type { FilterConfig } from '../../components/ui/FilterBar'
@@ -21,27 +22,31 @@ function defaultEnabledStages(): Record<string, boolean> {
 }
 
 export function useEnrichState() {
-  // Filter state (persisted)
-  const [search, setSearch] = useLocalStorage('en_filter_search', '')
-  const [tag, setTag] = useLocalStorage('en_filter_tag', '')
-  const [owner, setOwner] = useLocalStorage('en_filter_owner', '')
-  const [tier, setTier] = useLocalStorage('en_filter_tier', '')
-  const [status, setStatus] = useLocalStorage('en_filter_status', '')
-  const [entityIds, setEntityIds] = useLocalStorage('en_filter_ids', '')
-  const [limit, setLimit] = useLocalStorage('en_filter_limit', '')
+  // Namespace prefix for localStorage keys to prevent cross-tenant state leakage
+  const ns = getNamespaceFromPath() ?? '_'
+  const nsKey = (suffix: string) => `en_${ns}_${suffix}`
+
+  // Filter state (persisted per namespace)
+  const [search, setSearch] = useLocalStorage(nsKey('filter_search'), '')
+  const [tag, setTag] = useLocalStorage(nsKey('filter_tag'), '')
+  const [owner, setOwner] = useLocalStorage(nsKey('filter_owner'), '')
+  const [tier, setTier] = useLocalStorage(nsKey('filter_tier'), '')
+  const [status, setStatus] = useLocalStorage(nsKey('filter_status'), '')
+  const [entityIds, setEntityIds] = useLocalStorage(nsKey('filter_ids'), '')
+  const [limit, setLimit] = useLocalStorage(nsKey('filter_limit'), '')
 
   // DAG mode
   const [dagMode, setDagMode] = useState<DagMode>('configure')
 
   // Stage toggles
   const [enabledStages, setEnabledStages] = useLocalStorage<Record<string, boolean>>(
-    'en_enabled_stages',
+    nsKey('enabled_stages'),
     defaultEnabledStages(),
   )
 
   // Soft dep config per stage
   const [softDepsConfig, setSoftDepsConfig] = useLocalStorage<Record<string, boolean>>(
-    'en_soft_deps',
+    nsKey('soft_deps'),
     {},
   )
 
@@ -50,7 +55,7 @@ export function useEnrichState() {
 
   // Boost mode per stage
   const [boostStages, setBoostStages] = useLocalStorage<Record<string, boolean>>(
-    'en_boost_stages',
+    nsKey('boost_stages'),
     {},
   )
 

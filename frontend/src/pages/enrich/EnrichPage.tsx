@@ -140,7 +140,8 @@ export function EnrichPage() {
             enabledCount={enabledStageCodes.length}
             onRun={handleRun}
             onStop={stop}
-            isLoading={estimate.isFetching}
+            isLoading={estimate.isFetching && !estimate.isError}
+            estimateError={estimate.isError}
             onLoadConfig={loadConfigSnapshot}
             getConfigSnapshot={getConfigSnapshot}
           />
