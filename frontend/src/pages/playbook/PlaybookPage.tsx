@@ -209,7 +209,7 @@ export function PlaybookPage() {
   }, [docQuery.data, isDirty, docRefetch])
 
   // ---------------------------------------------------------------------------
-  // Auto-refresh when research completes
+  // Auto-refresh when research completes or fails
   // ---------------------------------------------------------------------------
 
   const prevResearchStatus = useRef<string | null>(null)
@@ -220,6 +220,11 @@ export function PlaybookPage() {
       // Research just finished -- refresh the document to pick up enrichment data
       queryClient.invalidateQueries({ queryKey: ['playbook'] })
       toast('Company research completed', 'info')
+    }
+    if (prevResearchStatus.current === 'in_progress' && status === 'failed') {
+      // Research failed or timed out -- still refresh (may have partial data)
+      queryClient.invalidateQueries({ queryKey: ['playbook'] })
+      toast('Company research could not complete. The AI can still help with your strategy.', 'error')
     }
     prevResearchStatus.current = status
   }, [researchQuery.data?.status, queryClient, toast])
@@ -699,12 +704,19 @@ export function PlaybookPage() {
           )}
         </div>
 
-        {/* Research-in-progress indicator */}
+        {/* Research status indicator */}
         {researchTriggered && researchQuery.data?.status === 'in_progress' && (
           <div className="flex items-center gap-1.5 ml-1">
             <span className="w-3 h-3 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
             <span className="text-xs text-accent-cyan font-medium">
               Researching...
+            </span>
+          </div>
+        )}
+        {researchTriggered && researchQuery.data?.status === 'failed' && (
+          <div className="flex items-center gap-1.5 ml-1">
+            <span className="text-xs text-text-muted">
+              Research incomplete
             </span>
           </div>
         )}

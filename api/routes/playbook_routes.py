@@ -998,6 +998,17 @@ def _run_self_research(
                 )
         except Exception:
             logger.exception("Self-research failed for company %s", company_id)
+            # Set company status to a terminal state so the frontend stops polling
+            try:
+                db.session.rollback()
+                company = db.session.get(Company, company_id)
+                if company and company.status in _IN_PROGRESS_STATUSES:
+                    company.status = "enrichment_failed"
+                    db.session.commit()
+            except Exception:
+                logger.exception(
+                    "Failed to set terminal status for company %s", company_id
+                )
             # Still try to seed template with whatever data we have
             try:
                 db.session.rollback()  # Clear poisoned transaction
@@ -1140,6 +1151,10 @@ def trigger_research():
 @require_auth
 def get_research_status():
     """Return the research/enrichment status for the tenant's strategy document."""
+    from datetime import datetime, timezone
+
+    RESEARCH_TIMEOUT_SECONDS = 180  # 3 minutes max for research
+
     tenant_id = resolve_tenant()
     if not tenant_id:
         return jsonify({"error": "Tenant not found"}), 404
@@ -1153,6 +1168,25 @@ def get_research_status():
         return jsonify({"status": "not_started"}), 200
 
     status = _research_status_from_company(company)
+
+    # Timeout guard: if research has been in_progress for too long,
+    # mark it as failed so the frontend stops polling.
+    if status == "in_progress" and company.updated_at:
+        now = datetime.now(timezone.utc)
+        updated = company.updated_at
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        elapsed = (now - updated).total_seconds()
+        if elapsed > RESEARCH_TIMEOUT_SECONDS:
+            logger.warning(
+                "Research timed out for company %s (elapsed %.0fs > %ds)",
+                company.id,
+                elapsed,
+                RESEARCH_TIMEOUT_SECONDS,
+            )
+            company.status = "enrichment_failed"
+            db.session.commit()
+            status = "failed"
 
     # Guard against race condition: enrichment may set company status to
     # "enriched_l2" before the template is seeded into the document.

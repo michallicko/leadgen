@@ -25,6 +25,7 @@ from .tool_registry import get_tool
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_ITERATIONS = 25
+MAX_TURN_SECONDS = 120  # Hard timeout for the entire agent turn
 
 # Per-turn rate limits by tool name.  Tools not listed here get the default.
 TOOL_RATE_LIMITS: dict[str, int] = {
@@ -166,8 +167,48 @@ def execute_agent_turn(
     tool_executions = []
     tool_call_counts: dict[str, int] = {}  # per-tool rate limit counter
     model = client.default_model
+    turn_start = time.monotonic()
 
     for iteration in range(MAX_TOOL_ITERATIONS):
+        # Check overall turn timeout
+        elapsed = time.monotonic() - turn_start
+        if elapsed > MAX_TURN_SECONDS:
+            logger.warning(
+                "Agent turn timed out after %.0fs (%d iterations)",
+                elapsed,
+                iteration,
+            )
+            yield SSEEvent(
+                type="chunk",
+                data={
+                    "text": "I ran out of time for this turn. "
+                    "Here's what I've completed so far. "
+                    "Send another message to continue.",
+                },
+            )
+            yield SSEEvent(
+                type="done",
+                data={
+                    "tool_calls": [
+                        {
+                            "tool_name": e.tool_name,
+                            "tool_call_id": e.tool_call_id,
+                            "status": "error" if e.is_error else "success",
+                            "input_args": e.input_args,
+                            "output_data": e.output,
+                            "error_message": e.error_message,
+                            "duration_ms": e.duration_ms,
+                        }
+                        for e in tool_executions
+                    ],
+                    "model": model,
+                    "total_input_tokens": total_input_tokens,
+                    "total_output_tokens": total_output_tokens,
+                    "total_cost_usd": str(total_cost_usd),
+                },
+            )
+            return
+
         response = client.query_with_tools(
             messages=messages,
             system_prompt=system_prompt,
