@@ -4,6 +4,7 @@
 
 import type { DagMode } from './StageCard.types'
 import { ConfigManager } from './ConfigManager'
+import { useTokenBudget } from '../../hooks/useTokenBudget'
 
 interface DagControlsProps {
   mode: DagMode
@@ -18,10 +19,15 @@ interface DagControlsProps {
   getConfigSnapshot?: () => Record<string, unknown>
 }
 
-function fmtCost(v: number): string {
-  if (v === 0) return '$0.00'
-  if (v < 0.01) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(2)}`
+/** Convert USD cost to credits (1 credit = $0.001) */
+function toCredits(usd: number): number {
+  return Math.ceil(usd / 0.001)
+}
+
+function fmtCredits(usd: number): string {
+  const credits = toCredits(usd)
+  if (credits === 0) return '0 credits'
+  return `${credits.toLocaleString()} credits`
 }
 
 export function DagControls({
@@ -36,6 +42,11 @@ export function DagControls({
   onLoadConfig,
   getConfigSnapshot,
 }: DagControlsProps) {
+  const { budget } = useTokenBudget()
+  const remaining = budget?.remaining_credits ?? null
+  const estimatedCredits = toCredits(estimatedCost)
+  const willExceedBudget = remaining !== null && estimatedCredits > remaining
+
   return (
     <div className="flex items-center justify-between mb-4 px-1">
       {/* Left: tag info + cost */}
@@ -49,13 +60,24 @@ export function DagControls({
 
         {mode === 'configure' && estimatedCost > 0 && (
           <span className="text-sm text-text-muted">
-            Est. cost: <span className="font-medium text-text">{fmtCost(estimatedCost)}</span>
+            Est. cost:{' '}
+            <span className={`font-medium ${willExceedBudget ? 'text-error' : 'text-text'}`}>
+              {fmtCredits(estimatedCost)}
+            </span>
+            {remaining !== null && (
+              <span className="text-text-dim ml-1.5">
+                / {remaining.toLocaleString()} remaining
+              </span>
+            )}
+            {willExceedBudget && (
+              <span className="text-error ml-1.5 text-xs">(exceeds budget)</span>
+            )}
           </span>
         )}
 
         {(mode === 'running' || mode === 'completed') && (
           <span className="text-sm text-text-muted">
-            Cost: <span className="font-medium text-text">{fmtCost(runningCost)}</span>
+            Cost: <span className="font-medium text-text">{fmtCredits(runningCost)}</span>
           </span>
         )}
       </div>
