@@ -124,7 +124,7 @@ export function EnrichPage() {
       {/* No tag selected prompt */}
       {noTag && dagMode === 'configure' && (
         <div className="mt-12 text-center">
-          <p className="text-sm text-text-muted">Select a tag to configure the enrichment pipeline.</p>
+          <p className="text-sm text-text-muted">Choose a tag above to select which contacts to enrich, then configure the research stages below.</p>
         </div>
       )}
 
