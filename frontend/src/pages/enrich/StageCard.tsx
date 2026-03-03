@@ -41,10 +41,11 @@ function horizonToDate(days: number): string {
   return d.toISOString()
 }
 
+/** Convert USD cost to credits (1 credit = $0.001) */
 function fmtCost(v: number): string {
   if (v === 0) return 'free'
-  if (v < 0.01) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(2)}`
+  const credits = Math.ceil(v / 0.001)
+  return `${credits.toLocaleString()} cr`
 }
 
 export function StageCard({
