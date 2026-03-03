@@ -8,7 +8,6 @@ import {
   useCloneCampaign,
   type Campaign,
 } from '../../api/queries/useCampaigns'
-import { useOnboardingStatus } from '../../hooks/useOnboarding'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { CampaignsEmptyState } from '../../components/onboarding/SmartEmptyState'
@@ -39,7 +38,6 @@ export function CampaignsPage() {
   const navigate = useNavigate()
   const { data, isLoading } = useCampaigns()
   const { data: templateData } = useCampaignTemplates()
-  const { data: onboardingStatus } = useOnboardingStatus()
   const createCampaign = useCreateCampaign()
   const deleteCampaign = useDeleteCampaign()
   const cloneCampaign = useCloneCampaign()
@@ -189,12 +187,11 @@ export function CampaignsPage() {
     [handleDelete, handleClone, cloneCampaign.isPending],
   )
 
-  // Show context-aware empty state when namespace has zero campaigns
-  const namespaceHasNoCampaigns =
-    onboardingStatus !== undefined && onboardingStatus.campaign_count === 0
-
-  if (namespaceHasNoCampaigns && !isLoading && campaigns.length === 0) {
-    return <CampaignsEmptyState />
+  // Show context-aware empty state when namespace has zero campaigns.
+  // Don't gate on onboardingStatus loading — if the campaigns array is empty
+  // and the campaigns query has resolved, that's enough to show the empty state.
+  if (!isLoading && campaigns.length === 0) {
+    return <CampaignsEmptyState onCreateClick={() => setShowCreate(true)} />
   }
 
   return (
