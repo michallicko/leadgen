@@ -6,6 +6,7 @@ to Contact/Company fields with confidence scores and transforms.
 
 import json
 import os
+import re
 import time
 
 TARGET_FIELDS = {
@@ -272,6 +273,54 @@ def extract_domain(url):
     return url if url else None
 
 
+DATE_PATTERNS = [
+    re.compile(r"^\d{4}-\d{2}-\d{2}"),  # 2021-12-04 or 2021-12-04 00:00:00
+    re.compile(r"^\d{2}/\d{2}/\d{4}"),  # 12/04/2021
+    re.compile(r"^\d{2}\.\d{2}\.\d{4}"),  # 04.12.2021
+]
+
+
+def _extract_domain_from_email(email):
+    """Extract domain part from an email address."""
+    if not email or "@" not in email:
+        return None
+    return email.split("@")[1]
+
+
+def validate_and_fix_company(company_value, email=None):
+    """Validate company name and fix obviously bad values.
+
+    Detects dates, pure numbers, empty strings, and very short values.
+    Falls back to email domain extraction when the company value is invalid.
+
+    Args:
+        company_value: the raw company name string
+        email: optional email address for domain fallback
+
+    Returns:
+        cleaned company name, or email domain, or "Unknown"
+    """
+    if not company_value or not company_value.strip():
+        return _extract_domain_from_email(email) or "Unknown"
+
+    val = company_value.strip()
+
+    # Check for date patterns
+    for pattern in DATE_PATTERNS:
+        if pattern.match(val):
+            return _extract_domain_from_email(email) or "Unknown"
+
+    # Pure number (integer or decimal)
+    if re.match(r"^\d+\.?\d*$", val):
+        return _extract_domain_from_email(email) or "Unknown"
+
+    # Too short (1-2 chars, likely garbage)
+    if len(val) <= 2:
+        return _extract_domain_from_email(email) or "Unknown"
+
+    return val
+
+
 def apply_mapping(row, mapping_result):
     """Apply a mapping result to a single CSV row dict.
 
@@ -319,5 +368,11 @@ def apply_mapping(row, mapping_result):
             contact[field] = value
         else:
             company[field] = value
+
+    # Validate and fix company name (catch dates, numbers, garbage)
+    if "name" in company:
+        company["name"] = validate_and_fix_company(
+            company["name"], email=contact.get("email_address")
+        )
 
     return {"contact": contact, "company": company}
