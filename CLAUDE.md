@@ -21,6 +21,10 @@ Call `backlog_onboard("leadgen-pipeline")` at session start to load full governa
 - **Lead agent NEVER does work** — In delegation mode, the lead coordinator NEVER reads source files, writes code, calls MCP tools for data gathering, runs bash commands, or does any extensive work (more than 1 tool call). ALL work is delegated to spawned agents. "Let me just read this first" is building. Delegate it.
 - **Start every session from the backlog** — The backlog service at `https://backlog.visionvolve.com/leadgen-pipeline/` is the source of truth. Use `backlog_onboard` MCP tool or check the dashboard to see sprint status, then pick up from there. Never start work without consulting the backlog.
 - **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Use `backlog_create_item` MCP tool (or `/backlog <idea>`), (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). The backlog service is the single source of truth.
+- **Specs before code — always**:
+  - **Features/enrichers/new functionality**: Full spec required (problem statement, user stories, acceptance criteria Given/When/Then, data model changes, API contracts, UI wireframes). No code until spec is written and reviewed.
+  - **Bug fixes/hotfixes**: Lightweight spec required (problem + fix + test plan). Can be written in batch for sprint bug-fix items. No code until spec exists.
+  - **Single-line fixes**: Inline spec in the commit message is acceptable (problem + fix + verification).
 - **Agents must self-test before handoff** — Before notifying the user or asking them to test anything, agents MUST: (1) Run ALL tests in the current sprint test script (`docs/testing/sprint-{N}-manual-tests.md`), (2) Mark each test PASS or FAIL, (3) Fix any FAIL and redeploy before proceeding, (4) Only notify the user after ALL tests pass or after documenting unfixable issues with a clear explanation. **Never ask the user to test something you haven't tested yourself first.**
 
 ## Branch Model
@@ -387,7 +391,8 @@ The backlog dashboard at `https://backlog.visionvolve.com/leadgen-pipeline/` sho
 
 A feature is **development-ready** when ALL of the following are complete. No code is written until this gate passes.
 
-1. **Full specification** — Written spec with: problem statement, user stories, acceptance criteria (Given/When/Then), data model changes, API contracts, UI wireframes or descriptions
+1. **Full specification** (features/new functionality) — Written spec with: problem statement, user stories, acceptance criteria (Given/When/Then), data model changes, API contracts, UI wireframes or descriptions
+   **Lightweight specification** (bug fixes) — Written spec with: problem statement, exact fix description, acceptance criteria, test plan. Can be batched for sprint bug-fix items.
 2. **Product strategy alignment** — Reviewed against `docs/vision/index.html` and `PRODUCT_STRATEGY.md`. The feature moves us closer to the north star, not sideways.
 3. **Technical strategy alignment** — Reviewed against `docs/TECHNICAL_STRATEGY.md`. No architectural contradictions, tech debt is acknowledged and planned for.
 4. **Usability perspective** — UX flow reviewed: is this zero-busywork? Does every interaction gather a decision or deliver a result? Accessibility considered.
@@ -461,17 +466,22 @@ A feature is **done** when ALL quality gates above pass AND:
 
 When an SDLC agent starts execution on a backlog item:
 
-1. **Claim immediately**: Call `backlog_claim_item` with the item short_id before writing any code
-2. **Update status to Building**: Set item status from Spec'd/Idea to Building on first action
-3. **Release on completion**: Call `backlog_release_item` and set status to Done/PR Open when finished
+1. **Claim immediately**: Call `backlog_claim_item` with the item short_id before writing any code. Status stays as-is (e.g., Spec'd) — claiming does NOT change status.
+2. **Set Building**: Call `backlog_update_item(status='Building')` as the very first code action. This signals work has started.
+3. **Set PR Open**: Call `backlog_update_item(status='PR Open')` when branch is pushed and PR is created.
+4. **Set Done**: Call `backlog_update_item(status='Done')` when PR is merged to staging.
+5. **Release claim**: Call `backlog_release_item` after Done is set.
 
 This is non-negotiable. No agent works on an item without claiming it first. This prevents duplicate work and gives the team visibility into who is working on what.
 
 ### Status Transitions
 
-- Idea -> Building (when agent starts)
-- Building -> PR Open (when code is committed)
-- PR Open -> Done (when merged/deployed)
+- Spec'd → Building (agent calls `backlog_update_item(status='Building')` after claiming)
+- Idea → Building (same, for items not yet spec'd)
+- Building → PR Open (when branch pushed + PR created)
+- PR Open → Done (when merged to staging)
+
+Note: `backlog_claim_item` does NOT change status. Status must be updated explicitly at each transition.
 
 ### Sprint Assignment
 
