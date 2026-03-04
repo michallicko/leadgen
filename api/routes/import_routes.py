@@ -209,7 +209,8 @@ def _parse_csv_text(text):
     """Parse CSV text, return (headers, rows) where rows are list of dicts."""
     reader = csv.DictReader(io.StringIO(text))
     headers = reader.fieldnames or []
-    rows = list(reader)
+    # Skip completely empty rows (all values are empty strings)
+    rows = [row for row in reader if any(row.values())]
     return headers, rows
 
 
