@@ -7,7 +7,7 @@
  * Shows onboarding flow for first-time visitors (no enrichment data yet).
  *
  * Wires together: usePlaybookDocument, useSavePlaybook,
- * useExtractStrategy, PhaseIndicator, PhasePanel, PlaybookChat, PlaybookOnboarding.
+ * useExtractStrategy, PhasePanel, PlaybookChat, PlaybookOnboarding.
  * Chat state is provided by ChatProvider (app-level).
  *
  * WRITE feature: handles document_changed signals from AI tool calls,
@@ -17,7 +17,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { PhaseIndicator, PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
+import { PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
@@ -849,13 +849,6 @@ export function PlaybookPage() {
           onDismiss={handleExtractionDismiss}
         />
       )}
-
-      {/* Phase indicator */}
-      <PhaseIndicator
-        current={viewPhase}
-        unlocked={docPhase}
-        onNavigate={handlePhaseNavigate}
-      />
 
       {/* Split layout */}
       <div className="flex gap-4 flex-1 min-h-0">
