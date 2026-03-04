@@ -27,7 +27,6 @@ import { BuyerPersonasTab } from '../../components/playbook/BuyerPersonasTab'
 import {
   usePlaybookDocument,
   useSavePlaybook,
-  useAdvancePhase,
   useUndoAIEdit,
   useTriggerResearch,
   useResearchStatus,
@@ -86,17 +85,6 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// Phase-specific action button labels
-// ---------------------------------------------------------------------------
-
-const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
-  // BL-201: Extract ICP removed — extraction is now continuous via AI tools
-  contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
-  messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
-  campaign: { label: 'Launch Campaign', pendingLabel: 'Launching...' },
-}
-
-// ---------------------------------------------------------------------------
 // PlaybookPage
 // ---------------------------------------------------------------------------
 
@@ -128,7 +116,7 @@ export function PlaybookPage() {
   const docQuery = usePlaybookDocument()
   const saveMutation = useSavePlaybook()
   // BL-201: extractMutation removed — extraction is now continuous
-  const advancePhaseMutation = useAdvancePhase()
+  // advancePhaseMutation removed — phase actions now handled via AI chat tools
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
   const triggerResearch = useTriggerResearch()

@@ -224,7 +224,7 @@ function MermaidNodeView({ node, updateAttributes, editor, getPos }: NodeViewPro
   return (
     <NodeViewWrapper className="mermaid-block my-4 rounded-lg border border-border-solid overflow-hidden bg-surface-alt/30 relative group">
       {isEditable && typeof getPos === 'function' && (
-        <BlockToolbar editor={editor} nodePos={getPos()} nodeSize={node.nodeSize} />
+        <BlockToolbar editor={editor} nodePos={getPos() ?? 0} nodeSize={node.nodeSize} />
       )}
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-alt border-b border-border-solid/50">
