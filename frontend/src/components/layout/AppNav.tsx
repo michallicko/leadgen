@@ -33,13 +33,13 @@ interface PillarDef {
 const PILLARS: PillarDef[] = [
   {
     id: 'playbook',
-    label: 'Playbook',
+    label: 'GTM Strategy',
     icon: (
       <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><path d="M8 7h8M8 11h6" />
       </svg>
     ),
-    pages: [{ id: 'playbook', label: 'ICP Summary', path: 'playbook', minRole: 'viewer' }],
+    pages: [{ id: 'playbook', label: 'Strategy Overview', path: 'playbook', minRole: 'viewer' }],
   },
   {
     id: 'radar',
