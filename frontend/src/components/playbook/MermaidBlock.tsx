@@ -36,6 +36,13 @@ function getMermaid() {
           lineColor: '#8B7FA8',
           secondaryColor: '#1A3A4A',
           tertiaryColor: '#2D1F3D',
+          // Additional dark-theme refinements
+          nodeTextColor: '#E8E0F0',
+          edgeLabelBackground: '#1A1E28',
+          clusterBkg: '#1A1E28',
+          clusterBorder: '#231D30',
+          titleColor: '#E8EAF0',
+          fontFamily: '"Work Sans", system-ui, sans-serif',
         },
       })
       return mod.default

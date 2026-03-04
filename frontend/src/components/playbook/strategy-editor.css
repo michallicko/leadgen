@@ -187,6 +187,15 @@
   height: auto;
 }
 
+/* Ensure mermaid text uses dark theme colors */
+.strategy-editor .mermaid-svg-container svg text {
+  fill: var(--color-text) !important;
+}
+
+.strategy-editor .mermaid-svg-container svg .edgeLabel {
+  color: var(--color-text-muted);
+}
+
 /* ---- Selection ---- */
 
 .strategy-editor .ProseMirror ::selection {
