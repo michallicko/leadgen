@@ -269,24 +269,35 @@ def execute_agent_turn(
         if stop_reason != "tool_use" or not tool_use_blocks:
             final_text = "".join(text_parts)
 
-            # Check if this is a strategy generation turn that researched
-            # but hasn't written sections yet. If so, inject a follow-up
-            # nudge instead of returning.
-            strategy_tools_used = any(
-                e.tool_name in ("update_strategy_section", "append_to_section")
+            # Check if this is a strategy generation turn that stopped
+            # before completing all sections. Nudge it to continue.
+            sections_written = sum(
+                1
                 for e in tool_executions
+                if e.tool_name in ("update_strategy_section", "append_to_section")
+                and not e.is_error
             )
             research_tools_used = any(
-                e.tool_name == "web_search" for e in tool_executions
+                e.tool_name in ("web_search", "research_own_company")
+                for e in tool_executions
             )
 
-            if research_tools_used and not strategy_tools_used and iteration < 3:
-                # AI researched but didn't write. Nudge it to proceed.
+            if research_tools_used and sections_written == 0 and iteration < 3:
+                # AI researched but didn't write any sections. Nudge.
                 nudge = (
-                    "You have completed your research. Now proceed to write the "
-                    "strategy sections. Call update_strategy_section for each of "
-                    "the 9 sections with specific, researched content. Start now."
+                    "Start with your opening and research validation, then "
+                    "write sections one by one using update_strategy_section."
                 )
+            elif 0 < sections_written < 7 and iteration < 5:
+                # AI wrote some sections but stopped. Nudge to continue.
+                nudge = (
+                    "Continue writing the next strategy section. "
+                    "You've completed {} of 7.".format(sections_written)
+                )
+            else:
+                nudge = None
+
+            if nudge is not None:
                 if final_text:
                     yield SSEEvent(type="chunk", data={"text": final_text})
                 messages.append({"role": "assistant", "content": content_blocks})
