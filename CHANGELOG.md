@@ -20,6 +20,12 @@ All notable changes to the Leadgen Pipeline project.
 - **Person Signals Mapping**: `recent_activity_level` from person signals now maps to `contacts.linkedin_activity_level`
 
 ### Added
+- **Strategic Signals Enricher** (BL-234): Perplexity sonar-powered company signals enrichment — 17 fields covering hiring patterns, AI adoption, digital maturity, growth indicators, tech partnerships, regulatory pressure, employee sentiment
+- **News & PR Enricher** (BL-231): Perplexity sonar-powered media intelligence — media mentions (JSONB), press releases (JSONB), sentiment score (-1 to 1), thought leadership, news summary. New `company_news` table (migration 043)
+- **Social & Online Enricher** (BL-232): LinkedIn presence, Twitter/X, GitHub, speaking engagements, publications, online influence scoring
+- **Career History Enricher** (BL-235): Career trajectory, previous companies, industry experience (JSONB), total experience years. Migration 043 adds columns to contact_enrichment
+- **Contact Details Enricher** (BL-233): Email, phone, LinkedIn URL, photo URL — no-overwrite logic (only fills blanks, never overwrites existing data)
+- **Enrichment Scoring Test Suite** (BL-236): Pytest-based enrichment quality scorecard — schema validation, field coverage, and cost tracking for all enrichment stages
 - **Browser Extension** (BL-020): Chrome extension for LinkedIn lead extraction and activity monitoring
   - Extension auth via email/password login (reuses existing JWT system with `chrome.storage` token persistence)
   - `POST /api/extension/leads` — import leads from Sales Navigator with dedup by LinkedIn URL

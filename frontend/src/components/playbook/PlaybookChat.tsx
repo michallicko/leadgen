@@ -32,6 +32,8 @@ interface PlaybookChatProps {
   toolCalls?: ToolCallEvent[]
   /** THINK: show thinking indicator before first tool_start or chunk */
   isThinking?: boolean
+  /** Dynamic status text for the thinking indicator */
+  thinkingStatus?: string
   /** Clickable suggestion chips shown above the input */
   suggestions?: string[]
 }
@@ -47,6 +49,7 @@ export function PlaybookChat({
   inputRef,
   toolCalls = [],
   isThinking = false,
+  thinkingStatus = 'Thinking...',
   suggestions = [],
 }: PlaybookChatProps) {
   return (
@@ -56,15 +59,10 @@ export function PlaybookChat({
         <div className="w-2 h-2 rounded-full bg-accent-cyan" />
         <h3 className="text-sm font-semibold font-title text-text">AI Chat</h3>
         {isStreaming && (
-          <div className="ml-auto flex flex-col items-end">
-            <span className="text-[11px] text-accent-cyan animate-pulse">
-              Thinking...
+          <div className="ml-auto">
+            <span className="text-[11px] text-accent-cyan animate-pulse truncate max-w-[180px] block">
+              {thinkingStatus}
             </span>
-            {activeToolName && (
-              <span className="text-[10px] text-text-dim">
-                {activeToolName}
-              </span>
-            )}
           </div>
         )}
       </div>
@@ -77,6 +75,7 @@ export function PlaybookChat({
         isLoading={isLoading}
         toolCalls={toolCalls}
         isThinking={isThinking}
+        thinkingStatus={thinkingStatus}
       />
 
       {/* Suggestion chips */}

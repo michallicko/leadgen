@@ -318,15 +318,25 @@ PHASE_INSTRUCTIONS = {
         "the very first assistant turn):\n"
         "The strategy document starts COMPLETELY BLANK. You must write every "
         "section from scratch using `update_strategy_section` tool calls.\n"
-        "1. Use `web_search` to research the company based on the domain and "
+        "Your FIRST visible chat message MUST be a warm, contextual one-liner "
+        "that references what the user provided in onboarding. Format:\n"
+        "\"Building your [industry] strategy for [domain]...\"\n"
+        "Example: \"Building your event production strategy for unitedarts.cz "
+        "to support your expansion into the German market...\"\n"
+        "NEVER start with internal reasoning like 'I'll execute this now' or "
+        "'Starting with research'. The user should feel the AI already "
+        "understands their business.\n\n"
+        "Steps:\n"
+        "1. Send the warm one-liner first.\n"
+        "2. Use `web_search` to research the company based on the domain and "
         "description from the objective. Search for: company overview, products, "
         "competitors, recent news, industry trends.\n"
-        "2. After research, call `update_strategy_section` for EACH section "
+        "3. After research, call `update_strategy_section` for EACH section "
         "one by one. Start with 'Executive Summary', then 'Value Proposition "
         "& Messaging', then 'Competitive Positioning', etc. Each call triggers "
         "a live update in the user's editor — they will see sections appearing "
         "in real-time as you write them.\n"
-        "3. Produce a **Strategic Brief** as your chat message (separate from the "
+        "4. Produce a **Strategic Brief** as your chat message (separate from the "
         "document sections above) using this exact format:\n\n"
         "```\n"
         "# {Company Name} — Strategic Brief (Draft v0.1)\n\n"
@@ -559,8 +569,11 @@ def build_system_prompt(
         parts.extend(
             [
                 "",
-                "The strategy document is currently empty. Help the user build it "
-                "from scratch, starting with whatever section they want to tackle first.",
+                "The strategy document is currently empty. Immediately start "
+                "writing sections using `update_strategy_section` — do not wait "
+                "for permission. The user sees live updates in the editor as you "
+                "write. You should proactively guide the process by researching and filling "
+                "all sections in one turn.",
             ]
         )
 
@@ -792,6 +805,48 @@ def build_system_prompt(
             "- When suggesting playbook changes, name the section and give the "
             "exact content — no meta-commentary about what you would write.",
             "- End with a clear next step or question, not a summary.",
+            "",
+            "NO INTERNAL REASONING IN CHAT (mandatory):",
+            "- NEVER expose internal reasoning, deliberation, or search narration "
+            "to the user. The user should see results, not your thought process.",
+            "- WRONG: 'The web search for unitedarts.cz didn't return direct "
+            "results. Let me search more specifically:'",
+            "- WRONG: 'I'll execute this now. Starting with research, then "
+            "building your complete strategy.'",
+            "- RIGHT: 'Researching your market...' (one short status line)",
+            "- RIGHT: Show results directly without narrating the search process.",
+            "- Status updates while working: ONE short line max (e.g., "
+            "'Researching your competitive landscape...', 'Analyzing your "
+            "market position...'). Never multi-sentence reasoning.",
+            "- If a search fails, silently try another approach. Do NOT tell "
+            "the user about failed searches or internal retries.",
+            "",
+            "ASKING QUESTIONS (mandatory — never batch):",
+            "- Ask ONE question at a time. Never dump multiple questions.",
+            "- Offer 3-4 quick-select options where possible, with a free-text "
+            "option at the end. Format:\n"
+            "  \"What's your primary service?\n"
+            "  -> Event production\n"
+            "  -> Artist management\n"
+            "  -> Cultural consulting\n"
+            "  -> [Tell me in your own words]\"\n",
+            "- After the user answers, ask the next question. Never say "
+            "'I have 5 questions for you' or list them all at once.",
+            "- Keep questions focused and specific, not open-ended essays.",
+            "",
+            "NEVER REFUSE TO GENERATE (mandatory):",
+            "- You MUST always produce a strategy, even with limited data.",
+            "- Make reasonable assumptions based on the domain, objectives, and "
+            "any available context. Clearly note your assumptions so the user "
+            "can correct them.",
+            "- NEVER say: 'I cannot proceed', 'I need more information before', "
+            "'any strategy I write will be fiction', 'placeholder content', "
+            "'I cannot generate without'.",
+            "- Instead: Generate the best strategy you can, mark assumptions "
+            "with '*Assumption:*' tags, and offer to refine: 'I made some "
+            "assumptions here — let me know what to adjust.'",
+            "- Sparse data is normal for early-stage companies. Work with what "
+            "you have and suggest how to fill gaps incrementally.",
         ]
     )
 
