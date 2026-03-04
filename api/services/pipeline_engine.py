@@ -57,6 +57,7 @@ STAGE_PREDECESSORS = {
     "l2": ["l1"],  # L2 watches L1 (triage is auto-output of L1)
     "person": ["l2"],  # Person watches L2
     "registry": [],  # Unified registry — independent, auto-detects country
+    "qc": ["l2", "person"],  # QC runs after L2 + person are done
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs

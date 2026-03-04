@@ -25,8 +25,6 @@ logger = logging.getLogger(__name__)
 # -- Known sections: must match the H2 headings in build_seeded_template() --
 KNOWN_SECTIONS = [
     "Executive Summary",
-    "Ideal Customer Profile (ICP)",
-    "Buyer Personas",
     "Value Proposition & Messaging",
     "Competitive Positioning",
     "Channel Strategy",
@@ -665,11 +663,13 @@ STRATEGY_TOOLS = [
                     "description": (
                         "The H2 section heading to update. Must match an "
                         "existing heading exactly. Available sections: "
-                        "'Executive Summary', 'Ideal Customer Profile (ICP)', "
-                        "'Buyer Personas', 'Value Proposition & Messaging', "
+                        "'Executive Summary', "
+                        "'Value Proposition & Messaging', "
                         "'Competitive Positioning', 'Channel Strategy', "
                         "'Messaging Framework', 'Metrics & KPIs', "
-                        "'90-Day Action Plan'."
+                        "'90-Day Action Plan'. Note: ICP Tiers and Buyer "
+                        "Personas are NOT document sections — use "
+                        "set_icp_tiers and set_buyer_personas tools instead."
                     ),
                 },
                 "content": {

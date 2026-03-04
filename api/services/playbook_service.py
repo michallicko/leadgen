@@ -28,8 +28,6 @@ MAX_HISTORY_MESSAGES = 20
 
 STRATEGY_SECTIONS = [
     "Executive Summary",
-    "Ideal Customer Profile (ICP)",
-    "Buyer Personas",
     "Value Proposition & Messaging",
     "Competitive Positioning",
     "Channel Strategy",
@@ -40,8 +38,6 @@ STRATEGY_SECTIONS = [
 
 # Priority order for gap-based placeholder suggestions
 _SECTION_PRIORITY = [
-    "Ideal Customer Profile (ICP)",
-    "Buyer Personas",
     "Value Proposition & Messaging",
     "Channel Strategy",
     "Executive Summary",
@@ -386,7 +382,15 @@ PHASE_INSTRUCTIONS = {
         "`update_strategy_section` for EACH section. Do not stop after a few "
         "sections — complete all requested sections in one turn.\n"
         "- For the FIRST follow-up message, lift the 150-word limit to 400 words "
-        "so you can deliver a comprehensive brief"
+        "so you can deliver a comprehensive brief\n\n"
+        "ICP & PERSONA EXTRACTION (every strategy generation turn):\n"
+        "- After writing strategy sections, ALWAYS call `set_icp_tiers` with "
+        "structured tier definitions derived from your research and ICP analysis.\n"
+        "- ALWAYS call `set_buyer_personas` with structured persona definitions.\n"
+        "- These populate the dedicated ICP Tiers and Buyer Personas tabs — they "
+        "are NOT part of the strategy document.\n"
+        "- Do NOT write ICP or persona content into the document using "
+        "`update_strategy_section`. Use the dedicated tools instead."
     ),
     "contacts": (
         "You are in the CONTACTS phase. The user's ICP and personas have been "
@@ -500,7 +504,7 @@ def build_system_prompt(
         "grounded in this company's data. No generic platitudes. Every response "
         "should be something the founder can act on today.".format(company=tenant.name),
         "",
-        "The playbook follows this 9-section structure:",
+        "The playbook follows this 7-section structure:",
         sections_list,
         "",
         "When the user asks about strategy, always ground your answers in this "
@@ -638,8 +642,10 @@ def build_system_prompt(
         ]
     )
 
-    # BL-201: Continuous extraction — instruct AI to proactively extract
-    # tiers and personas when strategy content exists but structures are missing
+    # BL-240: ICP Tiers and Buyer Personas live exclusively in their
+    # dedicated tabs (structured data in extracted_data.tiers / .personas).
+    # They are NOT document sections. The AI must always populate them via
+    # set_icp_tiers / set_buyer_personas tools.
     extracted = document.extracted_data or {}
     if isinstance(extracted, str):
         try:
@@ -648,38 +654,49 @@ def build_system_prompt(
             extracted = {}
     has_tiers = bool(extracted.get("tiers"))
     has_personas = bool(extracted.get("personas"))
-    has_content = bool(content and content.strip())
 
-    if has_content and (not has_tiers or not has_personas):
-        extraction_hints = []
+    parts.extend(
+        [
+            "",
+            "ICP TIERS & BUYER PERSONAS (mandatory — critical rules):",
+            "ICP Tiers and Buyer Personas are NOT document sections. They live "
+            "in dedicated structured tabs. NEVER write ICP tier or buyer persona "
+            "content into the strategy document using `update_strategy_section`.",
+            "",
+            "Instead, you MUST use these tools:",
+            "- `set_icp_tiers` — call this to define structured ICP tiers with: "
+            "name, description, priority (1=highest), and criteria (industries, "
+            "company_size_min, company_size_max, revenue_min, revenue_max, "
+            "geographies, tech_signals, qualifying_signals).",
+            "- `set_buyer_personas` — call this to define structured buyer personas "
+            "with: name, role, seniority, pain_points, goals, preferred_channels, "
+            "messaging_hooks, objections, linked_tiers.",
+            "",
+            "WHEN to call these tools:",
+            "- During initial strategy generation (first message): after web "
+            "research and writing strategy sections, ALWAYS call both "
+            "`set_icp_tiers` and `set_buyer_personas` in the same turn.",
+            "- When the user discusses ICP, target markets, or personas: update "
+            "the structured data via these tools.",
+            "- When refining strategy: if ICP or persona changes are implied, "
+            "update the structured data.",
+            "- Do NOT ask for permission — just call the tools proactively.",
+        ]
+    )
+
+    if not has_tiers or not has_personas:
+        missing = []
         if not has_tiers:
-            extraction_hints.append(
-                "- ICP tier definitions are missing. After generating or updating "
-                "the strategy, call `set_icp_tiers` to extract structured tier "
-                "definitions (name, description, priority, criteria with industries, "
-                "company size, revenue, geographies, tech signals, qualifying signals)."
-            )
+            missing.append("ICP tiers are currently EMPTY")
         if not has_personas:
-            extraction_hints.append(
-                "- Buyer persona definitions are missing. After generating or "
-                "updating the strategy, call `set_buyer_personas` to extract "
-                "structured personas (name, role, seniority, pain points, goals, "
-                "preferred channels, messaging hooks, objections, linked tiers)."
-            )
+            missing.append("Buyer personas are currently EMPTY")
         parts.extend(
             [
                 "",
-                "CONTINUOUS EXTRACTION (mandatory — do this proactively):",
-                "The strategy document has content but structured data is missing. "
-                "Whenever you write or update strategy sections, also call the "
-                "extraction tools to keep structured data in sync:",
-            ]
-            + extraction_hints
-            + [
-                "- Do NOT ask the user for permission — just call the tools "
-                "alongside your strategy updates.",
-                "- If the document already has ICP or persona content in prose, "
-                "extract it into structured form immediately in your first response.",
+                "URGENT: {} — populate them immediately in your next "
+                "response by calling the appropriate tool(s).".format(
+                    " and ".join(missing)
+                ),
             ]
         )
 
@@ -1717,14 +1734,6 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
 
 {exec_summary}
 
-## Ideal Customer Profile (ICP)
-
-{icp_content}
-
-## Buyer Personas
-
-{persona_content}
-
 ## Value Proposition & Messaging
 
 {value_content}
@@ -1750,8 +1759,6 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
 {action_content}""".format(
         header=header,
         exec_summary=exec_summary,
-        icp_content=icp_content,
-        persona_content=persona_content,
         value_content=value_content,
         comp_content=comp_content,
         channel_content=channel_content,
@@ -1778,14 +1785,6 @@ def _build_empty_template(objective=None, challenge_type=None):
 ## Executive Summary
 
 **Objective:** {objective}
-
-## Ideal Customer Profile (ICP)
-
-Define your target customer segments based on industry, company size, and buying signals.
-
-## Buyer Personas
-
-Identify 2-3 key buyer personas with their titles, pain points, and goals.
 
 ## Value Proposition & Messaging
 

@@ -358,17 +358,15 @@ class TestUpdateStrategySection:
             assert snap is not None
             assert snap.content == ""  # snapshot of the blank state
 
-    def test_all_nine_sections_on_blank_doc(self, app, blank_doc, tool_ctx):
-        """BL-193: populating all 9 sections on an empty document.
+    def test_all_sections_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-193/BL-240: populating all 7 sections on an empty document.
 
         Simulates the AI calling update_strategy_section for each section
-        sequentially on a blank document, as happens when the AI says
-        'building all 9 sections'.
+        sequentially on a blank document. ICP and Buyer Personas are no
+        longer document sections (BL-240) — they use dedicated tools.
         """
         sections_content = {
             "Executive Summary": "Our GTM strategy focuses on mid-market SaaS.",
-            "Ideal Customer Profile (ICP)": "Companies with 50-500 employees in DACH.",
-            "Buyer Personas": "**CTO**: Technical decision maker.",
             "Value Proposition & Messaging": "We automate workflows with AI.",
             "Competitive Positioning": "AI-native architecture differentiator.",
             "Channel Strategy": "LinkedIn and cold email outreach.",
@@ -387,7 +385,7 @@ class TestUpdateStrategySection:
                     "Failed on section '{}': {}".format(section, result)
                 )
 
-            # Verify all 9 sections are present in the document
+            # Verify all 7 sections are present in the document
             doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert doc.content is not None
             assert len(doc.content.strip()) > 0
@@ -400,8 +398,8 @@ class TestUpdateStrategySection:
                     "Content for section '{}' not found".format(section)
                 )
 
-            # Version should have been bumped 9 times (1 + 9 = 10)
-            assert doc.version == 10
+            # Version should have been bumped 7 times (1 + 7 = 8)
+            assert doc.version == 8
 
     def test_update_section_with_separate_app_contexts(self, app, blank_doc, tool_ctx):
         """BL-193: simulate tool calls running in separate app contexts.
@@ -479,8 +477,8 @@ class TestAppendToSection:
         with app.app_context():
             result = append_to_section(
                 {
-                    "section": "Buyer Personas",
-                    "content": "**VP Sales**: Revenue-focused buyer.",
+                    "section": "Channel Strategy",
+                    "content": "Also consider partner referrals.",
                 },
                 tool_ctx,
             )
@@ -488,8 +486,8 @@ class TestAppendToSection:
             assert result["action"] == "appended"
 
             doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
-            assert "CTO" in doc.content
-            assert "VP Sales" in doc.content
+            assert "LinkedIn outreach" in doc.content
+            assert "partner referrals" in doc.content
 
     def test_invalid_section_returns_error(self, app, strategy_doc, tool_ctx):
         with app.app_context():
@@ -502,7 +500,7 @@ class TestAppendToSection:
     def test_creates_snapshot(self, app, strategy_doc, tool_ctx):
         with app.app_context():
             append_to_section(
-                {"section": "Buyer Personas", "content": "More content."},
+                {"section": "Channel Strategy", "content": "More content."},
                 tool_ctx,
             )
             snap = StrategyVersion.query.filter_by(document_id=strategy_doc.id).first()
@@ -514,35 +512,35 @@ class TestAppendToSection:
         with app.app_context():
             result = append_to_section(
                 {
-                    "section": "Buyer Personas",
-                    "content": "**CTO**: Drives tech decisions.",
+                    "section": "Channel Strategy",
+                    "content": "LinkedIn DM campaigns for decision makers.",
                 },
                 tool_ctx,
             )
             assert result.get("success") is True
 
             doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
-            assert "## Buyer Personas" in doc.content
-            assert "CTO" in doc.content
+            assert "## Channel Strategy" in doc.content
+            assert "decision makers" in doc.content
 
     def test_append_creates_then_appends(self, app, blank_doc, tool_ctx):
         """BL-089: first append creates section, second append adds to it."""
         with app.app_context():
             append_to_section(
-                {"section": "Buyer Personas", "content": "**CTO**: Tech leader."},
+                {"section": "Channel Strategy", "content": "LinkedIn outreach."},
                 tool_ctx,
             )
             append_to_section(
                 {
-                    "section": "Buyer Personas",
-                    "content": "**VP Sales**: Revenue driver.",
+                    "section": "Channel Strategy",
+                    "content": "Cold email as secondary channel.",
                 },
                 tool_ctx,
             )
 
             doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
-            assert "CTO" in doc.content
-            assert "VP Sales" in doc.content
+            assert "LinkedIn" in doc.content
+            assert "Cold email" in doc.content
 
 
 # ---------------------------------------------------------------------------

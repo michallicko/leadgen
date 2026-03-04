@@ -200,8 +200,6 @@ class TestBuildSeededTemplateWithChallengeType:
             objective="Test", challenge_type="launching_new_product"
         )
         assert "## Executive Summary" in result
-        assert "## Ideal Customer Profile (ICP)" in result
-        assert "## Buyer Personas" in result
         assert "## Value Proposition & Messaging" in result
         assert "## Competitive Positioning" in result
         assert "## Channel Strategy" in result
@@ -210,6 +208,9 @@ class TestBuildSeededTemplateWithChallengeType:
         assert "## 90-Day Action Plan" in result
         # Plus the adaptive section
         assert "## Launch Playbook" in result
+        # ICP and Buyer Personas are no longer document sections (BL-240)
+        assert "## Ideal Customer Profile (ICP)" not in result
+        assert "## Buyer Personas" not in result
 
 
 # ---------------------------------------------------------------------------

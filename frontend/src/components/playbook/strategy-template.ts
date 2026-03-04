@@ -11,10 +11,6 @@ export const STRATEGY_TEMPLATE = `# GTM Strategy
 
 Define your go-to-market objective and high-level strategy...
 
-## Ideal Customer Profile (ICP)
-
-Describe your target customer segments, firmographics, and buying personas...
-
 ## Value Proposition
 
 What unique value do you deliver to your target customers...

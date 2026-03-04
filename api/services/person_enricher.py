@@ -1125,16 +1125,11 @@ def _update_contact(contact_id, scores, total_cost, signals_data=None):
         if activity in ("active", "moderate", "quiet", "unknown"):
             linkedin_activity = activity
 
-    # Normalize display values to DB enum values
-    seniority_db = _SENIORITY_TO_DB.get(
-        scores["seniority"], scores["seniority"].lower().replace(" ", "_")
-    )
-    department_db = _DEPARTMENT_TO_DB.get(
-        scores["department"], scores["department"].lower().replace(" ", "_")
-    )
-    icp_fit_db = _ICP_FIT_TO_DB.get(
-        scores["icp_fit"], scores["icp_fit"].lower().replace(" ", "_")
-    )
+    # Normalize display values to DB enum values (fallback to safe defaults
+    # rather than attempting string transforms that may produce invalid enums)
+    seniority_db = _SENIORITY_TO_DB.get(scores["seniority"], "other")
+    department_db = _DEPARTMENT_TO_DB.get(scores["department"], "other")
+    icp_fit_db = _ICP_FIT_TO_DB.get(scores["icp_fit"], "unknown")
 
     db.session.execute(
         text("""

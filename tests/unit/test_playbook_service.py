@@ -17,16 +17,17 @@ class TestBuildSystemPrompt:
 
         assert isinstance(prompt, str)
         assert len(prompt) > 100
-        # Must reference the 9 strategy sections (unified STRATEGY_SECTIONS)
+        # Must reference the 7 strategy sections (ICP/Personas moved to tabs)
         assert "Executive Summary" in prompt
-        assert "ICP" in prompt
-        assert "Buyer Personas" in prompt
         assert "Value Proposition" in prompt
         assert "Competitive Positioning" in prompt
         assert "Channel Strategy" in prompt
         assert "Messaging Framework" in prompt
         assert "Metrics & KPIs" in prompt
         assert "90-Day Action Plan" in prompt
+        # ICP and Personas are now in dedicated tabs, referenced via tool instructions
+        assert "set_icp_tiers" in prompt
+        assert "set_buyer_personas" in prompt
 
     def test_includes_tenant_name(self):
         """System prompt references the tenant/company name."""
@@ -492,14 +493,12 @@ class TestBuildSeededTemplate:
         assert "Executive Summary" in result
 
     def test_includes_all_sections(self):
-        """Template contains all strategy sections."""
+        """Template contains all strategy sections (ICP/Personas moved to tabs)."""
         from api.services.playbook_service import build_seeded_template
 
         result = build_seeded_template()
         for section in [
             "Executive Summary",
-            "Ideal Customer Profile",
-            "Buyer Personas",
             "Value Proposition",
             "Competitive Positioning",
             "Channel Strategy",
@@ -508,6 +507,9 @@ class TestBuildSeededTemplate:
             "90-Day Action Plan",
         ]:
             assert section in result, "Missing section: {}".format(section)
+        # ICP and Buyer Personas are no longer in the document template (BL-240)
+        assert "## Ideal Customer Profile" not in result
+        assert "## Buyer Personas" not in result
 
     def test_includes_objective(self):
         """Template includes the user's stated objective."""
