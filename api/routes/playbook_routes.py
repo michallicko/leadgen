@@ -164,7 +164,32 @@ def update_playbook():
         doc.playbook_selections = existing
 
     db.session.commit()
-    return jsonify(doc.to_dict()), 200
+
+    result = doc.to_dict()
+
+    # BL-201: Flag when content has ICP-related prose but no structured tiers/personas
+    if content is not None and content.strip():
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            try:
+                extracted = json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        content_lower = content.lower()
+        has_icp_prose = any(
+            term in content_lower
+            for term in ("ideal customer", "icp", "target market", "tier")
+        )
+        has_persona_prose = any(
+            term in content_lower
+            for term in ("buyer persona", "persona", "decision maker", "target role")
+        )
+        result["needs_tier_extraction"] = has_icp_prose and not extracted.get("tiers")
+        result["needs_persona_extraction"] = has_persona_prose and not extracted.get(
+            "personas"
+        )
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook/undo", methods=["POST"])
@@ -454,6 +479,106 @@ def get_icp_triage_config():
             "source": "gtm_strategy",
         }
     ), 200
+
+
+# ---------------------------------------------------------------------------
+# ICP Tiers CRUD (BL-198) — stored in extracted_data.tiers
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/strategy/tiers", methods=["GET"])
+@require_auth
+def get_tiers():
+    """Return the structured ICP tiers from extracted_data."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    tiers = extracted.get("tiers", [])
+    return jsonify({"tiers": tiers}), 200
+
+
+@playbook_bp.route("/api/playbook/strategy/tiers", methods=["PUT"])
+@require_auth
+def update_tiers():
+    """Replace all ICP tiers in extracted_data.tiers."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    tiers = data.get("tiers")
+    if not isinstance(tiers, list):
+        return jsonify({"error": "tiers must be an array"}), 400
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    extracted["tiers"] = tiers
+    doc.extracted_data = extracted
+    db.session.commit()
+    return jsonify({"status": "ok", "tiers": tiers}), 200
+
+
+# ---------------------------------------------------------------------------
+# Buyer Personas CRUD (BL-199) — stored in extracted_data.personas
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/strategy/personas", methods=["GET"])
+@require_auth
+def get_personas():
+    """Return the structured buyer personas from extracted_data."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    personas = extracted.get("personas", [])
+    return jsonify({"personas": personas}), 200
+
+
+@playbook_bp.route("/api/playbook/strategy/personas", methods=["PUT"])
+@require_auth
+def update_personas():
+    """Replace all buyer personas in extracted_data.personas."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    personas = data.get("personas")
+    if not isinstance(personas, list):
+        return jsonify({"error": "personas must be an array"}), 400
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    extracted["personas"] = personas
+    doc.extracted_data = extracted
+    db.session.commit()
+    return jsonify({"status": "ok", "personas": personas}), 200
 
 
 @playbook_bp.route("/api/playbook/contacts", methods=["GET"])

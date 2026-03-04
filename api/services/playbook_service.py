@@ -638,6 +638,51 @@ def build_system_prompt(
         ]
     )
 
+    # BL-201: Continuous extraction — instruct AI to proactively extract
+    # tiers and personas when strategy content exists but structures are missing
+    extracted = document.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    has_tiers = bool(extracted.get("tiers"))
+    has_personas = bool(extracted.get("personas"))
+    has_content = bool(content and content.strip())
+
+    if has_content and (not has_tiers or not has_personas):
+        extraction_hints = []
+        if not has_tiers:
+            extraction_hints.append(
+                "- ICP tier definitions are missing. After generating or updating "
+                "the strategy, call `set_icp_tiers` to extract structured tier "
+                "definitions (name, description, priority, criteria with industries, "
+                "company size, revenue, geographies, tech signals, qualifying signals)."
+            )
+        if not has_personas:
+            extraction_hints.append(
+                "- Buyer persona definitions are missing. After generating or "
+                "updating the strategy, call `set_buyer_personas` to extract "
+                "structured personas (name, role, seniority, pain points, goals, "
+                "preferred channels, messaging hooks, objections, linked tiers)."
+            )
+        parts.extend(
+            [
+                "",
+                "CONTINUOUS EXTRACTION (mandatory — do this proactively):",
+                "The strategy document has content but structured data is missing. "
+                "Whenever you write or update strategy sections, also call the "
+                "extraction tools to keep structured data in sync:",
+            ]
+            + extraction_hints
+            + [
+                "- Do NOT ask the user for permission — just call the tools "
+                "alongside your strategy updates.",
+                "- If the document already has ICP or persona content in prose, "
+                "extract it into structured form immediately in your first response.",
+            ]
+        )
+
     # Include enrichment/research data as structured sections (BL-054)
     if enrichment_data:
         parts.extend(_format_enrichment_for_prompt(enrichment_data))
