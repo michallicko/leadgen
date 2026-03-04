@@ -228,14 +228,15 @@ def _parse_xlsx_bytes(raw):
     headers = [raw_headers[i] for i in valid_indices]
     rows = []
     for row in rows_iter:
-        rows.append(
-            {
-                raw_headers[i]: (
-                    str(row[i]) if i < len(row) and row[i] is not None else ""
-                )
-                for i in valid_indices
-            }
-        )
+        vals = {
+            raw_headers[i]: (
+                str(row[i]) if i < len(row) and row[i] is not None else ""
+            )
+            for i in valid_indices
+        }
+        # Skip completely empty rows (ghost rows from Excel's used range)
+        if any(vals.values()):
+            rows.append(vals)
     wb.close()
     return headers, rows
 
