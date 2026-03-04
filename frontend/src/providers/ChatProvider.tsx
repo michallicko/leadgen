@@ -305,6 +305,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Clear active tool name when result arrives
             setActiveToolName(null)
           },
+          onSectionUpdate: () => {
+            // Refresh the strategy document so the editor shows live updates
+            queryClient.invalidateQueries({ queryKey: ['strategy-document'] })
+          },
           onThinking: () => {
             setIsThinking(false)
           },

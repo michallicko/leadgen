@@ -412,8 +412,8 @@ def build_system_prompt(
         "1. NEVER use negative or dismissive language about ANY company or person. "
         "NEVER say: disqualify, not viable, remove from list, red flag, poor fit, "
         "low-quality, not worth pursuing, questionable, problematic, concerning.",
-        "2. MAXIMUM 150 words per response unless the user explicitly asks for "
-        "more detail. Use bullet points, not paragraphs.",
+        "2. Write comprehensive, well-structured content. Use markdown formatting "
+        "with headers, bullet points, and tables where appropriate. Be thorough.",
         '3. NEVER start with filler: "Great question", "Absolutely", '
         '"That\'s a great point", "I\'d be happy to". Start with the answer.',
         '4. When data is sparse, say "[TODO: Research needed]" and suggest how '

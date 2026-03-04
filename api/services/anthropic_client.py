@@ -165,7 +165,7 @@ class AnthropicClient:
         messages,
         system_prompt,
         tools,
-        max_tokens=4096,
+        max_tokens=8192,
         model=None,
         temperature=0.4,
     ):

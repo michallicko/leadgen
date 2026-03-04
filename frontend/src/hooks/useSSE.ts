@@ -45,6 +45,13 @@ export interface AnalysisDoneEventData {
   suggestions: string[]
 }
 
+/** Payload from a `section_update` SSE event (live doc animation). */
+export interface SectionUpdateEvent {
+  section: string
+  content: string
+  action: 'update' | 'append'
+}
+
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
   onDone: (data: DoneEventData) => void
@@ -55,6 +62,8 @@ export interface UseSSECallbacks {
   onToolResult?: (result: ToolResultEvent) => void
   /** Fired when the AI emits a thinking/reasoning block (v2/optional). */
   onThinking?: (text: string) => void
+  /** Fired when a strategy section is updated (live document animation). */
+  onSectionUpdate?: (event: SectionUpdateEvent) => void
   /** Fired when proactive analysis starts streaming (after strategy edits). */
   onAnalysisStart?: () => void
   /** Fired for each text chunk of the proactive analysis. */
@@ -134,6 +143,12 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
     })
   } else if (eventType === 'thinking') {
     callbacks.onThinking?.((event.text as string) ?? '')
+  } else if (eventType === 'section_update') {
+    callbacks.onSectionUpdate?.({
+      section: event.section as string,
+      content: event.content as string,
+      action: event.action as 'update' | 'append',
+    })
   } else if (eventType === 'analysis_start') {
     callbacks.onAnalysisStart?.()
   } else if (eventType === 'analysis_chunk') {

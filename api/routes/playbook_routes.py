@@ -1723,6 +1723,11 @@ def _stream_agent_response(
                         json.dumps(sse_event.data | {"type": "tool_result"})
                     )
 
+                elif sse_event.type == "section_update":
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "section_update"})
+                    )
+
                 elif sse_event.type == "done":
                     done_data = sse_event.data
 
