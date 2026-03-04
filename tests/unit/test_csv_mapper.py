@@ -178,7 +178,10 @@ class TestSanitizeEnumValue:
         }
         result = apply_mapping(row, mapping)
         assert result["contact"]["contact_source"] == "event"
-        assert result["contact"]["_custom_fields"]["original_contact_source"] == "Event Fest 2025"
+        assert (
+            result["contact"]["_custom_fields"]["original_contact_source"]
+            == "Event Fest 2025"
+        )
 
     def test_apply_mapping_sanitizes_company_enum(self):
         """Integration: apply_mapping should sanitize company enum fields."""

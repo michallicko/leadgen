@@ -41,6 +41,7 @@ def _register_echo_tool():
 
 def _register_failing_tool():
     """Register a tool that always raises an exception."""
+
     def fail_handler(args, ctx):
         raise ValueError("Tool exploded!")
 
@@ -133,12 +134,14 @@ class TestExecuteAgentTurn:
 
     def test_text_only_response(self):
         """No tools called -- should yield chunk + done."""
-        client = self._make_client([
-            _mock_client_response(
-                [{"type": "text", "text": "Hello there!"}],
-                stop_reason="end_turn",
-            )
-        ])
+        client = self._make_client(
+            [
+                _mock_client_response(
+                    [{"type": "text", "text": "Hello there!"}],
+                    stop_reason="end_turn",
+                )
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -160,26 +163,28 @@ class TestExecuteAgentTurn:
         """One tool call then final text response."""
         _register_echo_tool()
 
-        client = self._make_client([
-            # First call: Claude wants to use echo tool
-            _mock_client_response(
-                [
-                    {"type": "text", "text": "Let me check..."},
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "echo",
-                        "input": {"query": "test"},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            # Second call: Claude responds with text after tool result
-            _mock_client_response(
-                [{"type": "text", "text": "Here's what I found: test"}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                # First call: Claude wants to use echo tool
+                _mock_client_response(
+                    [
+                        {"type": "text", "text": "Let me check..."},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "echo",
+                            "input": {"query": "test"},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                # Second call: Claude responds with text after tool result
+                _mock_client_response(
+                    [{"type": "text", "text": "Here's what I found: test"}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -232,37 +237,39 @@ class TestExecuteAgentTurn:
             )
         )
 
-        client = self._make_client([
-            # First call: Claude calls echo
-            _mock_client_response(
-                [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "echo",
-                        "input": {"msg": "hi"},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            # Second call: Claude calls greet
-            _mock_client_response(
-                [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_02",
-                        "name": "greet",
-                        "input": {},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            # Third call: final text
-            _mock_client_response(
-                [{"type": "text", "text": "Done with tools."}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                # First call: Claude calls echo
+                _mock_client_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "echo",
+                            "input": {"msg": "hi"},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                # Second call: Claude calls greet
+                _mock_client_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_02",
+                            "name": "greet",
+                            "input": {},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                # Third call: final text
+                _mock_client_response(
+                    [{"type": "text", "text": "Done with tools."}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -276,9 +283,12 @@ class TestExecuteAgentTurn:
 
         types = [e.type for e in events]
         assert types == [
-            "tool_start", "tool_result",  # echo
-            "tool_start", "tool_result",  # greet
-            "chunk", "done",
+            "tool_start",
+            "tool_result",  # echo
+            "tool_start",
+            "tool_result",  # greet
+            "chunk",
+            "done",
         ]
 
         done = events[-1]
@@ -297,31 +307,33 @@ class TestExecuteAgentTurn:
             )
         )
 
-        client = self._make_client([
-            # Single response with two tool_use blocks
-            _mock_client_response(
-                [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "echo",
-                        "input": {"msg": "a"},
-                    },
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_02",
-                        "name": "greet",
-                        "input": {},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            # Final text after both tools
-            _mock_client_response(
-                [{"type": "text", "text": "Both done."}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                # Single response with two tool_use blocks
+                _mock_client_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "echo",
+                            "input": {"msg": "a"},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_02",
+                            "name": "greet",
+                            "input": {},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                # Final text after both tools
+                _mock_client_response(
+                    [{"type": "text", "text": "Both done."}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -335,34 +347,39 @@ class TestExecuteAgentTurn:
 
         types = [e.type for e in events]
         assert types == [
-            "tool_start", "tool_result",  # echo
-            "tool_start", "tool_result",  # greet
-            "chunk", "done",
+            "tool_start",
+            "tool_result",  # echo
+            "tool_start",
+            "tool_result",  # greet
+            "chunk",
+            "done",
         ]
 
     def test_tool_failure_handling(self):
         """Failed tool should yield error status and continue loop."""
         _register_failing_tool()
 
-        client = self._make_client([
-            # Claude calls the failing tool
-            _mock_client_response(
-                [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "fail_tool",
-                        "input": {},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            # Claude handles the error gracefully
-            _mock_client_response(
-                [{"type": "text", "text": "Sorry, that tool failed."}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                # Claude calls the failing tool
+                _mock_client_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "fail_tool",
+                            "input": {},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                # Claude handles the error gracefully
+                _mock_client_response(
+                    [{"type": "text", "text": "Sorry, that tool failed."}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -388,23 +405,25 @@ class TestExecuteAgentTurn:
 
     def test_unknown_tool_handling(self):
         """Unknown tool should yield error and continue."""
-        client = self._make_client([
-            _mock_client_response(
-                [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "nonexistent_tool",
-                        "input": {},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            _mock_client_response(
-                [{"type": "text", "text": "That tool doesn't exist."}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                _mock_client_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "nonexistent_tool",
+                            "input": {},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                _mock_client_response(
+                    [{"type": "text", "text": "That tool doesn't exist."}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(
@@ -466,13 +485,15 @@ class TestExecuteAgentTurn:
 
     def test_cost_tracking(self):
         """Verify total cost is summed across all API calls."""
-        client = self._make_client([
-            _mock_client_response(
-                [{"type": "text", "text": "Done."}],
-                stop_reason="end_turn",
-                usage={"input_tokens": 500, "output_tokens": 200},
-            )
-        ])
+        client = self._make_client(
+            [
+                _mock_client_response(
+                    [{"type": "text", "text": "Done."}],
+                    stop_reason="end_turn",
+                    usage={"input_tokens": 500, "output_tokens": 200},
+                )
+            ]
+        )
         client._estimate_cost = MagicMock(return_value=0.0025)
 
         events = self._collect_events(
@@ -495,24 +516,26 @@ class TestExecuteAgentTurn:
         _register_echo_tool()
         messages = [{"role": "user", "content": "Test"}]
 
-        client = self._make_client([
-            _mock_client_response(
-                [
-                    {"type": "text", "text": "Calling echo..."},
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_01",
-                        "name": "echo",
-                        "input": {"data": "test"},
-                    },
-                ],
-                stop_reason="tool_use",
-            ),
-            _mock_client_response(
-                [{"type": "text", "text": "All done."}],
-                stop_reason="end_turn",
-            ),
-        ])
+        client = self._make_client(
+            [
+                _mock_client_response(
+                    [
+                        {"type": "text", "text": "Calling echo..."},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_01",
+                            "name": "echo",
+                            "input": {"data": "test"},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+                _mock_client_response(
+                    [{"type": "text", "text": "All done."}],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
 
         # Consume all events
         list(
@@ -538,12 +561,14 @@ class TestExecuteAgentTurn:
 
     def test_empty_text_response(self):
         """Response with no text content should still yield done."""
-        client = self._make_client([
-            _mock_client_response(
-                [],  # Empty content blocks
-                stop_reason="end_turn",
-            )
-        ])
+        client = self._make_client(
+            [
+                _mock_client_response(
+                    [],  # Empty content blocks
+                    stop_reason="end_turn",
+                )
+            ]
+        )
 
         events = self._collect_events(
             execute_agent_turn(

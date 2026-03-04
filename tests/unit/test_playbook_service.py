@@ -376,7 +376,10 @@ class TestBuildMessages:
         assert isinstance(result, list)
         assert len(result) == 3
         assert result[0] == {"role": "user", "content": "What is our ICP?"}
-        assert result[1] == {"role": "assistant", "content": "Your ICP should focus on..."}
+        assert result[1] == {
+            "role": "assistant",
+            "content": "Your ICP should focus on...",
+        }
         assert result[2] == {"role": "user", "content": "Tell me more"}
 
     def test_limits_history_to_20_messages(self):
@@ -447,11 +450,26 @@ class TestBuildExtractionPrompt:
 
         # Nested fields
         for field in [
-            "industries", "company_size", "geographies", "tech_signals",
-            "triggers", "disqualifiers", "title_patterns", "pain_points",
-            "goals", "tone", "themes", "angles", "proof_points",
-            "primary", "secondary", "cadence", "reply_rate_target",
-            "meeting_rate_target", "pipeline_goal_eur", "timeline_months",
+            "industries",
+            "company_size",
+            "geographies",
+            "tech_signals",
+            "triggers",
+            "disqualifiers",
+            "title_patterns",
+            "pain_points",
+            "goals",
+            "tone",
+            "themes",
+            "angles",
+            "proof_points",
+            "primary",
+            "secondary",
+            "cadence",
+            "reply_rate_target",
+            "meeting_rate_target",
+            "pipeline_goal_eur",
+            "timeline_months",
         ]:
             assert field in system, f"Missing schema field: {field}"
 
