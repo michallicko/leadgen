@@ -1,10 +1,12 @@
 """Playbook (GTM Strategy) API routes."""
 
+import ipaddress
 import json
 import logging
 import math
 import os
 import re
+import socket
 import threading
 import time
 
@@ -46,6 +48,29 @@ from ..services.playbook_service import (
 from ..services.tool_registry import ToolContext, get_tools_for_api
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_domain(domain: str) -> bool:
+    """Reject domains that resolve to private/loopback/link-local addresses.
+
+    Prevents SSRF attacks where an authenticated user could supply domains
+    like ``169.254.169.254.nip.io`` or ``localhost`` to reach internal
+    services (e.g. cloud metadata endpoints).
+    """
+    if not domain:
+        return False
+    hostname = domain.split(":")[0].strip().rstrip("/")
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+        return False
+    try:
+        resolved = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(resolved)
+        return not (
+            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        )
+    except Exception:
+        return False
+
 
 playbook_bp = Blueprint("playbook", __name__)
 
@@ -898,70 +923,119 @@ def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
     db.session.commit()
 
 
+def _save_research_progress(tenant_id, company_id, event):
+    """Save a research progress event as a chat tool-call record.
+
+    This lets the frontend's ToolCallCard component render real-time
+    progress from the research pipeline.
+    """
+    try:
+        doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+        if not doc:
+            return
+
+        msg = StrategyChatMessage(
+            doc_id=doc.id,
+            role="assistant",
+            content=event.get("summary", ""),
+            extra={
+                "tool_calls": [
+                    {
+                        "name": event.get("tool_name", "Research"),
+                        "target": event.get("target", ""),
+                        "status": event.get("status", "running"),
+                        "summary": event.get("summary", ""),
+                        "detail": event.get("detail", {}),
+                        "duration_ms": event.get("duration_ms", 0),
+                        "step": event.get("step", ""),
+                    }
+                ],
+                "is_research_progress": True,
+            },
+        )
+        db.session.add(msg)
+        db.session.commit()
+    except Exception:
+        logger.debug("Could not save research progress event", exc_info=True)
+        # Do NOT rollback — this runs inside the research pipeline's session
+        # and a rollback here would corrupt the caller's transaction state.
+        # Progress save failure is non-fatal.
+
+
 def _run_self_research(
     app, company_id, tenant_id, additional_domains=None, challenge_type=None
 ):
-    """Run L1 + L2 enrichment in a background thread for self-company research.
+    """Run domain-first research in a background thread for self-company research.
+
+    Uses ResearchService to:
+    1. Fetch & parse the company website
+    2. Run targeted web search with website context
+    3. Synthesize findings into structured enrichment profile
+    4. Save to all enrichment tables (compatible with _load_enrichment_data)
 
     Args:
         additional_domains: Optional list of competitor/partner domains for
             lightweight web_search enrichment. The primary domain gets full
-            L1+L2 enrichment; additional domains get stored as metadata.
+            research; additional domains get stored as metadata.
         challenge_type: Optional string indicating the user's primary GTM
             challenge. Passed to build_seeded_template for adaptive sections.
     """
     with app.app_context():
         try:
-            from api.services.l1_enricher import enrich_l1
-            from api.services.l2_enricher import enrich_l2
+            from api.services.research_service import ResearchService
 
             logger.info(
-                "Starting self-research for company %s (additional_domains=%s)",
+                "Starting domain-first research for company %s (additional_domains=%s)",
                 company_id,
                 additional_domains,
             )
 
-            enrich_l1(company_id, tenant_id)
-
-            # Update company name from L1 enrichment results
+            # Get company domain
             company = db.session.get(Company, company_id)
-            if company and company.is_self:
-                l1 = db.session.get(CompanyEnrichmentL1, company_id)
-                if l1 and l1.raw_response:
-                    import json as _json
+            if not company:
+                logger.error("Company %s not found", company_id)
+                return
 
-                    try:
-                        raw = (
-                            _json.loads(l1.raw_response)
-                            if isinstance(l1.raw_response, str)
-                            else l1.raw_response
-                        )
-                        l1_name = raw.get("company_name") or raw.get("name")
-                        if l1_name and l1_name != company.name:
-                            company.name = l1_name
-                    except (ValueError, TypeError, AttributeError):
-                        pass
+            domain = company.domain
+            if not domain:
+                logger.error("Company %s has no domain", company_id)
+                return
 
-            # After L1, auto-advance to triage_passed if still in early status
-            _SKIP_STATUSES = {"triage_passed", "enriched_l2", "enrichment_l2_failed"}
-            if company and company.status not in _SKIP_STATUSES:
-                company.status = "triage_passed"
-                db.session.commit()
+            # Progress callback: saves events as chat messages
+            def on_progress(event):
+                _save_research_progress(tenant_id, company_id, event)
 
-            l2_result = enrich_l2(company_id, tenant_id)
-            l2_failed = "error" in l2_result
+            # Run the domain-first research pipeline
+            service = ResearchService()
+            result = service.research_company(
+                company_id=company_id,
+                tenant_id=tenant_id,
+                domain=domain,
+                on_progress=on_progress,
+            )
 
-            if l2_failed:
+            research_failed = not result.get("success", False)
+
+            if research_failed:
                 logger.warning(
-                    "Self-research L2 failed for company %s: %s",
+                    "Self-research failed for company %s: %s",
                     company_id,
-                    l2_result.get("error"),
+                    result.get("error"),
                 )
 
-            # Seed the strategy document with whatever data we have
-            # (L1 data if L2 failed, full data if L2 succeeded).
-            # Start a clean session state since L2 failure may have
-            # left the session dirty from rollbacks.
+            # Update company name if research discovered it
+            if result.get("company_name"):
+                try:
+                    company = db.session.get(Company, company_id)
+                    if company and company.is_self:
+                        discovered_name = result["company_name"]
+                        if discovered_name and discovered_name != company.name:
+                            company.name = discovered_name
+                            db.session.commit()
+                except Exception:
+                    logger.debug("Could not update company name", exc_info=True)
+
+            # Seed the strategy document with enrichment data
             try:
                 db.session.rollback()
             except Exception:
@@ -982,13 +1056,13 @@ def _run_self_research(
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
-                    "Seeded template for company %s (content length: %d, l2_failed: %s)",
+                    "Seeded template for company %s (content length: %d, failed: %s)",
                     company_id,
                     len(doc.content or ""),
-                    l2_failed,
+                    research_failed,
                 )
 
-            if not l2_failed:
+            if not research_failed:
                 logger.info("Self-research completed for company %s", company_id)
 
             # Log research completion (skip if no valid user_id to avoid UUID error)
@@ -1000,14 +1074,16 @@ def _run_self_research(
                     user_id=doc.updated_by,
                     doc_id=doc.id,
                     event_type="research_complete"
-                    if not l2_failed
+                    if not research_failed
                     else "research_partial",
                     payload={
                         "company_id": str(company_id),
                         "enrichment_keys": list(enrichment_data.keys())
                         if enrichment_data
                         else [],
-                        "l2_failed": l2_failed,
+                        "research_failed": research_failed,
+                        "steps_completed": result.get("steps_completed", []),
+                        "cost_usd": result.get("enrichment_cost_usd", 0),
                     },
                 )
         except Exception:
@@ -1083,6 +1159,11 @@ def trigger_research():
 
     if not domains:
         domains = [domain]
+
+    # SSRF protection: reject domains that resolve to private/internal IPs
+    for d in domains:
+        if not _is_safe_domain(d):
+            return jsonify({"error": "Invalid or non-public domain"}), 400
 
     # Derive company name from domain (strip TLD, capitalize)
     # e.g., "notion.so" -> "Notion", "stripe.com" -> "Stripe"
