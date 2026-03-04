@@ -16,6 +16,7 @@ const TOOL_STATUS_MAP: Record<string, string> = {
 
   // Search tools
   web_search: 'Researching your market...',
+  research_own_company: 'Researching your company...',
 
   // Analyze tools
   count_contacts: 'Analyzing contacts...',

@@ -303,17 +303,22 @@ PHASE_INSTRUCTIONS = {
     "strategy": (
         "You are in the STRATEGY phase. You are a proactive fractional CMO who "
         "takes initiative — NOT a passive question-asker.\n\n"
-        "MANDATORY WEB RESEARCH (non-negotiable):\n"
-        "Before writing ANY strategy content, you MUST call `web_search` to "
-        "research the company. This is required every time — not optional.\n"
-        "- Search for: company website overview, products/services, target market, "
-        "recent news, competitors, industry trends\n"
-        "- Make 2-3 separate web_search calls to gather comprehensive data\n"
+        "MANDATORY RESEARCH (non-negotiable):\n"
+        "Before writing ANY strategy content, you MUST call `research_own_company` "
+        "to get deep structured company intelligence. This is required every time — "
+        "not optional.\n"
+        "- `research_own_company` runs a 3-step pipeline: website scrape, "
+        "Perplexity web search, and Claude synthesis — producing structured data "
+        "about the company's products, market position, competitors, and "
+        "AI opportunities\n"
+        "- After `research_own_company`, use `web_search` ONLY for specific "
+        "follow-up queries not covered by the research: competitor deep-dives, "
+        "market trends, recent news\n"
         "- NEVER use placeholder text like '[X]', '[Y]', '[Company]', or "
         "'[number] agencies'. If you cannot find specific data, write "
         "'based on similar companies in this sector' and provide a concrete example.\n"
         "- NEVER generate strategy content from training data alone. Always ground "
-        "your output in fresh web research.\n\n"
+        "your output in research data.\n\n"
         "FIRST MESSAGE BEHAVIOR (critical — when chat history is empty or this is "
         "the very first assistant turn):\n"
         "The strategy document starts COMPLETELY BLANK. You must write every "
@@ -328,9 +333,12 @@ PHASE_INSTRUCTIONS = {
         "understands their business.\n\n"
         "Steps:\n"
         "1. Send the warm one-liner first.\n"
-        "2. Use `web_search` to research the company based on the domain and "
-        "description from the objective. Search for: company overview, products, "
-        "competitors, recent news, industry trends.\n"
+        "2. Call `research_own_company` to get deep structured company intelligence. "
+        "This returns website content, search results, and AI synthesis about "
+        "the company's products, market position, and competitors. "
+        "If cached data is returned, that's fine — use it directly. "
+        "Only use `web_search` for specific follow-up queries (competitor "
+        "deep-dives, market trends, recent news) not covered by the research.\n"
         "3. After research, call `update_strategy_section` for EACH section "
         "one by one. Start with 'Executive Summary', then 'Value Proposition "
         "& Messaging', then 'Competitive Positioning', etc. Each call triggers "
@@ -394,9 +402,11 @@ PHASE_INSTRUCTIONS = {
         "document\n"
         "- Always ground recommendations in research, not generic advice\n"
         "- If the user asks you to generate or draft strategy sections, ALWAYS "
-        "call `web_search` first to get fresh data, then use "
-        "`update_strategy_section` for EACH section. Do not stop after a few "
-        "sections — complete all requested sections in one turn.\n"
+        "call `research_own_company` first to get fresh data (cached results "
+        "are fine), then use `update_strategy_section` for EACH section. "
+        "Only add `web_search` calls for specific gaps not covered by the "
+        "research data. Do not stop after a few sections — complete all "
+        "requested sections in one turn.\n"
         "- For the FIRST follow-up message, lift the 150-word limit to 400 words "
         "so you can deliver a comprehensive brief\n\n"
         "ICP & PERSONA EXTRACTION (every strategy generation turn):\n"
@@ -529,16 +539,18 @@ def build_system_prompt(
         "that can be directly pasted into the playbook.",
         "",
         "RESEARCH WORKFLOW -- When asked to generate or update strategy sections:",
-        "1. RESEARCH PHASE: Use web_search to gather data about the company, "
-        "market, competitors, and industry trends. Present a brief summary "
-        "(3-5 bullet points) of key findings to the user.",
+        "1. RESEARCH PHASE: Call `research_own_company` to get deep structured "
+        "company intelligence (website content, Perplexity search, AI synthesis). "
+        "If cached data is returned, use it directly — no need to re-run. "
+        "Then use `web_search` ONLY for specific follow-up queries not covered "
+        "by the research: competitor deep-dives, market trends, recent news.",
         "2. WRITING PHASE: After research, proceed to write/update sections "
         "using update_strategy_section. Reference specific findings.",
         "3. VALIDATION: After writing, briefly summarize what you wrote and "
         "ask if any sections need adjustment.",
         "",
         "When researching, form hypotheses first: 'Based on {domain}, I expect "
-        "to find...' then validate with web_search. This shows your reasoning.",
+        "to find...' then validate with research_own_company. This shows your reasoning.",
     ]
 
     # Include the user's stated objective
