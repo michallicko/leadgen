@@ -78,6 +78,43 @@ def _summarize_output(tool_name, output):
     return "Completed {}".format(tool_name)
 
 
+def _build_done_data(tool_executions, model, total_input_tokens,
+                     total_output_tokens, total_cost_usd):
+    """Build the payload for a 'done' SSE event.
+
+    Includes tool call summaries, token totals, and metadata about
+    external tool costs (e.g. Perplexity web_search calls).
+    """
+    external_tool_costs = [
+        {
+            "tool_name": e.tool_name,
+            "provider": "perplexity" if e.tool_name == "web_search" else None,
+        }
+        for e in tool_executions
+        if e.tool_name == "web_search" and not e.is_error
+    ]
+
+    return {
+        "tool_calls": [
+            {
+                "tool_name": e.tool_name,
+                "tool_call_id": e.tool_call_id,
+                "status": "error" if e.is_error else "success",
+                "input_args": e.input_args,
+                "output_data": e.output,
+                "error_message": e.error_message,
+                "duration_ms": e.duration_ms,
+            }
+            for e in tool_executions
+        ],
+        "model": model,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_cost_usd": str(total_cost_usd),
+        "external_tool_costs": external_tool_costs,
+    }
+
+
 def _execute_tool(tool_name, tool_input, tool_context, app=None):
     """Execute a single tool and return a ToolExecutionRecord.
 
@@ -188,24 +225,10 @@ def execute_agent_turn(
             )
             yield SSEEvent(
                 type="done",
-                data={
-                    "tool_calls": [
-                        {
-                            "tool_name": e.tool_name,
-                            "tool_call_id": e.tool_call_id,
-                            "status": "error" if e.is_error else "success",
-                            "input_args": e.input_args,
-                            "output_data": e.output,
-                            "error_message": e.error_message,
-                            "duration_ms": e.duration_ms,
-                        }
-                        for e in tool_executions
-                    ],
-                    "model": model,
-                    "total_input_tokens": total_input_tokens,
-                    "total_output_tokens": total_output_tokens,
-                    "total_cost_usd": str(total_cost_usd),
-                },
+                data=_build_done_data(
+                    tool_executions, model,
+                    total_input_tokens, total_output_tokens, total_cost_usd,
+                ),
             )
             return
 
@@ -272,24 +295,10 @@ def execute_agent_turn(
 
             yield SSEEvent(
                 type="done",
-                data={
-                    "tool_calls": [
-                        {
-                            "tool_name": e.tool_name,
-                            "tool_call_id": e.tool_call_id,
-                            "status": "error" if e.is_error else "success",
-                            "input_args": e.input_args,
-                            "output_data": e.output,
-                            "error_message": e.error_message,
-                            "duration_ms": e.duration_ms,
-                        }
-                        for e in tool_executions
-                    ],
-                    "model": model,
-                    "total_input_tokens": total_input_tokens,
-                    "total_output_tokens": total_output_tokens,
-                    "total_cost_usd": str(total_cost_usd),
-                },
+                data=_build_done_data(
+                    tool_executions, model,
+                    total_input_tokens, total_output_tokens, total_cost_usd,
+                ),
             )
             return
 
@@ -431,22 +440,8 @@ def execute_agent_turn(
     )
     yield SSEEvent(
         type="done",
-        data={
-            "tool_calls": [
-                {
-                    "tool_name": e.tool_name,
-                    "tool_call_id": e.tool_call_id,
-                    "status": "error" if e.is_error else "success",
-                    "input_args": e.input_args,
-                    "output_data": e.output,
-                    "error_message": e.error_message,
-                    "duration_ms": e.duration_ms,
-                }
-                for e in tool_executions
-            ],
-            "model": model,
-            "total_input_tokens": total_input_tokens,
-            "total_output_tokens": total_output_tokens,
-            "total_cost_usd": str(total_cost_usd),
-        },
+        data=_build_done_data(
+            tool_executions, model,
+            total_input_tokens, total_output_tokens, total_cost_usd,
+        ),
     )
