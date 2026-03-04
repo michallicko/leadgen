@@ -387,13 +387,32 @@ function FormattedValue({ value, depth = 0 }: { value: unknown; depth?: number }
 }
 
 function HumanFormattedDetail({
-  data,
+  data: rawData,
   label,
 }: {
   data: Record<string, unknown>
   label: string
 }) {
   const [showRaw, setShowRaw] = useState(false)
+
+  // Defensive: if data is a JSON string (backend sends output as string),
+  // parse it into an object. Prevents Object.entries() from enumerating
+  // individual characters with numeric indices.
+  let data = rawData
+  if (typeof rawData === 'string') {
+    try {
+      const parsed = JSON.parse(rawData)
+      if (typeof parsed === 'object' && parsed !== null) {
+        data = parsed as Record<string, unknown>
+      } else {
+        // Primitive JSON value — wrap it for display
+        data = { value: parsed }
+      }
+    } catch {
+      // Not JSON — show the raw string
+      data = { value: rawData }
+    }
+  }
 
   const entries = Object.entries(data).filter(([, v]) => !isEmpty(v))
   if (entries.length === 0) return null

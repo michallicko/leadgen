@@ -152,6 +152,23 @@ function normalizeStatus(rawStatus: string): 'running' | 'success' | 'error' {
   return 'success' // "completed" or "success" both map to "success"
 }
 
+/** Safely coerce a value to Record<string, unknown>, parsing JSON strings. */
+function toRecordOrUndefined(val: unknown): Record<string, unknown> | undefined {
+  if (val == null) return undefined
+  if (typeof val === 'object' && !Array.isArray(val)) return val as Record<string, unknown>
+  if (typeof val === 'string' && val) {
+    try {
+      const parsed = JSON.parse(val)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // not valid JSON
+    }
+  }
+  return undefined
+}
+
 function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
   const extra = message.extra
   if (!extra || !Array.isArray(extra.tool_calls) || extra.tool_calls.length === 0) {
@@ -165,9 +182,10 @@ function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
     status: normalizeStatus((tc.status as string) || 'success'),
     summary: (tc.summary as string) || undefined,
     // Research events store structured results in "detail"; agent events use "output_data"/"output"
-    output: (tc.output_data as Record<string, unknown>)
-      || (tc.output as Record<string, unknown>)
-      || (tc.detail as Record<string, unknown>)
+    // Safely parse string values that may be JSON-encoded (defensive against mistyped data)
+    output: toRecordOrUndefined(tc.output_data)
+      || toRecordOrUndefined(tc.output)
+      || toRecordOrUndefined(tc.detail)
       || undefined,
     duration_ms: (tc.duration_ms as number) || undefined,
     // Research events include target (e.g., domain being researched)
@@ -391,8 +409,23 @@ export function ChatMessages({
     )
   }
 
-  // Filter out system messages for display
-  const displayMessages = messages.filter((m) => m.role !== 'system')
+  // Filter out system messages for display, and deduplicate consecutive
+  // hidden messages (Bug: optimistic + server-persisted hidden messages
+  // can overlap during streaming, producing two "Strategy generation
+  // started..." placeholders).
+  const displayMessages = messages.filter((m) => m.role !== 'system').filter((m, i, arr) => {
+    const isHidden =
+      m.extra?.hidden ||
+      (m.role === 'user' && m.content.startsWith('Generate a complete GTM strategy'))
+    if (!isHidden) return true
+    // Keep only the first hidden message in a consecutive run
+    const prev = arr[i - 1]
+    if (!prev) return true
+    const prevHidden =
+      prev.extra?.hidden ||
+      (prev.role === 'user' && prev.content.startsWith('Generate a complete GTM strategy'))
+    return !prevHidden
+  })
   const hasContent = displayMessages.length > 0 || isStreaming || isThinking || toolCalls.length > 0
 
   return (

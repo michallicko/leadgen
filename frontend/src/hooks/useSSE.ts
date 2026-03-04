@@ -133,12 +133,28 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
       input: (event.input as Record<string, unknown>) ?? {},
     })
   } else if (eventType === 'tool_result') {
+    // The backend sends `output` as a JSON-encoded string (not an object).
+    // Parse it so ToolCallCard receives a proper object for rendering.
+    let parsedOutput: Record<string, unknown> | undefined
+    if (typeof event.output === 'string' && event.output) {
+      try {
+        const parsed = JSON.parse(event.output)
+        if (typeof parsed === 'object' && parsed !== null) {
+          parsedOutput = parsed as Record<string, unknown>
+        }
+      } catch {
+        // Not valid JSON — leave as undefined
+      }
+    } else if (typeof event.output === 'object' && event.output !== null) {
+      parsedOutput = event.output as Record<string, unknown>
+    }
+
     callbacks.onToolResult?.({
       toolCallId: event.tool_call_id as string,
       toolName: event.tool_name as string | undefined,
       status: event.status as 'success' | 'error',
       summary: event.summary as string,
-      output: event.output as Record<string, unknown> | undefined,
+      output: parsedOutput,
       durationMs: event.duration_ms as number,
     })
   } else if (eventType === 'thinking') {
