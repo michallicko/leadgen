@@ -323,6 +323,23 @@ class CompanyEnrichmentSignals(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
 
+class CompanyNews(db.Model):
+    __tablename__ = "company_news"
+
+    company_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("companies.id"), primary_key=True
+    )
+    media_mentions = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    press_releases = db.Column(JSONB, server_default=db.text("'[]'::jsonb"))
+    sentiment_score = db.Column(db.Numeric(3, 2))
+    thought_leadership = db.Column(db.Text)
+    news_summary = db.Column(db.Text)
+    enriched_at = db.Column(db.DateTime(timezone=True))
+    enrichment_cost_usd = db.Column(db.Numeric(10, 4), default=0)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
 class CompanyEnrichmentMarket(db.Model):
     __tablename__ = "company_enrichment_market"
 
