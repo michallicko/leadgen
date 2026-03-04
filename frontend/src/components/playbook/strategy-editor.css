@@ -1,3 +1,11 @@
+/* ---- Strategy editor wrapper ---- */
+
+/* Ensure overflow is visible so position:sticky toolbar works within the
+   PhasePanel scroll container.  Do NOT add overflow:hidden here. */
+.strategy-editor {
+  overflow: visible;
+}
+
 /* ---- Tiptap / ProseMirror editor styles ---- */
 
 .strategy-editor .ProseMirror {
