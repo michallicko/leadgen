@@ -287,7 +287,11 @@ export function MappingStep({
                                 value={customLabels[col.source_column] ?? col.custom_display_name ?? ''}
                                 onChange={(e) => handleCustomLabelChange(col.source_column, e.target.value)}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') setOpenPopover(null)
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setOpenPopover(null)
+                                  }
                                 }}
                                 className="w-full bg-surface-alt border border-border-solid rounded px-2 py-1 text-sm text-text focus:outline-none focus:border-accent-cyan"
                                 placeholder="Field label"

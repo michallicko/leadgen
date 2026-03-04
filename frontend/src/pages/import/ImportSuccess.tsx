@@ -44,7 +44,7 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
     setError(null)
     try {
       const data = await getImportResults(jobId, filter, page)
-      setResults(data.results)
+      setResults(data.rows)
       setTotal(data.total)
       setPerPage(data.per_page)
     } catch (err) {

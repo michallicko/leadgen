@@ -62,7 +62,7 @@ interface ImportResultsResponse {
   total: number
   page: number
   per_page: number
-  results: ImportResultItem[]
+  rows: ImportResultItem[]
 }
 
 interface ImportJob {
