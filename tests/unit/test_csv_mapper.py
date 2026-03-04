@@ -3,8 +3,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from api.services.csv_mapper import (
     TARGET_FIELDS,
     apply_mapping,
