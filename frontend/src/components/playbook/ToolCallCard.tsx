@@ -13,6 +13,7 @@
 
 import type { ReactNode } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 // ---------------------------------------------------------------------------
 // Types (shared with parent)
@@ -310,8 +311,17 @@ function FormattedValue({ value, depth = 0 }: { value: unknown; depth?: number }
     return <span className="text-xs text-text-muted font-mono">{value.toLocaleString()}</span>
   }
 
-  // String — render as paragraph
+  // String — render as markdown if it contains formatting markers, otherwise plain text
   if (typeof value === 'string') {
+    // Detect markdown: headers, bold/italic markers, links, lists, code blocks, tables
+    const hasMarkdown = /[*_#\[\]`|>-]/.test(value) && value.length > 50
+    if (hasMarkdown) {
+      return (
+        <div className="tool-card-markdown text-xs text-text-muted leading-relaxed">
+          <ReactMarkdown>{value}</ReactMarkdown>
+        </div>
+      )
+    }
     return <p className="text-xs text-text-muted leading-relaxed m-0">{value}</p>
   }
 

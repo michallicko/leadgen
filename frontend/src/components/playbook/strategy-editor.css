@@ -1,3 +1,11 @@
+/* ---- Strategy editor wrapper ---- */
+
+/* Ensure overflow is visible so position:sticky toolbar works within the
+   PhasePanel scroll container.  Do NOT add overflow:hidden here. */
+.strategy-editor {
+  overflow: visible;
+}
+
 /* ---- Tiptap / ProseMirror editor styles ---- */
 
 .strategy-editor .ProseMirror {
@@ -179,6 +187,15 @@
   height: auto;
 }
 
+/* Ensure mermaid text uses dark theme colors */
+.strategy-editor .mermaid-svg-container svg text {
+  fill: var(--color-text) !important;
+}
+
+.strategy-editor .mermaid-svg-container svg .edgeLabel {
+  color: var(--color-text-muted);
+}
+
 /* ---- Selection ---- */
 
 .strategy-editor .ProseMirror ::selection {
@@ -198,4 +215,19 @@
 
 .strategy-editor .ProseMirror .selectedCell {
   position: relative;
+}
+
+/* ---- Table node selection (whole-table select) ---- */
+
+.strategy-editor .ProseMirror table.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Code block node selection ---- */
+
+.strategy-editor .mermaid-block.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
