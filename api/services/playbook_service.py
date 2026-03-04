@@ -316,12 +316,18 @@ PHASE_INSTRUCTIONS = {
         "your output in fresh web research.\n\n"
         "FIRST MESSAGE BEHAVIOR (critical — when chat history is empty or this is "
         "the very first assistant turn):\n"
+        "The strategy document starts COMPLETELY BLANK. You must write every "
+        "section from scratch using `update_strategy_section` tool calls.\n"
         "1. Use `web_search` to research the company based on the domain and "
         "description from the objective. Search for: company overview, products, "
         "competitors, recent news, industry trends.\n"
-        "2. Use `get_strategy_document` to check what's already in the document.\n"
-        "3. Produce a **Strategic Brief** as your first message using this exact "
-        "format:\n\n"
+        "2. After research, call `update_strategy_section` for EACH section "
+        "one by one. Start with 'Executive Summary', then 'Value Proposition "
+        "& Messaging', then 'Competitive Positioning', etc. Each call triggers "
+        "a live update in the user's editor — they will see sections appearing "
+        "in real-time as you write them.\n"
+        "3. Produce a **Strategic Brief** as your chat message (separate from the "
+        "document sections above) using this exact format:\n\n"
         "```\n"
         "# {Company Name} — Strategic Brief (Draft v0.1)\n\n"
         "> **What this is:** A first-pass GTM framework based on public research. "
@@ -622,8 +628,10 @@ def build_system_prompt(
             "or value proposition in the document, reference it directly.",
             "- When the user asks to improve or revise a section, quote or "
             "reference the existing content before suggesting changes.",
-            "- If the document is empty, proactively guide the user to start "
-            "filling in sections rather than asking what they want to do.",
+            "- If the document is empty, immediately start writing sections "
+            "using `update_strategy_section` — do not ask what they want to do. "
+            "Each tool call triggers a live update in the editor so the user "
+            "sees sections appearing in real-time.",
             "",
             "TOOL USE FOR DOCUMENT EDITING (mandatory — never skip):",
             "- To write or update the strategy document, you MUST call the "
@@ -1395,29 +1403,25 @@ def _build_challenge_section(challenge_type, industry_raw=None):
 
 
 def build_seeded_template(objective=None, enrichment_data=None, challenge_type=None):
-    """Generate a markdown template for a new strategy document.
+    """Return an empty string — no pre-filled template.
 
-    Produces a professional strategy document with structured formatting:
-    - Complex enrichment fields (ai_opportunities, quick_wins) are parsed
-      from JSON and formatted as subsections with badges
-    - Industry names are cleaned from snake_case to Title Case
-    - Each section uses distinct enrichment fields (no duplication)
-    - Placeholder instructions are replaced with actionable content
-    - Adaptive section based on challenge_type and industry
+    The strategy document starts blank. The AI writes sections
+    incrementally via ``update_strategy_section`` tool calls, and each
+    section appears in the editor in real-time via SSE ``section_update``
+    events.
+
+    The function signature is preserved so existing callers don't break,
+    but the template content has been removed.
 
     Args:
-        objective: Optional user-stated objective to embed in the summary.
-        enrichment_data: Optional dict from _load_enrichment_data with
-            company profile, signals, and market data.
-        challenge_type: Optional string indicating the user's primary
-            challenge (e.g., 'new_market_entry', 'scaling_pipeline').
+        objective: Unused (kept for backward compat).
+        enrichment_data: Unused (kept for backward compat).
+        challenge_type: Unused (kept for backward compat).
 
     Returns:
-        str: Markdown string with 9+ sections pre-populated with company-
-        specific content from enrichment data.
+        str: Empty string.
     """
-    if not enrichment_data:
-        return _build_empty_template(objective, challenge_type)
+    return ""
 
     co = enrichment_data.get("company") or {}
     company_name = _get(co, "name")

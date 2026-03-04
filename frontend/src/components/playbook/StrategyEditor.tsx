@@ -225,7 +225,7 @@ export function StrategyEditor({
       TableCell,
       TableHeader,
       Placeholder.configure({
-        placeholder: 'Start writing your strategy...',
+        placeholder: 'Strategy will appear here as the AI generates it...',
       }),
       Markdown,
       BlockDelete,
@@ -249,8 +249,8 @@ export function StrategyEditor({
     }
   }, [editor, editable])
 
-  // Sync content prop when it changes (e.g. after research seeds template
-  // or after AI tool edits refetch the document from the server).
+  // Sync content prop when it changes (e.g. after AI tool edits refetch
+  // the document from the server via section_update SSE events).
   // Tiptap only uses `content` during initialization, so we must push updates manually.
   useEffect(() => {
     if (!editor || !content || content.length === 0) return
@@ -263,7 +263,7 @@ export function StrategyEditor({
 
     // Update if editor is empty/placeholder OR if server content differs
     // from what the editor currently has (AI edit case)
-    const isEmpty = !currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')
+    const isEmpty = !currentMd || currentMd.trim() === ''
     const serverDiffers = currentMd !== content
 
     if (isEmpty || serverDiffers) {

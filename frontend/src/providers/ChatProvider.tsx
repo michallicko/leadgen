@@ -313,7 +313,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onSectionUpdate: () => {
             // Refresh the strategy document so the editor shows live updates
-            queryClient.invalidateQueries({ queryKey: ['strategy-document'] })
+            queryClient.invalidateQueries({ queryKey: ['playbook'] })
           },
           onThinking: () => {
             setIsThinking(false)

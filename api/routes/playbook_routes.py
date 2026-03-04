@@ -42,7 +42,6 @@ from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
     build_proactive_analysis_prompt,
-    build_seeded_template,
     build_system_prompt,
     compute_chat_placeholder,
 )
@@ -1167,7 +1166,7 @@ def _run_self_research(
             lightweight web_search enrichment. The primary domain gets full
             research; additional domains get stored as metadata.
         challenge_type: Optional string indicating the user's primary GTM
-            challenge. Passed to build_seeded_template for adaptive sections.
+            challenge. Passed to the AI system prompt for adaptive sections.
     """
     with app.app_context():
         try:
@@ -1224,30 +1223,20 @@ def _run_self_research(
                 except Exception:
                     logger.debug("Could not update company name", exc_info=True)
 
-            # Seed the strategy document with enrichment data
+            # Link enrichment to the strategy document (but don't seed
+            # template content — the AI writes sections incrementally via
+            # update_strategy_section tool calls).
             try:
                 db.session.rollback()
             except Exception:
                 pass
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-            # Seed if the document content is still empty (not just version==1).
-            # The AI chat may have bumped the version via tool calls like
-            # get_strategy_document or set_extracted_field without actually
-            # populating the content, so checking version alone is too strict.
-            doc_is_empty = doc and not (doc.content or "").strip()
-            if doc_is_empty:
-                enrichment_data = _load_enrichment_data(company_id)
-                if additional_domains and enrichment_data:
-                    enrichment_data["additional_domains"] = additional_domains
-                doc.content = build_seeded_template(
-                    doc.objective, enrichment_data, challenge_type=challenge_type
-                )
+            if doc and not doc.enrichment_id:
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
-                    "Seeded template for company %s (content length: %d, failed: %s)",
+                    "Linked enrichment %s to strategy document (failed: %s)",
                     company_id,
-                    len(doc.content or ""),
                     research_failed,
                 )
 
@@ -1288,22 +1277,18 @@ def _run_self_research(
                 logger.exception(
                     "Failed to set terminal status for company %s", company_id
                 )
-            # Still try to seed template with whatever data we have
+            # Link enrichment even on error so enrichment data is available
+            # for the AI when it writes sections later.
             try:
-                db.session.rollback()  # Clear poisoned transaction
+                db.session.rollback()
                 doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-                doc_is_empty = doc and not (doc.content or "").strip()
-                if doc_is_empty:
-                    enrichment_data = _load_enrichment_data(company_id)
-                    if enrichment_data:
-                        doc.content = build_seeded_template(
-                            doc.objective,
-                            enrichment_data,
-                            challenge_type=challenge_type,
-                        )
-                        db.session.commit()
+                if doc and not doc.enrichment_id:
+                    doc.enrichment_id = company_id
+                    db.session.commit()
             except Exception:
-                logger.exception("Failed to seed template after research error")
+                logger.exception(
+                    "Failed to link enrichment after research error"
+                )
 
 
 @playbook_bp.route("/api/playbook/research", methods=["POST"])
@@ -1473,12 +1458,8 @@ def get_research_status():
             db.session.commit()
             status = "failed"
 
-    # Guard against race condition: enrichment may set company status to
-    # "enriched_l2" before the template is seeded into the document.
-    # Keep reporting "in_progress" until the document actually has content.
-    if status == "completed":
-        if not doc.content or len(doc.content.strip()) == 0:
-            status = "in_progress"
+    # No template seeding race guard needed — the document starts blank
+    # and the AI writes sections incrementally via update_strategy_section.
 
     result = {
         "status": status,
