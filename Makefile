@@ -1,4 +1,4 @@
-.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-changed test-e2e test-all lint lint-changed backlog
+.PHONY: dev dev-status sync pr-scan agents db-pull db-reset test test-changed test-e2e test-all test-enrichment lint lint-changed backlog
 
 # Slot computation from DEV_SLOT env var (default 0)
 SLOT       ?= $(or $(DEV_SLOT),0)
@@ -81,6 +81,10 @@ test-triage:
 ## Run Playwright browser tests (requires make dev running)
 test-e2e:
 	cd frontend && VITE_PORT=$(VITE_PORT) FLASK_PORT=$(FLASK_PORT) npx playwright test
+
+## Run enrichment scoring tests (scorecard)
+test-enrichment:
+	python -m pytest tests/unit/test_enrichment_scoring.py -v --tb=short
 
 ## Run all tests
 test-all: test test-enrich test-e2e

@@ -142,6 +142,11 @@ export function PlaybookPage() {
   const latestContentRef = useRef<string | null>(null)
   // Track what was last saved to avoid saving identical content (fixes blink bug)
   const lastSavedContentRef = useRef<string | null>(null)
+  // Ref to allow unmount cleanup to call the latest saveMutation.mutate
+  const saveMutationRef = useRef(saveMutation)
+  useEffect(() => {
+    saveMutationRef.current = saveMutation
+  }, [saveMutation])
 
   // Track document version for optimistic locking
   const versionRef = useRef(0)
@@ -295,8 +300,12 @@ export function PlaybookPage() {
     }
     setSaveStatus('saving')
     try {
-      await saveMutation.mutateAsync({ content })
+      const saved = await saveMutation.mutateAsync({ content })
       lastSavedContentRef.current = content
+      // Update query cache so localContent stays in sync when isDirty goes false
+      if (saved) {
+        queryClient.setQueryData(['playbook', namespace], saved)
+      }
       setIsDirty(false)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus((s) => s === 'saved' ? 'idle' : s), 2000)
@@ -304,7 +313,7 @@ export function PlaybookPage() {
       setSaveStatus('error')
       toast('Failed to save', 'error')
     }
-  }, [saveMutation, toast])
+  }, [saveMutation, toast, queryClient, namespace])
 
   const scheduleSave = useCallback((content: string) => {
     latestContentRef.current = content
@@ -319,11 +328,19 @@ export function PlaybookPage() {
     }, 1500)
   }, [performSave])
 
-  // Cleanup debounce timer on unmount
+  // Flush pending save on unmount (e.g. when navigating away)
+  // instead of just clearing the timer — otherwise edits are lost
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+      // Fire-and-forget: flush any unsaved content via ref (avoids stale closure)
+      const pending = latestContentRef.current
+      if (pending !== null && pending !== lastSavedContentRef.current) {
+        saveMutationRef.current.mutate({ content: pending })
+        lastSavedContentRef.current = pending
       }
     }
   }, [])
