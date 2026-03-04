@@ -107,14 +107,19 @@ def _translate_mapping_to_claude(mapping):
         # Convert frontend ColumnMapping[] → Claude mapping dict
         claude_mappings = []
         for col in mapping:
-            claude_mappings.append(
-                {
-                    "csv_header": col.get("source_column", ""),
-                    "target": col.get("target_field") or col.get("target"),
-                    "confidence": col.get("confidence", "low"),
-                    "sample_values": col.get("sample_values", []),
+            entry = {
+                "csv_header": col.get("source_column", ""),
+                "target": col.get("target_field") or col.get("target"),
+                "confidence": col.get("confidence", "low"),
+                "sample_values": col.get("sample_values", []),
+            }
+            # Carry custom field metadata so _auto_create_custom_field_defs can use it
+            if col.get("is_custom") and col.get("custom_display_name"):
+                entry["suggested_custom_field"] = {
+                    "field_label": col["custom_display_name"],
+                    "field_type": "text",
                 }
-            )
+            claude_mappings.append(entry)
         translated = {"mappings": claude_mappings}
     elif isinstance(mapping, str):
         import json as _json
@@ -139,7 +144,14 @@ def _translate_mapping_to_claude(mapping):
             m["target"] = f"{custom_field_map[target]}.custom.{target}"
         else:
             m = dict(m)
-            m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
+            translated_target = FRONTEND_TO_CLAUDE.get(target, None)
+            if translated_target:
+                m["target"] = translated_target
+            elif target not in _VALID_FRONTEND_TARGETS:
+                # Unknown target that's not a standard field — treat as new custom field
+                m["target"] = f"contact.custom.{target}"
+            else:
+                m["target"] = target
         new_mappings.append(m)
     translated["mappings"] = new_mappings
     return translated
@@ -298,6 +310,10 @@ def _build_upload_response(
     """
     columns = []
     for m in mapping_result.get("mappings", []):
+        # Skip entries with empty/whitespace source column names (ghost columns from XLSX)
+        csv_header_check = (m.get("csv_header") or "").strip()
+        if not csv_header_check:
+            continue
         target = m.get("target") or None
         raw_confidence = m.get("confidence", 0)
         if isinstance(raw_confidence, (int, float)):
