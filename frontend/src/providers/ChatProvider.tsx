@@ -342,6 +342,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Refetch to pick up the new analysis message
             chatQuery.refetch()
           },
+          onResearchStatus: (event) => {
+            if (event.status === 'in_progress') {
+              setThinkingStatus(event.message)
+            } else if (event.status === 'completed') {
+              setThinkingStatus('Research complete')
+            } else if (event.status === 'timeout') {
+              setThinkingStatus('Research timed out, proceeding with available data')
+            }
+          },
         },
       )
     },
