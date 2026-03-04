@@ -77,7 +77,19 @@ export function ChatPanel() {
     chatInputRef,
     toolCalls,
     isThinking,
+    currentPage,
   } = useChatContext()
+
+  // Context-aware placeholder based on current page (BL-203)
+  const PAGE_PLACEHOLDERS: Record<string, string> = {
+    contacts: 'Ask about your contacts or targeting criteria...',
+    companies: 'Ask about companies in your pipeline...',
+    messages: 'Help me craft outreach messages...',
+    campaigns: 'Ask about your campaign settings...',
+    enrich: 'Ask about enrichment or data quality...',
+    import: 'Ask about importing contacts...',
+  }
+  const placeholder = PAGE_PLACEHOLDERS[currentPage] ?? 'How can I help?'
 
   // Don't render on Playbook page — inline chat is used there
   if (isOnPlaybookPage) return null
@@ -162,7 +174,7 @@ export function ChatPanel() {
         <ChatInput
           onSend={sendMessage}
           isStreaming={isStreaming}
-          placeholder="Ask anything about your strategy..."
+          placeholder={placeholder}
           inputRef={chatInputRef}
         />
 

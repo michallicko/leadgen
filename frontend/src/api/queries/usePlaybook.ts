@@ -21,6 +21,8 @@ export interface StrategyDocument {
   status: string
   version: number
   has_ai_edits: boolean
+  /** Context-aware chat input placeholder computed from document state. */
+  chat_placeholder?: string
   created_at: string
   updated_at: string
 }

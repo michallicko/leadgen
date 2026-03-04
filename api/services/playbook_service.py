@@ -38,6 +38,83 @@ STRATEGY_SECTIONS = [
     "90-Day Action Plan",
 ]
 
+# Priority order for gap-based placeholder suggestions
+_SECTION_PRIORITY = [
+    "Ideal Customer Profile (ICP)",
+    "Buyer Personas",
+    "Value Proposition & Messaging",
+    "Channel Strategy",
+    "Executive Summary",
+    "Competitive Positioning",
+    "Messaging Framework",
+    "Metrics & KPIs",
+    "90-Day Action Plan",
+]
+
+
+def compute_chat_placeholder(document, phase="strategy", page_context=None):
+    """Compute a context-aware chat input placeholder.
+
+    Returns a string based on the current phase, page context, and
+    strategy document completeness.
+
+    Args:
+        document: StrategyDocument model instance (or None).
+        phase: Current playbook phase (strategy, contacts, messages, campaign).
+        page_context: Current page the user is viewing.
+
+    Returns:
+        str: Placeholder text for the chat input.
+    """
+    # Page-context overrides take priority (non-playbook pages)
+    page_placeholders = {
+        "contacts": "Ask about your contacts or targeting criteria...",
+        "companies": "Ask about companies in your pipeline...",
+        "messages": "Help me craft outreach messages...",
+        "campaigns": "Ask about your campaign settings...",
+        "enrich": "Ask about enrichment or data quality...",
+        "import": "Ask about importing contacts or companies...",
+    }
+    if page_context and page_context in page_placeholders:
+        return page_placeholders[page_context]
+
+    # Phase-based placeholders for playbook page
+    if phase == "contacts":
+        return "Which contacts should we target?"
+    if phase == "messages":
+        return "Let's craft your outreach messages..."
+    if phase == "campaign":
+        return "Configure your campaign..."
+
+    # Strategy phase — check document completeness
+    if not document or not document.content or not document.content.strip():
+        return "Tell me about your company and I'll help build your GTM strategy..."
+
+    content = document.content
+    if isinstance(content, dict):
+        content = json.dumps(content, default=str)
+
+    # Find the highest-priority empty or sparse section
+    for section_name in _SECTION_PRIORITY:
+        heading = "## {}".format(section_name)
+        if heading not in content:
+            return "Let's work on your {}...".format(section_name)
+        idx = content.index(heading)
+        next_heading = content.find("\n## ", idx + len(heading))
+        if next_heading == -1:
+            section_body = content[idx + len(heading):]
+        else:
+            section_body = content[idx + len(heading):next_heading]
+        lines = [
+            ln.strip() for ln in section_body.strip().split("\n") if ln.strip()
+        ]
+        word_count = sum(len(ln.split()) for ln in lines)
+        if word_count < 20:
+            return "Let's flesh out your {}...".format(section_name)
+
+    # All sections are reasonably complete
+    return "Ask me to refine any section or move to Contacts..."
+
 
 def _format_enrichment_for_prompt(enrichment_data):
     """Format enrichment data as structured sections for the system prompt.

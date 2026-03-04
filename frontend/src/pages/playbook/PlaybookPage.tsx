@@ -868,7 +868,7 @@ export function PlaybookPage() {
             onSendMessage={handleSendWithSuggestionDismiss}
             isStreaming={isStreaming || isAnalysisStreaming}
             streamingText={isAnalysisStreaming ? analysisStreamingText : streamingText}
-            placeholder={PHASE_PLACEHOLDERS[viewPhase]}
+            placeholder={docQuery.data?.chat_placeholder ?? PHASE_PLACEHOLDERS[viewPhase]}
             activeToolName={isAnalysisStreaming ? 'Analyzing strategy...' : activeToolName}
             isLoading={chatLoading}
             inputRef={chatInputRef}
