@@ -26,6 +26,8 @@ export interface ToolCallEvent {
   summary?: string
   output?: Record<string, unknown>
   duration_ms?: number
+  /** Research events include a target (e.g., domain being researched) */
+  target?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -38,6 +40,22 @@ interface ToolMeta {
 }
 
 function getToolMeta(toolName: string): ToolMeta {
+  // Research step tool names (from research_service.py)
+  const lower = toolName.toLowerCase()
+  if (lower.includes('website') || lower.includes('web research') || lower.includes('company website')) {
+    return { icon: <GlobeIcon />, verb: 'Researching' }
+  }
+  if (lower.includes('web search') || lower.includes('web intelligence') || lower.includes('search')) {
+    return { icon: <SearchIcon />, verb: 'Searching' }
+  }
+  if (lower.includes('analysis') || lower.includes('synthesis') || lower.includes('ai analysis')) {
+    return { icon: <BrainIcon />, verb: 'Analyzing' }
+  }
+  if (lower.includes('database') || lower.includes('db_save') || lower.includes('save')) {
+    return { icon: <CreateIcon />, verb: 'Saving' }
+  }
+
+  // Standard agent tool prefixes
   if (toolName.startsWith('get_')) {
     return { icon: <EyeIcon />, verb: 'Reading' }
   }
@@ -64,7 +82,10 @@ function getToolMeta(toolName: string): ToolMeta {
 
 /** Human-readable label from tool name: "get_strategy_document" -> "strategy document" */
 function humanizeToolName(toolName: string): string {
-  // Strip verb prefix
+  // Research tool names are already human-friendly (e.g., "Company Website Research")
+  if (toolName.includes(' ')) return toolName
+
+  // Strip verb prefix for agent tool names
   const prefixes = ['get_', 'update_', 'set_', 'append_', 'search_', 'list_', 'create_', 'delete_', 'remove_']
   let name = toolName
   for (const prefix of prefixes) {
@@ -148,6 +169,24 @@ function WrenchIcon() {
   )
 }
 
+function GlobeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M2 8h12M8 2c2 2 3 4 3 6s-1 4-3 6c-2-2-3-4-3-6s1-4 3-6z" />
+    </svg>
+  )
+}
+
+function BrainIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 14V8M8 8c0-3 2-5 4-5s2 2 2 3-1 2-2 2M8 8c0-3-2-5-4-5S2 5 2 6s1 2 2 2" />
+      <path d="M6 10c-1 0-2 .5-2 1.5S5 13 6 13M10 10c1 0 2 .5 2 1.5s-1 1.5-2 1.5" />
+    </svg>
+  )
+}
+
 function SpinnerIcon() {
   return (
     <svg
@@ -203,7 +242,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// JSON display helper
+// JSON display helper (fallback for raw view)
 // ---------------------------------------------------------------------------
 
 const MAX_JSON_DISPLAY = 2048
@@ -232,6 +271,153 @@ function JsonBlock({ data, label }: { data: Record<string, unknown>; label: stri
           {showFull ? 'Show less' : 'Show full'}
         </button>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Human-formatted detail renderer (BL-192)
+// ---------------------------------------------------------------------------
+
+/** Convert camelCase or snake_case to "Title Case" label */
+function humanizeLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+/** Check if a value is "empty" (null, undefined, empty string, empty array/object) */
+function isEmpty(value: unknown): boolean {
+  if (value == null) return true
+  if (typeof value === 'string' && value.trim() === '') return true
+  if (Array.isArray(value) && value.length === 0) return true
+  if (typeof value === 'object' && Object.keys(value as Record<string, unknown>).length === 0) return true
+  return false
+}
+
+/** Render a single value as human-readable content */
+function FormattedValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (isEmpty(value)) return null
+
+  // Boolean
+  if (typeof value === 'boolean') {
+    return <span className="text-xs text-text-muted">{value ? 'Yes' : 'No'}</span>
+  }
+
+  // Number
+  if (typeof value === 'number') {
+    return <span className="text-xs text-text-muted font-mono">{value.toLocaleString()}</span>
+  }
+
+  // String — render as paragraph
+  if (typeof value === 'string') {
+    return <p className="text-xs text-text-muted leading-relaxed m-0">{value}</p>
+  }
+
+  // Array — render as bullet list or comma-separated for simple values
+  if (Array.isArray(value)) {
+    const allSimple = value.every((v) => typeof v === 'string' || typeof v === 'number')
+
+    if (allSimple && value.length <= 5) {
+      // Short list of simple values — render as pills/tags
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.map((item, i) => (
+            <span
+              key={i}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-surface-alt text-text-muted border border-border-solid"
+            >
+              {String(item)}
+            </span>
+          ))}
+        </div>
+      )
+    }
+
+    // Longer list — bullet points
+    return (
+      <ul className="text-xs text-text-muted leading-relaxed m-0 pl-4 space-y-0.5 list-disc">
+        {value.map((item, i) => (
+          <li key={i}>
+            {typeof item === 'object' && item !== null ? (
+              <FormattedValue value={item} depth={depth + 1} />
+            ) : (
+              String(item)
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  // Object — render as labeled sub-section
+  if (typeof value === 'object' && value !== null) {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => !isEmpty(v),
+    )
+    if (entries.length === 0) return null
+
+    return (
+      <div className={`space-y-1.5 ${depth > 0 ? 'pl-3 border-l border-border-solid' : ''}`}>
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[10px] uppercase tracking-wider text-text-dim font-semibold mb-0.5">
+              {humanizeLabel(k)}
+            </div>
+            <FormattedValue value={v} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Fallback
+  return <span className="text-xs text-text-muted">{String(value)}</span>
+}
+
+function HumanFormattedDetail({
+  data,
+  label,
+}: {
+  data: Record<string, unknown>
+  label: string
+}) {
+  const [showRaw, setShowRaw] = useState(false)
+
+  const entries = Object.entries(data).filter(([, v]) => !isEmpty(v))
+  if (entries.length === 0) return null
+
+  return (
+    <div className="mt-2">
+      <div className="text-[10px] uppercase tracking-wider text-text-dim mb-1.5 font-semibold">
+        {label}
+      </div>
+
+      {showRaw ? (
+        <JsonBlock data={data} label="" />
+      ) : (
+        <div className="space-y-2 bg-bg rounded-md p-2.5 border border-border-solid">
+          {entries.map(([key, value]) => (
+            <div key={key}>
+              <div className="text-[10px] uppercase tracking-wider text-text-dim font-semibold mb-0.5">
+                {humanizeLabel(key)}
+              </div>
+              <FormattedValue value={value} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          setShowRaw(!showRaw)
+        }}
+        className="text-[10px] text-text-dim hover:text-accent-cyan mt-1 bg-transparent border-none cursor-pointer p-0 transition-colors"
+      >
+        {showRaw ? 'Show formatted' : 'Show raw'}
+      </button>
     </div>
   )
 }
@@ -270,6 +456,8 @@ interface ToolCallCardProps {
   summary?: string
   output?: Record<string, unknown>
   durationMs?: number
+  /** Research events include a target (e.g., domain being researched) */
+  target?: string
   /** When true, render in single-line collapsed mode (for 4+ tool calls) */
   collapsedMode?: boolean
 }
@@ -281,6 +469,7 @@ export function ToolCallCard({
   summary,
   output,
   durationMs,
+  target,
   collapsedMode = false,
 }: ToolCallCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -377,11 +566,14 @@ export function ToolCallCard({
         <div className="flex-1 min-w-0">
           {displayStatus === 'running' ? (
             <span className="text-xs text-text-muted">
-              {meta.verb} {humanizeToolName(toolName)}...
+              {meta.verb} {humanizeToolName(toolName)}
+              {target && <span className="text-text-dim ml-1">({target})</span>}
+              ...
             </span>
           ) : (
             <span className="text-xs text-text-muted">
               {summary || `${meta.verb} ${humanizeToolName(toolName)}`}
+              {target && !summary && <span className="text-text-dim ml-1">({target})</span>}
             </span>
           )}
         </div>
@@ -416,10 +608,10 @@ export function ToolCallCard({
       {isExpanded && (
         <div className="px-3 pb-3 border-t border-border-solid">
           {input && Object.keys(input).length > 0 && (
-            <JsonBlock data={input} label="Input" />
+            <HumanFormattedDetail data={input} label="Input" />
           )}
           {output && Object.keys(output).length > 0 && (
-            <JsonBlock data={output} label="Output" />
+            <HumanFormattedDetail data={output} label="Output" />
           )}
           {displayStatus === 'error' && summary && (
             <div className="mt-2 text-xs text-error">
@@ -459,6 +651,7 @@ export function ToolCallCardList({ toolCalls }: ToolCallCardListProps) {
           summary={tc.summary}
           output={tc.output}
           durationMs={tc.duration_ms}
+          target={tc.target}
           collapsedMode={useCollapsed}
         />
       ))}

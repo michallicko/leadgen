@@ -142,6 +142,16 @@ function formatTime(iso: string): string {
 // Extract persisted tool calls from message extra/metadata (AC-6)
 // ---------------------------------------------------------------------------
 
+/**
+ * Map status from backend format to ToolCallEvent status.
+ * Research events use "completed"/"running"/"error"; agent events use "success"/"error".
+ */
+function normalizeStatus(rawStatus: string): 'running' | 'success' | 'error' {
+  if (rawStatus === 'error') return 'error'
+  if (rawStatus === 'running') return 'running'
+  return 'success' // "completed" or "success" both map to "success"
+}
+
 function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
   const extra = message.extra
   if (!extra || !Array.isArray(extra.tool_calls) || extra.tool_calls.length === 0) {
@@ -152,11 +162,22 @@ function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
     tool_call_id: (tc.tool_call_id as string) || (tc.id as string) || `persisted-${idx}`,
     tool_name: (tc.tool_name as string) || (tc.name as string) || 'unknown',
     input: (tc.input_args as Record<string, unknown>) || (tc.input as Record<string, unknown>) || {},
-    status: ((tc.status as string) === 'error' ? 'error' : 'success') as 'success' | 'error',
+    status: normalizeStatus((tc.status as string) || 'success'),
     summary: (tc.summary as string) || undefined,
-    output: (tc.output_data as Record<string, unknown>) || (tc.output as Record<string, unknown>) || undefined,
+    // Research events store structured results in "detail"; agent events use "output_data"/"output"
+    output: (tc.output_data as Record<string, unknown>)
+      || (tc.output as Record<string, unknown>)
+      || (tc.detail as Record<string, unknown>)
+      || undefined,
     duration_ms: (tc.duration_ms as number) || undefined,
+    // Research events include target (e.g., domain being researched)
+    target: (tc.target as string) || undefined,
   }))
+}
+
+/** Check if this message is a research progress message (should show tool cards only, no text bubble) */
+function isResearchProgressMessage(message: ChatMessage): boolean {
+  return !!message.extra?.is_research_progress
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +192,25 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
   // AC-6: Render persisted tool calls from message metadata
   const persistedToolCalls = !isUser ? getPersistedToolCalls(message) : null
+
+  // Research progress messages show only tool cards -- no text bubble
+  // (the summary is already displayed inside the tool card)
+  const isResearchProgress = !isUser && isResearchProgressMessage(message)
+
+  if (isResearchProgress && persistedToolCalls) {
+    return (
+      <div className="flex gap-3 flex-row">
+        {/* Avatar */}
+        <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent-cyan/15 text-accent-cyan">
+          <AssistantIcon />
+        </div>
+        {/* Tool cards only -- no text bubble */}
+        <div className="max-w-[80%]">
+          <ToolCallCardList toolCalls={persistedToolCalls} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
