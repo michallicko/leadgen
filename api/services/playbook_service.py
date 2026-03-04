@@ -102,12 +102,10 @@ def compute_chat_placeholder(document, phase="strategy", page_context=None):
         idx = content.index(heading)
         next_heading = content.find("\n## ", idx + len(heading))
         if next_heading == -1:
-            section_body = content[idx + len(heading):]
+            section_body = content[idx + len(heading) :]
         else:
-            section_body = content[idx + len(heading):next_heading]
-        lines = [
-            ln.strip() for ln in section_body.strip().split("\n") if ln.strip()
-        ]
+            section_body = content[idx + len(heading) : next_heading]
+        lines = [ln.strip() for ln in section_body.strip().split("\n") if ln.strip()]
         word_count = sum(len(ln.split()) for ln in lines)
         if word_count < 20:
             return "Let's flesh out your {}...".format(section_name)
@@ -565,11 +563,9 @@ def build_system_prompt(
                 idx = content.index(heading_pattern)
                 next_heading = content.find("\n## ", idx + len(heading_pattern))
                 if next_heading == -1:
-                    section_content = content[idx + len(heading_pattern):]
+                    section_content = content[idx + len(heading_pattern) :]
                 else:
-                    section_content = content[
-                        idx + len(heading_pattern):next_heading
-                    ]
+                    section_content = content[idx + len(heading_pattern) : next_heading]
                 lines = [
                     ln.strip()
                     for ln in section_content.strip().split("\n")
@@ -584,15 +580,11 @@ def build_system_prompt(
                     )
                 elif word_count < 80:
                     section_status.append(
-                        "- {} [PARTIAL -- {} words]".format(
-                            section_name, word_count
-                        )
+                        "- {} [PARTIAL -- {} words]".format(section_name, word_count)
                     )
                 else:
                     section_status.append(
-                        "- {} [COMPLETE -- {} words]".format(
-                            section_name, word_count
-                        )
+                        "- {} [COMPLETE -- {} words]".format(section_name, word_count)
                     )
             else:
                 section_status.append(

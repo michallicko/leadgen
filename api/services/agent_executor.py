@@ -78,8 +78,9 @@ def _summarize_output(tool_name, output):
     return "Completed {}".format(tool_name)
 
 
-def _build_done_data(tool_executions, model, total_input_tokens,
-                     total_output_tokens, total_cost_usd):
+def _build_done_data(
+    tool_executions, model, total_input_tokens, total_output_tokens, total_cost_usd
+):
     """Build the payload for a 'done' SSE event.
 
     Includes tool call summaries, token totals, and metadata about
@@ -226,8 +227,11 @@ def execute_agent_turn(
             yield SSEEvent(
                 type="done",
                 data=_build_done_data(
-                    tool_executions, model,
-                    total_input_tokens, total_output_tokens, total_cost_usd,
+                    tool_executions,
+                    model,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cost_usd,
                 ),
             )
             return
@@ -296,8 +300,11 @@ def execute_agent_turn(
             yield SSEEvent(
                 type="done",
                 data=_build_done_data(
-                    tool_executions, model,
-                    total_input_tokens, total_output_tokens, total_cost_usd,
+                    tool_executions,
+                    model,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cost_usd,
                 ),
             )
             return
@@ -400,9 +407,7 @@ def execute_agent_turn(
                     type="section_update",
                     data={
                         "section": exec_record.output.get("section", ""),
-                        "content": exec_record.output.get(
-                            "content_preview", ""
-                        ),
+                        "content": exec_record.output.get("content_preview", ""),
                         "action": "update"
                         if tool_name == "update_strategy_section"
                         else "append",
@@ -441,7 +446,10 @@ def execute_agent_turn(
     yield SSEEvent(
         type="done",
         data=_build_done_data(
-            tool_executions, model,
-            total_input_tokens, total_output_tokens, total_cost_usd,
+            tool_executions,
+            model,
+            total_input_tokens,
+            total_output_tokens,
+            total_cost_usd,
         ),
     )
