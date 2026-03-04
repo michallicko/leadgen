@@ -83,6 +83,11 @@ def _translate_mapping_to_claude(mapping):
     Custom field keys (e.g. "email_secondary") are prefixed to
     "contact.custom.email_secondary" or "company.custom.email_secondary"
     based on the CustomFieldDefinition entity_type.
+
+    Accepts either:
+      - Frontend array format: [{source_column, target_field, ...}, ...]
+      - Claude dict format: {"mappings": [{csv_header, target, ...}, ...]}
+    Always returns Claude dict format.
     """
     from flask import g
 
@@ -97,12 +102,32 @@ def _translate_mapping_to_claude(mapping):
         for cfd in custom_defs:
             custom_field_map[cfd.field_key] = cfd.entity_type
 
-    translated = dict(mapping)
+    # Normalize input: frontend sends a list, Claude format is a dict with "mappings"
+    if isinstance(mapping, list):
+        # Convert frontend ColumnMapping[] → Claude mapping dict
+        claude_mappings = []
+        for col in mapping:
+            claude_mappings.append(
+                {
+                    "csv_header": col.get("source_column", ""),
+                    "target": col.get("target_field") or col.get("target"),
+                    "confidence": col.get("confidence", "low"),
+                    "sample_values": col.get("sample_values", []),
+                }
+            )
+        translated = {"mappings": claude_mappings}
+    elif isinstance(mapping, str):
+        import json as _json
+
+        translated = _json.loads(mapping)
+    else:
+        translated = dict(mapping)
+
     new_mappings = []
     for m in translated.get("mappings", []):
         target = m.get("target")
         # Clear skip/null targets so apply_mapping ignores them
-        if not target or target.lower() in _SKIP_TARGETS:
+        if not target or (isinstance(target, str) and target.lower() in _SKIP_TARGETS):
             m = dict(m)
             m["target"] = None
         elif "." in target:
@@ -326,14 +351,24 @@ def _build_upload_response(
 
     custom_field_defs = []
     for cdef in custom_defs or []:
-        d = cdef if isinstance(cdef, dict) else (cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        d = (
+            cdef
+            if isinstance(cdef, dict)
+            else (cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        )
         # Frontend expects display_name (not field_label) and source_column
-        custom_field_defs.append({
-            "field_key": d.get("field_key", ""),
-            "display_name": d.get("field_label", d.get("display_name", d.get("field_key", ""))),
-            "source_column": custom_source_map.get(d.get("field_key", ""), d.get("field_key", "")),
-            "entity_type": d.get("entity_type", "contact"),
-        })
+        custom_field_defs.append(
+            {
+                "field_key": d.get("field_key", ""),
+                "display_name": d.get(
+                    "field_label", d.get("display_name", d.get("field_key", ""))
+                ),
+                "source_column": custom_source_map.get(
+                    d.get("field_key", ""), d.get("field_key", "")
+                ),
+                "entity_type": d.get("entity_type", "contact"),
+            }
+        )
 
     return {
         "job_id": str(job_id),
