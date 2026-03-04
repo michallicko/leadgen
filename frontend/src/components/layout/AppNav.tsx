@@ -1,7 +1,12 @@
 /**
  * Two-tier pillar navigation — React port of nav.js.
- * Tier 1: pillar icons + brand + user/gear
+ * Tier 1: pillar icons + brand + user menu
  * Tier 2: sub-page links for active pillar
+ *
+ * User menu dropdown has 3 groups:
+ *   1. Personal — Preferences, Sign Out (all users)
+ *   2. Namespace — Users & Roles, Credits (admin only)
+ *   3. Super Admin — LLM Costs (super_admin only)
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -81,27 +86,12 @@ const PILLARS: PillarDef[] = [
   },
 ]
 
-interface GearItem {
-  id: string
-  label: string
-  path: string
-  minRole: Role
-  superOnly?: boolean
-}
-
-const GEAR_ITEMS: GearItem[] = [
-  { id: 'admin', label: 'Users & Roles', path: 'admin', minRole: 'admin' },
-  { id: 'llm-costs', label: 'LLM Costs', path: 'llm-costs', minRole: 'admin', superOnly: true },
-]
-
 // ---- Component ----
 
 export function AppNav() {
   const { user, hasRole, logout } = useAuth()
   const namespace = useNamespace()
   const location = useLocation()
-  const [gearOpen, setGearOpen] = useState(false)
-  const gearRef = useRef<HTMLDivElement>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
@@ -113,17 +103,6 @@ export function AppNav() {
   const activePillar = PILLARS.find((p) =>
     p.pages.some((pg) => pg.path === currentPage),
   )
-
-  // Close gear on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
-        setGearOpen(false)
-      }
-    }
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [])
 
   // Close user menu on outside click
   useEffect(() => {
@@ -205,46 +184,6 @@ export function AppNav() {
           {/* Namespace switcher */}
           <NamespaceSwitcher />
 
-          {/* Gear */}
-          {hasRole('admin') && (
-            <div ref={gearRef} className="relative">
-              <button
-                onClick={(e) => { e.stopPropagation(); setGearOpen(!gearOpen) }}
-                className={`p-1.5 rounded-md border border-border text-text-muted hover:text-text hover:border-accent transition-colors bg-transparent cursor-pointer ${
-                  user?.is_super_admin ? 'relative' : ''
-                }`}
-                aria-label="Settings"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-                {user?.is_super_admin && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent-cyan rounded-full" />
-                )}
-              </button>
-
-              {gearOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-surface border border-border-solid rounded-lg py-1 min-w-[180px] shadow-lg z-50">
-                  {GEAR_ITEMS.filter((item) => {
-                    if (!hasRole(item.minRole)) return false
-                    if (item.superOnly && !user?.is_super_admin) return false
-                    return true
-                  }).map((item) => (
-                    <Link
-                      key={item.id}
-                      to={makePath(item.path)}
-                      className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
-                      onClick={() => setGearOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* User menu dropdown */}
           {user && (
             <div ref={userMenuRef} className="relative">
@@ -266,7 +205,11 @@ export function AppNav() {
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-surface border border-border-solid rounded-lg py-1 min-w-[180px] shadow-lg z-50">
+                <div className="absolute right-0 top-full mt-1 bg-surface border border-border-solid rounded-lg py-1 min-w-[200px] shadow-lg z-50">
+                  {/* Personal section */}
+                  <div className="px-3 pt-1.5 pb-1 text-[0.68rem] font-semibold text-text-muted/60 uppercase tracking-wider">
+                    Personal
+                  </div>
                   <Link
                     to={makePath('preferences')}
                     className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
@@ -274,13 +217,53 @@ export function AppNav() {
                   >
                     Preferences
                   </Link>
-                  <div className="my-1 border-t border-border" />
                   <button
                     onClick={logout}
                     className="block w-full text-left px-4 py-2 text-[0.82rem] text-text-muted bg-transparent border-none cursor-pointer hover:bg-surface-alt hover:text-error transition-colors"
                   >
-                    Logout
+                    Sign Out
                   </button>
+
+                  {/* Namespace section — admin only */}
+                  {hasRole('admin') && (
+                    <>
+                      <div className="my-1 border-t border-border" />
+                      <div className="px-3 pt-1.5 pb-1 text-[0.68rem] font-semibold text-text-muted/60 uppercase tracking-wider">
+                        Namespace
+                      </div>
+                      <Link
+                        to={makePath('admin')}
+                        className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        Users &amp; Roles
+                      </Link>
+                      <Link
+                        to={makePath('admin/tokens')}
+                        className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        Credits &amp; Usage
+                      </Link>
+                    </>
+                  )}
+
+                  {/* Super Admin section — super_admin only */}
+                  {user.is_super_admin && (
+                    <>
+                      <div className="my-1 border-t border-border" />
+                      <div className="px-3 pt-1.5 pb-1 text-[0.68rem] font-semibold text-accent-cyan/60 uppercase tracking-wider">
+                        Super Admin
+                      </div>
+                      <Link
+                        to={makePath('llm-costs')}
+                        className="block px-4 py-2 text-[0.82rem] text-text-muted no-underline hover:bg-surface-alt hover:text-text transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        LLM Costs
+                      </Link>
+                    </>
+                  )}
                 </div>
               )}
             </div>
