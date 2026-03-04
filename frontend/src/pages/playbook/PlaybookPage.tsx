@@ -1,5 +1,5 @@
 /**
- * PlaybookPage -- split-view editor + AI chat for ICP strategy.
+ * PlaybookPage -- split-view editor + AI chat for GTM strategy.
  *
  * Left panel (~60%): Phase-specific content (StrategyEditor for strategy, placeholders for others)
  * Right panel (~40%): AI chat — uses ChatProvider for persistent state
@@ -85,7 +85,7 @@ function SaveTemplateIcon() {
 // ---------------------------------------------------------------------------
 
 const PHASE_PLACEHOLDERS: Record<string, string> = {
-  strategy: 'Ask about your ICP strategy...',
+  strategy: 'Ask about your GTM strategy...',
   contacts: 'Which contacts should we target?',
   messages: "Let's craft your outreach messages...",
   campaign: 'Configure your campaign...',
@@ -96,7 +96,7 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
-  strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
+  strategy: { label: 'Analyze Market', pendingLabel: 'Analyzing...' },
   contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
   messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
   campaign: { label: 'Launch Campaign', pendingLabel: 'Launching...' },
@@ -427,7 +427,7 @@ export function PlaybookPage() {
       if (extractedData) {
         setExtractionResult(extractedData)
         setTriageSynced(synced)
-        toast('ICP criteria extracted successfully', 'success')
+        toast('Market analysis extracted successfully', 'success')
       } else {
         toast('Strategy data extracted but no structured data found. Try adding more detail to your strategy.', 'info')
       }
@@ -673,7 +673,7 @@ export function PlaybookPage() {
       {/* Top bar */}
       <div className="flex items-center gap-3 mb-2 flex-shrink-0">
         <h1 className="font-title text-[1.3rem] font-semibold tracking-tight">
-          ICP Playbook
+          GTM Strategy
         </h1>
 
         {/* Auto-save status */}
