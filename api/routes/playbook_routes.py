@@ -967,7 +967,12 @@ def _run_self_research(
             except Exception:
                 pass
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-            if doc and doc.version == 1:
+            # Seed if the document content is still empty (not just version==1).
+            # The AI chat may have bumped the version via tool calls like
+            # get_strategy_document or set_extracted_field without actually
+            # populating the content, so checking version alone is too strict.
+            doc_is_empty = doc and not (doc.content or "").strip()
+            if doc_is_empty:
                 enrichment_data = _load_enrichment_data(company_id)
                 if additional_domains and enrichment_data:
                     enrichment_data["additional_domains"] = additional_domains
@@ -1022,7 +1027,8 @@ def _run_self_research(
             try:
                 db.session.rollback()  # Clear poisoned transaction
                 doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-                if doc and doc.version == 1:
+                doc_is_empty = doc and not (doc.content or "").strip()
+                if doc_is_empty:
                     enrichment_data = _load_enrichment_data(company_id)
                     if enrichment_data:
                         doc.content = build_seeded_template(

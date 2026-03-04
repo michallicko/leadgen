@@ -25,7 +25,7 @@ from .tool_registry import get_tool
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_ITERATIONS = 25
-MAX_TURN_SECONDS = 120  # Hard timeout for the entire agent turn
+MAX_TURN_SECONDS = 180  # Hard timeout for the entire agent turn
 
 # Per-turn rate limits by tool name.  Tools not listed here get the default.
 TOOL_RATE_LIMITS: dict[str, int] = {

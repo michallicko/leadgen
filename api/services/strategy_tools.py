@@ -185,12 +185,20 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
 
     doc = StrategyDocument.query.filter_by(tenant_id=ctx.tenant_id).first()
     if not doc:
+        logger.warning(
+            "update_strategy_section: no doc found for tenant %s", ctx.tenant_id
+        )
         return {"error": "No strategy document found"}
 
     doc_content = doc.content or ""
 
     # Validate section name
     if section not in KNOWN_SECTIONS:
+        logger.warning(
+            "update_strategy_section: unknown section '%s' (tenant %s)",
+            section,
+            ctx.tenant_id,
+        )
         return {
             "error": "Section '{}' not found. Available sections: {}".format(
                 section, _format_sections_list()
@@ -215,11 +223,27 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
             + new_content.strip()
             + "\n"
         )
+        logger.info(
+            "update_strategy_section: appended new section '%s' (tenant %s, "
+            "content_len=%d, doc_len=%d)",
+            section,
+            ctx.tenant_id,
+            len(new_content),
+            len(doc.content or ""),
+        )
     else:
         start, end = bounds
         # Replace section body
         new_body = "\n" + new_content.strip() + "\n\n"
         doc.content = doc_content[:start] + new_body + doc_content[end:]
+        logger.info(
+            "update_strategy_section: replaced section '%s' (tenant %s, "
+            "content_len=%d, doc_len=%d)",
+            section,
+            ctx.tenant_id,
+            len(new_content),
+            len(doc.content or ""),
+        )
 
     doc.version += 1
     doc.updated_by = ctx.user_id
