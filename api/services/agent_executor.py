@@ -309,6 +309,12 @@ def execute_agent_turn(
             )
             return
 
+        # Yield any intermediate text (AI reasoning between tool calls)
+        # so the frontend can display it as streaming text.
+        intermediate_text = "".join(text_parts)
+        if intermediate_text:
+            yield SSEEvent(type="chunk", data={"text": intermediate_text})
+
         # Append assistant message with all content blocks
         messages.append({"role": "assistant", "content": content_blocks})
 
