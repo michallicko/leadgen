@@ -854,6 +854,40 @@ def execute_import_job(job_id):
         return jsonify({"error": f"Import failed: {str(e)}"}), 500
 
 
+@imports_bp.route("/api/imports/<job_id>/retry", methods=["POST"])
+@require_auth
+def retry_import(job_id):
+    """Reset an errored import job so the user can retry.
+
+    Resets status to 'previewed' (or 'mapped' if no preview data exists),
+    clears the error message and partial result counters.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    job = ImportJob.query.filter_by(id=job_id, tenant_id=str(tenant_id)).first()
+    if not job:
+        return jsonify({"error": "Import job not found"}), 404
+
+    if job.status != "error":
+        return jsonify({"error": f"Cannot retry a job with status '{job.status}'"}), 400
+
+    # Reset to last valid state: previewed if we had a preview, else mapped
+    job.status = "previewed" if job.column_mapping else "mapped"
+    job.error = None
+    # Clear partial import counters from the failed attempt
+    job.contacts_created = 0
+    job.contacts_updated = 0
+    job.contacts_skipped = 0
+    job.companies_created = 0
+    job.companies_linked = 0
+    job.dedup_results = None
+    db.session.commit()
+
+    return jsonify({"job_id": str(job.id), "status": job.status})
+
+
 @imports_bp.route("/api/imports/<job_id>/results", methods=["GET"])
 @require_auth
 def import_results(job_id):
@@ -934,7 +968,8 @@ def import_status(job_id):
 
     # Build mapping in the ColumnMapping[] format the frontend expects
     mapping = None
-    if job.status in ("uploaded", "mapped", "previewed"):
+    upload_response = None
+    if job.status in ("uploaded", "mapped", "previewed", "error"):
         raw = ImportJob._parse_jsonb(job.column_mapping) or {}
         stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
         resp = _build_upload_response(
@@ -946,11 +981,13 @@ def import_status(job_id):
             sample_rows=stored_samples,
         )
         mapping = resp["columns"]
+        upload_response = resp
 
     return jsonify(
         {
             "status": job.status,
             "mapping": mapping,
+            "upload_response": upload_response,
             "preview": None,  # preview is re-generated on demand
         }
     )

@@ -69,7 +69,7 @@ interface ImportJob {
   id: string
   filename: string
   source: 'csv' | 'google'
-  status: 'uploaded' | 'mapped' | 'previewed' | 'completed' | 'failed'
+  status: 'uploaded' | 'mapped' | 'previewed' | 'completed' | 'failed' | 'error'
   row_count: number
   created_at: string
   stats?: { created: number; skipped: number; updated: number; errors: number }
@@ -82,6 +82,7 @@ interface ImportListResponse {
 interface ImportStatusResponse {
   status: string
   mapping: ColumnMapping[] | null
+  upload_response: UploadResponse | null
   preview: PreviewResponse | null
 }
 
@@ -173,6 +174,12 @@ export function getImportResults(jobId: string, filter: string, page: number) {
 
 export function getImportStatus(jobId: string) {
   return apiFetch<ImportStatusResponse>(`/imports/${jobId}/status`)
+}
+
+export function retryImport(jobId: string) {
+  return apiFetch<{ job_id: string; status: string }>(`/imports/${jobId}/retry`, {
+    method: 'POST',
+  })
 }
 
 // Google OAuth
