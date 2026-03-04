@@ -194,6 +194,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(
     (text: string) => {
+      // BL-208: Detect onboarding trigger prompts so the optimistic message
+      // also renders as condensed (hidden) during streaming — same check as
+      // the backend in playbook_routes.py::post_chat_message
+      const isOnboardingTrigger = text.startsWith('Generate a complete GTM strategy')
+
       // Add optimistic user message
       const optimisticMsg: ChatMessage = {
         id: `optimistic-${Date.now()}`,
@@ -201,6 +206,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: text,
         created_at: new Date().toISOString(),
         page_context: currentPage,
+        ...(isOnboardingTrigger ? { extra: { hidden: true } } : {}),
       }
       setOptimisticMessages((prev) => [...prev, optimisticMsg])
       setStreamingText('')

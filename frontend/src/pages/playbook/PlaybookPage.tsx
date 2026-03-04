@@ -674,7 +674,7 @@ export function PlaybookPage() {
       {viewPhase === 'strategy' && !needsOnboarding && (
         <div className="flex items-center gap-1 mb-2 flex-shrink-0 border-b border-border">
           {([
-            { key: 'strategy' as const, label: 'Strategy Document' },
+            { key: 'strategy' as const, label: 'Strategy Overview' },
             { key: 'tiers' as const, label: 'ICP Tiers' },
             { key: 'personas' as const, label: 'Buyer Personas' },
           ]).map(({ key, label }) => (

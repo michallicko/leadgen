@@ -191,8 +191,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.role === 'system') return null
 
   // BL-208: Hidden messages (e.g. onboarding trigger prompts) show a
-  // condensed placeholder instead of the full internal instructions
-  if (message.extra?.hidden) {
+  // condensed placeholder instead of the full internal instructions.
+  // Fallback: also detect by content prefix for messages saved before the
+  // hidden flag was deployed to the backend.
+  const isHidden =
+    message.extra?.hidden ||
+    (isUser && message.content.startsWith('Generate a complete GTM strategy'))
+  if (isHidden) {
     return (
       <div className="flex gap-3 flex-row-reverse">
         <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent/20 text-accent-hover">
