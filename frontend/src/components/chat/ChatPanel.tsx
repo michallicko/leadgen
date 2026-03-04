@@ -77,6 +77,7 @@ export function ChatPanel() {
     chatInputRef,
     toolCalls,
     isThinking,
+    thinkingStatus,
     currentPage,
   } = useChatContext()
 
@@ -120,8 +121,8 @@ export function ChatPanel() {
             AI Strategist
           </h3>
           {isStreaming && (
-            <span className="text-[11px] text-accent-cyan animate-pulse">
-              Thinking...
+            <span className="text-[11px] text-accent-cyan animate-pulse truncate max-w-[140px]">
+              {thinkingStatus}
             </span>
           )}
 
@@ -159,6 +160,7 @@ export function ChatPanel() {
           isLoading={isLoading}
           toolCalls={toolCalls}
           isThinking={isThinking}
+          thinkingStatus={thinkingStatus}
         />
 
         {/* Workflow progress strip */}
