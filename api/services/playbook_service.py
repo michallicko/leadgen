@@ -479,6 +479,63 @@ def build_system_prompt(
             ]
         )
 
+    # Compute strategy section completeness for gap tracking (BL-202)
+    if content and content.strip():
+        section_status = []
+        for section_name in STRATEGY_SECTIONS:
+            heading_pattern = "## {}".format(section_name)
+            if heading_pattern in content:
+                idx = content.index(heading_pattern)
+                next_heading = content.find("\n## ", idx + len(heading_pattern))
+                if next_heading == -1:
+                    section_content = content[idx + len(heading_pattern):]
+                else:
+                    section_content = content[
+                        idx + len(heading_pattern):next_heading
+                    ]
+                lines = [
+                    ln.strip()
+                    for ln in section_content.strip().split("\n")
+                    if ln.strip()
+                ]
+                word_count = sum(len(ln.split()) for ln in lines)
+                if word_count < 20:
+                    section_status.append(
+                        "- {} [NEEDS WORK -- only {} words]".format(
+                            section_name, word_count
+                        )
+                    )
+                elif word_count < 80:
+                    section_status.append(
+                        "- {} [PARTIAL -- {} words]".format(
+                            section_name, word_count
+                        )
+                    )
+                else:
+                    section_status.append(
+                        "- {} [COMPLETE -- {} words]".format(
+                            section_name, word_count
+                        )
+                    )
+            else:
+                section_status.append(
+                    "- {} [EMPTY -- not yet written]".format(section_name)
+                )
+
+        if section_status:
+            parts.extend(
+                [
+                    "",
+                    "STRATEGY COMPLETENESS STATUS:",
+                    "\n".join(section_status),
+                    "",
+                    "Prioritize helping the user fill EMPTY and NEEDS WORK "
+                    "sections. When appropriate, proactively suggest: 'Your "
+                    "[section] section needs attention. Shall I draft it based "
+                    "on our research?'",
+                ]
+            )
+
     # Instruct the AI to treat the document as the single source of truth
     parts.extend(
         [
