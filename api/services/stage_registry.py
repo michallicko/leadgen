@@ -38,7 +38,7 @@ STAGE_REGISTRY = {
     },
     "registry": {
         "entity_type": "company",
-        "hard_deps": ["l1"],
+        "hard_deps": [],
         "soft_deps": [],
         "execution_mode": "native",
         "display_name": "Legal & Registry",

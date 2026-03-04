@@ -1081,6 +1081,37 @@ def _upsert_contact_enrichment(
         )
 
 
+_SENIORITY_TO_DB = {
+    "C-Level": "c_level",
+    "VP": "vp",
+    "Director": "director",
+    "Manager": "manager",
+    "Individual Contributor": "individual_contributor",
+    "Founder": "founder",
+    "Other": "other",
+}
+
+_DEPARTMENT_TO_DB = {
+    "Executive": "executive",
+    "Engineering": "engineering",
+    "Product": "product",
+    "Sales": "sales",
+    "Marketing": "marketing",
+    "Customer Success": "customer_success",
+    "Finance": "finance",
+    "HR": "hr",
+    "Operations": "operations",
+    "Other": "other",
+}
+
+_ICP_FIT_TO_DB = {
+    "Strong Fit": "strong_fit",
+    "Moderate Fit": "moderate_fit",
+    "Weak Fit": "weak_fit",
+    "Unknown": "unknown",
+}
+
+
 def _update_contact(contact_id, scores, total_cost, signals_data=None):
     """Update contact fields with enrichment results.
 
@@ -1093,6 +1124,17 @@ def _update_contact(contact_id, scores, total_cost, signals_data=None):
         activity = signals_data.get("recent_activity_level", "unknown")
         if activity in ("active", "moderate", "quiet", "unknown"):
             linkedin_activity = activity
+
+    # Normalize display values to DB enum values
+    seniority_db = _SENIORITY_TO_DB.get(
+        scores["seniority"], scores["seniority"].lower().replace(" ", "_")
+    )
+    department_db = _DEPARTMENT_TO_DB.get(
+        scores["department"], scores["department"].lower().replace(" ", "_")
+    )
+    icp_fit_db = _ICP_FIT_TO_DB.get(
+        scores["icp_fit"], scores["icp_fit"].lower().replace(" ", "_")
+    )
 
     db.session.execute(
         text("""
@@ -1111,13 +1153,13 @@ def _update_contact(contact_id, scores, total_cost, signals_data=None):
         """),
         {
             "cid": str(contact_id),
-            "seniority": scores["seniority"],
-            "department": scores["department"],
+            "seniority": seniority_db,
+            "department": department_db,
             "ai_champion": scores["is_ai_champion"],
             "ai_champ_score": scores["ai_champion_score"],
             "auth_score": scores["authority_score"],
             "contact_score": scores["contact_score"],
-            "icp_fit": scores["icp_fit"],
+            "icp_fit": icp_fit_db,
             "linkedin_activity": linkedin_activity,
             "cost": total_cost,
             "processed": True,

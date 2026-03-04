@@ -87,15 +87,18 @@ def _check_duplicate_titles(tenant_id: str, tag_id: str) -> list[dict]:
 def _check_cost_outliers(tenant_id: str, tag_id: str) -> list[dict]:
     """Find companies with enrichment costs far above the batch average."""
     # Get batch average (no STDDEV — not all DBs support it)
-    avg_row = db.session.execute(
-        text("""
-            SELECT AVG(enrichment_cost_usd)
-            FROM companies
-            WHERE tenant_id = :tid AND tag_id = :tag_id
-              AND enrichment_cost_usd > 0
-        """),
-        {"tid": tenant_id, "tag_id": tag_id},
-    ).fetchone()
+    try:
+        avg_row = db.session.execute(
+            text("""
+                SELECT AVG(enrichment_cost_usd)
+                FROM companies
+                WHERE tenant_id = :tid AND tag_id = :tag_id
+                  AND enrichment_cost_usd > 0
+            """),
+            {"tid": tenant_id, "tag_id": tag_id},
+        ).fetchone()
+    except Exception:
+        return []
 
     if not avg_row or avg_row[0] is None:
         return []
@@ -120,6 +123,8 @@ def _check_cost_outliers(tenant_id: str, tag_id: str) -> list[dict]:
 
     alerts = []
     for row in outliers:
+        if row[2] is None:
+            continue
         cost = float(row[2])
         ratio = cost / avg_cost if avg_cost > 0 else 0
         alerts.append(
@@ -128,8 +133,8 @@ def _check_cost_outliers(tenant_id: str, tag_id: str) -> list[dict]:
                 "severity": "low",
                 "entity_type": "company",
                 "entity_id": str(row[0]),
-                "entity_name": row[1],
-                "message": f"{row[1]} enrichment cost ${cost:.4f} is {ratio:.1f}x the batch average (${avg_cost:.4f}).",
+                "entity_name": row[1] or "Unknown",
+                "message": f"{row[1] or 'Unknown'} enrichment cost ${cost:.4f} is {ratio:.1f}x the batch average (${avg_cost:.4f}).",
                 "details": {
                     "cost": cost,
                     "avg_cost": avg_cost,
@@ -142,29 +147,32 @@ def _check_cost_outliers(tenant_id: str, tag_id: str) -> list[dict]:
 
 def _check_high_failure_rates(tenant_id: str, tag_id: str) -> list[dict]:
     """Check for stages with high failure rates in recent runs."""
-    rows = db.session.execute(
-        text("""
-            SELECT stage, status, total, done, failed, started_at
-            FROM stage_runs
-            WHERE tenant_id = :tid AND tag_id = :tag_id
-              AND status IN ('completed', 'failed')
-              AND total > 0
-            ORDER BY started_at DESC
-            LIMIT 20
-        """),
-        {"tid": tenant_id, "tag_id": tag_id},
-    ).fetchall()
+    try:
+        rows = db.session.execute(
+            text("""
+                SELECT stage, status, total, done, failed, started_at
+                FROM stage_runs
+                WHERE tenant_id = :tid AND tag_id = :tag_id
+                  AND status IN ('completed', 'failed')
+                  AND total > 0
+                ORDER BY started_at DESC
+                LIMIT 20
+            """),
+            {"tid": tenant_id, "tag_id": tag_id},
+        ).fetchall()
+    except Exception:
+        return []
 
     alerts = []
     seen_stages = set()
     for row in rows:
         stage = row[0]
-        if stage in seen_stages:
+        if not stage or stage in seen_stages:
             continue
         seen_stages.add(stage)
 
-        total = row[2] or 0
-        failed = row[4] or 0
+        total = int(row[2]) if row[2] is not None else 0
+        failed = int(row[4]) if row[4] is not None else 0
         if total > 0:
             failure_rate = failed / total
             if failure_rate > FAILURE_RATE_THRESHOLD:
@@ -189,37 +197,48 @@ def _check_high_failure_rates(tenant_id: str, tag_id: str) -> list[dict]:
 
 def _check_missing_critical_fields(tenant_id: str, tag_id: str) -> list[dict]:
     """Check if a high percentage of enriched companies are missing critical fields."""
-    total_row = db.session.execute(
-        text("""
-            SELECT COUNT(*) FROM companies
-            WHERE tenant_id = :tid AND tag_id = :tag_id
-              AND status NOT IN ('new', 'enrichment_failed')
-        """),
-        {"tid": tenant_id, "tag_id": tag_id},
-    ).fetchone()
+    try:
+        total_row = db.session.execute(
+            text("""
+                SELECT COUNT(*) FROM companies
+                WHERE tenant_id = :tid AND tag_id = :tag_id
+                  AND status NOT IN ('new', 'enrichment_failed')
+            """),
+            {"tid": tenant_id, "tag_id": tag_id},
+        ).fetchone()
+    except Exception:
+        return []
 
     total = total_row[0] if total_row else 0
     if total == 0:
         return []
 
+    # Use IS NULL only for enum columns (can't compare with empty string)
     fields_to_check = [
-        ("industry", "Industry"),
-        ("hq_country", "HQ Country"),
-        ("summary", "Company Summary"),
-        ("company_size", "Company Size"),
+        ("industry", "Industry", False),
+        ("hq_country", "HQ Country", False),
+        ("summary", "Company Summary", False),
+        ("company_size", "Company Size", True),  # enum column
     ]
 
     alerts = []
-    for field, label in fields_to_check:
-        missing_row = db.session.execute(
-            text(f"""
-                SELECT COUNT(*) FROM companies
-                WHERE tenant_id = :tid AND tag_id = :tag_id
-                  AND status NOT IN ('new', 'enrichment_failed')
-                  AND ({field} IS NULL OR {field} = '')
-            """),
-            {"tid": tenant_id, "tag_id": tag_id},
-        ).fetchone()
+    for field, label, is_enum in fields_to_check:
+        try:
+            if is_enum:
+                null_check = f"{field} IS NULL"
+            else:
+                null_check = f"({field} IS NULL OR CAST({field} AS TEXT) = '')"
+            missing_row = db.session.execute(
+                text(f"""
+                    SELECT COUNT(*) FROM companies
+                    WHERE tenant_id = :tid AND tag_id = :tag_id
+                      AND status NOT IN ('new', 'enrichment_failed')
+                      AND {null_check}
+                """),
+                {"tid": tenant_id, "tag_id": tag_id},
+            ).fetchone()
+        except Exception:
+            continue
 
         missing = missing_row[0] if missing_row else 0
         if total > 0 and missing / total > MISSING_FIELD_RATE_THRESHOLD:
@@ -247,26 +266,37 @@ def _check_stale_enrichment(tenant_id: str, tag_id: str) -> list[dict]:
     """Find companies with enrichment data older than STALE_DAYS."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=STALE_DAYS)
 
-    rows = db.session.execute(
-        text("""
-            SELECT c.id, c.name, c.last_enriched_at
-            FROM companies c
-            WHERE c.tenant_id = :tid AND c.tag_id = :tag_id
-              AND c.last_enriched_at IS NOT NULL
-              AND c.last_enriched_at < :cutoff
-            ORDER BY c.last_enriched_at ASC
-            LIMIT 10
-        """),
-        {"tid": tenant_id, "tag_id": tag_id, "cutoff": cutoff.isoformat()},
-    ).fetchall()
+    try:
+        rows = db.session.execute(
+            text("""
+                SELECT c.id, c.name, c.last_enriched_at
+                FROM companies c
+                WHERE c.tenant_id = :tid AND c.tag_id = :tag_id
+                  AND c.last_enriched_at IS NOT NULL
+                  AND c.last_enriched_at < :cutoff
+                ORDER BY c.last_enriched_at ASC
+                LIMIT 10
+            """),
+            {"tid": tenant_id, "tag_id": tag_id, "cutoff": cutoff.isoformat()},
+        ).fetchall()
+    except Exception:
+        return []
 
     alerts = []
     for row in rows:
+        if row[0] is None:
+            continue
         enriched_at = row[2]
+        if enriched_at is None:
+            continue
         if hasattr(enriched_at, "isoformat"):
-            age_days = (
-                datetime.now(timezone.utc) - enriched_at.replace(tzinfo=timezone.utc)
-            ).days
+            try:
+                age_days = (
+                    datetime.now(timezone.utc)
+                    - enriched_at.replace(tzinfo=timezone.utc)
+                ).days
+            except Exception:
+                age_days = STALE_DAYS + 1
         else:
             age_days = STALE_DAYS + 1  # fallback
 
@@ -276,8 +306,8 @@ def _check_stale_enrichment(tenant_id: str, tag_id: str) -> list[dict]:
                 "severity": "low",
                 "entity_type": "company",
                 "entity_id": str(row[0]),
-                "entity_name": row[1],
-                "message": f"{row[1]} enrichment data is {age_days} days old — consider re-enriching.",
+                "entity_name": row[1] or "Unknown",
+                "message": f"{row[1] or 'Unknown'} enrichment data is {age_days} days old — consider re-enriching.",
                 "details": {"days_old": age_days},
             }
         )
@@ -302,11 +332,18 @@ def detect_anomalies(tenant_id: str, tag_id: str) -> dict:
     """
     all_alerts: list[dict] = []
 
-    all_alerts.extend(_check_duplicate_titles(tenant_id, tag_id))
-    all_alerts.extend(_check_cost_outliers(tenant_id, tag_id))
-    all_alerts.extend(_check_high_failure_rates(tenant_id, tag_id))
-    all_alerts.extend(_check_missing_critical_fields(tenant_id, tag_id))
-    all_alerts.extend(_check_stale_enrichment(tenant_id, tag_id))
+    checks = [
+        _check_duplicate_titles,
+        _check_cost_outliers,
+        _check_high_failure_rates,
+        _check_missing_critical_fields,
+        _check_stale_enrichment,
+    ]
+    for check_fn in checks:
+        try:
+            all_alerts.extend(check_fn(tenant_id, tag_id))
+        except Exception as e:
+            logger.warning("Anomaly check %s failed: %s", check_fn.__name__, e)
 
     # Sort: high severity first, then medium, then low
     severity_order = {"high": 0, "medium": 1, "low": 2}

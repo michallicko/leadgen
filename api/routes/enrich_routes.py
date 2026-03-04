@@ -20,6 +20,7 @@ enrich_bp = Blueprint("enrich", __name__)
 
 ENRICHMENT_STAGES = [
     "l1",
+    "triage",
     "l2",
     "signals",
     "registry",
@@ -34,6 +35,7 @@ ENRICHMENT_STAGES = [
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
     "l1": 0.02,
+    "triage": 0.00,
     "l2": 0.08,
     "signals": 0.05,
     "registry": 0.00,

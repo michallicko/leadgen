@@ -27,7 +27,19 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "l2", "person", "registry", "triage"}
+DIRECT_STAGES = {
+    "l1",
+    "l2",
+    "person",
+    "registry",
+    "triage",
+    "qc",
+    "signals",
+    "news",
+    "social",
+    "career",
+    "contact_details",
+}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 # Legacy aliases for backward compat with old API calls
@@ -523,6 +535,13 @@ def _process_entity(
             return _process_registry_unified(entity_id, tenant_id)
         if stage == "triage":
             return _process_triage(entity_id, tenant_id, triage_rules)
+        if stage == "qc":
+            from .qc_checker import run_qc
+
+            return run_qc(entity_id, tenant_id)
+        # Stub dispatchers for stages not yet implemented (Phase 2)
+        if stage in ("signals", "news", "social", "career", "contact_details"):
+            raise NotImplementedError(f"Stage '{stage}' not yet implemented")
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
     payload = {_data_key_for_stage(stage): entity_id}

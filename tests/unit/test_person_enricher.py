@@ -347,7 +347,7 @@ class TestPersonScoring:
                 sa_text("SELECT seniority_level FROM contacts WHERE id = :cid"),
                 {"cid": contact_id},
             ).fetchone()
-            assert row[0] == "VP"
+            assert row[0] == "vp"
 
     def test_detects_engineering_department(self, app, db):
         from api.services.person_enricher import enrich_person
@@ -374,7 +374,7 @@ class TestPersonScoring:
                 sa_text("SELECT department FROM contacts WHERE id = :cid"),
                 {"cid": contact_id},
             ).fetchone()
-            assert row[0] == "Engineering"
+            assert row[0] == "engineering"
 
 
 # ---------------------------------------------------------------------------
