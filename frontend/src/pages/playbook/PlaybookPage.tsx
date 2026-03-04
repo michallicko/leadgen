@@ -31,7 +31,7 @@ import {
   useTriggerResearch,
   useResearchStatus,
 } from '../../api/queries/usePlaybook'
-import { useCreateStrategyTemplate, useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
+import { useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
@@ -64,14 +64,6 @@ function UndoIcon() {
   )
 }
 
-function SaveTemplateIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12.67 14H3.33A1.33 1.33 0 0 1 2 12.67V3.33A1.33 1.33 0 0 1 3.33 2h7.34L14 5.33v7.34A1.33 1.33 0 0 1 12.67 14Z" />
-      <path d="M11.33 14V9.33H4.67V14M4.67 2v3.33h5.33" />
-    </svg>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Phase-specific placeholder text for chat input
@@ -118,7 +110,6 @@ export function PlaybookPage() {
   // BL-201: extractMutation removed — extraction is now continuous
   // advancePhaseMutation removed — phase actions now handled via AI chat tools
   const undoMutation = useUndoAIEdit()
-  const createTemplateMutation = useCreateStrategyTemplate()
   const triggerResearch = useTriggerResearch()
 
   // Template application (BL-138)
@@ -143,9 +134,6 @@ export function PlaybookPage() {
   const researchQuery = useResearchStatus(researchTriggered)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
-  const [templateName, setTemplateName] = useState('')
-  const [templateDescription, setTemplateDescription] = useState('')
   // BL-201: extractionResult state removed — extraction is now continuous
 
   // Refs for debounced auto-save
@@ -518,26 +506,6 @@ export function PlaybookPage() {
     [applyTemplateMutation],
   )
 
-  // ---------------------------------------------------------------------------
-  // Save as Template handler
-  // ---------------------------------------------------------------------------
-
-  const handleSaveAsTemplate = useCallback(async () => {
-    if (!templateName.trim()) return
-    try {
-      await createTemplateMutation.mutateAsync({
-        name: templateName.trim(),
-        description: templateDescription.trim() || undefined,
-      })
-      setShowSaveTemplate(false)
-      setTemplateName('')
-      setTemplateDescription('')
-      toast('Strategy saved as template', 'success')
-    } catch {
-      toast('Failed to save template', 'error')
-    }
-  }, [templateName, templateDescription, createTemplateMutation, toast])
-
   // Wrap sendMessage to dismiss suggestions on first user follow-up
   const handleSendWithSuggestionDismiss = useCallback(
     (text: string) => {
@@ -642,18 +610,6 @@ export function PlaybookPage() {
         {/* Research progress is now shown via tool cards in chat (BL-194) */}
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Save as Template */}
-          {viewPhase === 'strategy' && docContent.trim() && (
-            <button
-              onClick={() => setShowSaveTemplate(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
-              title="Save current strategy as a reusable template"
-            >
-              <SaveTemplateIcon />
-              Save as Template
-            </button>
-          )}
-
           {/* Undo AI edit button */}
           {hasUndoableEdits && (
             <button
@@ -714,58 +670,6 @@ export function PlaybookPage() {
                 className="px-3 py-1.5 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-colors bg-transparent cursor-pointer"
               >
                 Undo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Save as Template dialog */}
-      {showSaveTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-surface border border-border-solid rounded-lg shadow-lg p-6 max-w-sm mx-4 w-full">
-            <h3 className="text-sm font-semibold mb-3">Save as Template</h3>
-            <div className="space-y-3 mb-4">
-              <div>
-                <label htmlFor="tpl-name" className="block text-xs font-medium text-text mb-1">
-                  Template name
-                </label>
-                <input
-                  id="tpl-name"
-                  type="text"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="e.g., My SaaS GTM Framework"
-                  className="w-full px-3 py-1.5 text-sm rounded-md border border-border-solid bg-surface-alt text-text placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/40"
-                />
-              </div>
-              <div>
-                <label htmlFor="tpl-desc" className="block text-xs font-medium text-text mb-1">
-                  Description <span className="text-text-dim font-normal">(optional)</span>
-                </label>
-                <textarea
-                  id="tpl-desc"
-                  value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)}
-                  placeholder="Brief description of this strategy framework"
-                  rows={2}
-                  className="w-full px-3 py-1.5 text-sm rounded-md border border-border-solid bg-surface-alt text-text placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setShowSaveTemplate(false); setTemplateName(''); setTemplateDescription('') }}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-border-solid text-text-muted hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAsTemplate}
-                disabled={!templateName.trim() || createTemplateMutation.isPending}
-                className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {createTemplateMutation.isPending ? 'Saving...' : 'Save Template'}
               </button>
             </div>
           </div>
