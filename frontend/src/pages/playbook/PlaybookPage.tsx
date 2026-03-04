@@ -99,6 +99,7 @@ export function PlaybookPage() {
     toolCalls,
     isThinking,
     activeToolName,
+    thinkingStatus,
     analysisStreamingText,
     isAnalysisStreaming,
     analysisSuggestions,
@@ -718,6 +719,7 @@ export function PlaybookPage() {
             inputRef={chatInputRef}
             toolCalls={toolCalls}
             isThinking={isThinking}
+            thinkingStatus={isAnalysisStreaming ? 'Analyzing strategy...' : thinkingStatus}
             suggestions={activeSuggestions}
           />
         </div>

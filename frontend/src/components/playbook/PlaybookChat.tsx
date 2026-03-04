@@ -32,6 +32,8 @@ interface PlaybookChatProps {
   toolCalls?: ToolCallEvent[]
   /** THINK: show thinking indicator before first tool_start or chunk */
   isThinking?: boolean
+  /** Dynamic status text for the thinking indicator */
+  thinkingStatus?: string
   /** Clickable suggestion chips shown above the input */
   suggestions?: string[]
 }
@@ -47,6 +49,7 @@ export function PlaybookChat({
   inputRef,
   toolCalls = [],
   isThinking = false,
+  thinkingStatus = 'Thinking...',
   suggestions = [],
 }: PlaybookChatProps) {
   return (
@@ -77,6 +80,7 @@ export function PlaybookChat({
         isLoading={isLoading}
         toolCalls={toolCalls}
         isThinking={isThinking}
+        thinkingStatus={thinkingStatus}
       />
 
       {/* Suggestion chips */}

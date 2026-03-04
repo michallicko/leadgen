@@ -79,6 +79,8 @@ interface ChatMessagesProps {
   toolCalls?: ToolCallEvent[]
   /** THINK: show thinking indicator before first tool_start or chunk */
   isThinking?: boolean
+  /** Dynamic status text for the thinking indicator */
+  thinkingStatus?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +392,7 @@ export function ChatMessages({
   isLoading = false,
   toolCalls = [],
   isThinking = false,
+  thinkingStatus = 'Thinking...',
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -440,7 +443,7 @@ export function ChatMessages({
       ))}
 
       {/* THINK: Thinking indicator (AC-1: before first tool_start or chunk) */}
-      {isThinking && <ThinkingIndicator />}
+      {isThinking && <ThinkingIndicator statusText={thinkingStatus} />}
 
       {/* THINK: In-flight tool call cards (AC-2, AC-4) */}
       {toolCalls.length > 0 && (

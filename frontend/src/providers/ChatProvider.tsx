@@ -28,6 +28,7 @@ import { resolveApiBase, buildHeaders } from '../api/client'
 import { getAccessToken } from '../lib/auth'
 import type { ChatMessage } from '../components/chat/ChatMessages'
 import type { ToolCallEvent } from '../components/playbook/ToolCallCard'
+import { getToolStatusText } from '../components/playbook/ThinkingIndicator'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,8 @@ interface ChatContextValue {
   toolCalls: ToolCallEvent[]
   isThinking: boolean
   activeToolName: string | null
+  /** Dynamic status text for the thinking indicator (e.g., "Researching your market...") */
+  thinkingStatus: string
 
   /** Proactive analysis: streaming text for the analysis follow-up. */
   analysisStreamingText: string
@@ -130,6 +133,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [toolCalls, setToolCalls] = useState<ToolCallEvent[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const [activeToolName, setActiveToolName] = useState<string | null>(null)
+  const [thinkingStatus, setThinkingStatus] = useState('Thinking...')
 
   // Proactive analysis state (BL-119)
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
@@ -213,6 +217,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setToolCalls([])
       setIsThinking(true)
       setActiveToolName(null)
+      setThinkingStatus('Thinking...')
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
@@ -239,6 +244,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setThinkingStatus('Thinking...')
             chatQuery.refetch()
 
             // Detect document changes from strategy tool calls
@@ -278,12 +284,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setThinkingStatus('Thinking...')
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
           },
           onToolStart: (event) => {
             setIsThinking(false)
             setActiveToolName(event.toolName)
+            setThinkingStatus(getToolStatusText(event.toolName))
             setToolCalls((prev) => [
               ...prev,
               {
@@ -308,8 +316,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   : tc,
               ),
             )
-            // Clear active tool name when result arrives
+            // Clear active tool name and re-enable thinking between tool calls
             setActiveToolName(null)
+            setIsThinking(true)
+            setThinkingStatus('Thinking...')
           },
           onSectionUpdate: () => {
             // Refresh the strategy document so the editor shows live updates
@@ -406,6 +416,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      thinkingStatus,
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
@@ -429,6 +440,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      thinkingStatus,
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
