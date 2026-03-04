@@ -558,4 +558,10 @@ def apply_mapping(row, mapping_result):
             company["name"], email=contact.get("email_address")
         )
 
+    # Validate and fix company name (catch dates, numbers, garbage)
+    if "name" in company:
+        company["name"] = validate_and_fix_company(
+            company["name"], email=contact.get("email_address")
+        )
+
     return {"contact": contact, "company": company}
