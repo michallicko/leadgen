@@ -192,22 +192,27 @@ class TestExecuteAgentTurn:
         )
 
         types = [e.type for e in events]
-        assert types == ["tool_start", "tool_result", "chunk", "done"]
+        # Intermediate text ("Let me check...") is now yielded as a chunk
+        # BEFORE tool events, so the frontend can display reasoning text.
+        assert types == ["chunk", "tool_start", "tool_result", "chunk", "done"]
+
+        # Verify intermediate text chunk
+        assert events[0].data["text"] == "Let me check..."
 
         # Verify tool_start
-        assert events[0].data["tool_name"] == "echo"
-        assert events[0].data["tool_call_id"] == "toolu_01"
-
-        # Verify tool_result
-        assert events[1].data["status"] == "success"
+        assert events[1].data["tool_name"] == "echo"
         assert events[1].data["tool_call_id"] == "toolu_01"
-        assert events[1].data["duration_ms"] is not None
 
-        # Verify final text
-        assert events[2].data["text"] == "Here's what I found: test"
+        # Verify tool_result (index 2 due to leading chunk)
+        assert events[2].data["status"] == "success"
+        assert events[2].data["tool_call_id"] == "toolu_01"
+        assert events[2].data["duration_ms"] is not None
 
-        # Verify done event
-        done_data = events[3].data
+        # Verify final text (index 3)
+        assert events[3].data["text"] == "Here's what I found: test"
+
+        # Verify done event (index 4)
+        done_data = events[4].data
         assert len(done_data["tool_calls"]) == 1
         assert done_data["tool_calls"][0]["tool_name"] == "echo"
         assert done_data["tool_calls"][0]["status"] == "success"

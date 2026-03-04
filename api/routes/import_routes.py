@@ -210,11 +210,19 @@ def _parse_xlsx_bytes(raw):
     if not header_row:
         wb.close()
         return [], []
-    headers = [str(h) if h is not None else "" for h in header_row]
+    # Build raw headers, then identify which column indices have non-empty names
+    raw_headers = [str(h).strip() if h is not None else "" for h in header_row]
+    valid_indices = [i for i, h in enumerate(raw_headers) if h]
+    headers = [raw_headers[i] for i in valid_indices]
     rows = []
     for row in rows_iter:
         rows.append(
-            {headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)}
+            {
+                raw_headers[i]: (
+                    str(row[i]) if i < len(row) and row[i] is not None else ""
+                )
+                for i in valid_indices
+            }
         )
     wb.close()
     return headers, rows
@@ -688,13 +696,17 @@ def preview_import(job_id):
             if k not in ("name", "domain") and v:
                 data[f"company_{k}"] = v
 
-        frontend_rows.append({
-            "row_number": i + 1,
-            "data": data,
-            "status": "duplicate" if r.get("contact_status") == "duplicate" else "new",
-            "match_type": r.get("contact_match_type"),
-            "match_details": r.get("company_match_type"),
-        })
+        frontend_rows.append(
+            {
+                "row_number": i + 1,
+                "data": data,
+                "status": "duplicate"
+                if r.get("contact_status") == "duplicate"
+                else "new",
+                "match_type": r.get("contact_match_type"),
+                "match_details": r.get("company_match_type"),
+            }
+        )
 
     return jsonify(
         {

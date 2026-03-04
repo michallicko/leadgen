@@ -321,10 +321,10 @@ PHASE_INSTRUCTIONS = {
         "immediately write the relevant section.\n\n"
         "SEQUENTIAL FLOW (follow these steps IN ORDER):\n\n"
         "STEP 1 — OPENING (1 message):\n"
-        "Write a warm one-liner: \"Building your [industry] strategy for "
-        "[domain]...\"\n"
-        "Example: \"Building your event production strategy for unitedarts.cz "
-        "to support your expansion into the German market...\"\n"
+        'Write a warm one-liner: "Building your [industry] strategy for '
+        '[domain]..."\n'
+        'Example: "Building your event production strategy for unitedarts.cz '
+        'to support your expansion into the German market..."\n'
         "NEVER start with internal reasoning like 'I'll execute this now' or "
         "'Starting with research'.\n\n"
         "STEP 2 — RESEARCH VALIDATION (1 message):\n"
@@ -332,9 +332,9 @@ PHASE_INSTRUCTIONS = {
         "- What's strong (clear data points about the company)\n"
         "- What's missing or ambiguous\n"
         "If there are ambiguities or critical gaps: ask ONE question with 3-4 "
-        "concrete options. Example: \"Which best describes your primary market? "
+        'concrete options. Example: "Which best describes your primary market? '
         "A) Enterprise SaaS B) SMB services C) Mid-market manufacturing "
-        "D) Other\"\n"
+        'D) Other"\n'
         "If data is clear and sufficient: say so briefly and proceed to "
         "section writing.\n\n"
         "STEP 3 — SECTION-BY-SECTION WRITING (7 sections, one at a time):\n"
@@ -808,7 +808,7 @@ def build_system_prompt(
             "  -> Event production\n"
             "  -> Artist management\n"
             "  -> Cultural consulting\n"
-            "  -> [Tell me in your own words]\"\n",
+            '  -> [Tell me in your own words]"\n',
             "- After the user answers, ask the next question. Never say "
             "'I have 5 questions for you' or list them all at once.",
             "- Keep questions focused and specific, not open-ended essays.",
@@ -1563,7 +1563,7 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
             "Define your target customer segments based on industry, "
             "company size, and buying signals."
         )
-    icp_content = "\n".join(icp_parts)
+    _icp_content = "\n".join(icp_parts)  # noqa: F841
 
     # --- Buyer Personas ---
     persona_parts = []
@@ -1592,7 +1592,7 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
         persona_parts.append("**Pain Points:** _Fill based on discovery calls_")
         persona_parts.append("**Goals:** _Fill based on discovery calls_")
         persona_parts.append("")
-    persona_content = "\n".join(persona_parts).rstrip()
+    _persona_content = "\n".join(persona_parts).rstrip()  # noqa: F841
 
     # --- Value Proposition ---
     value_parts = []

@@ -4,7 +4,6 @@ import io
 import json
 from unittest.mock import patch
 
-import pytest
 from openpyxl import Workbook
 
 from api.models import Contact, CustomFieldDefinition, ImportJob, db
