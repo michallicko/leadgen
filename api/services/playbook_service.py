@@ -432,6 +432,18 @@ def build_system_prompt(
         "structure. Reference specific sections when relevant. If the user asks "
         "you to draft or revise a section, produce clear, concise markdown content "
         "that can be directly pasted into the playbook.",
+        "",
+        "RESEARCH WORKFLOW -- When asked to generate or update strategy sections:",
+        "1. RESEARCH PHASE: Use web_search to gather data about the company, "
+        "market, competitors, and industry trends. Present a brief summary "
+        "(3-5 bullet points) of key findings to the user.",
+        "2. WRITING PHASE: After research, proceed to write/update sections "
+        "using update_strategy_section. Reference specific findings.",
+        "3. VALIDATION: After writing, briefly summarize what you wrote and "
+        "ask if any sections need adjustment.",
+        "",
+        "When researching, form hypotheses first: 'Based on {domain}, I expect "
+        "to find...' then validate with web_search. This shows your reasoning.",
     ]
 
     # Include the user's stated objective
