@@ -105,8 +105,8 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
               if (filter === 'conflicts' && row.conflicts && row.conflicts.length > 0) {
                 return row.conflicts.map((conflict, ci) => (
                   <tr key={`${i}-${ci}`} className="border-b border-border/30">
-                    <td className="py-1.5 px-3 text-text-muted">{row.row_number}</td>
-                    <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name}</td>
+                    <td className="py-1.5 px-3 text-text-muted">{row.row_idx}</td>
+                    <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name || `${row.first_name} ${row.last_name}`.trim()}</td>
                     <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.company_name}</td>
                     <td className="py-1.5 px-3 text-sm font-semibold text-text">{conflict.field}</td>
                     <td className="py-1.5 px-3">
@@ -119,8 +119,8 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
 
               return (
                 <tr key={i} className="border-b border-border/30">
-                  <td className="py-1.5 px-3 text-text-muted">{row.row_number}</td>
-                  <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name}</td>
+                  <td className="py-1.5 px-3 text-text-muted">{row.row_idx}</td>
+                  <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name || `${row.first_name} ${row.last_name}`.trim()}</td>
                   <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.company_name}</td>
                   <td className="py-1.5 px-3"><ActionBadge action={row.action} /></td>
                   <td className="py-1.5 px-3 text-text-muted text-xs truncate max-w-[180px]">{row.details}</td>
@@ -162,7 +162,7 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
 export function ImportSuccess({ response, jobId, onReset, returnTo }: ImportSuccessProps) {
   const navigate = useNavigate()
   const { namespace } = useParams<{ namespace: string }>()
-  const { created, skipped, updated, errors } = response
+  const { contacts_created, contacts_skipped, contacts_updated, total_conflicts } = response.summary
 
   const tabs = useMemo(() => [
     {
@@ -173,19 +173,19 @@ export function ImportSuccess({ response, jobId, onReset, returnTo }: ImportSucc
     {
       id: 'created',
       label: 'Created',
-      count: created,
+      count: contacts_created,
       content: <ResultsTable jobId={jobId} filter="created" />,
     },
     {
       id: 'skipped',
       label: 'Skipped',
-      count: skipped,
+      count: contacts_skipped,
       content: <ResultsTable jobId={jobId} filter="skipped" />,
     },
     {
       id: 'updated',
       label: 'Updated',
-      count: updated,
+      count: contacts_updated,
       content: <ResultsTable jobId={jobId} filter="updated" />,
     },
     {
@@ -193,7 +193,7 @@ export function ImportSuccess({ response, jobId, onReset, returnTo }: ImportSucc
       label: 'Conflicts',
       content: <ResultsTable jobId={jobId} filter="conflicts" />,
     },
-  ], [jobId, created, skipped, updated])
+  ], [jobId, contacts_created, contacts_skipped, contacts_updated])
 
   return (
     <div>
@@ -206,27 +206,27 @@ export function ImportSuccess({ response, jobId, onReset, returnTo }: ImportSucc
         </div>
         <h2 className="font-title text-lg font-semibold text-text mb-1">Import Complete</h2>
         <p className="text-sm text-text-muted">
-          Successfully imported {created + updated} contacts
+          Successfully imported {contacts_created + contacts_updated} contacts
         </p>
       </div>
 
       {/* Stats row */}
       <div className="flex justify-center gap-6 mb-6">
         <div className="text-center">
-          <div className="font-title text-xl font-bold text-green-400">{created}</div>
+          <div className="font-title text-xl font-bold text-green-400">{contacts_created}</div>
           <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mt-0.5">Created</div>
         </div>
         <div className="text-center">
-          <div className="font-title text-xl font-bold text-text-muted">{skipped}</div>
+          <div className="font-title text-xl font-bold text-text-muted">{contacts_skipped}</div>
           <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mt-0.5">Skipped</div>
         </div>
         <div className="text-center">
-          <div className="font-title text-xl font-bold text-amber-400">{updated}</div>
+          <div className="font-title text-xl font-bold text-amber-400">{contacts_updated}</div>
           <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mt-0.5">Updated</div>
         </div>
         <div className="text-center">
-          <div className="font-title text-xl font-bold text-red-400">{errors}</div>
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mt-0.5">Errors</div>
+          <div className="font-title text-xl font-bold text-red-400">{total_conflicts}</div>
+          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mt-0.5">Conflicts</div>
         </div>
       </div>
 

@@ -42,19 +42,23 @@ interface PreviewResponse {
 }
 
 interface ImportResultItem {
-  row_number: number
+  row_idx: number
   action: 'created' | 'skipped' | 'updated' | 'error'
   contact_name: string
   company_name: string
+  first_name: string
+  last_name: string
   details: string
   conflicts?: Array<{ field: string; existing: string; incoming: string }>
 }
 
 interface ImportResponse {
-  created: number
-  skipped: number
-  updated: number
-  errors: number
+  summary: {
+    contacts_created: number
+    contacts_skipped: number
+    contacts_updated: number
+    total_conflicts: number
+  }
   results: ImportResultItem[]
 }
 
