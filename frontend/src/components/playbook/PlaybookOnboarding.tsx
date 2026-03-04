@@ -36,6 +36,15 @@ export function PlaybookOnboarding({
   const { tenant } = useTenantBySlug(namespace)
 
   const [objective, setObjective] = useState('')
+  // BL-207: Editable domain — pre-filled from tenant config, user can correct
+  const [domain, setDomain] = useState('')
+  const [domainInitialized, setDomainInitialized] = useState(false)
+
+  // Initialize domain from tenant once loaded (tenant may load async)
+  if (tenant?.domain && !domainInitialized) {
+    setDomain(tenant.domain)
+    setDomainInitialized(true)
+  }
 
   const isValid = objective.trim().length > 0
 
@@ -43,8 +52,9 @@ export function PlaybookOnboarding({
     e.preventDefault()
     if (!isValid || isGenerating) return
 
-    // Auto-resolve domains from tenant config
-    const domains = tenant?.domain ? [tenant.domain] : []
+    // Use the (possibly edited) domain from the input field
+    const primaryDomain = domain.trim()
+    const domains = primaryDomain ? [primaryDomain] : []
 
     onGenerate({
       domains,
@@ -53,8 +63,6 @@ export function PlaybookOnboarding({
       challenge_type: 'auto',
     })
   }
-
-  const detectedDomain = tenant?.domain
 
   return (
     <div className="w-full max-w-lg mx-auto mt-12 mb-8">
@@ -70,9 +78,12 @@ export function PlaybookOnboarding({
           </p>
         </div>
 
-        {/* Auto-detected domain info */}
-        {detectedDomain && (
-          <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md bg-surface-alt border border-border text-sm">
+        {/* Editable company domain (BL-207) */}
+        <div className="mb-4">
+          <label htmlFor="pb-domain" className="block text-xs font-medium text-text-muted mb-1">
+            Company domain
+          </label>
+          <div className="flex items-center gap-2">
             <svg
               width="16"
               height="16"
@@ -87,10 +98,17 @@ export function PlaybookOnboarding({
               <circle cx="12" cy="12" r="10" />
               <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
-            <span className="text-text-muted">Company domain:</span>
-            <span className="font-medium text-text">{detectedDomain}</span>
+            <input
+              id="pb-domain"
+              type="text"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="yourcompany.com"
+              disabled={isGenerating}
+              className="flex-1 px-3 py-1.5 text-sm rounded-md bg-surface-alt border border-border-solid text-text placeholder:text-text-dim focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+            />
           </div>
-        )}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* GTM Objective */}
