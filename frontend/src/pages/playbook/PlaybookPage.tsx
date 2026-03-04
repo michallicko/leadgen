@@ -469,11 +469,11 @@ export function PlaybookPage() {
         )
       }
       parts.push(
-        'Execute these steps NOW using your tools (do not just describe what you would do — actually call the tools): ' +
-          `1) Call web_search to research "${primaryDomain}" — search for company overview, products, market, and competitors. ` +
-          '2) Call web_search again for industry trends and competitive landscape. ' +
-          '3) Call get_strategy_document to see current state. ' +
-          '4) Call update_strategy_section for EACH of the 9 strategy sections with specific, researched content. ' +
+        'Use the company research data provided in your context to write the strategy. ' +
+          'Execute these steps NOW using your tools (do not just describe what you would do — actually call the tools): ' +
+          '1) Call get_strategy_document to see current state. ' +
+          '2) Call update_strategy_section for EACH of the 7 strategy sections with specific, researched content. ' +
+          'If the research data in your context is thin, use web_search to fill gaps. ' +
           'Complete all sections in this turn. Start now.',
       )
 

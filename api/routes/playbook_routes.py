@@ -1286,9 +1286,7 @@ def _run_self_research(
                     doc.enrichment_id = company_id
                     db.session.commit()
             except Exception:
-                logger.exception(
-                    "Failed to link enrichment after research error"
-                )
+                logger.exception("Failed to link enrichment after research error")
 
 
 @playbook_bp.route("/api/playbook/research", methods=["POST"])
@@ -1664,9 +1662,8 @@ def post_chat_message():
 
     # Load enrichment data if research has been done
     enrichment_data = None
-    if doc.enrichment_id:
-        enrichment_data = _load_enrichment_data(doc.enrichment_id)
-    else:
+    enrichment_company_id = doc.enrichment_id
+    if not enrichment_company_id:
         # BL-054: Fallback — find self-company for the tenant
         self_company = Company.query.filter_by(
             tenant_id=tenant_id, is_self=True
@@ -1674,12 +1671,53 @@ def post_chat_message():
         if self_company:
             doc.enrichment_id = self_company.id
             db.session.commit()
-            enrichment_data = _load_enrichment_data(self_company.id)
+            enrichment_company_id = self_company.id
             logger.info(
                 "Self-company fallback: linked company %s to strategy doc %s",
                 self_company.id,
                 doc.id,
             )
+
+    if enrichment_company_id:
+        # Wait for research if it is still in progress. The onboarding flow
+        # fires research in a background thread and sends the first chat
+        # message immediately. Without waiting, the AI sees no research data
+        # and falls back to web_search which fails for niche companies.
+        company_obj = db.session.get(Company, enrichment_company_id)
+        if company_obj and _research_status_from_company(company_obj) == "in_progress":
+            max_wait = 45  # seconds
+            poll_interval = 2  # seconds
+            waited = 0
+            logger.info(
+                "Research in progress for company %s -- waiting up to %ds",
+                enrichment_company_id,
+                max_wait,
+            )
+            while waited < max_wait:
+                time.sleep(poll_interval)
+                waited += poll_interval
+                # Refresh company from DB to check updated status
+                db.session.expire(company_obj)
+                company_obj = db.session.get(Company, enrichment_company_id)
+                if not company_obj:
+                    break
+                status = _research_status_from_company(company_obj)
+                if status != "in_progress":
+                    logger.info(
+                        "Research finished (status=%s) after %ds wait",
+                        status,
+                        waited,
+                    )
+                    break
+            else:
+                logger.warning(
+                    "Research still in progress after %ds wait for company %s"
+                    " -- proceeding with partial data",
+                    max_wait,
+                    enrichment_company_id,
+                )
+
+        enrichment_data = _load_enrichment_data(enrichment_company_id)
 
     # Determine phase for system prompt (request param overrides doc phase)
     phase = data.get("phase") or doc.phase or "strategy"
