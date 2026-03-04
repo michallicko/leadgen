@@ -240,8 +240,8 @@ class TestPreviewImport:
             json={"mapping": MOCK_MAPPING},
         )
         body = resp.get_json()
-        assert body["preview_rows"][0]["contact_status"] == "duplicate"
-        assert body["summary"]["duplicate_contacts"] == 1
+        assert body["preview_rows"][0]["status"] == "duplicate"
+        assert body["duplicates"] == 1
 
     def test_preview_not_found(self, client, seed_companies_contacts):
         headers = auth_header(client)

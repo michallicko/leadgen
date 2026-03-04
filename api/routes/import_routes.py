@@ -666,12 +666,47 @@ def preview_import(job_id):
     job.status = "previewed"
     db.session.commit()
 
+    # Transform dedup results into frontend PreviewRow format:
+    # { row_number, data: { first_name, last_name, email, company_name, ... }, status, match_type }
+    frontend_rows = []
+    for i, r in enumerate(dedup_results):
+        contact = r.get("contact", {})
+        company = r.get("company", {})
+        # Flatten contact + company into a single data dict
+        data = {}
+        for k, v in contact.items():
+            if k.startswith("custom."):
+                data[k] = v
+            else:
+                data[k] = v
+        # Add company fields with company_ prefix where needed
+        if company.get("name"):
+            data["company_name"] = company["name"]
+        if company.get("domain"):
+            data["company_domain"] = company["domain"]
+        for k, v in company.items():
+            if k not in ("name", "domain") and v:
+                data[f"company_{k}"] = v
+
+        frontend_rows.append({
+            "row_number": i + 1,
+            "data": data,
+            "status": "duplicate" if r.get("contact_status") == "duplicate" else "new",
+            "match_type": r.get("contact_match_type"),
+            "match_details": r.get("company_match_type"),
+        })
+
     return jsonify(
         {
             "job_id": str(job.id),
-            "preview_rows": dedup_results,
+            "preview_rows": frontend_rows,
             "total_rows": job.total_rows,
-            "preview_count": len(dedup_results),
+            "preview_count": len(frontend_rows),
+            "new_contacts": new_contacts,
+            "duplicates": dup_contacts,
+            "updates": 0,
+            "new_companies": new_companies,
+            "existing_companies": existing_companies,
             "summary": {
                 "new_contacts": new_contacts,
                 "duplicate_contacts": dup_contacts,
