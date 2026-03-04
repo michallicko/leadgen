@@ -540,8 +540,22 @@ def _process_entity(
             from .qc_checker import run_qc
 
             return run_qc(entity_id, tenant_id)
+        if stage == "social":
+            from .social_enricher import enrich_social
+
+            return enrich_social(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "career":
+            from .career_enricher import enrich_career
+
+            return enrich_career(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "contact_details":
+            from .contact_details_enricher import enrich_contact_details
+
+            return enrich_contact_details(
+                entity_id, tenant_id, previous_data=previous_data
+            )
         # Stub dispatchers for stages not yet implemented (Phase 2)
-        if stage in ("signals", "news", "social", "career", "contact_details"):
+        if stage in ("signals", "news"):
             raise NotImplementedError(f"Stage '{stage}' not yet implemented")
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
