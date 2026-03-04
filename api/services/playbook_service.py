@@ -425,7 +425,7 @@ def build_system_prompt(
         "grounded in this company's data. No generic platitudes. Every response "
         "should be something the founder can act on today.".format(company=tenant.name),
         "",
-        "The playbook follows this 8-section structure:",
+        "The playbook follows this 9-section structure:",
         sections_list,
         "",
         "When the user asks about strategy, always ground your answers in this "
@@ -482,6 +482,21 @@ def build_system_prompt(
             "reference the existing content before suggesting changes.",
             "- If the document is empty, proactively guide the user to start "
             "filling in sections rather than asking what they want to do.",
+            "",
+            "TOOL USE FOR DOCUMENT EDITING (mandatory — never skip):",
+            "- To write or update the strategy document, you MUST call the "
+            "`update_strategy_section` tool. NEVER describe document changes "
+            "in text without actually calling the tool. The user cannot see "
+            "your text in the document editor — only tool calls modify it.",
+            "- When you decide to populate or update sections, call "
+            "`update_strategy_section` for EACH section immediately. Do not "
+            "announce what you will do — just do it by calling the tools.",
+            "- WRONG: 'I will now update the Executive Summary section with...' "
+            "(text only, no tool call — document stays empty)",
+            "- RIGHT: Call `update_strategy_section` with section='Executive "
+            "Summary' and content='...' (document actually gets updated)",
+            "- If you need to update multiple sections, call the tool for each "
+            "one in the same turn. Do not split across multiple messages.",
         ]
     )
 
