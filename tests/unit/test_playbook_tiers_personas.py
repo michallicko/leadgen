@@ -1,4 +1,5 @@
 """Tests for ICP Tiers and Buyer Personas CRUD endpoints (BL-198, BL-199)."""
+
 import json
 
 
@@ -14,7 +15,9 @@ def auth_header(client, email="admin@test.com", password="testpass123"):
 
 
 class TestGetTiers:
-    def test_returns_empty_list_when_no_tiers(self, client, seed_tenant, seed_super_admin):
+    def test_returns_empty_list_when_no_tiers(
+        self, client, seed_tenant, seed_super_admin
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         resp = client.get("/api/playbook/strategy/tiers", headers=headers)
@@ -24,10 +27,15 @@ class TestGetTiers:
 
     def test_returns_existing_tiers(self, client, seed_tenant, seed_super_admin, db):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         tiers_data = [
-            {"name": "Enterprise SaaS", "priority": 1, "criteria": {"industries": ["SaaS"]}},
+            {
+                "name": "Enterprise SaaS",
+                "priority": 1,
+                "criteria": {"industries": ["SaaS"]},
+            },
             {"name": "Mid-Market", "priority": 2},
         ]
         doc = StrategyDocument(
@@ -43,7 +51,9 @@ class TestGetTiers:
         assert data["tiers"][0]["name"] == "Enterprise SaaS"
 
     def test_requires_auth(self, client, seed_tenant):
-        resp = client.get("/api/playbook/strategy/tiers", headers={"X-Namespace": seed_tenant.slug})
+        resp = client.get(
+            "/api/playbook/strategy/tiers", headers={"X-Namespace": seed_tenant.slug}
+        )
         assert resp.status_code == 401
 
 
@@ -54,7 +64,9 @@ class TestUpdateTiers:
         tiers = [
             {"name": "Tier 1", "priority": 1, "criteria": {"industries": ["SaaS"]}},
         ]
-        resp = client.put("/api/playbook/strategy/tiers", json={"tiers": tiers}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/tiers", json={"tiers": tiers}, headers=headers
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "ok"
@@ -62,28 +74,38 @@ class TestUpdateTiers:
 
     def test_replaces_existing_tiers(self, client, seed_tenant, seed_super_admin, db):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            extracted_data=json.dumps({"tiers": [{"name": "Old Tier"}], "icp": {"industries": ["SaaS"]}}),
+            extracted_data=json.dumps(
+                {"tiers": [{"name": "Old Tier"}], "icp": {"industries": ["SaaS"]}}
+            ),
         )
         db.session.add(doc)
         db.session.commit()
         new_tiers = [{"name": "New Tier 1"}, {"name": "New Tier 2"}]
-        resp = client.put("/api/playbook/strategy/tiers", json={"tiers": new_tiers}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/tiers", json={"tiers": new_tiers}, headers=headers
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert len(data["tiers"]) == 2
         assert data["tiers"][0]["name"] == "New Tier 1"
 
-    def test_preserves_other_extracted_data(self, client, seed_tenant, seed_super_admin, db):
+    def test_preserves_other_extracted_data(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            extracted_data=json.dumps({"icp": {"industries": ["SaaS"]}, "personas": [{"name": "VP Eng"}]}),
+            extracted_data=json.dumps(
+                {"icp": {"industries": ["SaaS"]}, "personas": [{"name": "VP Eng"}]}
+            ),
         )
         db.session.add(doc)
         db.session.commit()
@@ -104,7 +126,11 @@ class TestUpdateTiers:
     def test_rejects_non_array_tiers(self, client, seed_tenant, seed_super_admin):
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
-        resp = client.put("/api/playbook/strategy/tiers", json={"tiers": "not an array"}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/tiers",
+            json={"tiers": "not an array"},
+            headers=headers,
+        )
         assert resp.status_code == 400
 
     def test_requires_auth(self, client, seed_tenant):
@@ -122,7 +148,9 @@ class TestUpdateTiers:
 
 
 class TestGetPersonas:
-    def test_returns_empty_list_when_no_personas(self, client, seed_tenant, seed_super_admin):
+    def test_returns_empty_list_when_no_personas(
+        self, client, seed_tenant, seed_super_admin
+    ):
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         resp = client.get("/api/playbook/strategy/personas", headers=headers)
@@ -132,6 +160,7 @@ class TestGetPersonas:
 
     def test_returns_existing_personas(self, client, seed_tenant, seed_super_admin, db):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         personas_data = [
@@ -151,7 +180,9 @@ class TestGetPersonas:
         assert data["personas"][0]["name"] == "VP Engineering"
 
     def test_requires_auth(self, client, seed_tenant):
-        resp = client.get("/api/playbook/strategy/personas", headers={"X-Namespace": seed_tenant.slug})
+        resp = client.get(
+            "/api/playbook/strategy/personas", headers={"X-Namespace": seed_tenant.slug}
+        )
         assert resp.status_code == 401
 
 
@@ -162,14 +193,21 @@ class TestUpdatePersonas:
         personas = [
             {"name": "VP Eng", "role": "VP Engineering", "pain_points": ["Slow CI"]},
         ]
-        resp = client.put("/api/playbook/strategy/personas", json={"personas": personas}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/personas",
+            json={"personas": personas},
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "ok"
         assert len(data["personas"]) == 1
 
-    def test_replaces_existing_personas(self, client, seed_tenant, seed_super_admin, db):
+    def test_replaces_existing_personas(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         doc = StrategyDocument(
@@ -179,18 +217,27 @@ class TestUpdatePersonas:
         db.session.add(doc)
         db.session.commit()
         new_personas = [{"name": "Persona A"}, {"name": "Persona B"}]
-        resp = client.put("/api/playbook/strategy/personas", json={"personas": new_personas}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/personas",
+            json={"personas": new_personas},
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert len(data["personas"]) == 2
 
-    def test_preserves_other_extracted_data(self, client, seed_tenant, seed_super_admin, db):
+    def test_preserves_other_extracted_data(
+        self, client, seed_tenant, seed_super_admin, db
+    ):
         from api.models import StrategyDocument
+
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
         doc = StrategyDocument(
             tenant_id=seed_tenant.id,
-            extracted_data=json.dumps({"icp": {"industries": ["SaaS"]}, "tiers": [{"name": "T1"}]}),
+            extracted_data=json.dumps(
+                {"icp": {"industries": ["SaaS"]}, "tiers": [{"name": "T1"}]}
+            ),
         )
         db.session.add(doc)
         db.session.commit()
@@ -210,7 +257,11 @@ class TestUpdatePersonas:
     def test_rejects_non_array_personas(self, client, seed_tenant, seed_super_admin):
         headers = auth_header(client)
         headers["X-Namespace"] = seed_tenant.slug
-        resp = client.put("/api/playbook/strategy/personas", json={"personas": "not an array"}, headers=headers)
+        resp = client.put(
+            "/api/playbook/strategy/personas",
+            json={"personas": "not an array"},
+            headers=headers,
+        )
         assert resp.status_code == 400
 
     def test_requires_auth(self, client, seed_tenant):
