@@ -303,7 +303,9 @@ def execute_import(
         contact_data = row.get("contact", {})
         company_data = row.get("company", {})
 
-        contact_name = contact_data.get("full_name", "")
+        contact_name = contact_data.get("full_name", "") or (
+            f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
+        )
         company_name_display = company_data.get("name", "")
 
         # --- Resolve or create company ---

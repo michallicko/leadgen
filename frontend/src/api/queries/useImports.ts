@@ -46,8 +46,6 @@ interface ImportResultItem {
   action: 'created' | 'skipped' | 'updated' | 'error'
   contact_name: string
   company_name: string
-  first_name: string
-  last_name: string
   details: string
   conflicts?: Array<{ field: string; existing: string; incoming: string }>
 }

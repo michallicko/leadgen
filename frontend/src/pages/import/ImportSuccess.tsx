@@ -106,7 +106,7 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
                 return row.conflicts.map((conflict, ci) => (
                   <tr key={`${i}-${ci}`} className="border-b border-border/30">
                     <td className="py-1.5 px-3 text-text-muted">{row.row_idx}</td>
-                    <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name || `${row.first_name} ${row.last_name}`.trim()}</td>
+                    <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name}</td>
                     <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.company_name}</td>
                     <td className="py-1.5 px-3 text-sm font-semibold text-text">{conflict.field}</td>
                     <td className="py-1.5 px-3">
@@ -120,7 +120,7 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
               return (
                 <tr key={i} className="border-b border-border/30">
                   <td className="py-1.5 px-3 text-text-muted">{row.row_idx}</td>
-                  <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name || `${row.first_name} ${row.last_name}`.trim()}</td>
+                  <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.contact_name}</td>
                   <td className="py-1.5 px-3 text-text truncate max-w-[140px]">{row.company_name}</td>
                   <td className="py-1.5 px-3"><ActionBadge action={row.action} /></td>
                   <td className="py-1.5 px-3 text-text-muted text-xs truncate max-w-[180px]">{row.details}</td>
