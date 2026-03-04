@@ -507,7 +507,7 @@ export function PlaybookPage() {
 
       const parts = [
         `Generate a complete GTM strategy playbook for my company (${primaryDomain}).`,
-        `Company description: ${payload.description}.`,
+        `GTM objective: ${payload.description}.`,
         `Primary challenge: ${challengeLabel}.`,
       ]
       if (payload.domains.length > 1) {
@@ -641,35 +641,11 @@ export function PlaybookPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Onboarding gate -- show if doc is blank (no content) and user hasn't skipped
+  // Onboarding gate -- show inline if doc is blank and user hasn't skipped
   // ---------------------------------------------------------------------------
 
   const docContent = docQuery.data?.content || ''
-  const needsOnboarding = docQuery.data && !docContent.trim()
-
-  if (needsOnboarding && !skipped) {
-    // Show template selector first; after selection (or "Start fresh"), show the onboarding form
-    if (showTemplateSelector) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <TemplateSelector
-            onSelect={handleTemplateSelect}
-            onBack={() => setShowTemplateSelector(false)}
-            isApplying={applyTemplateMutation.isPending}
-          />
-        </div>
-      )
-    }
-
-    return (
-      <PlaybookOnboarding
-        onSkip={() => setSkipped(true)}
-        onGenerate={handleOnboardGenerate}
-        isGenerating={isStreaming}
-        onBrowseTemplates={() => setShowTemplateSelector(true)}
-      />
-    )
-  }
+  const needsOnboarding = !!(docQuery.data && !docContent.trim() && !skipped)
 
   // ---------------------------------------------------------------------------
   // Render
@@ -852,18 +828,37 @@ export function PlaybookPage() {
 
       {/* Split layout */}
       <div className="flex gap-4 flex-1 min-h-0">
-        {/* Left: Phase-specific panel */}
+        {/* Left: Phase-specific panel OR onboarding box */}
         <div className="flex-[3] min-w-0 flex flex-col min-h-0">
-          <PhasePanel
-            phase={viewPhase}
-            content={localContent}
-            onEditorUpdate={handleEditorUpdate}
-            editable={saveStatus !== 'saving'}
-            extractedData={docQuery.data?.extracted_data}
-            playbookSelections={docQuery.data?.playbook_selections}
-            playbookId={docQuery.data?.id}
-            onPhaseAdvance={handlePhaseNavigate}
-          />
+          {needsOnboarding && showTemplateSelector ? (
+            <div className="flex items-center justify-center h-full">
+              <TemplateSelector
+                onSelect={handleTemplateSelect}
+                onBack={() => setShowTemplateSelector(false)}
+                isApplying={applyTemplateMutation.isPending}
+              />
+            </div>
+          ) : needsOnboarding ? (
+            <div className="flex-1 overflow-y-auto">
+              <PlaybookOnboarding
+                onSkip={() => setSkipped(true)}
+                onGenerate={handleOnboardGenerate}
+                isGenerating={isStreaming}
+                onBrowseTemplates={() => setShowTemplateSelector(true)}
+              />
+            </div>
+          ) : (
+            <PhasePanel
+              phase={viewPhase}
+              content={localContent}
+              onEditorUpdate={handleEditorUpdate}
+              editable={saveStatus !== 'saving'}
+              extractedData={docQuery.data?.extracted_data}
+              playbookSelections={docQuery.data?.playbook_selections}
+              playbookId={docQuery.data?.id}
+              onPhaseAdvance={handlePhaseNavigate}
+            />
+          )}
         </div>
 
         {/* Right: Inline Chat (uses ChatProvider state) */}
