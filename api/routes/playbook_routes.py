@@ -1,10 +1,12 @@
 """Playbook (GTM Strategy) API routes."""
 
+import ipaddress
 import json
 import logging
 import math
 import os
 import re
+import socket
 import threading
 import time
 
@@ -46,6 +48,29 @@ from ..services.playbook_service import (
 from ..services.tool_registry import ToolContext, get_tools_for_api
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_domain(domain: str) -> bool:
+    """Reject domains that resolve to private/loopback/link-local addresses.
+
+    Prevents SSRF attacks where an authenticated user could supply domains
+    like ``169.254.169.254.nip.io`` or ``localhost`` to reach internal
+    services (e.g. cloud metadata endpoints).
+    """
+    if not domain:
+        return False
+    hostname = domain.split(":")[0].strip().rstrip("/")
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+        return False
+    try:
+        resolved = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(resolved)
+        return not (
+            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        )
+    except Exception:
+        return False
+
 
 playbook_bp = Blueprint("playbook", __name__)
 
@@ -932,10 +957,9 @@ def _save_research_progress(tenant_id, company_id, event):
         db.session.commit()
     except Exception:
         logger.debug("Could not save research progress event", exc_info=True)
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
+        # Do NOT rollback — this runs inside the research pipeline's session
+        # and a rollback here would corrupt the caller's transaction state.
+        # Progress save failure is non-fatal.
 
 
 def _run_self_research(
@@ -1129,6 +1153,11 @@ def trigger_research():
 
     if not domains:
         domains = [domain]
+
+    # SSRF protection: reject domains that resolve to private/internal IPs
+    for d in domains:
+        if not _is_safe_domain(d):
+            return jsonify({"error": "Invalid or non-public domain"}), 400
 
     # Derive company name from domain (strip TLD, capitalize)
     # e.g., "notion.so" -> "Notion", "stripe.com" -> "Stripe"

@@ -15,9 +15,11 @@ Progress events are emitted via an on_progress callback for real-time
 display in chat tool cards.
 """
 
+import ipaddress
 import json
 import logging
 import re
+import socket
 import time
 from datetime import datetime, timezone
 
@@ -206,6 +208,24 @@ def fetch_website(domain, on_progress=None):
         Or None if homepage fetch failed.
     """
     if not domain:
+        return None
+
+    # Defence-in-depth: reject private/internal domains even if the caller
+    # already validated.  Prevents SSRF to cloud metadata, localhost, etc.
+    hostname = domain.split(":")[0].strip().rstrip("/")
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+        logger.warning("fetch_website blocked private domain: %s", domain)
+        return None
+    try:
+        resolved = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(resolved)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            logger.warning(
+                "fetch_website blocked domain %s (resolved to %s)", domain, resolved
+            )
+            return None
+    except Exception:
+        logger.warning("fetch_website could not resolve domain: %s", domain)
         return None
 
     base_url = f"https://{domain}/"

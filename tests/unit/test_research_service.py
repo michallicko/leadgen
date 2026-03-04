@@ -137,8 +137,12 @@ class TestFindSubpageUrls:
 class TestFetchWebsite:
     """Test the full website fetch pipeline."""
 
+    @patch(
+        "api.services.research_service.socket.gethostbyname",
+        return_value="93.185.96.35",
+    )
     @patch("api.services.research_service._fetch_page")
-    def test_successful_fetch(self, mock_fetch):
+    def test_successful_fetch(self, mock_fetch, _mock_dns):
         from api.services.research_service import fetch_website
 
         mock_resp = MagicMock()
@@ -159,8 +163,9 @@ class TestFetchWebsite:
         assert "United Arts" in result["all_text"]
         assert "amazing art" in result["all_text"]
 
+    @patch("api.services.research_service.socket.gethostbyname", return_value="1.2.3.4")
     @patch("api.services.research_service._fetch_page")
-    def test_failed_fetch_returns_none(self, mock_fetch):
+    def test_failed_fetch_returns_none(self, mock_fetch, _mock_dns):
         from api.services.research_service import fetch_website
 
         mock_fetch.return_value = None
@@ -186,8 +191,12 @@ class TestFetchWebsite:
 class TestProgressEvents:
     """Test that progress events are emitted correctly."""
 
+    @patch(
+        "api.services.research_service.socket.gethostbyname",
+        return_value="142.250.80.46",
+    )
     @patch("api.services.research_service._fetch_page")
-    def test_emits_progress_on_website_fetch(self, mock_fetch):
+    def test_emits_progress_on_website_fetch(self, mock_fetch, _mock_dns):
         from api.services.research_service import fetch_website
 
         mock_resp = MagicMock()
@@ -204,8 +213,9 @@ class TestProgressEvents:
         assert events[0]["step"] == "website_fetch"
         assert events[-1]["status"] == "completed"
 
+    @patch("api.services.research_service.socket.gethostbyname", return_value="1.2.3.4")
     @patch("api.services.research_service._fetch_page")
-    def test_emits_error_on_failed_fetch(self, mock_fetch):
+    def test_emits_error_on_failed_fetch(self, mock_fetch, _mock_dns):
         from api.services.research_service import fetch_website
 
         mock_fetch.return_value = None
