@@ -1,4 +1,5 @@
 """Unit tests for CSV column mapping service."""
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,7 @@ from api.services.csv_mapper import (
     build_mapping_prompt,
     extract_domain,
     normalize_enum,
+    validate_and_fix_company,
 )
 
 
@@ -83,8 +85,10 @@ class TestNormalizeEnum:
     def test_unknown_field(self):
         assert normalize_enum("nonexistent", "anything") == "anything"
 
-    def test_unknown_value_passthrough(self):
-        assert normalize_enum("seniority_level", "Unknown Role") == "Unknown Role"
+    def test_unknown_value_falls_back_to_other(self):
+        # Unknown values now map to 'other' (or None if 'other' not in enum)
+        # instead of passing through, to prevent PostgreSQL enum INSERT failures
+        assert normalize_enum("seniority_level", "Unknown Role") == "other"
 
     def test_empty(self):
         assert normalize_enum("seniority_level", "") == ""
@@ -92,6 +96,103 @@ class TestNormalizeEnum:
 
     def test_whitespace_stripping(self):
         assert normalize_enum("seniority_level", "  VP  ") == "vp"
+
+
+class TestSanitizeEnumValue:
+    """Tests for sanitize_enum_value — the core enum validation function."""
+
+    def test_exact_match(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "event") == "event"
+
+    def test_case_insensitive(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "Event") == "event"
+
+    def test_hyphen_to_underscore(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("company_size", "mid-market") == "mid_market"
+
+    def test_substring_match_event_in_text(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "Event Fest 2025", cf)
+        assert result == "event"
+        assert cf["original_contact_source"] == "Event Fest 2025"
+
+    def test_substring_match_social_in_text(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "Social Media Campaign", cf)
+        assert result == "social"
+        assert cf["original_contact_source"] == "Social Media Campaign"
+
+    def test_alias_lookup(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("seniority_level", "Vice President") == "vp"
+
+    def test_no_match_falls_back_to_other(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "xyz_unknown_123", cf)
+        assert result == "other"
+        assert cf["original_contact_source"] == "xyz_unknown_123"
+
+    def test_no_match_no_other_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        # language enum has no 'other' value
+        cf = {}
+        result = sanitize_enum_value("language", "Klingon", cf)
+        assert result is None
+        assert cf["original_language"] == "Klingon"
+
+    def test_none_value_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", None) is None
+
+    def test_empty_value_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "") is None
+
+    def test_non_enum_field_passes_through(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("first_name", "John") == "John"
+
+    def test_apply_mapping_sanitizes_contact_source(self):
+        """Integration: apply_mapping should sanitize enum fields."""
+        row = {"Source": "Event Fest 2025", "First": "Jane"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Source", "target": "contact.contact_source"},
+                {"csv_header": "First", "target": "contact.first_name"},
+            ]
+        }
+        result = apply_mapping(row, mapping)
+        assert result["contact"]["contact_source"] == "event"
+        assert result["contact"]["_custom_fields"]["original_contact_source"] == "Event Fest 2025"
+
+    def test_apply_mapping_sanitizes_company_enum(self):
+        """Integration: apply_mapping should sanitize company enum fields."""
+        row = {"Model": "Non-Profit Organization", "Name": "Acme"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Model", "target": "company.business_model"},
+                {"csv_header": "Name", "target": "company.name"},
+            ]
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["business_model"] == "non_profit"
 
 
 class TestBuildMappingPrompt:
@@ -118,10 +219,30 @@ class TestApplyMapping:
         row = {"First": "John", "Last": "Doe", "Position": "CEO", "Company": "Acme"}
         mapping = {
             "mappings": [
-                {"csv_header": "First", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Last", "target": "contact.last_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Position", "target": "contact.job_title", "confidence": 0.8, "transform": None},
-                {"csv_header": "Company", "target": "company.name", "confidence": 0.9, "transform": None},
+                {
+                    "csv_header": "First",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Last",
+                    "target": "contact.last_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Position",
+                    "target": "contact.job_title",
+                    "confidence": 0.8,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Company",
+                    "target": "company.name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -134,7 +255,12 @@ class TestApplyMapping:
         row = {"Website": "https://www.acme.com/about"}
         mapping = {
             "mappings": [
-                {"csv_header": "Website", "target": "company.domain", "confidence": 0.9, "transform": "extract_domain"},
+                {
+                    "csv_header": "Website",
+                    "target": "company.domain",
+                    "confidence": 0.9,
+                    "transform": "extract_domain",
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -144,7 +270,12 @@ class TestApplyMapping:
         row = {"Level": "C-Level"}
         mapping = {
             "mappings": [
-                {"csv_header": "Level", "target": "contact.seniority_level", "confidence": 0.8, "transform": "normalize_enum"},
+                {
+                    "csv_header": "Level",
+                    "target": "contact.seniority_level",
+                    "confidence": 0.8,
+                    "transform": "normalize_enum",
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -154,9 +285,24 @@ class TestApplyMapping:
         row = {"First": "John", "Last": "Doe", "Email": "j@test.com"}
         mapping = {
             "mappings": [
-                {"csv_header": "First", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Last", "target": "contact.last_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
+                {
+                    "csv_header": "First",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Last",
+                    "target": "contact.last_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Email",
+                    "target": "contact.email_address",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -168,8 +314,18 @@ class TestApplyMapping:
         row = {"Name": "John", "Internal ID": "12345"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Internal ID", "target": None, "confidence": 0, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Internal ID",
+                    "target": None,
+                    "confidence": 0,
+                    "transform": None,
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -181,8 +337,18 @@ class TestApplyMapping:
         row = {"Name": "John", "Email": ""}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Email",
+                    "target": "contact.email_address",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
             ],
         }
         result = apply_mapping(row, mapping)
@@ -194,16 +360,24 @@ class TestCallClaudeForMapping:
     def test_successful_call(self):
         """Test that call_claude_for_mapping parses Claude's response."""
         import os
+
         os.environ["ANTHROPIC_API_KEY"] = "test-key"
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock()]
-        mock_response.content[0].text = json.dumps({
-            "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.95, "transform": None},
-            ],
-            "warnings": [],
-        })
+        mock_response.content[0].text = json.dumps(
+            {
+                "mappings": [
+                    {
+                        "csv_header": "Name",
+                        "target": "contact.first_name",
+                        "confidence": 0.95,
+                        "transform": None,
+                    },
+                ],
+                "warnings": [],
+            }
+        )
 
         mock_response.model = "claude-sonnet-4-5-20250929"
         mock_response.usage = MagicMock()
@@ -218,6 +392,7 @@ class TestCallClaudeForMapping:
 
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
             from api.services.csv_mapper import call_claude_for_mapping
+
             result, usage_info = call_claude_for_mapping(["Name"], [{"Name": "John"}])
 
         assert len(result["mappings"]) == 1
@@ -230,6 +405,7 @@ class TestCallClaudeForMapping:
     def test_strips_markdown_fences(self):
         """Test that markdown code fences are stripped from response."""
         import os
+
         os.environ["ANTHROPIC_API_KEY"] = "test-key"
 
         mock_response = MagicMock()
@@ -248,6 +424,7 @@ class TestCallClaudeForMapping:
 
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
             from api.services.csv_mapper import call_claude_for_mapping
+
             result, usage_info = call_claude_for_mapping(["Name"], [{"Name": "John"}])
 
         assert result["mappings"] == []
@@ -259,8 +436,18 @@ class TestApplyMappingCustomFields:
         row = {"Name": "John", "Alt Email": "alt@test.com"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Alt Email", "target": "contact.custom.email_secondary", "confidence": 0.8, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Alt Email",
+                    "target": "contact.custom.email_secondary",
+                    "confidence": 0.8,
+                    "transform": None,
+                },
             ],
             "combine_columns": [],
         }
@@ -272,8 +459,18 @@ class TestApplyMappingCustomFields:
         row = {"Company": "Acme", "Tax ID": "DE123456"}
         mapping = {
             "mappings": [
-                {"csv_header": "Company", "target": "company.name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Tax ID", "target": "company.custom.tax_id", "confidence": 0.8, "transform": None},
+                {
+                    "csv_header": "Company",
+                    "target": "company.name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Tax ID",
+                    "target": "company.custom.tax_id",
+                    "confidence": 0.8,
+                    "transform": None,
+                },
             ],
             "combine_columns": [],
         }
@@ -285,9 +482,24 @@ class TestApplyMappingCustomFields:
         row = {"Name": "Jane", "Notes": "VIP", "Source ID": "ext-42"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Notes", "target": "contact.custom.internal_notes", "confidence": 0.7, "transform": None},
-                {"csv_header": "Source ID", "target": "contact.custom.source_id", "confidence": 0.7, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Notes",
+                    "target": "contact.custom.internal_notes",
+                    "confidence": 0.7,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Source ID",
+                    "target": "contact.custom.source_id",
+                    "confidence": 0.7,
+                    "transform": None,
+                },
             ],
             "combine_columns": [],
         }
@@ -299,8 +511,18 @@ class TestApplyMappingCustomFields:
         row = {"Name": "John", "Notes": ""}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Notes", "target": "contact.custom.notes", "confidence": 0.7, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Notes",
+                    "target": "contact.custom.notes",
+                    "confidence": 0.7,
+                    "transform": None,
+                },
             ],
             "combine_columns": [],
         }
@@ -311,9 +533,24 @@ class TestApplyMappingCustomFields:
         row = {"Name": "Jane", "Email": "jane@test.com", "Priority": "High"}
         mapping = {
             "mappings": [
-                {"csv_header": "Name", "target": "contact.first_name", "confidence": 0.9, "transform": None},
-                {"csv_header": "Email", "target": "contact.email_address", "confidence": 0.9, "transform": None},
-                {"csv_header": "Priority", "target": "contact.custom.priority", "confidence": 0.7, "transform": None},
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Email",
+                    "target": "contact.email_address",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Priority",
+                    "target": "contact.custom.priority",
+                    "confidence": 0.7,
+                    "transform": None,
+                },
             ],
             "combine_columns": [],
         }
@@ -321,6 +558,155 @@ class TestApplyMappingCustomFields:
         assert result["contact"]["first_name"] == "Jane"
         assert result["contact"]["email_address"] == "jane@test.com"
         assert result["contact"]["_custom_fields"]["priority"] == "High"
+
+
+class TestValidateAndFixCompany:
+    def test_valid_company_unchanged(self):
+        assert validate_and_fix_company("Acme Corp") == "Acme Corp"
+
+    def test_valid_short_company(self):
+        """3-char company names are valid (e.g. 'IBM', 'SAP')."""
+        assert validate_and_fix_company("IBM") == "IBM"
+
+    def test_empty_string_with_email(self):
+        assert validate_and_fix_company("", "john@acme.com") == "acme.com"
+
+    def test_empty_string_no_email(self):
+        assert validate_and_fix_company("") == "Unknown"
+
+    def test_none_with_email(self):
+        assert validate_and_fix_company(None, "jane@4pro.cz") == "4pro.cz"
+
+    def test_none_no_email(self):
+        assert validate_and_fix_company(None) == "Unknown"
+
+    def test_whitespace_only(self):
+        assert validate_and_fix_company("   ", "a@test.io") == "test.io"
+
+    def test_date_iso(self):
+        assert validate_and_fix_company("2021-12-04", "a@acme.com") == "acme.com"
+
+    def test_date_iso_with_time(self):
+        assert (
+            validate_and_fix_company("2021-12-04 00:00:00", "a@acme.com") == "acme.com"
+        )
+
+    def test_date_us_format(self):
+        assert validate_and_fix_company("12/04/2021", "a@test.com") == "test.com"
+
+    def test_date_eu_format(self):
+        assert validate_and_fix_company("04.12.2021", "a@test.com") == "test.com"
+
+    def test_date_no_email(self):
+        assert validate_and_fix_company("2021-12-04") == "Unknown"
+
+    def test_pure_integer(self):
+        assert validate_and_fix_company("12345", "a@corp.io") == "corp.io"
+
+    def test_pure_decimal(self):
+        assert validate_and_fix_company("123.45", "a@corp.io") == "corp.io"
+
+    def test_pure_number_no_email(self):
+        assert validate_and_fix_company("42") == "Unknown"
+
+    def test_too_short_one_char(self):
+        assert validate_and_fix_company("X", "a@bigco.com") == "bigco.com"
+
+    def test_too_short_two_chars(self):
+        assert validate_and_fix_company("AB", "a@bigco.com") == "bigco.com"
+
+    def test_strips_whitespace(self):
+        assert validate_and_fix_company("  Acme  ") == "Acme"
+
+    def test_number_like_company_name(self):
+        """Company names starting with digits but containing letters are valid."""
+        assert validate_and_fix_company("1Year") == "1Year"
+        assert validate_and_fix_company("3M Company") == "3M Company"
+
+    def test_email_without_at_sign(self):
+        """Invalid email should not crash, returns Unknown."""
+        assert validate_and_fix_company("", "not-an-email") == "Unknown"
+
+
+class TestApplyMappingCompanyValidation:
+    def test_date_in_company_replaced_by_email_domain(self):
+        row = {
+            "Name": "John",
+            "Email": "john@acme.com",
+            "Company": "2021-12-04 00:00:00",
+        }
+        mapping = {
+            "mappings": [
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Email",
+                    "target": "contact.email_address",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Company",
+                    "target": "company.name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+            ],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["name"] == "acme.com"
+
+    def test_number_in_company_replaced(self):
+        row = {"Name": "Jane", "Email": "jane@corp.io", "Company": "12345"}
+        mapping = {
+            "mappings": [
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Email",
+                    "target": "contact.email_address",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Company",
+                    "target": "company.name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+            ],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["name"] == "corp.io"
+
+    def test_valid_company_not_touched(self):
+        row = {"Name": "John", "Company": "Acme Inc"}
+        mapping = {
+            "mappings": [
+                {
+                    "csv_header": "Name",
+                    "target": "contact.first_name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+                {
+                    "csv_header": "Company",
+                    "target": "company.name",
+                    "confidence": 0.9,
+                    "transform": None,
+                },
+            ],
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["name"] == "Acme Inc"
 
 
 class TestTargetFields:

@@ -52,6 +52,13 @@ export interface SectionUpdateEvent {
   action: 'update' | 'append'
 }
 
+/** Payload from a `research_status` SSE event. */
+export interface ResearchStatusEvent {
+  status: 'in_progress' | 'completed' | 'timeout'
+  domain: string
+  message: string
+}
+
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
   onDone: (data: DoneEventData) => void
@@ -70,6 +77,8 @@ export interface UseSSECallbacks {
   onAnalysisChunk?: (text: string) => void
   /** Fired when proactive analysis completes with extracted suggestions. */
   onAnalysisDone?: (data: AnalysisDoneEventData) => void
+  /** Fired when research status updates arrive (before AI generation). */
+  onResearchStatus?: (event: ResearchStatusEvent) => void
 }
 
 interface UseSSEReturn {
@@ -173,6 +182,12 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
     callbacks.onAnalysisDone?.({
       messageId: event.message_id as string,
       suggestions: (event.suggestions as string[]) ?? [],
+    })
+  } else if (eventType === 'research_status') {
+    callbacks.onResearchStatus?.({
+      status: event.status as ResearchStatusEvent['status'],
+      domain: event.domain as string,
+      message: event.message as string,
     })
   }
 }

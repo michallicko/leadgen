@@ -103,6 +103,7 @@ export function PlaybookPage() {
     analysisStreamingText,
     isAnalysisStreaming,
     analysisSuggestions,
+    startNewThread,
   } = useChatContext()
 
   // Server state
@@ -151,11 +152,11 @@ export function PlaybookPage() {
   // Track document version for optimistic locking
   const versionRef = useRef(0)
 
-  // Determine view phase from URL or doc's phase
-  const docPhase = docQuery.data?.phase || 'strategy'
-  const viewPhase: PhaseKey = isValidPhase(urlPhase)
-    ? urlPhase
-    : isValidPhase(docPhase) ? docPhase : 'strategy'
+  // Determine view phase from URL — default to strategy when no phase in URL.
+  // The document's phase tracks workflow progress but should NOT override the
+  // landing view. Users always land on the strategy editor unless they
+  // explicitly navigate to another phase via URL (e.g. /playbook/contacts).
+  const viewPhase: PhaseKey = isValidPhase(urlPhase) ? urlPhase : 'strategy'
 
   // Seed lastSavedContentRef with server content on first load
   useEffect(() => {
@@ -738,6 +739,7 @@ export function PlaybookPage() {
             isThinking={isThinking}
             thinkingStatus={isAnalysisStreaming ? 'Analyzing strategy...' : thinkingStatus}
             suggestions={activeSuggestions}
+            onNewThread={startNewThread}
           />
         </div>
       </div>

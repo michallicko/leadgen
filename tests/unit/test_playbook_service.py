@@ -483,73 +483,38 @@ class TestBuildExtractionPrompt:
 
 
 class TestBuildSeededTemplate:
-    def test_returns_markdown_string(self):
-        """build_seeded_template returns a non-empty markdown string."""
+    """Tests for build_seeded_template.
+
+    Since BL-241, the strategy document starts blank. The AI writes
+    sections incrementally via update_strategy_section tool calls.
+    build_seeded_template now returns an empty string.
+    """
+
+    def test_returns_empty_string(self):
+        """build_seeded_template returns empty string (AI writes sections via tools)."""
         from api.services.playbook_service import build_seeded_template
 
         result = build_seeded_template()
         assert isinstance(result, str)
-        assert len(result) > 100
-        assert "Executive Summary" in result
+        assert result == ""
 
-    def test_includes_all_sections(self):
-        """Template contains all strategy sections (ICP/Personas moved to tabs)."""
+    def test_accepts_all_params(self):
+        """Function signature still accepts objective, enrichment_data, challenge_type."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template(
+            objective="Grow enterprise pipeline by 3x",
+            enrichment_data={"company": {"name": "Acme"}},
+            challenge_type="growth",
+        )
+        assert result == ""
+
+    def test_works_without_args(self):
+        """Function works when called with no arguments."""
         from api.services.playbook_service import build_seeded_template
 
         result = build_seeded_template()
-        for section in [
-            "Executive Summary",
-            "Value Proposition",
-            "Competitive Positioning",
-            "Channel Strategy",
-            "Messaging Framework",
-            "Metrics & KPIs",
-            "90-Day Action Plan",
-        ]:
-            assert section in result, "Missing section: {}".format(section)
-        # ICP and Buyer Personas are no longer in the document template (BL-240)
-        assert "## Ideal Customer Profile" not in result
-        assert "## Buyer Personas" not in result
-
-    def test_includes_objective(self):
-        """Template includes the user's stated objective."""
-        from api.services.playbook_service import build_seeded_template
-
-        result = build_seeded_template(objective="Grow enterprise pipeline by 3x")
-        assert "Grow enterprise pipeline by 3x" in result
-
-    def test_includes_enrichment_data(self):
-        """Template incorporates enrichment data into relevant sections."""
-        from api.services.playbook_service import build_seeded_template
-
-        enrichment = {
-            "company": {
-                "name": "HR Corp",
-                "industry": "SaaS",
-                "summary": "SaaS platform for HR",
-            },
-            "company_intel": "SaaS platform for HR",
-            "key_products": "Payroll, Benefits, Time Tracking",
-            "customer_segments": "Mid-market HR departments",
-            "competitors": "Workday, BambooHR, Rippling",
-        }
-
-        result = build_seeded_template(
-            objective="Win mid-market HR",
-            enrichment_data=enrichment,
-        )
-        assert "SaaS platform for HR" in result
-        assert "Payroll" in result
-        assert "Mid-market HR departments" in result
-        assert "Workday" in result
-
-    def test_works_without_enrichment(self):
-        """Template works with objective only (no enrichment data)."""
-        from api.services.playbook_service import build_seeded_template
-
-        result = build_seeded_template(objective="Scale outbound")
-        assert "Scale outbound" in result
-        assert "Executive Summary" in result
+        assert result == ""
 
 
 class TestEnrichmentExpansionBL054:

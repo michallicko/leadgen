@@ -276,6 +276,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               queryClient.invalidateQueries({ queryKey: ['workflow-status'] })
               queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
               queryClient.invalidateQueries({ queryKey: ['phase-transition'] })
+
+              // BL-241: Refresh structured data tabs when AI writes tiers or personas
+              const hasPersonaEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_buyer_personas' && tc.status === 'success',
+              )
+              const hasTierEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_icp_tiers' && tc.status === 'success',
+              )
+              if (hasPersonaEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'personas'] })
+              }
+              if (hasTierEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'tiers'] })
+              }
             }
           },
           onError: () => {
@@ -341,6 +355,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setAnalysisSuggestions(data.suggestions)
             // Refetch to pick up the new analysis message
             chatQuery.refetch()
+          },
+          onResearchStatus: (event) => {
+            if (event.status === 'in_progress') {
+              setThinkingStatus(event.message)
+            } else if (event.status === 'completed') {
+              setThinkingStatus('Research complete')
+            } else if (event.status === 'timeout') {
+              setThinkingStatus('Research timed out, proceeding with available data')
+            }
           },
         },
       )

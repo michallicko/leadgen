@@ -168,6 +168,34 @@ Opens:
 - API: http://localhost:5001/api/health
 - Login: `test@staging.local` / `staging123`
 
+### Local-First Development (MANDATORY)
+
+**All code MUST be tested locally before any staging deployment.** This is non-negotiable.
+
+**Workflow:**
+1. `make dev` — start local servers (Flask auto-reload + Vite HMR)
+2. Code changes appear instantly — no build step, no Docker rebuild
+3. Test in browser at `http://localhost:5173` (login: `test@staging.local` / `staging123`)
+4. Run `make test-changed` for unit tests
+5. Only after local verification → deploy revision to staging
+
+**Setup (one-time per machine):**
+```bash
+bash scripts/init-env.sh    # Pull all API tokens/secrets from staging VPS → .env.dev
+make db-pull                 # Clone staging database to local PostgreSQL
+cd frontend && npm install   # Frontend dependencies
+```
+
+**What hot-reloads:**
+- Python backend: Flask auto-reload watches `api/` — save a file, server restarts in <1s
+- React frontend: Vite HMR watches `frontend/src/` — save a file, browser updates instantly
+- No Docker rebuild needed for code changes
+
+**What requires restart:**
+- `.env.dev` changes → restart Flask (`make dev` again)
+- New Python dependencies → `pip install` + restart Flask
+- Database schema changes → run migration SQL against local PG
+
 ### Running Tests
 
 ```bash
@@ -215,13 +243,20 @@ make db-pull     # Refresh local DB from staging
 make db-reset    # Empty local DB (then db-pull to restore)
 ```
 
-### Dev-First Workflow
+### Dev-First Workflow (ENFORCED)
 
-1. Start dev server first — `make dev` (or `DEV_SLOT=N make dev` in a worktree)
-2. Use HMR — Vite picks up React changes instantly, Flask auto-reloads
-3. Run changed unit tests frequently — `make test-changed` is fast (SQLite in-memory)
-4. Local first, staging second — deploy revision for acceptance verification
-5. E2E runs at sprint completion only — not per feature, not per PR
+1. **Start local servers** — `make dev` (or `DEV_SLOT=N make dev` in a worktree)
+2. **Code with hot reload** — Vite picks up React changes instantly (<100ms), Flask auto-reloads Python (<1s)
+3. **Test in browser** — `http://localhost:5173` — verify UI behavior manually
+4. **Run unit tests** — `make test-changed` (fast, SQLite in-memory, ~10s)
+5. **Only then deploy** — `deploy-revision.sh` for staging acceptance testing
+6. **E2E at sprint end** — never per feature, never per PR
+
+**Anti-patterns (DO NOT):**
+- Deploy to staging to "see if it works" — test locally first
+- Skip browser testing — unit tests don't catch UI regressions
+- Run full test suite — `make test-changed` is sufficient during development
+- Rebuild Docker images for code changes — hot reload handles it
 
 ### Worktree Commands
 
@@ -238,6 +273,13 @@ make pr-scan                           # Check open PRs for file conflicts
 ## Deployment Rules
 
 **Claude must NEVER run deploy scripts directly.** Use `/deploy` skill instead.
+
+**Local verification gate**: Before deploying ANY revision to staging, the developer (or agent) MUST have:
+1. Tested the change locally with `make dev`
+2. Verified the UI works in browser (not just unit tests)
+3. Run `make test-changed` with all tests passing
+
+Staging deployments without local verification are blocked. This prevents wasted deploy cycles.
 
 Forbidden commands:
 - `bash deploy/deploy-api.sh`
@@ -361,6 +403,7 @@ Lead decides N (engineers) based on how many items can run in parallel. PM, EM, 
 5. **Acceptance criteria** — what "done" looks like for this specific task
 6. **Constraints** — what NOT to do (e.g., "don't touch PlaybookPage.tsx, it's being refactored by another agent")
 7. **Workflow** — exact steps: implement → test → lint → commit → push → PR → report
+8. **Local testing** — remind agent to test locally with `make dev` before any staging deployment. Include: `Test locally first: make dev → verify in browser at localhost:5173 → make test-changed → only then deploy.`
 
 **What NOT to assume agents know:**
 - Previous agent results (pass them explicitly)
@@ -425,6 +468,12 @@ Gate order: spec compliance -> code quality + security (parallel) -> QA -> docs 
 ## Definition of Done (Project-Specific Detail)
 
 A feature is **done** when ALL quality gates above pass AND:
+
+### Local Verification (before staging)
+- [ ] Tested with `make dev` — hot reload, no Docker rebuild
+- [ ] UI verified in browser at `localhost:5173`
+- [ ] `make test-changed` passes
+- [ ] `make lint-changed` passes
 
 ### Staging Verification
 - [ ] Deployed to staging revision (`deploy-revision.sh`)

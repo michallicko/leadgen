@@ -80,18 +80,78 @@ def _translate_mapping_to_claude(mapping):
 
     The frontend sends targets like "email", "domain" but apply_mapping()
     expects "contact.email_address", "company.domain", etc.
+    Custom field keys (e.g. "email_secondary") are prefixed to
+    "contact.custom.email_secondary" or "company.custom.email_secondary"
+    based on the CustomFieldDefinition entity_type.
+
+    Accepts either:
+      - Frontend array format: [{source_column, target_field, ...}, ...]
+      - Claude dict format: {"mappings": [{csv_header, target, ...}, ...]}
+    Always returns Claude dict format.
     """
-    translated = dict(mapping)
+    from flask import g
+
+    # Build a lookup of known custom field keys → entity_type for the current tenant
+    tenant_id = getattr(g, "tenant_id", None) or resolve_tenant()
+    custom_field_map = {}  # field_key → entity_type
+    if tenant_id:
+        custom_defs = CustomFieldDefinition.query.filter_by(
+            tenant_id=str(tenant_id),
+            is_active=True,
+        ).all()
+        for cfd in custom_defs:
+            custom_field_map[cfd.field_key] = cfd.entity_type
+
+    # Normalize input: frontend sends a list, Claude format is a dict with "mappings"
+    if isinstance(mapping, list):
+        # Convert frontend ColumnMapping[] → Claude mapping dict
+        claude_mappings = []
+        for col in mapping:
+            entry = {
+                "csv_header": col.get("source_column", ""),
+                "target": col.get("target_field") or col.get("target"),
+                "confidence": col.get("confidence", "low"),
+                "sample_values": col.get("sample_values", []),
+            }
+            # Carry custom field metadata so _auto_create_custom_field_defs can use it
+            if col.get("is_custom") and col.get("custom_display_name"):
+                entry["suggested_custom_field"] = {
+                    "field_label": col["custom_display_name"],
+                    "field_type": "text",
+                }
+            claude_mappings.append(entry)
+        translated = {"mappings": claude_mappings}
+    elif isinstance(mapping, str):
+        import json as _json
+
+        translated = _json.loads(mapping)
+    else:
+        translated = dict(mapping)
+
     new_mappings = []
     for m in translated.get("mappings", []):
         target = m.get("target")
         # Clear skip/null targets so apply_mapping ignores them
-        if not target or target.lower() in _SKIP_TARGETS:
+        if not target or (isinstance(target, str) and target.lower() in _SKIP_TARGETS):
             m = dict(m)
             m["target"] = None
-        elif "." not in target and "custom" not in (target or ""):
+        elif "." in target:
+            # Already in dotted format (e.g. "contact.custom.X"), pass through
+            pass
+        elif target in custom_field_map:
+            # Known custom field key — prefix with entity_type.custom.
             m = dict(m)
-            m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
+            m["target"] = f"{custom_field_map[target]}.custom.{target}"
+        else:
+            m = dict(m)
+            translated_target = FRONTEND_TO_CLAUDE.get(target, None)
+            if translated_target:
+                m["target"] = translated_target
+            elif target not in _VALID_FRONTEND_TARGETS:
+                # Unknown target that's not a standard field — treat as new custom field
+                m["target"] = f"contact.custom.{target}"
+            else:
+                m["target"] = target
         new_mappings.append(m)
     translated["mappings"] = new_mappings
     return translated
@@ -162,11 +222,19 @@ def _parse_xlsx_bytes(raw):
     if not header_row:
         wb.close()
         return [], []
-    headers = [str(h) if h is not None else "" for h in header_row]
+    # Build raw headers, then identify which column indices have non-empty names
+    raw_headers = [str(h).strip() if h is not None else "" for h in header_row]
+    valid_indices = [i for i, h in enumerate(raw_headers) if h]
+    headers = [raw_headers[i] for i in valid_indices]
     rows = []
     for row in rows_iter:
         rows.append(
-            {headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)}
+            {
+                raw_headers[i]: (
+                    str(row[i]) if i < len(row) and row[i] is not None else ""
+                )
+                for i in valid_indices
+            }
         )
     wb.close()
     return headers, rows
@@ -242,6 +310,10 @@ def _build_upload_response(
     """
     columns = []
     for m in mapping_result.get("mappings", []):
+        # Skip entries with empty/whitespace source column names (ghost columns from XLSX)
+        csv_header_check = (m.get("csv_header") or "").strip()
+        if not csv_header_check:
+            continue
         target = m.get("target") or None
         raw_confidence = m.get("confidence", 0)
         if isinstance(raw_confidence, (int, float)):
@@ -291,12 +363,36 @@ def _build_upload_response(
             }
         )
 
+    # Build a lookup from field_key → source_column using the mapping result.
+    # Claude mapping entries with "contact.custom.X" or "company.custom.X" targets
+    # carry the original CSV header in csv_header.
+    custom_source_map = {}  # field_key → csv_header
+    for m in mapping_result.get("mappings", []):
+        target = m.get("target") or ""
+        parts = target.split(".", 2)
+        if len(parts) == 3 and parts[1] == "custom":
+            custom_source_map[parts[2]] = m.get("csv_header", "")
+
     custom_field_defs = []
     for cdef in custom_defs or []:
-        if isinstance(cdef, dict):
-            custom_field_defs.append(cdef)
-        else:
-            custom_field_defs.append(cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        d = (
+            cdef
+            if isinstance(cdef, dict)
+            else (cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        )
+        # Frontend expects display_name (not field_label) and source_column
+        custom_field_defs.append(
+            {
+                "field_key": d.get("field_key", ""),
+                "display_name": d.get(
+                    "field_label", d.get("display_name", d.get("field_key", ""))
+                ),
+                "source_column": custom_source_map.get(
+                    d.get("field_key", ""), d.get("field_key", "")
+                ),
+                "entity_type": d.get("entity_type", "contact"),
+            }
+        )
 
     return {
         "job_id": str(job_id),
@@ -576,14 +672,13 @@ def preview_import(job_id):
     # Parse all rows
     headers, all_rows = _parse_csv_text(job.raw_csv)
 
-    # Apply mapping to first 25 rows for preview
-    preview_rows = all_rows[:25]
-    parsed = [apply_mapping(row, mapping) for row in preview_rows]
+    # Apply mapping to ALL rows for accurate summary counts
+    parsed = [apply_mapping(row, mapping) for row in all_rows]
 
-    # Run dedup preview
+    # Run dedup preview on all rows for accurate counts
     dedup_results = dedup_preview(str(tenant_id), parsed)
 
-    # Summary counts
+    # Summary counts from ALL rows
     new_contacts = sum(1 for r in dedup_results if r["contact_status"] == "new")
     dup_contacts = sum(1 for r in dedup_results if r["contact_status"] == "duplicate")
     new_companies = sum(1 for r in dedup_results if r["company_status"] == "new")
@@ -594,12 +689,52 @@ def preview_import(job_id):
     job.status = "previewed"
     db.session.commit()
 
+    # Transform first 25 dedup results into frontend PreviewRow format for display:
+    # { row_number, data: { first_name, last_name, email, company_name, ... }, status, match_type }
+    preview_dedup = dedup_results[:25]
+    frontend_rows = []
+    for i, r in enumerate(preview_dedup):
+        contact = r.get("contact", {})
+        company = r.get("company", {})
+        # Flatten contact + company into a single data dict
+        data = {}
+        for k, v in contact.items():
+            if k.startswith("custom."):
+                data[k] = v
+            else:
+                data[k] = v
+        # Add company fields with company_ prefix where needed
+        if company.get("name"):
+            data["company_name"] = company["name"]
+        if company.get("domain"):
+            data["company_domain"] = company["domain"]
+        for k, v in company.items():
+            if k not in ("name", "domain") and v:
+                data[f"company_{k}"] = v
+
+        frontend_rows.append(
+            {
+                "row_number": i + 1,
+                "data": data,
+                "status": "duplicate"
+                if r.get("contact_status") == "duplicate"
+                else "new",
+                "match_type": r.get("contact_match_type"),
+                "match_details": r.get("company_match_type"),
+            }
+        )
+
     return jsonify(
         {
             "job_id": str(job.id),
-            "preview_rows": dedup_results,
+            "preview_rows": frontend_rows,
             "total_rows": job.total_rows,
-            "preview_count": len(dedup_results),
+            "preview_count": len(frontend_rows),
+            "new_contacts": new_contacts,
+            "duplicates": dup_contacts,
+            "updates": 0,
+            "new_companies": new_companies,
+            "existing_companies": existing_companies,
             "summary": {
                 "new_contacts": new_contacts,
                 "duplicate_contacts": dup_contacts,
@@ -719,6 +854,40 @@ def execute_import_job(job_id):
         return jsonify({"error": f"Import failed: {str(e)}"}), 500
 
 
+@imports_bp.route("/api/imports/<job_id>/retry", methods=["POST"])
+@require_auth
+def retry_import(job_id):
+    """Reset an errored import job so the user can retry.
+
+    Resets status to 'previewed' (or 'mapped' if no preview data exists),
+    clears the error message and partial result counters.
+    """
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    job = ImportJob.query.filter_by(id=job_id, tenant_id=str(tenant_id)).first()
+    if not job:
+        return jsonify({"error": "Import job not found"}), 404
+
+    if job.status != "error":
+        return jsonify({"error": f"Cannot retry a job with status '{job.status}'"}), 400
+
+    # Reset to last valid state: previewed if we had a preview, else mapped
+    job.status = "previewed" if job.column_mapping else "mapped"
+    job.error = None
+    # Clear partial import counters from the failed attempt
+    job.contacts_created = 0
+    job.contacts_updated = 0
+    job.contacts_skipped = 0
+    job.companies_created = 0
+    job.companies_linked = 0
+    job.dedup_results = None
+    db.session.commit()
+
+    return jsonify({"job_id": str(job.id), "status": job.status})
+
+
 @imports_bp.route("/api/imports/<job_id>/results", methods=["GET"])
 @require_auth
 def import_results(job_id):
@@ -799,7 +968,8 @@ def import_status(job_id):
 
     # Build mapping in the ColumnMapping[] format the frontend expects
     mapping = None
-    if job.status in ("uploaded", "mapped", "previewed"):
+    upload_response = None
+    if job.status in ("uploaded", "mapped", "previewed", "error"):
         raw = ImportJob._parse_jsonb(job.column_mapping) or {}
         stored_samples = ImportJob._parse_jsonb(job.sample_rows) or []
         resp = _build_upload_response(
@@ -811,11 +981,13 @@ def import_status(job_id):
             sample_rows=stored_samples,
         )
         mapping = resp["columns"]
+        upload_response = resp
 
     return jsonify(
         {
             "status": job.status,
             "mapping": mapping,
+            "upload_response": upload_response,
             "preview": None,  # preview is re-generated on demand
         }
     )

@@ -130,11 +130,13 @@ export function ImportPage() {
     }))
   }, [])
 
-  const handleResume = useCallback((jobId: string, mapping: ColumnMapping[], preview: PreviewResponse | null) => {
+  const handleResume = useCallback((jobId: string, mapping: ColumnMapping[], preview: PreviewResponse | null, uploadResponse: UploadResponse | null) => {
     setState((prev) => ({
       ...prev,
       jobId,
       mapping,
+      uploadResponse: uploadResponse ?? prev.uploadResponse,
+      customFieldDefs: uploadResponse?.custom_field_defs ?? prev.customFieldDefs,
       previewResponse: preview,
       step: preview ? 3 : 2,
     }))

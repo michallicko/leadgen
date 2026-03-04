@@ -1678,73 +1678,55 @@ def post_chat_message():
                 doc.id,
             )
 
-    if enrichment_company_id:
-        # Wait for research if it is still in progress. The onboarding flow
-        # fires research in a background thread and sends the first chat
-        # message immediately. Without waiting, the AI sees no research data
-        # and falls back to web_search which fails for niche companies.
-        company_obj = db.session.get(Company, enrichment_company_id)
-        if company_obj and _research_status_from_company(company_obj) == "in_progress":
-            max_wait = 45  # seconds
-            poll_interval = 2  # seconds
-            waited = 0
-            logger.info(
-                "Research in progress for company %s -- waiting up to %ds",
-                enrichment_company_id,
-                max_wait,
-            )
-            while waited < max_wait:
-                time.sleep(poll_interval)
-                waited += poll_interval
-                # Refresh company from DB to check updated status
-                db.session.expire(company_obj)
-                company_obj = db.session.get(Company, enrichment_company_id)
-                if not company_obj:
-                    break
-                status = _research_status_from_company(company_obj)
-                if status != "in_progress":
-                    logger.info(
-                        "Research finished (status=%s) after %ds wait",
-                        status,
-                        waited,
-                    )
-                    break
-            else:
-                logger.warning(
-                    "Research still in progress after %ds wait for company %s"
-                    " -- proceeding with partial data",
-                    max_wait,
-                    enrichment_company_id,
-                )
-
-        enrichment_data = _load_enrichment_data(enrichment_company_id)
-
     # Determine phase for system prompt (request param overrides doc phase)
     phase = data.get("phase") or doc.phase or "strategy"
 
-    # Build prompt and messages
-    system_prompt = build_system_prompt(
-        tenant,
-        doc,
-        enrichment_data=enrichment_data,
-        phase=phase,
-        page_context=page_context,
-    )
     messages = build_messages(history, message_text)
-
     client = _get_anthropic_client()
 
     if _wants_streaming(request):
+        # Streaming path: defer research wait into the SSE generator so
+        # research_status events are visible to the frontend.
         return _stream_response(
             client,
-            system_prompt,
             messages,
             tenant_id,
             doc.id,
+            enrichment_company_id,
+            phase,
+            page_context,
             user_msg,
             user_id,
         )
     else:
+        # Sync path: blocking wait is acceptable (no SSE to emit into)
+        if enrichment_company_id:
+            company_obj = db.session.get(Company, enrichment_company_id)
+            if (
+                company_obj
+                and _research_status_from_company(company_obj) == "in_progress"
+            ):
+                max_wait = 45
+                poll_interval = 2
+                waited = 0
+                while waited < max_wait:
+                    time.sleep(poll_interval)
+                    waited += poll_interval
+                    db.session.expire(company_obj)
+                    company_obj = db.session.get(Company, enrichment_company_id)
+                    if not company_obj:
+                        break
+                    if _research_status_from_company(company_obj) != "in_progress":
+                        break
+            enrichment_data = _load_enrichment_data(enrichment_company_id)
+
+        system_prompt = build_system_prompt(
+            tenant,
+            doc,
+            enrichment_data=enrichment_data,
+            phase=phase,
+            page_context=page_context,
+        )
         return _sync_response(
             client,
             system_prompt,
@@ -1757,13 +1739,25 @@ def post_chat_message():
 
 
 def _stream_response(
-    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+    client,
+    messages,
+    tenant_id,
+    doc_id,
+    enrichment_company_id,
+    phase,
+    page_context,
+    user_msg,
+    user_id=None,
 ):
     """Return an SSE streaming response with LLM chunks.
 
     If tools are registered, uses the agent executor (agentic loop with
     tool_start/tool_result events). Otherwise, falls back to simple
     stream_query for backward compatibility.
+
+    Research polling (if enrichment is in progress) happens inside the
+    generator so that research_status SSE events are visible to the
+    frontend during the ~45s wait.
 
     DB operations (saving the assistant message) happen inside the generator
     using the app context, since the generator runs outside the request context.
@@ -1779,16 +1773,34 @@ def _stream_response(
     if tools:
         return _stream_agent_response(
             client,
-            system_prompt,
             messages,
             tools,
             tenant_id,
             doc_id,
+            enrichment_company_id,
+            phase,
+            page_context,
             user_msg,
             user_id,
             app,
         )
     else:
+        # Simple path: build system prompt eagerly (no research wait
+        # needed — simple mode is only used when no tools are registered,
+        # which means no research_own_company tool either).
+        with app.app_context():
+            enrichment_data = None
+            if enrichment_company_id:
+                enrichment_data = _load_enrichment_data(enrichment_company_id)
+            tenant = db.session.get(Tenant, tenant_id)
+            doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+            system_prompt = build_system_prompt(
+                tenant,
+                doc,
+                enrichment_data=enrichment_data,
+                phase=phase,
+                page_context=page_context,
+            )
         return _stream_simple_response(
             client,
             system_prompt,
@@ -1887,9 +1899,24 @@ def _stream_simple_response(
 
 
 def _stream_agent_response(
-    client, system_prompt, messages, tools, tenant_id, doc_id, user_msg, user_id, app
+    client,
+    messages,
+    tools,
+    tenant_id,
+    doc_id,
+    enrichment_company_id,
+    phase,
+    page_context,
+    user_msg,
+    user_id,
+    app,
 ):
     """Agent-mode streaming with tool-use loop.
+
+    Polls for in-progress research at the top of the generator, emitting
+    research_status SSE events so the frontend can show progress. Once
+    research resolves (or times out), builds the system prompt with
+    enrichment data and proceeds with the agent turn.
 
     Uses execute_agent_turn() generator to handle tool calls. Yields SSE
     events for tool_start, tool_result, chunk, and done. Saves assistant
@@ -1907,6 +1934,88 @@ def _stream_agent_response(
     )
 
     def generate():
+        # --- Research polling (yields research_status SSE events) ---
+        enrichment_data = None
+        with app.app_context():
+            domain = None
+            if enrichment_company_id:
+                company_obj = db.session.get(Company, enrichment_company_id)
+                if company_obj:
+                    domain = company_obj.domain
+                    research_st = _research_status_from_company(company_obj)
+                    if research_st == "in_progress":
+                        yield "event: research_status\ndata: {}\n\n".format(
+                            json.dumps(
+                                {
+                                    "type": "research_status",
+                                    "status": "in_progress",
+                                    "domain": domain or "",
+                                    "message": "Researching company profile for {}...".format(
+                                        domain or "your company"
+                                    ),
+                                }
+                            )
+                        )
+                        max_wait = 45
+                        poll_interval = 2
+                        waited = 0
+                        while waited < max_wait:
+                            time.sleep(poll_interval)
+                            waited += poll_interval
+                            db.session.expire(company_obj)
+                            company_obj = db.session.get(Company, enrichment_company_id)
+                            if not company_obj:
+                                break
+                            status = _research_status_from_company(company_obj)
+                            if status != "in_progress":
+                                logger.info(
+                                    "Research finished (status=%s) after %ds wait",
+                                    status,
+                                    waited,
+                                )
+                                yield "event: research_status\ndata: {}\n\n".format(
+                                    json.dumps(
+                                        {
+                                            "type": "research_status",
+                                            "status": "completed",
+                                            "domain": domain or "",
+                                            "message": "Research complete",
+                                        }
+                                    )
+                                )
+                                break
+                        else:
+                            logger.warning(
+                                "Research still in progress after %ds wait"
+                                " for company %s -- proceeding with partial data",
+                                max_wait,
+                                enrichment_company_id,
+                            )
+                            yield "event: research_status\ndata: {}\n\n".format(
+                                json.dumps(
+                                    {
+                                        "type": "research_status",
+                                        "status": "timeout",
+                                        "domain": domain or "",
+                                        "message": "Research timed out, proceeding with available data",
+                                    }
+                                )
+                            )
+
+                enrichment_data = _load_enrichment_data(enrichment_company_id)
+
+            # Build system prompt with enrichment data now available
+            tenant = db.session.get(Tenant, tenant_id)
+            doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+            system_prompt = build_system_prompt(
+                tenant,
+                doc,
+                enrichment_data=enrichment_data,
+                phase=phase,
+                page_context=page_context,
+            )
+
+        # --- Agent turn (yields chunk / tool_start / tool_result events) ---
         full_text = []
         msg_id = None
         done_data = None
