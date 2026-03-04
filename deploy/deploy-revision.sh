@@ -60,7 +60,7 @@ echo "    Frontend build copied to /srv/dashboard-rev-${COMMIT}"
 if [ "$BRANCH" = "staging" ]; then
   echo ""
   echo "==> Updating dashboard-rev-latest symlink (staging branch)..."
-  ssh -i "$STAGING_KEY" "$STAGING_HOST" "ln -sfn /srv/dashboard-rev-${COMMIT} /srv/dashboard-rev-latest"
+  ssh -i "$STAGING_KEY" "$STAGING_HOST" "[ -d /srv/dashboard-rev-latest ] && [ ! -L /srv/dashboard-rev-latest ] && sudo rm -rf /srv/dashboard-rev-latest; sudo ln -sfn /srv/dashboard-rev-${COMMIT} /srv/dashboard-rev-latest"
   echo "    /srv/dashboard-rev-latest -> /srv/dashboard-rev-${COMMIT}"
 fi
 
