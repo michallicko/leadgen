@@ -554,9 +554,14 @@ def _process_entity(
             return enrich_contact_details(
                 entity_id, tenant_id, previous_data=previous_data
             )
-        # Stub dispatchers for stages not yet implemented (Phase 2)
-        if stage in ("signals", "news"):
-            raise NotImplementedError(f"Stage '{stage}' not yet implemented")
+        if stage == "signals":
+            from .signals_enricher import enrich_signals
+
+            return enrich_signals(entity_id, tenant_id)
+        if stage == "news":
+            from .news_enricher import enrich_news
+
+            return enrich_news(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
     payload = {_data_key_for_stage(stage): entity_id}
