@@ -55,7 +55,7 @@ function deriveWorkflowStatus(status: OnboardingStatus): WorkflowStatus {
   }
 
   // Use backend workflow_phase for enrichment completion detection
-  const backendPhase = (status as Record<string, unknown>).workflow_phase as string | undefined
+  const backendPhase = status.workflow_phase
   if (backendPhase) {
     const mapped = BACKEND_PHASE_MAP[backendPhase]
     if (mapped) {
