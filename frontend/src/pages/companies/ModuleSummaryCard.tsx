@@ -232,7 +232,7 @@ export function ModuleSummaryCard({ title, icon, fields, enrichedAt, cost, defau
           {(enrichedAt || cost != null) && (
             <p className="text-xs text-text-dim pt-2 border-t border-border/20">
               {enrichedAt && <>Enriched {new Date(enrichedAt).toLocaleDateString()}</>}
-              {cost != null && <> · ${cost.toFixed(4)}</>}
+              {cost != null && <> · {Math.round(cost * 1000)} credits</>}
             </p>
           )}
         </div>

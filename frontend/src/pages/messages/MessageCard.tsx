@@ -181,7 +181,7 @@ export function MessageCard({ message, selected, onToggleSelect }: MessageCardPr
         {message.tone && <span className="text-xs text-text-dim">{message.tone}</span>}
         {message.language && <span className="text-xs text-text-dim">{message.language}</span>}
         {message.generation_cost != null && (
-          <span className="text-xs text-text-dim ml-auto">${message.generation_cost.toFixed(3)}</span>
+          <span className="text-xs text-text-dim ml-auto">{Math.round(message.generation_cost * 1000)} credits</span>
         )}
       </div>
 

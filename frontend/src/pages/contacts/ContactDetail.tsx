@@ -422,7 +422,7 @@ export function ContactDetail({ contact, onNavigate }: Props) {
           {/* ---- Enrichment Metadata ---- */}
           <div className="border-t border-border/40 pt-4 mt-4">
             <FieldGrid cols={3}>
-              <Field label="Enrichment Cost" value={(e.enrichment_cost_usd ?? contact.enrichment_cost_usd)?.toFixed(4)} />
+              <Field label="Enrichment Cost" value={(e.enrichment_cost_usd ?? contact.enrichment_cost_usd) != null ? `${Math.round((e.enrichment_cost_usd ?? contact.enrichment_cost_usd ?? 0) * 1000)} credits` : undefined} />
               {e.enriched_at && (
                 <Field label="Enriched At" value={new Date(e.enriched_at).toLocaleString()} />
               )}
@@ -490,7 +490,7 @@ export function ContactDetail({ contact, onNavigate }: Props) {
 
         <SectionDivider title="Costs & Quality" />
         <FieldGrid cols={3}>
-          <Field label="Enrichment Cost" value={contact.enrichment_cost_usd?.toFixed(4)} />
+          <Field label="Enrichment Cost" value={contact.enrichment_cost_usd != null ? `${Math.round(contact.enrichment_cost_usd * 1000)} credits` : undefined} />
           <Field label="Contact Score" value={contact.contact_score} />
         </FieldGrid>
 

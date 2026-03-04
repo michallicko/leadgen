@@ -663,7 +663,7 @@ export function MessageReviewQueue({ campaignId, initialFilter, onClose }: Messa
                   </span>
                 )}
                 {msg.generation_cost != null && (
-                  <span className="text-xs text-text-dim ml-auto">${msg.generation_cost.toFixed(3)}</span>
+                  <span className="text-xs text-text-dim ml-auto">{Math.round(msg.generation_cost * 1000)} credits</span>
                 )}
               </div>
 

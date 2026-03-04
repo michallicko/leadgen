@@ -147,7 +147,7 @@ export function CampaignsPage() {
         width: '90px',
         render: (c) => (
           <span className="text-text-muted tabular-nums">
-            {c.generation_cost > 0 ? `$${c.generation_cost.toFixed(2)}` : '-'}
+            {c.generation_cost > 0 ? `${Math.round(c.generation_cost * 1000)} credits` : '-'}
           </span>
         ),
       },

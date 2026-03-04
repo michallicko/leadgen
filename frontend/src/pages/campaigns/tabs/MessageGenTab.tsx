@@ -364,7 +364,7 @@ export function MessageGenTab({ campaign, isEditable }: Props) {
             <div className="flex items-center justify-between px-4 py-3 bg-surface-alt rounded-lg border border-border">
               <span className="text-sm text-text-muted">Estimated cost</span>
               <span className="text-lg font-semibold text-accent-cyan">
-                ${costData.estimated_cost.toFixed(2)}
+                {Math.round(costData.estimated_cost * 1000)} credits
               </span>
             </div>
           </div>
