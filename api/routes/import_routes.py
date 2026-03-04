@@ -80,7 +80,23 @@ def _translate_mapping_to_claude(mapping):
 
     The frontend sends targets like "email", "domain" but apply_mapping()
     expects "contact.email_address", "company.domain", etc.
+    Custom field keys (e.g. "email_secondary") are prefixed to
+    "contact.custom.email_secondary" or "company.custom.email_secondary"
+    based on the CustomFieldDefinition entity_type.
     """
+    from flask import g
+
+    # Build a lookup of known custom field keys → entity_type for the current tenant
+    tenant_id = getattr(g, "tenant_id", None) or resolve_tenant()
+    custom_field_map = {}  # field_key → entity_type
+    if tenant_id:
+        custom_defs = CustomFieldDefinition.query.filter_by(
+            tenant_id=str(tenant_id),
+            is_active=True,
+        ).all()
+        for cfd in custom_defs:
+            custom_field_map[cfd.field_key] = cfd.entity_type
+
     translated = dict(mapping)
     new_mappings = []
     for m in translated.get("mappings", []):
@@ -89,7 +105,14 @@ def _translate_mapping_to_claude(mapping):
         if not target or target.lower() in _SKIP_TARGETS:
             m = dict(m)
             m["target"] = None
-        elif "." not in target and "custom" not in (target or ""):
+        elif "." in target:
+            # Already in dotted format (e.g. "contact.custom.X"), pass through
+            pass
+        elif target in custom_field_map:
+            # Known custom field key — prefix with entity_type.custom.
+            m = dict(m)
+            m["target"] = f"{custom_field_map[target]}.custom.{target}"
+        else:
             m = dict(m)
             m["target"] = FRONTEND_TO_CLAUDE.get(target, target)
         new_mappings.append(m)
@@ -291,12 +314,26 @@ def _build_upload_response(
             }
         )
 
+    # Build a lookup from field_key → source_column using the mapping result.
+    # Claude mapping entries with "contact.custom.X" or "company.custom.X" targets
+    # carry the original CSV header in csv_header.
+    custom_source_map = {}  # field_key → csv_header
+    for m in mapping_result.get("mappings", []):
+        target = m.get("target") or ""
+        parts = target.split(".", 2)
+        if len(parts) == 3 and parts[1] == "custom":
+            custom_source_map[parts[2]] = m.get("csv_header", "")
+
     custom_field_defs = []
     for cdef in custom_defs or []:
-        if isinstance(cdef, dict):
-            custom_field_defs.append(cdef)
-        else:
-            custom_field_defs.append(cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        d = cdef if isinstance(cdef, dict) else (cdef.to_dict() if hasattr(cdef, "to_dict") else {})
+        # Frontend expects display_name (not field_label) and source_column
+        custom_field_defs.append({
+            "field_key": d.get("field_key", ""),
+            "display_name": d.get("field_label", d.get("display_name", d.get("field_key", ""))),
+            "source_column": custom_source_map.get(d.get("field_key", ""), d.get("field_key", "")),
+            "entity_type": d.get("entity_type", "contact"),
+        })
 
     return {
         "job_id": str(job_id),

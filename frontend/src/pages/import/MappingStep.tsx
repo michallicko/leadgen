@@ -187,7 +187,7 @@ export function MappingStep({
                         <optgroup label="Custom Fields">
                           {uploadResponse.custom_field_defs.map((cf) => (
                             <option key={cf.field_key} value={cf.field_key}>
-                              {customLabels[cf.source_column] || cf.display_name}
+                              {customLabels[cf.source_column] || cf.display_name || cf.field_key}
                             </option>
                           ))}
                         </optgroup>
