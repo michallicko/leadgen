@@ -962,6 +962,64 @@ def _save_research_progress(tenant_id, company_id, event):
         # Progress save failure is non-fatal.
 
 
+def trigger_initial_research(tenant_id: str, domain: str) -> None:
+    """Trigger background research for a new tenant space (BL-206 Phase 1).
+
+    Creates or reuses a self-company record and strategy document, then
+    launches lightweight enrichment in a background thread. Safe to call
+    from tenant creation — non-blocking, failures are logged but not raised.
+
+    Must be called inside a Flask app context with an active DB session.
+    """
+    if not domain or not _is_safe_domain(domain):
+        logger.info(
+            "Skipping initial research for tenant %s: domain=%r (invalid/missing)",
+            tenant_id,
+            domain,
+        )
+        return
+
+    domain_parts = domain.split(".")
+    company_name = domain_parts[0].capitalize() if domain_parts else domain
+
+    company = Company.query.filter_by(tenant_id=tenant_id, is_self=True).first()
+    if company:
+        company.domain = domain
+        company.name = company_name
+        company.status = "new"
+    else:
+        company = Company(
+            tenant_id=tenant_id,
+            name=company_name,
+            domain=domain,
+            is_self=True,
+            status="new",
+        )
+        db.session.add(company)
+        db.session.flush()
+
+    doc = _get_or_create_document(tenant_id)
+    doc.enrichment_id = company.id
+    db.session.commit()
+
+    from flask import current_app
+
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_run_self_research,
+        args=(app, company.id, tenant_id),
+        daemon=True,
+        name="initial-research-{}".format(company.id),
+    )
+    t.start()
+    logger.info(
+        "BL-206: Triggered initial research for tenant %s domain=%s company=%s",
+        tenant_id,
+        domain,
+        company.id,
+    )
+
+
 def _run_self_research(
     app, company_id, tenant_id, additional_domains=None, challenge_type=None
 ):
@@ -1435,9 +1493,7 @@ def post_chat_message():
 
     # Detect onboarding trigger prompts — these contain internal instructions
     # that should not be displayed to the user in chat history (BL-208)
-    is_onboarding_trigger = message_text.startswith(
-        "Generate a complete GTM strategy"
-    )
+    is_onboarding_trigger = message_text.startswith("Generate a complete GTM strategy")
 
     # Save the user message before any LLM work
     user_msg = StrategyChatMessage(

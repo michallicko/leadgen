@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import secrets
 
@@ -20,6 +21,8 @@ from ..models import (
     db,
 )
 from ..services.workflow_state import compute_workflow_state
+
+logger = logging.getLogger(__name__)
 
 tenants_bp = Blueprint("tenants", __name__, url_prefix="/api/tenants")
 
@@ -130,6 +133,20 @@ def create_tenant():
             db.session.add(utr)
 
     db.session.commit()
+
+    # BL-206 Phase 1: Auto-trigger background research when a domain is
+    # provided during space creation. Non-blocking, failures logged only.
+    if domain:
+        try:
+            from .playbook_routes import trigger_initial_research
+
+            trigger_initial_research(str(tenant.id), domain)
+        except Exception:
+            logger.warning(
+                "Initial research trigger failed for tenant %s",
+                tenant.id,
+                exc_info=True,
+            )
 
     if temp_password:
         result["temp_password"] = temp_password
@@ -504,14 +521,11 @@ def _detect_workflow_events(tenant_id):
         events["enrichment_running"] = True
 
     # Check for recently completed stage runs (triage, L2, person)
-    recent_stages = (
-        StageRun.query.filter(
-            StageRun.tenant_id == tenant_id,
-            StageRun.status == "completed",
-            StageRun.completed_at >= cutoff,
-        )
-        .all()
-    )
+    recent_stages = StageRun.query.filter(
+        StageRun.tenant_id == tenant_id,
+        StageRun.status == "completed",
+        StageRun.completed_at >= cutoff,
+    ).all()
 
     for stage in recent_stages:
         if stage.stage == "triage":
@@ -631,9 +645,8 @@ def _build_workflow_suggestions(
             )
 
     # Nudge: L2 stage completed (without full pipeline complete)
-    if (
-        events.get("l2_completed_count", 0) > 0
-        and not events.get("enrichment_just_completed")
+    if events.get("l2_completed_count", 0) > 0 and not events.get(
+        "enrichment_just_completed"
     ):
         suggestions.append(
             {
@@ -655,9 +668,8 @@ def _build_workflow_suggestions(
         )
 
     # Nudge: Person enrichment stage completed
-    if (
-        events.get("person_completed_count", 0) > 0
-        and not events.get("enrichment_just_completed")
+    if events.get("person_completed_count", 0) > 0 and not events.get(
+        "enrichment_just_completed"
     ):
         suggestions.append(
             {
@@ -900,6 +912,7 @@ def _build_workflow_suggestions(
 # Phase Transition Detection (BL-170)
 # ---------------------------------------------------------------------------
 
+
 @tenants_bp.route("/phase-transition", methods=["GET"])
 @require_auth
 def get_phase_transition():
@@ -919,12 +932,14 @@ def get_phase_transition():
 
     transition = _detect_phase_transition(current_phase, next_action, context)
 
-    return jsonify({
-        "current_phase": current_phase,
-        "current_phase_label": workflow["current_phase_label"],
-        "progress_pct": workflow["progress_pct"],
-        "transition": transition,
-    })
+    return jsonify(
+        {
+            "current_phase": current_phase,
+            "current_phase_label": workflow["current_phase_label"],
+            "progress_pct": workflow["progress_pct"],
+            "transition": transition,
+        }
+    )
 
 
 def _detect_phase_transition(current_phase, next_action, context):
@@ -971,25 +986,19 @@ def _detect_phase_transition(current_phase, next_action, context):
             "cta_path": "/playbook/messages",
         },
         "messages_generated": {
-            "check": lambda ctx: (
-                ctx.get("messages", {}).get("total", 0) > 0
-            ),
+            "check": lambda ctx: ctx.get("messages", {}).get("total", 0) > 0,
             "message": "Messages generated. Review and approve them.",
             "cta_label": "Review Messages",
             "cta_path": "/messages",
         },
         "messages_approved": {
-            "check": lambda ctx: (
-                ctx.get("messages", {}).get("approved", 0) > 0
-            ),
+            "check": lambda ctx: ctx.get("messages", {}).get("approved", 0) > 0,
             "message": "Messages approved and ready for campaign.",
             "cta_label": "Create Campaign",
             "cta_path": "/campaigns",
         },
         "campaign_created": {
-            "check": lambda ctx: (
-                ctx.get("campaign", {}).get("exists", False)
-            ),
+            "check": lambda ctx: ctx.get("campaign", {}).get("exists", False),
             "message": "Campaign created. Ready to launch.",
             "cta_label": "Launch Campaign",
             "cta_path": "/campaigns",
@@ -1006,7 +1015,11 @@ def _detect_phase_transition(current_phase, next_action, context):
     # Find next phase
     try:
         phase_idx = WORKFLOW_PHASES.index(current_phase)
-        next_phase = WORKFLOW_PHASES[phase_idx + 1] if phase_idx + 1 < len(WORKFLOW_PHASES) else None
+        next_phase = (
+            WORKFLOW_PHASES[phase_idx + 1]
+            if phase_idx + 1 < len(WORKFLOW_PHASES)
+            else None
+        )
     except (ValueError, IndexError):
         next_phase = None
 
