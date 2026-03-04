@@ -276,6 +276,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               queryClient.invalidateQueries({ queryKey: ['workflow-status'] })
               queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
               queryClient.invalidateQueries({ queryKey: ['phase-transition'] })
+
+              // BL-241: Refresh structured data tabs when AI writes tiers or personas
+              const hasPersonaEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_buyer_personas' && tc.status === 'success',
+              )
+              const hasTierEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_icp_tiers' && tc.status === 'success',
+              )
+              if (hasPersonaEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'personas'] })
+              }
+              if (hasTierEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'tiers'] })
+              }
             }
           },
           onError: () => {
