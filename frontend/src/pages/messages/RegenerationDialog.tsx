@@ -129,7 +129,7 @@ export function RegenerationDialog({
               <span className="text-xs text-text-dim">Estimating cost...</span>
             ) : estimate ? (
               <div className="text-xs text-text-muted space-y-1">
-                <div>Estimated cost: <span className="text-text font-medium">~${estimate.estimated_cost.toFixed(4)}</span></div>
+                <div>Estimated cost: <span className="text-text font-medium">~{Math.round(estimate.estimated_cost * 1000)} credits</span></div>
                 <div>{estimate.input_tokens} input + {estimate.output_tokens} output tokens</div>
                 <div>Model: {estimate.model}</div>
               </div>

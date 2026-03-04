@@ -516,7 +516,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
               <Field label="Confidence" value={company.enrichment_l1.confidence?.toFixed(2)} />
               <Field label="Quality Score" value={company.enrichment_l1.quality_score} />
               <Field label="Pre Score" value={company.enrichment_l1.pre_score?.toFixed(1)} />
-              <Field label="Cost (USD)" value={company.enrichment_l1.enrichment_cost_usd?.toFixed(4)} />
+              <Field label="Enrichment Cost" value={company.enrichment_l1.enrichment_cost_usd != null ? `${Math.round(company.enrichment_l1.enrichment_cost_usd * 1000)} credits` : undefined} />
               <Field label="Enriched At" value={company.enrichment_l1.enriched_at ? new Date(company.enrichment_l1.enriched_at).toLocaleString() : null} />
             </FieldGrid>
             {company.enrichment_l1.qc_flags && company.enrichment_l1.qc_flags.length > 0 && (
@@ -544,7 +544,7 @@ export function CompanyDetail({ company, onNavigate }: Props) {
         {/* Enrichment Costs */}
         <SectionDivider title="Costs & Quality" />
         <FieldGrid cols={3}>
-          <Field label="Total Enrichment Cost" value={company.enrichment_cost_usd?.toFixed(4)} />
+          <Field label="Total Enrichment Cost" value={company.enrichment_cost_usd != null ? `${Math.round(company.enrichment_cost_usd * 1000)} credits` : undefined} />
           <Field label="Data Quality Score" value={company.data_quality_score} />
           <Field label="AI Adoption" value={company.ai_adoption} />
           <Field label="News Confidence" value={company.news_confidence} />

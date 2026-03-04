@@ -16,15 +16,36 @@ export interface DerivedStage {
   color: string
 }
 
-const STAGE_ORDER = ['l1', 'triage', 'l2', 'person', 'generate', 'review'] as const
+const STAGE_ORDER = [
+  'l1',
+  'triage',
+  'signals',
+  'registry',
+  'news',
+  'l2',
+  'person',
+  'social',
+  'career',
+  'contact_details',
+  'generate',
+  'review',
+  'qc',
+] as const
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-  l1: { label: 'Classified', color: '#6366f1' },        // indigo
-  triage: { label: 'Qualified', color: '#8b5cf6' },      // violet
-  l2: { label: 'Researched', color: '#06b6d4' },          // cyan
-  person: { label: 'Contacts Ready', color: '#14b8a6' },  // teal
+  l1: { label: 'Classified', color: '#6366f1' },              // indigo
+  triage: { label: 'Qualified', color: '#8b5cf6' },            // violet
+  signals: { label: 'Strategic Signals', color: '#a855f7' },   // purple
+  registry: { label: 'Legal & Registry', color: '#7c3aed' },   // violet-dark
+  news: { label: 'News & PR', color: '#2563eb' },              // blue
+  l2: { label: 'Researched', color: '#06b6d4' },               // cyan
+  person: { label: 'Contacts Ready', color: '#14b8a6' },       // teal
+  social: { label: 'Social & Online', color: '#0d9488' },      // teal-dark
+  career: { label: 'Career History', color: '#059669' },        // emerald
+  contact_details: { label: 'Contact Details', color: '#10b981' }, // green-light
   generate: { label: 'Messages Generated', color: '#f59e0b' }, // amber
   review: { label: 'Ready for Outreach', color: '#22c55e' },   // green
+  qc: { label: 'Quality Checked', color: '#16a34a' },          // green-dark
 }
 
 /**

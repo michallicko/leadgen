@@ -270,7 +270,7 @@ export function CampaignDetailPage() {
           <FieldGrid>
             <Field label="Contacts" value={campaign.total_contacts} />
             <Field label="Generated" value={`${campaign.generated_count}/${campaign.total_contacts}`} />
-            <Field label="Cost" value={campaign.generation_cost > 0 ? `$${campaign.generation_cost.toFixed(2)}` : '-'} />
+            <Field label="Cost" value={campaign.generation_cost > 0 ? `${Math.round(campaign.generation_cost * 1000)} credits` : '-'} />
             <Field label="Owner" value={campaign.owner_name} />
           </FieldGrid>
         </div>

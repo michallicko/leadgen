@@ -17,9 +17,9 @@ interface CompletionPanelProps {
 }
 
 function fmtCost(v: number): string {
-  if (v === 0) return '$0.00'
-  if (v < 0.01) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(2)}`
+  const credits = Math.round(v * 1000)
+  if (credits === 0) return '0 credits'
+  return `${credits} credits`
 }
 
 export function CompletionPanel({ stageProgress, totalCost, onReset }: CompletionPanelProps) {

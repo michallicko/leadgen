@@ -55,7 +55,7 @@ export function EnrichmentTimeline({ entries }: EnrichmentTimelineProps) {
               <div className="text-xs text-text-muted">
                 {new Date(entry.timestamp!).toLocaleString()}
                 {entry.cost != null && (
-                  <span className="ml-2 text-text-dim">${entry.cost.toFixed(4)}</span>
+                  <span className="ml-2 text-text-dim">{Math.round(entry.cost * 1000)} credits</span>
                 )}
               </div>
               {entry.error && (

@@ -43,7 +43,7 @@ export function SourceTooltip({ source }: SourceTooltipProps) {
             </div>
           )}
           {source.cost != null && (
-            <div className="text-text-dim">Cost: ${source.cost.toFixed(4)}</div>
+            <div className="text-text-dim">Cost: {Math.round(source.cost * 1000)} credits</div>
           )}
         </div>
       )}

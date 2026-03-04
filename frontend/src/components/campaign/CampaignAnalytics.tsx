@@ -4,7 +4,7 @@ import { useCampaignAnalytics, type CampaignAnalyticsData } from '../../api/quer
 
 function formatCost(usd: number): string {
   if (usd === 0) return '-'
-  return `$${usd.toFixed(2)}`
+  return `${Math.round(usd * 1000)} credits`
 }
 
 function pct(num: number, den: number): number {
