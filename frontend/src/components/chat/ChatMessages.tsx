@@ -190,6 +190,21 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   // Don't render system messages (thread boundaries)
   if (message.role === 'system') return null
 
+  // BL-208: Hidden messages (e.g. onboarding trigger prompts) show a
+  // condensed placeholder instead of the full internal instructions
+  if (message.extra?.hidden) {
+    return (
+      <div className="flex gap-3 flex-row-reverse">
+        <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent/20 text-accent-hover">
+          <UserIcon />
+        </div>
+        <div className="text-xs text-text-muted italic py-2">
+          Strategy generation started...
+        </div>
+      </div>
+    )
+  }
+
   // AC-6: Render persisted tool calls from message metadata
   const persistedToolCalls = !isUser ? getPersistedToolCalls(message) : null
 

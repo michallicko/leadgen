@@ -1433,6 +1433,12 @@ def post_chat_message():
     tenant = db.session.get(Tenant, tenant_id)
     user_id = getattr(request, "user_id", None)
 
+    # Detect onboarding trigger prompts — these contain internal instructions
+    # that should not be displayed to the user in chat history (BL-208)
+    is_onboarding_trigger = message_text.startswith(
+        "Generate a complete GTM strategy"
+    )
+
     # Save the user message before any LLM work
     user_msg = StrategyChatMessage(
         tenant_id=tenant_id,
@@ -1441,6 +1447,7 @@ def post_chat_message():
         content=message_text,
         page_context=page_context,
         created_by=user_id,
+        extra={"hidden": True} if is_onboarding_trigger else None,
     )
     db.session.add(user_msg)
     db.session.flush()
