@@ -85,8 +85,10 @@ class TestNormalizeEnum:
     def test_unknown_field(self):
         assert normalize_enum("nonexistent", "anything") == "anything"
 
-    def test_unknown_value_passthrough(self):
-        assert normalize_enum("seniority_level", "Unknown Role") == "Unknown Role"
+    def test_unknown_value_falls_back_to_other(self):
+        # Unknown values now map to 'other' (or None if 'other' not in enum)
+        # instead of passing through, to prevent PostgreSQL enum INSERT failures
+        assert normalize_enum("seniority_level", "Unknown Role") == "other"
 
     def test_empty(self):
         assert normalize_enum("seniority_level", "") == ""
@@ -94,6 +96,103 @@ class TestNormalizeEnum:
 
     def test_whitespace_stripping(self):
         assert normalize_enum("seniority_level", "  VP  ") == "vp"
+
+
+class TestSanitizeEnumValue:
+    """Tests for sanitize_enum_value — the core enum validation function."""
+
+    def test_exact_match(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "event") == "event"
+
+    def test_case_insensitive(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "Event") == "event"
+
+    def test_hyphen_to_underscore(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("company_size", "mid-market") == "mid_market"
+
+    def test_substring_match_event_in_text(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "Event Fest 2025", cf)
+        assert result == "event"
+        assert cf["original_contact_source"] == "Event Fest 2025"
+
+    def test_substring_match_social_in_text(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "Social Media Campaign", cf)
+        assert result == "social"
+        assert cf["original_contact_source"] == "Social Media Campaign"
+
+    def test_alias_lookup(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("seniority_level", "Vice President") == "vp"
+
+    def test_no_match_falls_back_to_other(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        cf = {}
+        result = sanitize_enum_value("contact_source", "xyz_unknown_123", cf)
+        assert result == "other"
+        assert cf["original_contact_source"] == "xyz_unknown_123"
+
+    def test_no_match_no_other_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        # language enum has no 'other' value
+        cf = {}
+        result = sanitize_enum_value("language", "Klingon", cf)
+        assert result is None
+        assert cf["original_language"] == "Klingon"
+
+    def test_none_value_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", None) is None
+
+    def test_empty_value_returns_none(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("contact_source", "") is None
+
+    def test_non_enum_field_passes_through(self):
+        from api.services.csv_mapper import sanitize_enum_value
+
+        assert sanitize_enum_value("first_name", "John") == "John"
+
+    def test_apply_mapping_sanitizes_contact_source(self):
+        """Integration: apply_mapping should sanitize enum fields."""
+        row = {"Source": "Event Fest 2025", "First": "Jane"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Source", "target": "contact.contact_source"},
+                {"csv_header": "First", "target": "contact.first_name"},
+            ]
+        }
+        result = apply_mapping(row, mapping)
+        assert result["contact"]["contact_source"] == "event"
+        assert result["contact"]["_custom_fields"]["original_contact_source"] == "Event Fest 2025"
+
+    def test_apply_mapping_sanitizes_company_enum(self):
+        """Integration: apply_mapping should sanitize company enum fields."""
+        row = {"Model": "Non-Profit Organization", "Name": "Acme"}
+        mapping = {
+            "mappings": [
+                {"csv_header": "Model", "target": "company.business_model"},
+                {"csv_header": "Name", "target": "company.name"},
+            ]
+        }
+        result = apply_mapping(row, mapping)
+        assert result["company"]["business_model"] == "non_profit"
 
 
 class TestBuildMappingPrompt:
