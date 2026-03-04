@@ -164,7 +164,32 @@ def update_playbook():
         doc.playbook_selections = existing
 
     db.session.commit()
-    return jsonify(doc.to_dict()), 200
+
+    result = doc.to_dict()
+
+    # BL-201: Flag when content has ICP-related prose but no structured tiers/personas
+    if content is not None and content.strip():
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            try:
+                extracted = json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        content_lower = content.lower()
+        has_icp_prose = any(
+            term in content_lower
+            for term in ("ideal customer", "icp", "target market", "tier")
+        )
+        has_persona_prose = any(
+            term in content_lower
+            for term in ("buyer persona", "persona", "decision maker", "target role")
+        )
+        result["needs_tier_extraction"] = has_icp_prose and not extracted.get("tiers")
+        result["needs_persona_extraction"] = has_persona_prose and not extracted.get(
+            "personas"
+        )
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook/undo", methods=["POST"])

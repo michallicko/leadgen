@@ -27,7 +27,6 @@ import { BuyerPersonasTab } from '../../components/playbook/BuyerPersonasTab'
 import {
   usePlaybookDocument,
   useSavePlaybook,
-  useExtractStrategy,
   useAdvancePhase,
   useUndoAIEdit,
   useTriggerResearch,
@@ -55,14 +54,7 @@ function isValidPhase(phase: string | undefined): phase is PhaseKey {
 // Icons
 // ---------------------------------------------------------------------------
 
-function ExtractIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2v8M5 7l3 3 3-3" />
-      <path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" />
-    </svg>
-  )
-}
+// BL-201: ExtractIcon removed — Extract ICP button no longer exists
 
 function UndoIcon() {
   return (
@@ -98,7 +90,7 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
-  strategy: { label: 'Analyze Market', pendingLabel: 'Analyzing...' },
+  // BL-201: Extract ICP removed — extraction is now continuous via AI tools
   contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
   messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
   campaign: { label: 'Launch Campaign', pendingLabel: 'Launching...' },
@@ -135,7 +127,7 @@ export function PlaybookPage() {
   // Server state
   const docQuery = usePlaybookDocument()
   const saveMutation = useSavePlaybook()
-  const extractMutation = useExtractStrategy()
+  // BL-201: extractMutation removed — extraction is now continuous
   const advancePhaseMutation = useAdvancePhase()
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
@@ -166,8 +158,7 @@ export function PlaybookPage() {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
-  const [extractionResult, setExtractionResult] = useState<Record<string, unknown> | null>(null)
-  const [triageSynced, setTriageSynced] = useState(false)
+  // BL-201: extractionResult state removed — extraction is now continuous
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -419,47 +410,7 @@ export function PlaybookPage() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [performSave])
 
-  // ---------------------------------------------------------------------------
-  // Extract handler
-  // ---------------------------------------------------------------------------
-
-  const handleExtract = useCallback(async () => {
-    try {
-      const result = await extractMutation.mutateAsync()
-      const extractedData = (result as Record<string, unknown>)?.extracted_data as Record<string, unknown> | undefined
-      const synced = !!(result as Record<string, unknown>)?.triage_synced
-
-      if (extractedData) {
-        setExtractionResult(extractedData)
-        setTriageSynced(synced)
-        toast('Market analysis extracted successfully', 'success')
-      } else {
-        toast('Strategy data extracted but no structured data found. Try adding more detail to your strategy.', 'info')
-      }
-    } catch {
-      toast('Extraction failed. Please try again.', 'error')
-    }
-  }, [extractMutation, toast])
-
-  const handleExtractionConfirm = useCallback(async () => {
-    setExtractionResult(null)
-    const hasIcp = extractionResult?.icp && typeof extractionResult.icp === 'object' && Object.keys(extractionResult.icp as object).length > 0
-    if (hasIcp) {
-      try {
-        await advancePhaseMutation.mutateAsync({ phase: 'contacts' })
-        toast('Moving to Contacts phase...', 'success')
-        handlePhaseNavigate('contacts')
-      } catch {
-        toast('ICP extracted successfully', 'success')
-      }
-    } else {
-      toast('Data extracted. Add ICP details to your strategy to unlock contact filtering.', 'info')
-    }
-  }, [extractionResult, advancePhaseMutation, toast, handlePhaseNavigate])
-
-  const handleExtractionDismiss = useCallback(() => {
-    setExtractionResult(null)
-  }, [])
+  // BL-201: Extract handler removed — extraction is now continuous via AI tools
 
   // ---------------------------------------------------------------------------
   // Undo AI edit handler
@@ -671,7 +622,7 @@ export function PlaybookPage() {
   // Render
   // ---------------------------------------------------------------------------
 
-  const phaseAction = PHASE_ACTIONS[viewPhase] || PHASE_ACTIONS.strategy
+  // BL-201: phaseAction variable removed — Extract ICP button is gone
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -727,18 +678,7 @@ export function PlaybookPage() {
             </button>
           )}
 
-          {/* Phase-specific action button (strategy only -- other phases have panel-level actions) */}
-          {viewPhase === 'strategy' && activeStrategyTab === 'strategy' && (
-            <button
-              onClick={handleExtract}
-              disabled={extractMutation.isPending || saveStatus === 'saving'}
-              title={saveStatus === 'saving' ? 'Waiting for save...' : 'Extract structured data from strategy'}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-transparent border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/10"
-            >
-              <ExtractIcon />
-              {extractMutation.isPending ? phaseAction.pendingLabel : phaseAction.label}
-            </button>
-          )}
+          {/* BL-201: Extract ICP button removed — extraction is now continuous */}
         </div>
       </div>
 
@@ -844,15 +784,7 @@ export function PlaybookPage() {
         </div>
       )}
 
-      {/* Extraction summary side panel */}
-      {extractionResult && (
-        <ExtractionSidePanel
-          data={extractionResult}
-          triageSynced={triageSynced}
-          onConfirm={handleExtractionConfirm}
-          onDismiss={handleExtractionDismiss}
-        />
-      )}
+      {/* BL-201: Extraction side panel removed — extraction is now continuous */}
 
       {/* Split layout */}
       <div className="flex gap-4 flex-1 min-h-0">
@@ -914,247 +846,8 @@ export function PlaybookPage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Extraction Side Panel
-// ---------------------------------------------------------------------------
+// BL-201: ExtractionSidePanel removed — extraction is now continuous via AI tools
 
-interface ExtractionSidePanelProps {
-  data: Record<string, unknown>
-  triageSynced?: boolean
-  onConfirm: () => void
-  onDismiss: () => void
-}
-
-function ExtractionSidePanel({ data, triageSynced, onConfirm, onDismiss }: ExtractionSidePanelProps) {
-  const icp = data.icp as Record<string, unknown> | undefined
-  const personas = data.personas as Array<Record<string, unknown>> | undefined
-  const messaging = data.messaging as Record<string, unknown> | undefined
-  const channels = data.channels as Record<string, unknown> | undefined
-
-  const industries = (icp?.industries as string[]) ?? []
-  const geographies = (icp?.geographies as string[]) ?? []
-  const techSignals = (icp?.tech_signals as string[]) ?? []
-  const triggers = (icp?.triggers as string[]) ?? []
-  const disqualifiers = (icp?.disqualifiers as string[]) ?? []
-  const companySize = icp?.company_size as { min?: number; max?: number } | undefined
-
-  const titlePatterns = personas?.flatMap((p) => (p.title_patterns as string[]) ?? []) ?? []
-  const themes = (messaging?.themes as string[]) ?? []
-  const primaryChannel = (channels?.primary as string) ?? ''
-
-  const hasIcp = industries.length > 0 || geographies.length > 0 || titlePatterns.length > 0
-
-  // Slide-in animation state
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true))
-  }, [])
-
-  // Auto-advance countdown when ICP data is present
-  const [countdown, setCountdown] = useState(hasIcp ? 5 : 0)
-
-  useEffect(() => {
-    if (!hasIcp) return
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [hasIcp])
-
-  // Trigger onConfirm when countdown reaches 0
-  const onConfirmRef = useRef(onConfirm)
-  useEffect(() => {
-    onConfirmRef.current = onConfirm
-  }, [onConfirm])
-  useEffect(() => {
-    if (hasIcp && countdown === 0) {
-      onConfirmRef.current()
-    }
-  }, [hasIcp, countdown])
-
-  // Cancel countdown when user interacts
-  const cancelCountdown = useCallback(() => {
-    setCountdown(-1) // -1 = cancelled, won't trigger auto-advance
-  }, [])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end"
-      onClick={(e) => { if (e.target === e.currentTarget) { cancelCountdown(); onDismiss() } }}
-    >
-      {/* Translucent backdrop -- lets strategy peek through */}
-      <div className="absolute inset-0 bg-black/20" />
-
-      {/* Side panel */}
-      <div
-        className={`relative w-full max-w-md h-full bg-surface border-l border-accent-cyan/30 shadow-xl shadow-black/20 flex flex-col transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}
-      >
-        {/* Header -- cyan accent for AI action */}
-        <div className="px-5 pt-5 pb-3 flex items-center gap-3 border-b border-accent-cyan/20">
-          <div className="w-8 h-8 rounded-lg bg-accent-cyan/10 flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="text-accent-cyan">
-              <path d="M4 9l3.5 3.5 6.5-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-text">Extraction Complete</h3>
-            <p className="text-xs text-text-muted">
-              {hasIcp
-                ? 'Your ICP criteria have been extracted from the strategy.'
-                : 'Basic data extracted. Add ICP details for better contact filtering.'}
-            </p>
-          </div>
-          <button
-            onClick={() => { cancelCountdown(); onDismiss() }}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer border-0"
-            title="Close"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M3 3l8 8M11 3l-8 8" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Scrollable content */}
-        <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
-          {/* ICP section */}
-          {(industries.length > 0 || geographies.length > 0) && (
-            <ExtractionSection title="Target Market">
-              {industries.length > 0 && (
-                <ExtractionPills label="Industries" values={industries} />
-              )}
-              {geographies.length > 0 && (
-                <ExtractionPills label="Geographies" values={geographies} />
-              )}
-              {companySize && (companySize.min || companySize.max) ? (
-                <ExtractionPills
-                  label="Company Size"
-                  values={[`${companySize.min || 0} - ${companySize.max || '1000+'} employees`]}
-                />
-              ) : null}
-            </ExtractionSection>
-          )}
-
-          {/* Personas section */}
-          {titlePatterns.length > 0 && (
-            <ExtractionSection title="Target Roles">
-              <ExtractionPills label="Job Titles" values={titlePatterns} />
-            </ExtractionSection>
-          )}
-
-          {/* Signals section */}
-          {(techSignals.length > 0 || triggers.length > 0 || disqualifiers.length > 0) && (
-            <ExtractionSection title="Signals">
-              {techSignals.length > 0 && (
-                <ExtractionPills label="Tech Signals" values={techSignals} />
-              )}
-              {triggers.length > 0 && (
-                <ExtractionPills label="Triggers" values={triggers} />
-              )}
-              {disqualifiers.length > 0 && (
-                <ExtractionPills label="Disqualifiers" values={disqualifiers} variant="error" />
-              )}
-            </ExtractionSection>
-          )}
-
-          {/* Messaging section */}
-          {(themes.length > 0 || primaryChannel) && (
-            <ExtractionSection title="Messaging">
-              {themes.length > 0 && (
-                <ExtractionPills label="Themes" values={themes} />
-              )}
-              {primaryChannel && (
-                <ExtractionPills label="Primary Channel" values={[primaryChannel]} />
-              )}
-            </ExtractionSection>
-          )}
-
-          {/* Triage sync notice */}
-          {triageSynced && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-cyan/5 border border-accent-cyan/20">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-accent-cyan flex-shrink-0">
-                <path d="M7 1a6 6 0 100 12 6 6 0 000-12zM4.5 7l2 2 3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="text-xs text-accent-cyan">
-                Enrichment triage rules updated from your ICP criteria
-              </span>
-            </div>
-          )}
-
-          {/* Empty state if nothing meaningful extracted */}
-          {!hasIcp && themes.length === 0 && techSignals.length === 0 && (
-            <div className="text-center py-4">
-              <p className="text-sm text-text-muted">
-                No structured criteria could be extracted. Try adding more specific ICP details to your strategy document.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-border flex flex-col gap-3">
-          <button
-            onClick={() => { cancelCountdown(); onConfirm() }}
-            className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-accent-cyan text-white hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            {hasIcp ? 'Confirm & Continue' : 'OK'}
-            {hasIcp && (
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 7h8M8 3l3 4-3 4" />
-              </svg>
-            )}
-          </button>
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => { cancelCountdown(); onDismiss() }}
-              className="px-3 py-1.5 text-xs font-medium rounded-md text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer border-0"
-            >
-              Stay on Strategy
-            </button>
-            {hasIcp && countdown > 0 && (
-              <span className="text-xs text-text-dim">
-                Advancing in {countdown}s...
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ExtractionSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h4 className="text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">{title}</h4>
-      <div className="space-y-2">{children}</div>
-    </div>
-  )
-}
-
-function ExtractionPills({ label, values, variant }: { label: string; values: string[]; variant?: 'error' }) {
-  const pillColor = variant === 'error'
-    ? 'bg-error/10 border-error/20 text-error'
-    : 'bg-accent-cyan/8 border-accent-cyan/20 text-text'
-  return (
-    <div>
-      <span className="text-xs text-text-muted mb-1 block">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {values.map((v, i) => (
-          <span
-            key={i}
-            className={`inline-flex px-2.5 py-1 text-xs rounded-full border ${pillColor}`}
-          >
-            {v}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
+// BL-201: ExtractionSidePanel, ExtractionSection, and ExtractionPills removed.
+// ICP extraction is now continuous via AI tools (set_icp_tiers, set_buyer_personas)
+// and structured data is displayed in the dedicated ICP Tiers and Buyer Personas tabs.
