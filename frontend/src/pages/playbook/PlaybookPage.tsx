@@ -165,20 +165,8 @@ export function PlaybookPage() {
     }
   }, [docQuery.data])
 
-  // Poll for content when document has enrichment_id but empty content
-  // (race condition: research completed before template was seeded)
-  const docRefetch = docQuery.refetch
-  useEffect(() => {
-    if (!docQuery.data) return
-    const hasEnrichment = !!docQuery.data.enrichment_id
-    const hasContent = !!(docQuery.data.content && docQuery.data.content.trim().length > 0)
-    if (hasEnrichment && !hasContent && !isDirty) {
-      const interval = setInterval(() => {
-        docRefetch()
-      }, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [docQuery.data, isDirty, docRefetch])
+  // No polling needed for template seeding — the document starts blank
+  // and is populated incrementally by AI via section_update SSE events.
 
   // ---------------------------------------------------------------------------
   // Auto-refresh when research completes or fails
@@ -581,7 +569,7 @@ export function PlaybookPage() {
   // BL-201: phaseAction variable removed — Extract ICP button is gone
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center gap-3 mb-2 flex-shrink-0">
         <h1 className="font-title text-[1.3rem] font-semibold tracking-tight">
@@ -679,7 +667,7 @@ export function PlaybookPage() {
       {/* BL-201: Extraction side panel removed — extraction is now continuous */}
 
       {/* Split layout */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Left: Phase-specific panel OR onboarding box */}
         <div className="flex-[3] min-w-0 flex flex-col min-h-0">
           {needsOnboarding && showTemplateSelector ? (

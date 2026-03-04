@@ -52,7 +52,7 @@ export function PlaybookChat({
   return (
     <div className="flex flex-col h-full bg-surface rounded-lg border border-border-solid overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-solid bg-surface">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-solid bg-surface flex-shrink-0">
         <div className="w-2 h-2 rounded-full bg-accent-cyan" />
         <h3 className="text-sm font-semibold font-title text-text">AI Chat</h3>
         {isStreaming && (
@@ -81,7 +81,7 @@ export function PlaybookChat({
 
       {/* Suggestion chips */}
       {suggestions.length > 0 && !isStreaming && (
-        <div className="px-3 pt-2 flex flex-wrap gap-2">
+        <div className="px-3 pt-2 flex flex-wrap gap-2 flex-shrink-0">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion}
