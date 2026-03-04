@@ -162,7 +162,7 @@ function ResultsTable({ jobId, filter }: { jobId: string; filter: FilterKey }) {
 export function ImportSuccess({ response, jobId, onReset, returnTo }: ImportSuccessProps) {
   const navigate = useNavigate()
   const { namespace } = useParams<{ namespace: string }>()
-  const { contacts_created, contacts_skipped, contacts_updated, total_conflicts } = response.summary
+  const { contacts_created, contacts_skipped, contacts_updated, total_conflicts = 0 } = response.counts
 
   const tabs = useMemo(() => [
     {

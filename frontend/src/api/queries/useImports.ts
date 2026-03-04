@@ -53,13 +53,17 @@ interface ImportResultItem {
 }
 
 interface ImportResponse {
-  summary: {
+  job_id: string
+  status: string
+  tag_name: string
+  counts: {
     contacts_created: number
     contacts_skipped: number
     contacts_updated: number
-    total_conflicts: number
+    companies_created: number
+    companies_linked: number
+    total_conflicts?: number
   }
-  results: ImportResultItem[]
 }
 
 interface ImportResultsResponse {
