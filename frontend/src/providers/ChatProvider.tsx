@@ -28,7 +28,7 @@ import { resolveApiBase, buildHeaders } from '../api/client'
 import { getAccessToken } from '../lib/auth'
 import type { ChatMessage } from '../components/chat/ChatMessages'
 import type { ToolCallEvent } from '../components/playbook/ToolCallCard'
-import { getToolStatusText } from '../components/playbook/ThinkingIndicator'
+import { getToolStatusText } from '../lib/toolStatus'
 
 // ---------------------------------------------------------------------------
 // Types

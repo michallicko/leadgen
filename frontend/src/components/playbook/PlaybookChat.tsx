@@ -44,7 +44,6 @@ export function PlaybookChat({
   isStreaming,
   streamingText,
   placeholder = 'Ask about your strategy...',
-  activeToolName = null,
   isLoading = false,
   inputRef,
   toolCalls = [],
