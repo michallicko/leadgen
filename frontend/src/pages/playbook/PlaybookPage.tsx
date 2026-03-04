@@ -22,6 +22,8 @@ import { PhasePanel } from '../../components/playbook/PhasePanel'
 import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
 import { TemplateSelector } from '../../components/playbook/TemplateSelector'
+import { IcpTiersTab } from '../../components/playbook/IcpTiersTab'
+import { BuyerPersonasTab } from '../../components/playbook/BuyerPersonasTab'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -146,6 +148,9 @@ export function PlaybookPage() {
     },
   })
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
+
+  // Strategy sub-tab state (BL-198, BL-199)
+  const [activeStrategyTab, setActiveStrategyTab] = useState<'strategy' | 'tiers' | 'personas'>('strategy')
 
   // Local state
   const [editedContent, setEditedContent] = useState<string | null>(null)
@@ -723,7 +728,7 @@ export function PlaybookPage() {
           )}
 
           {/* Phase-specific action button (strategy only -- other phases have panel-level actions) */}
-          {viewPhase === 'strategy' && (
+          {viewPhase === 'strategy' && activeStrategyTab === 'strategy' && (
             <button
               onClick={handleExtract}
               disabled={extractMutation.isPending || saveStatus === 'saving'}
@@ -736,6 +741,29 @@ export function PlaybookPage() {
           )}
         </div>
       </div>
+
+      {/* Strategy sub-tabs (BL-198, BL-199) -- only in strategy phase */}
+      {viewPhase === 'strategy' && !needsOnboarding && (
+        <div className="flex items-center gap-1 mb-2 flex-shrink-0 border-b border-border">
+          {([
+            { key: 'strategy' as const, label: 'Strategy Document' },
+            { key: 'tiers' as const, label: 'ICP Tiers' },
+            { key: 'personas' as const, label: 'Buyer Personas' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveStrategyTab(key)}
+              className={`px-3 py-2 text-xs font-medium transition-colors bg-transparent cursor-pointer border-0 border-b-2 -mb-px ${
+                activeStrategyTab === key
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-text-muted hover:text-text hover:border-border-solid'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Undo confirmation dialog */}
       {showUndoConfirm && (
@@ -847,6 +875,10 @@ export function PlaybookPage() {
                 onBrowseTemplates={() => setShowTemplateSelector(true)}
               />
             </div>
+          ) : viewPhase === 'strategy' && activeStrategyTab === 'tiers' ? (
+            <IcpTiersTab />
+          ) : viewPhase === 'strategy' && activeStrategyTab === 'personas' ? (
+            <BuyerPersonasTab />
           ) : (
             <PhasePanel
               phase={viewPhase}

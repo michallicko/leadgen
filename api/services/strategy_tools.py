@@ -559,6 +559,74 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
     }
 
 
+def set_icp_tiers(args: dict, ctx: ToolContext) -> dict:
+    """Handler for set_icp_tiers tool.
+
+    Replaces the entire tiers array in extracted_data.tiers with the
+    provided list of tier objects.  Creates a version snapshot before
+    editing.
+    """
+    tiers = args.get("tiers", [])
+    if not isinstance(tiers, list):
+        return {"error": "tiers must be an array"}
+
+    doc = StrategyDocument.query.filter_by(tenant_id=ctx.tenant_id).first()
+    if not doc:
+        return {"error": "No strategy document found"}
+
+    _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
+
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        extracted = json.loads(extracted)
+
+    extracted["tiers"] = tiers
+    doc.extracted_data = extracted
+    doc.version += 1
+    doc.updated_by = ctx.user_id
+    db.session.commit()
+
+    return {
+        "success": True,
+        "tier_count": len(tiers),
+        "version": doc.version,
+    }
+
+
+def set_buyer_personas(args: dict, ctx: ToolContext) -> dict:
+    """Handler for set_buyer_personas tool.
+
+    Replaces the entire personas array in extracted_data.personas with the
+    provided list of persona objects.  Creates a version snapshot before
+    editing.
+    """
+    personas = args.get("personas", [])
+    if not isinstance(personas, list):
+        return {"error": "personas must be an array"}
+
+    doc = StrategyDocument.query.filter_by(tenant_id=ctx.tenant_id).first()
+    if not doc:
+        return {"error": "No strategy document found"}
+
+    _snapshot(doc, turn_id=getattr(ctx, "turn_id", None))
+
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        extracted = json.loads(extracted)
+
+    extracted["personas"] = personas
+    doc.extracted_data = extracted
+    doc.version += 1
+    doc.updated_by = ctx.user_id
+    db.session.commit()
+
+    return {
+        "success": True,
+        "persona_count": len(personas),
+        "version": doc.version,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Tool definitions for registry
 # ---------------------------------------------------------------------------
@@ -741,5 +809,131 @@ STRATEGY_TOOLS = [
             "required": [],
         },
         handler=check_readiness,
+    ),
+    ToolDefinition(
+        name="set_icp_tiers",
+        description=(
+            "Set the structured ICP tier definitions. Replaces the entire "
+            "tiers array in the strategy's extracted data. Each tier should "
+            "have: name (string), description (string), priority (integer, "
+            "1=highest), and criteria (object with fields: industries, "
+            "company_size_min, company_size_max, revenue_min, revenue_max, "
+            "geographies, tech_signals, qualifying_signals). Use this to "
+            "create or update tier definitions based on strategy analysis."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "tiers": {
+                    "type": "array",
+                    "description": (
+                        "Array of tier objects. Each tier: {name, description, "
+                        "priority, criteria: {industries, company_size_min, "
+                        "company_size_max, revenue_min, revenue_max, "
+                        "geographies, tech_signals, qualifying_signals}}"
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Tier name (e.g., 'Enterprise SaaS')",
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Brief description of this tier",
+                            },
+                            "priority": {
+                                "type": "integer",
+                                "description": "Priority rank (1 = highest)",
+                            },
+                            "criteria": {
+                                "type": "object",
+                                "description": "Qualification criteria for this tier",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            "required": ["tiers"],
+        },
+        handler=set_icp_tiers,
+    ),
+    ToolDefinition(
+        name="set_buyer_personas",
+        description=(
+            "Set the structured buyer persona definitions. Replaces the "
+            "entire personas array in the strategy's extracted data. Each "
+            "persona should have: name (string), role (string), seniority "
+            "(string), pain_points (array of strings), goals (array of "
+            "strings), preferred_channels (array of strings), "
+            "messaging_hooks (array of strings), objections (array of "
+            "strings), and linked_tiers (array of tier name strings). "
+            "Use this to create or update persona definitions."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "personas": {
+                    "type": "array",
+                    "description": (
+                        "Array of persona objects. Each persona: {name, role, "
+                        "seniority, pain_points, goals, preferred_channels, "
+                        "messaging_hooks, objections, linked_tiers}"
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Persona name (e.g., 'VP Engineering')",
+                            },
+                            "role": {
+                                "type": "string",
+                                "description": "Job role/title pattern",
+                            },
+                            "seniority": {
+                                "type": "string",
+                                "description": "Seniority level (e.g., 'VP', 'Director', 'C-Level')",
+                            },
+                            "pain_points": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Key pain points this persona faces",
+                            },
+                            "goals": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Professional goals and priorities",
+                            },
+                            "preferred_channels": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Preferred outreach channels (e.g., 'LinkedIn', 'Email')",
+                            },
+                            "messaging_hooks": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Messaging angles that resonate",
+                            },
+                            "objections": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Common objections and how to handle them",
+                            },
+                            "linked_tiers": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Names of ICP tiers this persona maps to",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            "required": ["personas"],
+        },
+        handler=set_buyer_personas,
     ),
 ]

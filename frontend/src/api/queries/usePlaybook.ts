@@ -160,3 +160,85 @@ export function useUndoAIEdit() {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// ICP Tiers (BL-198)
+// ---------------------------------------------------------------------------
+
+export interface IcpTier {
+  name: string
+  description?: string
+  priority?: number
+  criteria?: {
+    industries?: string[]
+    company_size_min?: number
+    company_size_max?: number
+    revenue_min?: number
+    revenue_max?: number
+    geographies?: string[]
+    tech_signals?: string[]
+    qualifying_signals?: string[]
+  }
+}
+
+export function useIcpTiers() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'tiers', ns],
+    queryFn: () => apiFetch<{ tiers: IcpTier[] }>('/playbook/strategy/tiers'),
+  })
+}
+
+export function useUpdateIcpTiers() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tiers: IcpTier[]) =>
+      apiFetch<{ status: string; tiers: IcpTier[] }>('/playbook/strategy/tiers', {
+        method: 'PUT',
+        body: { tiers },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'tiers'] })
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Buyer Personas (BL-199)
+// ---------------------------------------------------------------------------
+
+export interface BuyerPersona {
+  name: string
+  role?: string
+  seniority?: string
+  pain_points?: string[]
+  goals?: string[]
+  preferred_channels?: string[]
+  messaging_hooks?: string[]
+  objections?: string[]
+  linked_tiers?: string[]
+}
+
+export function useBuyerPersonas() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'personas', ns],
+    queryFn: () => apiFetch<{ personas: BuyerPersona[] }>('/playbook/strategy/personas'),
+  })
+}
+
+export function useUpdateBuyerPersonas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (personas: BuyerPersona[]) =>
+      apiFetch<{ status: string; personas: BuyerPersona[] }>('/playbook/strategy/personas', {
+        method: 'PUT',
+        body: { personas },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'personas'] })
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
