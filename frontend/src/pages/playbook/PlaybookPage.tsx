@@ -230,6 +230,21 @@ export function PlaybookPage() {
   }, [researchQuery.data?.status, queryClient, toast, namespace])
 
   // ---------------------------------------------------------------------------
+  // Poll chat during research to show progress tool cards (BL-191)
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const isInProgress = researchQuery.data?.status === 'in_progress'
+    if (!isInProgress) return
+
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['playbook', 'chat'] })
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [researchQuery.data?.status, queryClient])
+
+  // ---------------------------------------------------------------------------
   // Handle AI document changes (from ChatProvider)
   // ---------------------------------------------------------------------------
 
@@ -680,22 +695,7 @@ export function PlaybookPage() {
           )}
         </div>
 
-        {/* Research status indicator */}
-        {researchTriggered && researchQuery.data?.status === 'in_progress' && (
-          <div className="flex items-center gap-1.5 ml-1">
-            <span className="w-3 h-3 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
-            <span className="text-xs text-accent-cyan font-medium">
-              Researching...
-            </span>
-          </div>
-        )}
-        {researchTriggered && researchQuery.data?.status === 'failed' && (
-          <div className="flex items-center gap-1.5 ml-1">
-            <span className="text-xs text-text-muted">
-              Research incomplete
-            </span>
-          </div>
-        )}
+        {/* Research progress is now shown via tool cards in chat (BL-194) */}
 
         <div className="ml-auto flex items-center gap-2">
           {/* Save as Template */}
