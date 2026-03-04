@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
 import { Table } from '@tiptap/extension-table'
@@ -11,6 +12,37 @@ import { Markdown } from 'tiptap-markdown'
 import { MermaidExtension } from './MermaidExtension'
 import { STRATEGY_TEMPLATE } from './strategy-template'
 import './strategy-editor.css'
+
+// ---------------------------------------------------------------------------
+// BlockDelete — keyboard shortcut extension for deleting block-level nodes
+// ---------------------------------------------------------------------------
+
+const BlockDelete = Extension.create({
+  name: 'blockDelete',
+  addKeyboardShortcuts() {
+    return {
+      Backspace: ({ editor }) => {
+        const { selection } = editor.state
+        // If a NodeSelection or entire block is selected, delete it
+        if (selection.empty) return false
+        const { $from } = selection
+        if ($from.parent.type.name === 'table' || $from.parent.type.name === 'codeBlock') {
+          return editor.commands.deleteSelection()
+        }
+        return false
+      },
+      Delete: ({ editor }) => {
+        const { selection } = editor.state
+        if (selection.empty) return false
+        const { $from } = selection
+        if ($from.parent.type.name === 'table' || $from.parent.type.name === 'codeBlock') {
+          return editor.commands.deleteSelection()
+        }
+        return false
+      },
+    }
+  },
+})
 
 // Default mermaid template inserted by the toolbar Diagram button
 const MERMAID_TEMPLATE = `graph TD
@@ -187,6 +219,7 @@ export function StrategyEditor({
       }),
       Table.configure({
         resizable: false,
+        allowTableNodeSelection: true,
       }),
       TableRow,
       TableCell,
@@ -195,6 +228,7 @@ export function StrategyEditor({
         placeholder: 'Start writing your strategy...',
       }),
       Markdown,
+      BlockDelete,
     ],
     content: content ?? STRATEGY_TEMPLATE,
     editable,

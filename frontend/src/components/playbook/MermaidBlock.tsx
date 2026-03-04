@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
+import { BlockToolbar } from './BlockToolbar'
 
 // ---------------------------------------------------------------------------
 // Lazy mermaid loader (dynamic import for bundle performance)
@@ -195,7 +196,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 // Mermaid-specific NodeView
 // ---------------------------------------------------------------------------
 
-function MermaidNodeView({ node, updateAttributes, editor }: NodeViewProps) {
+function MermaidNodeView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const code = node.textContent || ''
   const isEditable = editor.isEditable
   // User's explicit toggle preference; when not editable, always show diagram
@@ -214,7 +215,10 @@ function MermaidNodeView({ node, updateAttributes, editor }: NodeViewProps) {
   }, [node.attrs.language, updateAttributes])
 
   return (
-    <NodeViewWrapper className="mermaid-block my-4 rounded-lg border border-border-solid overflow-hidden bg-surface-alt/30">
+    <NodeViewWrapper className="mermaid-block my-4 rounded-lg border border-border-solid overflow-hidden bg-surface-alt/30 relative group">
+      {isEditable && typeof getPos === 'function' && (
+        <BlockToolbar editor={editor} nodePos={getPos()} nodeSize={node.nodeSize} />
+      )}
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-alt border-b border-border-solid/50">
         <div className="flex items-center gap-2">
