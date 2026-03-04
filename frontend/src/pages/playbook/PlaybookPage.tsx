@@ -103,6 +103,7 @@ export function PlaybookPage() {
     analysisStreamingText,
     isAnalysisStreaming,
     analysisSuggestions,
+    startNewThread,
   } = useChatContext()
 
   // Server state
@@ -738,6 +739,7 @@ export function PlaybookPage() {
             isThinking={isThinking}
             thinkingStatus={isAnalysisStreaming ? 'Analyzing strategy...' : thinkingStatus}
             suggestions={activeSuggestions}
+            onNewThread={startNewThread}
           />
         </div>
       </div>

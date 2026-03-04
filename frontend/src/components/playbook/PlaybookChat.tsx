@@ -36,6 +36,25 @@ interface PlaybookChatProps {
   thinkingStatus?: string
   /** Clickable suggestion chips shown above the input */
   suggestions?: string[]
+  /** Callback to start a new conversation thread */
+  onNewThread?: () => void
+}
+
+function NewThreadIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  )
 }
 
 export function PlaybookChat({
@@ -50,6 +69,7 @@ export function PlaybookChat({
   isThinking = false,
   thinkingStatus = 'Thinking...',
   suggestions = [],
+  onNewThread,
 }: PlaybookChatProps) {
   return (
     <div className="flex flex-col h-full bg-surface rounded-lg border border-border-solid overflow-hidden">
@@ -58,10 +78,21 @@ export function PlaybookChat({
         <div className="w-2 h-2 rounded-full bg-accent-cyan" />
         <h3 className="text-sm font-semibold font-title text-text">AI Chat</h3>
         {isStreaming && (
+          <span className="text-[11px] text-accent-cyan animate-pulse truncate max-w-[180px]">
+            {thinkingStatus}
+          </span>
+        )}
+        {onNewThread && (
           <div className="ml-auto">
-            <span className="text-[11px] text-accent-cyan animate-pulse truncate max-w-[180px] block">
-              {thinkingStatus}
-            </span>
+            <button
+              onClick={onNewThread}
+              disabled={isStreaming}
+              className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="New conversation"
+              aria-label="Start new conversation"
+            >
+              <NewThreadIcon />
+            </button>
           </div>
         )}
       </div>
