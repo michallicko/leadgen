@@ -672,14 +672,13 @@ def preview_import(job_id):
     # Parse all rows
     headers, all_rows = _parse_csv_text(job.raw_csv)
 
-    # Apply mapping to first 25 rows for preview
-    preview_rows = all_rows[:25]
-    parsed = [apply_mapping(row, mapping) for row in preview_rows]
+    # Apply mapping to ALL rows for accurate summary counts
+    parsed = [apply_mapping(row, mapping) for row in all_rows]
 
-    # Run dedup preview
+    # Run dedup preview on all rows for accurate counts
     dedup_results = dedup_preview(str(tenant_id), parsed)
 
-    # Summary counts
+    # Summary counts from ALL rows
     new_contacts = sum(1 for r in dedup_results if r["contact_status"] == "new")
     dup_contacts = sum(1 for r in dedup_results if r["contact_status"] == "duplicate")
     new_companies = sum(1 for r in dedup_results if r["company_status"] == "new")
@@ -690,10 +689,11 @@ def preview_import(job_id):
     job.status = "previewed"
     db.session.commit()
 
-    # Transform dedup results into frontend PreviewRow format:
+    # Transform first 25 dedup results into frontend PreviewRow format for display:
     # { row_number, data: { first_name, last_name, email, company_name, ... }, status, match_type }
+    preview_dedup = dedup_results[:25]
     frontend_rows = []
-    for i, r in enumerate(dedup_results):
+    for i, r in enumerate(preview_dedup):
         contact = r.get("contact", {})
         company = r.get("company", {})
         # Flatten contact + company into a single data dict

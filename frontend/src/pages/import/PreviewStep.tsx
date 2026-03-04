@@ -124,6 +124,11 @@ export function PreviewStep({
       </div>
 
       {/* Preview table */}
+      {preview_rows.length < total_rows && (
+        <p className="text-xs text-text-dim mb-2">
+          Showing {preview_rows.length} of {total_rows} rows
+        </p>
+      )}
       <div className="max-h-[400px] overflow-auto border border-border rounded-lg mb-5">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-surface z-10">
