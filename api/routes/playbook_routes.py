@@ -44,6 +44,7 @@ from ..services.playbook_service import (
     build_proactive_analysis_prompt,
     build_seeded_template,
     build_system_prompt,
+    compute_chat_placeholder,
 )
 from ..services.tool_registry import ToolContext, get_tools_for_api
 
@@ -112,6 +113,11 @@ def get_playbook():
         is not None
     )
     result["has_ai_edits"] = has_ai_edits
+
+    # Context-aware chat placeholder (BL-203)
+    result["chat_placeholder"] = compute_chat_placeholder(
+        doc, phase=doc.phase or "strategy"
+    )
 
     return jsonify(result), 200
 
@@ -1721,6 +1727,11 @@ def _stream_agent_response(
                 elif sse_event.type == "tool_result":
                     yield "data: {}\n\n".format(
                         json.dumps(sse_event.data | {"type": "tool_result"})
+                    )
+
+                elif sse_event.type == "section_update":
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "section_update"})
                     )
 
                 elif sse_event.type == "done":

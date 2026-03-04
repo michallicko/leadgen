@@ -38,6 +38,81 @@ STRATEGY_SECTIONS = [
     "90-Day Action Plan",
 ]
 
+# Priority order for gap-based placeholder suggestions
+_SECTION_PRIORITY = [
+    "Ideal Customer Profile (ICP)",
+    "Buyer Personas",
+    "Value Proposition & Messaging",
+    "Channel Strategy",
+    "Executive Summary",
+    "Competitive Positioning",
+    "Messaging Framework",
+    "Metrics & KPIs",
+    "90-Day Action Plan",
+]
+
+
+def compute_chat_placeholder(document, phase="strategy", page_context=None):
+    """Compute a context-aware chat input placeholder.
+
+    Returns a string based on the current phase, page context, and
+    strategy document completeness.
+
+    Args:
+        document: StrategyDocument model instance (or None).
+        phase: Current playbook phase (strategy, contacts, messages, campaign).
+        page_context: Current page the user is viewing.
+
+    Returns:
+        str: Placeholder text for the chat input.
+    """
+    # Page-context overrides take priority (non-playbook pages)
+    page_placeholders = {
+        "contacts": "Ask about your contacts or targeting criteria...",
+        "companies": "Ask about companies in your pipeline...",
+        "messages": "Help me craft outreach messages...",
+        "campaigns": "Ask about your campaign settings...",
+        "enrich": "Ask about enrichment or data quality...",
+        "import": "Ask about importing contacts or companies...",
+    }
+    if page_context and page_context in page_placeholders:
+        return page_placeholders[page_context]
+
+    # Phase-based placeholders for playbook page
+    if phase == "contacts":
+        return "Which contacts should we target?"
+    if phase == "messages":
+        return "Let's craft your outreach messages..."
+    if phase == "campaign":
+        return "Configure your campaign..."
+
+    # Strategy phase — check document completeness
+    if not document or not document.content or not document.content.strip():
+        return "Tell me about your company and I'll help build your GTM strategy..."
+
+    content = document.content
+    if isinstance(content, dict):
+        content = json.dumps(content, default=str)
+
+    # Find the highest-priority empty or sparse section
+    for section_name in _SECTION_PRIORITY:
+        heading = "## {}".format(section_name)
+        if heading not in content:
+            return "Let's work on your {}...".format(section_name)
+        idx = content.index(heading)
+        next_heading = content.find("\n## ", idx + len(heading))
+        if next_heading == -1:
+            section_body = content[idx + len(heading) :]
+        else:
+            section_body = content[idx + len(heading) : next_heading]
+        lines = [ln.strip() for ln in section_body.strip().split("\n") if ln.strip()]
+        word_count = sum(len(ln.split()) for ln in lines)
+        if word_count < 20:
+            return "Let's flesh out your {}...".format(section_name)
+
+    # All sections are reasonably complete
+    return "Ask me to refine any section or move to Contacts..."
+
 
 def _format_enrichment_for_prompt(enrichment_data):
     """Format enrichment data as structured sections for the system prompt.
@@ -412,8 +487,8 @@ def build_system_prompt(
         "1. NEVER use negative or dismissive language about ANY company or person. "
         "NEVER say: disqualify, not viable, remove from list, red flag, poor fit, "
         "low-quality, not worth pursuing, questionable, problematic, concerning.",
-        "2. MAXIMUM 150 words per response unless the user explicitly asks for "
-        "more detail. Use bullet points, not paragraphs.",
+        "2. Write comprehensive, well-structured content. Use markdown formatting "
+        "with headers, bullet points, and tables where appropriate. Be thorough.",
         '3. NEVER start with filler: "Great question", "Absolutely", '
         '"That\'s a great point", "I\'d be happy to". Start with the answer.',
         '4. When data is sparse, say "[TODO: Research needed]" and suggest how '
@@ -432,6 +507,18 @@ def build_system_prompt(
         "structure. Reference specific sections when relevant. If the user asks "
         "you to draft or revise a section, produce clear, concise markdown content "
         "that can be directly pasted into the playbook.",
+        "",
+        "RESEARCH WORKFLOW -- When asked to generate or update strategy sections:",
+        "1. RESEARCH PHASE: Use web_search to gather data about the company, "
+        "market, competitors, and industry trends. Present a brief summary "
+        "(3-5 bullet points) of key findings to the user.",
+        "2. WRITING PHASE: After research, proceed to write/update sections "
+        "using update_strategy_section. Reference specific findings.",
+        "3. VALIDATION: After writing, briefly summarize what you wrote and "
+        "ask if any sections need adjustment.",
+        "",
+        "When researching, form hypotheses first: 'Based on {domain}, I expect "
+        "to find...' then validate with web_search. This shows your reasoning.",
     ]
 
     # Include the user's stated objective
@@ -466,6 +553,57 @@ def build_system_prompt(
                 "from scratch, starting with whatever section they want to tackle first.",
             ]
         )
+
+    # Compute strategy section completeness for gap tracking (BL-202)
+    if content and content.strip():
+        section_status = []
+        for section_name in STRATEGY_SECTIONS:
+            heading_pattern = "## {}".format(section_name)
+            if heading_pattern in content:
+                idx = content.index(heading_pattern)
+                next_heading = content.find("\n## ", idx + len(heading_pattern))
+                if next_heading == -1:
+                    section_content = content[idx + len(heading_pattern) :]
+                else:
+                    section_content = content[idx + len(heading_pattern) : next_heading]
+                lines = [
+                    ln.strip()
+                    for ln in section_content.strip().split("\n")
+                    if ln.strip()
+                ]
+                word_count = sum(len(ln.split()) for ln in lines)
+                if word_count < 20:
+                    section_status.append(
+                        "- {} [NEEDS WORK -- only {} words]".format(
+                            section_name, word_count
+                        )
+                    )
+                elif word_count < 80:
+                    section_status.append(
+                        "- {} [PARTIAL -- {} words]".format(section_name, word_count)
+                    )
+                else:
+                    section_status.append(
+                        "- {} [COMPLETE -- {} words]".format(section_name, word_count)
+                    )
+            else:
+                section_status.append(
+                    "- {} [EMPTY -- not yet written]".format(section_name)
+                )
+
+        if section_status:
+            parts.extend(
+                [
+                    "",
+                    "STRATEGY COMPLETENESS STATUS:",
+                    "\n".join(section_status),
+                    "",
+                    "Prioritize helping the user fill EMPTY and NEEDS WORK "
+                    "sections. When appropriate, proactively suggest: 'Your "
+                    "[section] section needs attention. Shall I draft it based "
+                    "on our research?'",
+                ]
+            )
 
     # Instruct the AI to treat the document as the single source of truth
     parts.extend(

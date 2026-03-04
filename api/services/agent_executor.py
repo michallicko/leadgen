@@ -78,6 +78,44 @@ def _summarize_output(tool_name, output):
     return "Completed {}".format(tool_name)
 
 
+def _build_done_data(
+    tool_executions, model, total_input_tokens, total_output_tokens, total_cost_usd
+):
+    """Build the payload for a 'done' SSE event.
+
+    Includes tool call summaries, token totals, and metadata about
+    external tool costs (e.g. Perplexity web_search calls).
+    """
+    external_tool_costs = [
+        {
+            "tool_name": e.tool_name,
+            "provider": "perplexity" if e.tool_name == "web_search" else None,
+        }
+        for e in tool_executions
+        if e.tool_name == "web_search" and not e.is_error
+    ]
+
+    return {
+        "tool_calls": [
+            {
+                "tool_name": e.tool_name,
+                "tool_call_id": e.tool_call_id,
+                "status": "error" if e.is_error else "success",
+                "input_args": e.input_args,
+                "output_data": e.output,
+                "error_message": e.error_message,
+                "duration_ms": e.duration_ms,
+            }
+            for e in tool_executions
+        ],
+        "model": model,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_cost_usd": str(total_cost_usd),
+        "external_tool_costs": external_tool_costs,
+    }
+
+
 def _execute_tool(tool_name, tool_input, tool_context, app=None):
     """Execute a single tool and return a ToolExecutionRecord.
 
@@ -188,24 +226,13 @@ def execute_agent_turn(
             )
             yield SSEEvent(
                 type="done",
-                data={
-                    "tool_calls": [
-                        {
-                            "tool_name": e.tool_name,
-                            "tool_call_id": e.tool_call_id,
-                            "status": "error" if e.is_error else "success",
-                            "input_args": e.input_args,
-                            "output_data": e.output,
-                            "error_message": e.error_message,
-                            "duration_ms": e.duration_ms,
-                        }
-                        for e in tool_executions
-                    ],
-                    "model": model,
-                    "total_input_tokens": total_input_tokens,
-                    "total_output_tokens": total_output_tokens,
-                    "total_cost_usd": str(total_cost_usd),
-                },
+                data=_build_done_data(
+                    tool_executions,
+                    model,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cost_usd,
+                ),
             )
             return
 
@@ -238,32 +265,47 @@ def execute_agent_turn(
             elif block.get("type") == "tool_use":
                 tool_use_blocks.append(block)
 
-        # If no tool calls, we're done -- yield final text and done event
+        # If no tool calls, check for continuation before finishing
         if stop_reason != "tool_use" or not tool_use_blocks:
             final_text = "".join(text_parts)
+
+            # Check if this is a strategy generation turn that researched
+            # but hasn't written sections yet. If so, inject a follow-up
+            # nudge instead of returning.
+            strategy_tools_used = any(
+                e.tool_name in ("update_strategy_section", "append_to_section")
+                for e in tool_executions
+            )
+            research_tools_used = any(
+                e.tool_name == "web_search" for e in tool_executions
+            )
+
+            if research_tools_used and not strategy_tools_used and iteration < 3:
+                # AI researched but didn't write. Nudge it to proceed.
+                nudge = (
+                    "You have completed your research. Now proceed to write the "
+                    "strategy sections. Call update_strategy_section for each of "
+                    "the 9 sections with specific, researched content. Start now."
+                )
+                if final_text:
+                    yield SSEEvent(type="chunk", data={"text": final_text})
+                messages.append({"role": "assistant", "content": content_blocks})
+                messages.append({"role": "user", "content": nudge})
+                continue  # Re-enter the agentic loop
+
+            # No continuation needed — yield final text and done event
             if final_text:
                 yield SSEEvent(type="chunk", data={"text": final_text})
 
             yield SSEEvent(
                 type="done",
-                data={
-                    "tool_calls": [
-                        {
-                            "tool_name": e.tool_name,
-                            "tool_call_id": e.tool_call_id,
-                            "status": "error" if e.is_error else "success",
-                            "input_args": e.input_args,
-                            "output_data": e.output,
-                            "error_message": e.error_message,
-                            "duration_ms": e.duration_ms,
-                        }
-                        for e in tool_executions
-                    ],
-                    "model": model,
-                    "total_input_tokens": total_input_tokens,
-                    "total_output_tokens": total_output_tokens,
-                    "total_cost_usd": str(total_cost_usd),
-                },
+                data=_build_done_data(
+                    tool_executions,
+                    model,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cost_usd,
+                ),
             )
             return
 
@@ -355,6 +397,23 @@ def execute_agent_turn(
                 },
             )
 
+            # Emit section_update for live document animation
+            if (
+                tool_name in ("update_strategy_section", "append_to_section")
+                and not exec_record.is_error
+                and exec_record.output
+            ):
+                yield SSEEvent(
+                    type="section_update",
+                    data={
+                        "section": exec_record.output.get("section", ""),
+                        "content": exec_record.output.get("content_preview", ""),
+                        "action": "update"
+                        if tool_name == "update_strategy_section"
+                        else "append",
+                    },
+                )
+
             # Build tool_result message for Claude
             if exec_record.is_error:
                 result_content = exec_record.error_message or "Tool execution failed"
@@ -386,22 +445,11 @@ def execute_agent_turn(
     )
     yield SSEEvent(
         type="done",
-        data={
-            "tool_calls": [
-                {
-                    "tool_name": e.tool_name,
-                    "tool_call_id": e.tool_call_id,
-                    "status": "error" if e.is_error else "success",
-                    "input_args": e.input_args,
-                    "output_data": e.output,
-                    "error_message": e.error_message,
-                    "duration_ms": e.duration_ms,
-                }
-                for e in tool_executions
-            ],
-            "model": model,
-            "total_input_tokens": total_input_tokens,
-            "total_output_tokens": total_output_tokens,
-            "total_cost_usd": str(total_cost_usd),
-        },
+        data=_build_done_data(
+            tool_executions,
+            model,
+            total_input_tokens,
+            total_output_tokens,
+            total_cost_usd,
+        ),
     )
