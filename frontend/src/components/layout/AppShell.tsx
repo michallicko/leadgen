@@ -13,7 +13,7 @@ import {
 } from '../../hooks/useOnboarding'
 import { getDefaultNamespace, setLastNamespace } from '../../lib/auth'
 import { AppNav } from './AppNav'
-import { ChatPanel } from '../chat/ChatPanel'
+import { ChatSidebar } from '../chat/ChatSidebar'
 import { useChatContext } from '../../providers/ChatProvider'
 import { EntrySignpost } from '../onboarding/EntrySignpost'
 import { ProgressChecklist } from '../onboarding/ProgressChecklist'
@@ -21,10 +21,7 @@ import { ProgressChecklist } from '../onboarding/ProgressChecklist'
 // ---- Mobile floating action button for chat ----
 
 function MobileFAB() {
-  const { toggleChat, isOnPlaybookPage } = useChatContext()
-
-  // Don't show on playbook page (inline chat) or on desktop (nav button)
-  if (isOnPlaybookPage) return null
+  const { toggleChat } = useChatContext()
 
   return (
     <button
@@ -96,19 +93,23 @@ export function AppShell() {
     <div className="flex flex-col h-screen overflow-hidden">
       <AppNav />
       <BudgetWarningBanner />
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
-        {renderSignpost ? (
-          <EntrySignpost />
-        ) : (
-          <>
-            {showChecklist && onboardingStatus && (
-              <ProgressChecklist status={onboardingStatus} />
-            )}
-            <Outlet />
-          </>
-        )}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 min-w-0 overflow-y-auto px-3 sm:px-5 py-3">
+          {renderSignpost ? (
+            <EntrySignpost />
+          ) : (
+            <>
+              {showChecklist && onboardingStatus && (
+                <ProgressChecklist status={onboardingStatus} />
+              )}
+              <Outlet />
+            </>
+          )}
+        </div>
+        <div className="hidden md:flex h-full">
+          <ChatSidebar />
+        </div>
       </div>
-      <ChatPanel />
       <MobileFAB />
     </div>
   )

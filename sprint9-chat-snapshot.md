@@ -1,0 +1,527 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - link "VisionVolve Leadgen" [ref=e6] [cursor=pointer]:
+      - /url: /
+      - img "VisionVolve" [ref=e7]
+      - generic [ref=e8]: Leadgen
+    - generic [ref=e9]:
+      - link "GTM Strategy" [ref=e10] [cursor=pointer]:
+        - /url: /unitedarts/playbook
+        - img [ref=e12]
+        - generic [ref=e16]: GTM Strategy
+      - link "Radar" [ref=e17] [cursor=pointer]:
+        - /url: /unitedarts/contacts
+        - img [ref=e19]
+        - generic [ref=e23]: Radar
+      - link "Reach" [ref=e24] [cursor=pointer]:
+        - /url: /unitedarts/campaigns
+        - img [ref=e26]
+        - generic [ref=e29]: Reach
+      - link "Echo" [ref=e30] [cursor=pointer]:
+        - /url: /unitedarts/echo
+        - img [ref=e32]
+        - generic [ref=e33]: Echo
+    - generic [ref=e34]:
+      - combobox [ref=e35] [cursor=pointer]:
+        - option "unitedarts-cz"
+        - option "unitedarts3"
+        - option "unitedarts" [selected]
+        - option "united-arts"
+        - option "test"
+        - option "visionvolve"
+      - button "Staging Test User Super" [ref=e37] [cursor=pointer]:
+        - generic [ref=e38]: Staging Test User
+        - generic [ref=e39]: Super
+        - img [ref=e40]
+  - generic [ref=e42]:
+    - generic [ref=e43]:
+      - generic [ref=e44]:
+        - generic [ref=e45]:
+          - img [ref=e46]
+          - generic [ref=e50]: Getting Started
+          - generic [ref=e51]: 2/3
+        - button "Dismiss checklist" [ref=e52] [cursor=pointer]:
+          - img [ref=e53]
+      - list [ref=e57]:
+        - listitem [ref=e58]:
+          - button "Save a strategy" [disabled] [ref=e59]:
+            - img [ref=e60]
+            - generic [ref=e63]: Save a strategy
+        - listitem [ref=e64]:
+          - button "Import contacts" [disabled] [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e69]: Import contacts
+        - listitem [ref=e70]:
+          - button "Create a campaign" [ref=e71] [cursor=pointer]:
+            - generic [ref=e73]: Create a campaign
+            - img [ref=e74]
+    - generic [ref=e76]:
+      - generic [ref=e77]:
+        - heading "GTM Strategy" [level=1] [ref=e78]
+        - generic [ref=e79]:
+          - button "Save as Template" [ref=e80] [cursor=pointer]:
+            - img [ref=e81]
+            - text: Save as Template
+          - button "Undo AI edit" [ref=e84] [cursor=pointer]:
+            - img [ref=e85]
+            - text: Undo AI edit
+      - generic [ref=e88]:
+        - button "Strategy Document" [ref=e89] [cursor=pointer]
+        - button "ICP Tiers" [ref=e90] [cursor=pointer]
+        - button "Buyer Personas" [ref=e91] [cursor=pointer]
+      - generic [ref=e92]:
+        - generic [ref=e1498]:
+          - generic [ref=e1499]:
+            - generic [ref=e1500]:
+              - heading "Buyer Personas" [level=2] [ref=e1501]
+              - paragraph [ref=e1502]: 1 persona defined
+            - button "Add Persona" [ref=e1503] [cursor=pointer]:
+              - img [ref=e1504]
+              - text: Add Persona
+          - generic [ref=e1506]:
+            - generic [ref=e1507]:
+              - generic [ref=e1508]: "?"
+              - generic [ref=e1509]:
+                - textbox "Persona name..." [ref=e1510]
+                - generic [ref=e1511]:
+                  - textbox "Role / title pattern..." [ref=e1512]
+                  - textbox "Seniority..." [ref=e1513]
+              - button "Delete persona" [ref=e1514] [cursor=pointer]:
+                - img [ref=e1515]
+            - generic [ref=e1517]:
+              - generic [ref=e1518]: Pain Points
+              - textbox "e.g., Slow lead qualification..." [ref=e1520]
+            - generic [ref=e1521]:
+              - generic [ref=e1522]: Goals
+              - textbox "e.g., Scale outbound pipeline..." [ref=e1524]
+            - generic [ref=e1525]:
+              - generic [ref=e1526]: Preferred Channels
+              - generic [ref=e1527]:
+                - generic [ref=e1528] [cursor=pointer]:
+                  - checkbox "LinkedIn" [ref=e1529]
+                  - text: LinkedIn
+                - generic [ref=e1530] [cursor=pointer]:
+                  - checkbox "Email" [ref=e1531]
+                  - text: Email
+                - generic [ref=e1532] [cursor=pointer]:
+                  - checkbox "Phone" [ref=e1533]
+                  - text: Phone
+                - generic [ref=e1534] [cursor=pointer]:
+                  - checkbox "Twitter/X" [ref=e1535]
+                  - text: Twitter/X
+                - generic [ref=e1536] [cursor=pointer]:
+                  - checkbox "Events" [ref=e1537]
+                  - text: Events
+                - generic [ref=e1538] [cursor=pointer]:
+                  - checkbox "Referral" [ref=e1539]
+                  - text: Referral
+            - generic [ref=e1540]:
+              - generic [ref=e1541]: Messaging Hooks
+              - textbox "e.g., ROI in 90 days..." [ref=e1543]
+            - generic [ref=e1544]:
+              - generic [ref=e1545]: Common Objections
+              - textbox "e.g., Already have a solution..." [ref=e1547]
+            - generic [ref=e1548]:
+              - generic [ref=e1549]: Linked ICP Tiers
+              - paragraph [ref=e1550]: No ICP tiers defined yet. Add tiers in the ICP Tiers tab first.
+        - generic [ref=e1004]:
+          - heading "AI Chat" [level=3] [ref=e1007]
+          - generic [ref=e1008]:
+            - generic [ref=e1009]:
+              - img [ref=e1011]
+              - generic [ref=e1015]:
+                - generic [ref=e1016]: "Generate a complete GTM strategy playbook for my company (unitedarts.cz). Our primary objective: Generate leads from event agencies in Czech Republic and Central Europe who book entertainment and circus performances for corporate events, galas, and team buildings. Our ideal customer: Event agencies and corporate event planners in Czech Republic, Slovakia, and DACH region. Decision makers: event managers, production managers, marketing directors. Companies that organize 10+ corporate events per year.. Draft all sections of the strategy document using the update_strategy_section tool. Fill in each section with specific, actionable content based on the information I provided."
+                - generic [ref=e1017]: 09:34 PM
+            - generic [ref=e1018]:
+              - img [ref=e1020]
+              - generic [ref=e1025]:
+                - paragraph [ref=e1027]: I'll build your complete GTM strategy playbook now. Let me draft all 9 sections with specific, actionable content tailored to your entertainment/circus performance business targeting Central European event agencies.
+                - generic [ref=e1028]: 09:35 PM
+            - generic [ref=e1029]:
+              - img [ref=e1031]
+              - generic [ref=e1035]:
+                - generic [ref=e1036]: "Please write the strategy document now. Use the update_strategy_section tool to fill in each section: Executive Summary, ICP, Buyer Personas, Value Proposition, Competitive Positioning, Channel Strategy, Messaging Framework, Metrics & KPIs, and 90-Day Action Plan. We are unitedarts.cz - a Czech entertainment company providing circus and acrobatic performances for corporate events."
+                - generic [ref=e1037]: 09:37 PM
+            - generic [ref=e1038]:
+              - img [ref=e1040]
+              - generic [ref=e1044]:
+                - generic [ref=e1046]:
+                  - button "Updating strategy section 14ms" [ref=e1554] [cursor=pointer]:
+                    - img [ref=e1556]
+                    - generic [ref=e1558]: Updating strategy section
+                    - generic [ref=e1559]:
+                      - generic [ref=e1560]: 14ms
+                      - img [ref=e1562]
+                      - img [ref=e1565]
+                  - button "Updating strategy section 12ms" [ref=e1568] [cursor=pointer]:
+                    - img [ref=e1570]
+                    - generic [ref=e1572]: Updating strategy section
+                    - generic [ref=e1573]:
+                      - generic [ref=e1574]: 12ms
+                      - img [ref=e1576]
+                      - img [ref=e1579]
+                  - button "Updating strategy section 9ms" [ref=e1582] [cursor=pointer]:
+                    - img [ref=e1584]
+                    - generic [ref=e1586]: Updating strategy section
+                    - generic [ref=e1587]:
+                      - generic [ref=e1588]: 9ms
+                      - img [ref=e1590]
+                      - img [ref=e1593]
+                  - button "Updating strategy section 9ms" [ref=e1596] [cursor=pointer]:
+                    - img [ref=e1598]
+                    - generic [ref=e1600]: Updating strategy section
+                    - generic [ref=e1601]:
+                      - generic [ref=e1602]: 9ms
+                      - img [ref=e1604]
+                      - img [ref=e1607]
+                  - button "Updating strategy section 9ms" [ref=e1610] [cursor=pointer]:
+                    - img [ref=e1612]
+                    - generic [ref=e1614]: Updating strategy section
+                    - generic [ref=e1615]:
+                      - generic [ref=e1616]: 9ms
+                      - img [ref=e1618]
+                      - img [ref=e1621]
+                  - button "Updating strategy section" [ref=e1624] [cursor=pointer]:
+                    - img [ref=e1626]
+                    - generic [ref=e1628]: Updating strategy section
+                    - generic [ref=e1629]:
+                      - img [ref=e1631]
+                      - img [ref=e1634]
+                  - button "Updating strategy section" [ref=e1637] [cursor=pointer]:
+                    - img [ref=e1639]
+                    - generic [ref=e1641]: Updating strategy section
+                    - generic [ref=e1642]:
+                      - img [ref=e1644]
+                      - img [ref=e1647]
+                  - button "Updating strategy section" [ref=e1650] [cursor=pointer]:
+                    - img [ref=e1652]
+                    - generic [ref=e1654]: Updating strategy section
+                    - generic [ref=e1655]:
+                      - img [ref=e1657]
+                      - img [ref=e1660]
+                  - button "Updating strategy section" [ref=e1663] [cursor=pointer]:
+                    - img [ref=e1665]
+                    - generic [ref=e1667]: Updating strategy section
+                    - generic [ref=e1668]:
+                      - img [ref=e1670]
+                      - img [ref=e1673]
+                  - button "Updating strategy section" [ref=e1676] [cursor=pointer]:
+                    - img [ref=e1678]
+                    - generic [ref=e1680]: Updating strategy section
+                    - generic [ref=e1681]:
+                      - img [ref=e1683]
+                      - img [ref=e1686]
+                  - button "Updating strategy section" [ref=e1689] [cursor=pointer]:
+                    - img [ref=e1691]
+                    - generic [ref=e1693]: Updating strategy section
+                    - generic [ref=e1694]:
+                      - img [ref=e1696]
+                      - img [ref=e1699]
+                  - button "Updating strategy section" [ref=e1702] [cursor=pointer]:
+                    - img [ref=e1704]
+                    - generic [ref=e1706]: Updating strategy section
+                    - generic [ref=e1707]:
+                      - img [ref=e1709]
+                      - img [ref=e1712]
+                  - button "Updating strategy section" [ref=e1715] [cursor=pointer]:
+                    - img [ref=e1717]
+                    - generic [ref=e1719]: Updating strategy section
+                    - generic [ref=e1720]:
+                      - img [ref=e1722]
+                      - img [ref=e1725]
+                  - button "Collapse all" [ref=e1727] [cursor=pointer]
+                - generic [ref=e1105]:
+                  - generic [ref=e1106]:
+                    - paragraph [ref=e1107]:
+                      - strong [ref=e1108]: "Status:"
+                      - text: "I've successfully populated 5 of 9 sections. Rate limit prevents finishing in one turn. Here's what's complete:"
+                    - paragraph [ref=e1109]:
+                      - text: ✅
+                      - strong [ref=e1110]: Executive Summary
+                      - text: — Clear objective, target market, positioning
+                      - text: ✅
+                      - strong [ref=e1111]: Ideal Customer Profile
+                      - text: — Event agencies + corporate event teams, geographic tiers, disqualifiers
+                      - text: ✅
+                      - strong [ref=e1112]: Buyer Personas
+                      - text: — 3 personas (Event Manager, Creative Director, Agency Owner) with pain points & channels
+                      - text: ✅
+                      - strong [ref=e1113]: Value Proposition
+                      - text: — Core benefits by persona, 4 messaging pillars
+                      - text: ✅
+                      - strong [ref=e1114]: Competitive Positioning
+                      - text: — Competitive matrix vs. brokers/local performers, key differentiators
+                    - paragraph [ref=e1115]:
+                      - strong [ref=e1116]: "Still needed (next turn):"
+                    - list [ref=e1117]:
+                      - listitem [ref=e1118]: Channel Strategy
+                      - listitem [ref=e1119]: Messaging Framework
+                      - listitem [ref=e1120]: Metrics & KPIs
+                      - listitem [ref=e1121]: 90-Day Action Plan
+                    - paragraph [ref=e1122]: I have the complete content drafted above. Once the rate limit resets, I'll push the final 4 sections. Your strategy is nearly complete—ready to move to the Contacts phase once all sections are live?
+                  - generic [ref=e1123]: 09:38 PM
+            - generic [ref=e1124]:
+              - img [ref=e1126]
+              - generic [ref=e1130]:
+                - generic [ref=e1131]: "Please write the remaining 4 sections now: Channel Strategy, Messaging Framework, Metrics & KPIs, and 90-Day Action Plan."
+                - generic [ref=e1132]: 09:39 PM
+            - generic [ref=e1133]:
+              - img [ref=e1135]
+              - generic [ref=e1139]:
+                - generic [ref=e1141]:
+                  - button "update_strategy_section 9ms" [ref=e1142] [cursor=pointer]:
+                    - img [ref=e1143]
+                    - generic [ref=e1145]: update_strategy_section
+                    - generic [ref=e1146]: 9ms
+                  - button "update_strategy_section 9ms" [ref=e1147] [cursor=pointer]:
+                    - img [ref=e1148]
+                    - generic [ref=e1150]: update_strategy_section
+                    - generic [ref=e1151]: 9ms
+                  - button "update_strategy_section 13ms" [ref=e1152] [cursor=pointer]:
+                    - img [ref=e1153]
+                    - generic [ref=e1155]: update_strategy_section
+                    - generic [ref=e1156]: 13ms
+                  - button "update_strategy_section 17ms" [ref=e1157] [cursor=pointer]:
+                    - img [ref=e1158]
+                    - generic [ref=e1160]: update_strategy_section
+                    - generic [ref=e1161]: 17ms
+                  - button "Expand all" [ref=e1162] [cursor=pointer]
+                - generic [ref=e1163]:
+                  - generic [ref=e1164]:
+                    - paragraph [ref=e1165]:
+                      - strong [ref=e1166]: Done.
+                      - text: "Your complete GTM strategy playbook is live:"
+                    - paragraph [ref=e1167]:
+                      - text: ✅
+                      - strong [ref=e1168]: Executive Summary
+                      - text: — Market, objective, positioning
+                      - text: ✅
+                      - strong [ref=e1169]: ICP
+                      - text: — Event agencies + corporate teams, 10+ events/year, DACH focus
+                      - text: ✅
+                      - strong [ref=e1170]: Buyer Personas
+                      - text: — Event Manager, Creative Director, Agency Owner (pain points, channels, decision roles)
+                      - text: ✅
+                      - strong [ref=e1171]: Value Proposition
+                      - text: — Core benefits by persona, 4 messaging pillars
+                      - text: ✅
+                      - strong [ref=e1172]: Competitive Positioning
+                      - text: — Matrix vs. brokers/local performers, 5 key differentiators
+                      - text: ✅
+                      - strong [ref=e1173]: Channel Strategy
+                      - text: — LinkedIn (40%), Email (25%), Industry Events (20%), Partnerships (15%)
+                      - text: ✅
+                      - strong [ref=e1174]: Messaging Framework
+                      - text: — 3 persona-specific messages, tone, proof points
+                      - text: ✅
+                      - strong [ref=e1175]: Metrics & KPIs
+                      - text: — 20+ leads, 5+ bookings in 90 days; weekly/monthly tracking
+                      - text: ✅
+                      - strong [ref=e1176]: 90-Day Action Plan
+                      - text: — Week-by-week checklist, success checkpoints, risk mitigation
+                    - paragraph [ref=e1177]:
+                      - strong [ref=e1178]: "Next step:"
+                      - text: Ready to move to the Contacts phase to identify and target your first batch of event agencies?
+                  - generic [ref=e1179]: 09:39 PM
+            - generic [ref=e1180]:
+              - img [ref=e1182]
+              - generic [ref=e1186]:
+                - generic [ref=e1187]: "United Arts & Co. is a Czech production company specializing in contemporary circus and acrobatic entertainment for corporate events. We offer composed show programs, individual artist booking, and full-evening entertainment. Our flagship acts include Losers Cirque Company, Duo React, Duo Elevate, and aerial specialists. We serve event agencies and direct corporate clients across Czech Republic and Central Europe. Reference clients: Microsoft, Skoda, O2, Mercedes-Benz, CSOB."
+                - generic [ref=e1188]: 11:41 PM
+            - generic [ref=e1189]:
+              - img [ref=e1191]
+              - generic [ref=e1195]:
+                - generic [ref=e1197]:
+                  - button "get_strategy_document 3ms" [ref=e1198] [cursor=pointer]:
+                    - img [ref=e1199]
+                    - generic [ref=e1201]: get_strategy_document
+                    - generic [ref=e1202]: 3ms
+                  - button "update_strategy_section 15ms" [ref=e1203] [cursor=pointer]:
+                    - img [ref=e1204]
+                    - generic [ref=e1206]: update_strategy_section
+                    - generic [ref=e1207]: 15ms
+                  - button "update_strategy_section 9ms" [ref=e1208] [cursor=pointer]:
+                    - img [ref=e1209]
+                    - generic [ref=e1211]: update_strategy_section
+                    - generic [ref=e1212]: 9ms
+                  - button "update_strategy_section 9ms" [ref=e1213] [cursor=pointer]:
+                    - img [ref=e1214]
+                    - generic [ref=e1216]: update_strategy_section
+                    - generic [ref=e1217]: 9ms
+                  - button "update_strategy_section 10ms" [ref=e1218] [cursor=pointer]:
+                    - img [ref=e1219]
+                    - generic [ref=e1221]: update_strategy_section
+                    - generic [ref=e1222]: 10ms
+                  - button "Expand all" [ref=e1223] [cursor=pointer]
+                - generic [ref=e1224]:
+                  - generic [ref=e1225]:
+                    - paragraph [ref=e1226]:
+                      - strong [ref=e1227]: Done.
+                      - text: "Your strategy is now fully personalized with:"
+                    - paragraph [ref=e1228]:
+                      - text: ✅
+                      - strong [ref=e1229]: "Reference clients:"
+                      - text: Microsoft, Skoda, O2, Mercedes-Benz, CSOB (major credibility anchor)
+                      - text: ✅
+                      - strong [ref=e1230]: "Flagship acts:"
+                      - text: Losers Cirque Company, Duo React, Duo Elevate, aerial specialists (concrete proof of capability)
+                      - text: ✅
+                      - strong [ref=e1231]: "Service model:"
+                      - text: Composed shows + individual artist booking + customizable performances (clear offering)
+                      - text: ✅
+                      - strong [ref=e1232]: "Enterprise positioning:"
+                      - text: Differentiated from brokers and local performers by scale and experience
+                    - paragraph [ref=e1233]:
+                      - strong [ref=e1234]: Your playbook is now actionable.
+                      - text: "Next step: Move to the"
+                      - strong [ref=e1235]: Contacts phase
+                      - text: to identify and target event agencies in your ICP. Ready to start building your prospect list?
+                  - generic [ref=e1236]: 11:41 PM
+            - generic [ref=e1237]:
+              - img [ref=e1239]
+              - generic [ref=e1244]:
+                - generic [ref=e1245]:
+                  - list [ref=e1246]:
+                    - listitem [ref=e1247]:
+                      - paragraph [ref=e1248]:
+                        - strong [ref=e1249]:
+                          - text: Your "Trusted by" list (Microsoft, Skoda, O2, Mercedes-Benz, CSOB) is powerful—but are these
+                          - emphasis [ref=e1250]: direct clients
+                          - text: or event agency clients?
+                        - text: If they're end-clients, your messaging should emphasize "We've performed for Fortune 500 companies" to event agencies. If they're agency referrals, lead with that instead. Which is it?
+                    - listitem [ref=e1251]:
+                      - paragraph [ref=e1252]:
+                        - strong [ref=e1253]: Persona 1 (Event Manager) is your primary recommender, but Persona 2 (Creative Director) is final decision-maker.
+                        - text: Your 90-Day Action Plan targets both equally via LinkedIn + email. Should we weight outreach 60/40 toward Creative Directors first, since they approve budgets?
+                    - listitem [ref=e1254]:
+                      - paragraph [ref=e1255]:
+                        - strong [ref=e1256]: Your DACH region is Tier 2, but it's 3 countries.
+                        - text: Want to split it—prioritize Germany (largest market) first, then Austria/Switzerland? Or test all three equally in Phase 1?
+                  - paragraph [ref=e1257]: Pick a number, or ask me anything else.
+                - generic [ref=e1258]: 11:41 PM
+            - generic [ref=e1259]:
+              - img [ref=e1261]
+              - generic [ref=e1265]:
+                - generic [ref=e1266]: we are united arts agency, talent booking for circus and variety performers in prague. help us build a strategy to get european festival and corporate clients
+                - generic [ref=e1267]: 11:19 PM
+            - generic [ref=e1268]:
+              - img [ref=e1270]
+              - generic [ref=e1275]:
+                - generic [ref=e1276]:
+                  - paragraph [ref=e1277]: I need to pause here—your objective just shifted significantly from what's in your current strategy document.
+                  - paragraph [ref=e1278]:
+                    - strong [ref=e1279]: "Current playbook targets:"
+                  - list [ref=e1280]:
+                    - listitem [ref=e1281]: Event agencies in Czech Republic + Central Europe
+                    - listitem [ref=e1282]: Corporate event planners (galas, team buildings, product launches)
+                    - listitem [ref=e1283]: "Decision makers: Event managers, production managers, marketing directors"
+                    - listitem [ref=e1284]: "Geographic focus: CZ, SK, DACH region"
+                  - paragraph [ref=e1285]:
+                    - strong [ref=e1286]: "Your new objective:"
+                  - list [ref=e1287]:
+                    - listitem [ref=e1288]: European festivals + corporate clients
+                    - listitem [ref=e1289]: Talent booking (not just performances)
+                    - listitem [ref=e1290]: Broader geographic scope (all of Europe, not just Central Europe)
+                  - paragraph [ref=e1291]:
+                    - strong [ref=e1292]: "This changes everything:"
+                  - list [ref=e1293]:
+                    - listitem [ref=e1294]: ICP shifts from "event agencies organizing 10+ corporate events/year" to "festival organizers + corporate event planners across Europe"
+                    - listitem [ref=e1295]: Buyer personas change (festival directors ≠ event managers)
+                    - listitem [ref=e1296]: Messaging changes (talent roster positioning ≠ performance delivery)
+                    - listitem [ref=e1297]: Channels may shift (festival industry networks ≠ LinkedIn event planners)
+                    - listitem [ref=e1298]: Sales cycle likely longer (festivals book 6-12 months out)
+                  - paragraph [ref=e1299]:
+                    - strong [ref=e1300]: "Before I rebuild the strategy, clarify:"
+                  - list [ref=e1301]:
+                    - listitem [ref=e1302]:
+                      - strong [ref=e1303]: "Primary focus:"
+                      - text: Festivals or corporate events? (Or 50/50?)
+                    - listitem [ref=e1304]:
+                      - strong [ref=e1305]: "Geographic priority:"
+                      - text: All of Europe, or still Central Europe first?
+                    - listitem [ref=e1306]:
+                      - strong [ref=e1307]: "Service model:"
+                      - text: Are you booking talent
+                      - emphasis [ref=e1308]: to
+                      - text: festivals/corporates, or performing
+                      - emphasis [ref=e1309]: as
+                      - text: United Arts?
+                    - listitem [ref=e1310]:
+                      - strong [ref=e1311]: "Revenue model:"
+                      - text: Commission on bookings, performance fees, or both?
+                  - paragraph [ref=e1312]: Which version should I build?
+                - generic [ref=e1313]: 11:19 PM
+            - generic [ref=e1314]:
+              - img [ref=e1316]
+              - generic [ref=e1320]:
+                - generic [ref=e1321]: talent booking agency for circus and variety perresearch unitedarts.cz and build me a strategy for european festival and corporate marketformers, based in prague
+                - generic [ref=e1322]: 11:32 PM
+            - generic [ref=e1323]:
+              - img [ref=e1325]
+              - generic [ref=e1329]:
+                - generic [ref=e1331]:
+                  - button "Searching web search 5.2s" [ref=e1333] [cursor=pointer]:
+                    - img [ref=e1335]
+                    - generic [ref=e1338]: Searching web search
+                    - generic [ref=e1339]:
+                      - generic [ref=e1340]: 5.2s
+                      - img [ref=e1342]
+                      - img [ref=e1345]
+                  - button "Searching web search 7.6s" [ref=e1348] [cursor=pointer]:
+                    - img [ref=e1350]
+                    - generic [ref=e1353]: Searching web search
+                    - generic [ref=e1354]:
+                      - generic [ref=e1355]: 7.6s
+                      - img [ref=e1357]
+                      - img [ref=e1360]
+                  - button "Searching web search 7.3s" [ref=e1363] [cursor=pointer]:
+                    - img [ref=e1365]
+                    - generic [ref=e1368]: Searching web search
+                    - generic [ref=e1369]:
+                      - generic [ref=e1370]: 7.3s
+                      - img [ref=e1372]
+                      - img [ref=e1375]
+                - generic [ref=e1377]:
+                  - paragraph [ref=e1379]:
+                    - text: Now I'll rebuild your strategy document for the
+                    - strong [ref=e1380]: talent booking
+                    - text: "model targeting European festivals and corporate clients. Let me update all sections:"
+                  - generic [ref=e1381]: 11:33 PM
+            - generic [ref=e1382]:
+              - img [ref=e1384]
+              - generic [ref=e1388]:
+                - generic [ref=e1389]: research unitedarts.cz and create a full GTM strategy for european festivals and corporate events
+                - generic [ref=e1390]: 11:39 PM
+            - generic [ref=e1391]:
+              - img [ref=e1393]
+              - generic [ref=e1397]:
+                - generic [ref=e1399]:
+                  - button "web_search 4.7s" [ref=e1400] [cursor=pointer]:
+                    - img [ref=e1401]
+                    - generic [ref=e1403]: web_search
+                    - generic [ref=e1404]: 4.7s
+                  - button "web_search 9.1s" [ref=e1405] [cursor=pointer]:
+                    - img [ref=e1406]
+                    - generic [ref=e1408]: web_search
+                    - generic [ref=e1409]: 9.1s
+                  - button "web_search 10.0s" [ref=e1410] [cursor=pointer]:
+                    - img [ref=e1411]
+                    - generic [ref=e1413]: web_search
+                    - generic [ref=e1414]: 10.0s
+                  - button "get_strategy_document 3ms" [ref=e1415] [cursor=pointer]:
+                    - img [ref=e1416]
+                    - generic [ref=e1418]: get_strategy_document
+                    - generic [ref=e1419]: 3ms
+                  - button "Expand all" [ref=e1420] [cursor=pointer]
+                - generic [ref=e1421]:
+                  - paragraph [ref=e1423]:
+                    - text: Perfect. Now I'll rebuild your entire strategy for
+                    - strong [ref=e1424]: talent booking targeting European festivals + corporate clients
+                    - text: ". This is a fundamentally different business model. Let me update all 9 sections:"
+                  - generic [ref=e1425]: 11:41 PM
+          - generic [ref=e1426]:
+            - generic [ref=e1427]:
+              - textbox "Ask about your GTM strategy..." [ref=e1428]
+              - button "Send message" [disabled] [ref=e1429]:
+                - img [ref=e1430]
+            - paragraph [ref=e1433]: Enter to send, Shift+Enter for new line

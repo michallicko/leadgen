@@ -388,19 +388,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
 
-        if (isOnPlaybookPage) {
-          // Focus the inline chat input
-          chatInputRef.current?.focus()
-          return
-        }
-
-        // Toggle the sliding panel
+        // Toggle the sidebar; after opening, focus input
         toggleChat()
+        setTimeout(() => chatInputRef.current?.focus(), 350)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOnPlaybookPage, toggleChat])
+  }, [toggleChat])
 
   // ---------------------------------------------------------------------------
   // Derived messages
