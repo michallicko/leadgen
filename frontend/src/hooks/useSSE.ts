@@ -59,6 +59,44 @@ export interface ResearchStatusEvent {
   message: string
 }
 
+/** Payload from a halt gate request event. */
+export interface HaltGateRequestEvent {
+  gateId: string
+  gateType: string
+  question: string
+  options: Array<{ label: string; value: string; description?: string }>
+  context: string
+  metadata: Record<string, unknown>
+}
+
+/** Payload from a generative UI component event. */
+export interface GenerativeUIComponentEvent {
+  componentType: string
+  componentId: string
+  props: Record<string, unknown>
+  action: 'add' | 'update' | 'remove'
+}
+
+/** Payload from a document edit event. */
+export interface DocumentEditSSEEvent {
+  editId: string
+  section: string
+  operation: 'insert' | 'replace' | 'delete'
+  content: string
+  position: string
+}
+
+/** Payload from a state snapshot event. */
+export interface StateSnapshotEvent {
+  snapshot: Record<string, unknown>
+}
+
+/** Payload from a state delta event with JSON Patch operations. */
+export interface StateDeltaEvent {
+  delta: Record<string, unknown>
+  operations?: Array<{ op: string; path: string; value?: unknown }>
+}
+
 export interface UseSSECallbacks {
   onChunk: (text: string) => void
   onDone: (data: DoneEventData) => void
@@ -85,6 +123,16 @@ export interface UseSSECallbacks {
   onSectionContentChunk?: (text: string) => void
   /** Fired when section content streaming completes. */
   onSectionContentDone?: (section: string) => void
+  /** Fired when a halt gate request arrives (agent paused for user decision). */
+  onHaltGateRequest?: (event: HaltGateRequestEvent) => void
+  /** Fired when a generative UI component event arrives. */
+  onGenerativeUI?: (event: GenerativeUIComponentEvent) => void
+  /** Fired when a document edit event arrives. */
+  onDocumentEdit?: (event: DocumentEditSSEEvent) => void
+  /** Fired when a full state snapshot arrives (connection/reconnect). */
+  onStateSnapshot?: (event: StateSnapshotEvent) => void
+  /** Fired when a state delta with JSON Patch operations arrives. */
+  onStateDelta?: (event: StateDeltaEvent) => void
 }
 
 interface UseSSEReturn {
@@ -267,6 +315,45 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
         action: (delta.action as 'update' | 'append') ?? 'update',
       })
     }
+    // Also emit the raw state delta for shared state sync
+    const operations = event.operations as Array<{ op: string; path: string; value?: unknown }> | undefined
+    if (operations || delta) {
+      callbacks.onStateDelta?.({
+        delta: delta ?? {},
+        operations,
+      })
+    }
+  } else if (eventType === 'STATE_SNAPSHOT') {
+    const snapshot = event.snapshot as Record<string, unknown> | undefined
+    if (snapshot) {
+      callbacks.onStateSnapshot?.({ snapshot })
+    }
+
+  // --- Custom extension events ---
+  } else if (eventType === 'CUSTOM:halt_gate_request') {
+    callbacks.onHaltGateRequest?.({
+      gateId: (event.gateId as string) ?? '',
+      gateType: (event.gateType as string) ?? '',
+      question: (event.question as string) ?? '',
+      options: (event.options as HaltGateRequestEvent['options']) ?? [],
+      context: (event.context as string) ?? '',
+      metadata: (event.metadata as Record<string, unknown>) ?? {},
+    })
+  } else if (eventType === 'CUSTOM:generative_ui') {
+    callbacks.onGenerativeUI?.({
+      componentType: (event.componentType as string) ?? '',
+      componentId: (event.componentId as string) ?? '',
+      props: (event.props as Record<string, unknown>) ?? {},
+      action: (event.action as 'add' | 'update' | 'remove') ?? 'add',
+    })
+  } else if (eventType === 'CUSTOM:document_edit') {
+    callbacks.onDocumentEdit?.({
+      editId: (event.editId as string) ?? '',
+      section: (event.section as string) ?? '',
+      operation: (event.operation as 'insert' | 'replace' | 'delete') ?? 'insert',
+      content: (event.content as string) ?? '',
+      position: (event.position as string) ?? 'end',
+    })
   } else if (eventType === 'CUSTOM:research_status') {
     callbacks.onResearchStatus?.({
       status: event.status as ResearchStatusEvent['status'],

@@ -31,6 +31,10 @@ STATE_SNAPSHOT = "STATE_SNAPSHOT"
 # Custom extensions
 CUSTOM_RESEARCH_STATUS = "CUSTOM:research_status"
 CUSTOM_THINKING_STATUS = "CUSTOM:thinking_status"
+CUSTOM_HALT_GATE_REQUEST = "CUSTOM:halt_gate_request"
+CUSTOM_HALT_GATE_RESPONSE = "CUSTOM:halt_gate_response"
+CUSTOM_DOCUMENT_EDIT = "CUSTOM:document_edit"
+CUSTOM_GENERATIVE_UI = "CUSTOM:generative_ui"
 
 
 @dataclass
@@ -143,6 +147,102 @@ def state_snapshot(snapshot: dict[str, Any]) -> AGUIEvent:
     return AGUIEvent(
         type=STATE_SNAPSHOT,
         data={"snapshot": snapshot},
+    )
+
+
+def halt_gate_request(
+    gate_id: str,
+    gate_type: str,
+    question: str,
+    options: list[dict[str, Any]],
+    context: str,
+    metadata: Optional[dict] = None,
+) -> AGUIEvent:
+    """Emit a halt gate request — pauses agent for user decision.
+
+    Args:
+        gate_id: Unique ID for this gate instance.
+        gate_type: Category (scope, direction, assumption, review, resource).
+        question: The question to present to the user.
+        options: List of option dicts with label, value, description.
+        context: Why this decision matters.
+        metadata: Additional data (e.g., token estimates for resource gates).
+    """
+    return AGUIEvent(
+        type=CUSTOM_HALT_GATE_REQUEST,
+        data={
+            "gateId": gate_id,
+            "gateType": gate_type,
+            "question": question,
+            "options": options,
+            "context": context,
+            "metadata": metadata or {},
+        },
+    )
+
+
+def halt_gate_response(gate_id: str, choice: str, custom_input: str = "") -> AGUIEvent:
+    """Emit a halt gate response — user's decision sent back."""
+    return AGUIEvent(
+        type=CUSTOM_HALT_GATE_RESPONSE,
+        data={
+            "gateId": gate_id,
+            "choice": choice,
+            "customInput": custom_input,
+        },
+    )
+
+
+def document_edit(
+    section: str,
+    operation: str,
+    content: str = "",
+    position: str = "end",
+    edit_id: Optional[str] = None,
+) -> AGUIEvent:
+    """Emit a document edit event for Tiptap integration.
+
+    Args:
+        section: Target section name (H2 heading text).
+        operation: Edit operation type (insert, replace, delete).
+        content: Content to insert or replace with.
+        position: Where to apply (start, end, or character offset).
+        edit_id: Unique ID for this edit (for accept/reject tracking).
+    """
+    return AGUIEvent(
+        type=CUSTOM_DOCUMENT_EDIT,
+        data={
+            "editId": edit_id or str(uuid.uuid4()),
+            "section": section,
+            "operation": operation,
+            "content": content,
+            "position": position,
+        },
+    )
+
+
+def generative_ui_component(
+    component_type: str,
+    component_id: str,
+    props: dict[str, Any],
+    action: str = "add",
+) -> AGUIEvent:
+    """Emit a generative UI component event for inline rendering.
+
+    Args:
+        component_type: Type of component (data_table, progress_card, etc.).
+        component_id: Unique ID for this component instance.
+        props: Component-specific props dict.
+        action: One of 'add', 'update', 'remove'.
+    """
+    return AGUIEvent(
+        type=CUSTOM_GENERATIVE_UI,
+        data={
+            "componentType": component_type,
+            "componentId": component_id,
+            "props": props,
+            "action": action,
+        },
     )
 
 
@@ -275,6 +375,48 @@ def sse_to_agui(sse_type: str, sse_data: dict, run_id: str = "") -> list[AGUIEve
                     "total_input_tokens": sse_data.get("total_input_tokens", 0),
                     "total_output_tokens": sse_data.get("total_output_tokens", 0),
                     "total_cost_usd": sse_data.get("total_cost_usd", "0"),
+                },
+            )
+        ]
+
+    elif sse_type == "halt_gate_request":
+        return [
+            AGUIEvent(
+                type=CUSTOM_HALT_GATE_REQUEST,
+                data={
+                    "gateId": sse_data.get("gate_id", ""),
+                    "gateType": sse_data.get("gate_type", ""),
+                    "question": sse_data.get("question", ""),
+                    "options": sse_data.get("options", []),
+                    "context": sse_data.get("context", ""),
+                    "metadata": sse_data.get("metadata", {}),
+                },
+            )
+        ]
+
+    elif sse_type == "document_edit":
+        return [
+            AGUIEvent(
+                type=CUSTOM_DOCUMENT_EDIT,
+                data={
+                    "editId": sse_data.get("edit_id", ""),
+                    "section": sse_data.get("section", ""),
+                    "operation": sse_data.get("operation", ""),
+                    "content": sse_data.get("content", ""),
+                    "position": sse_data.get("position", "end"),
+                },
+            )
+        ]
+
+    elif sse_type == "generative_ui":
+        return [
+            AGUIEvent(
+                type=CUSTOM_GENERATIVE_UI,
+                data={
+                    "componentType": sse_data.get("component_type", ""),
+                    "componentId": sse_data.get("component_id", ""),
+                    "props": sse_data.get("props", {}),
+                    "action": sse_data.get("action", "add"),
                 },
             )
         ]
