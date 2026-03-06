@@ -182,7 +182,7 @@ class TestCheckEnrichmentStatus:
                 {"pipeline_run_id": "pr-001"}, _make_ctx()
             )
 
-            assert result["total_cost_usd"] == 0.30
+            assert result["total_cost_credits"] == 300
 
 
 # ---------------------------------------------------------------------------

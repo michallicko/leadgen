@@ -51,7 +51,7 @@ def _enrich_company_news(args: dict, ctx: ToolContext) -> dict:
         return result
     except Exception as exc:
         logger.exception("enrich_company_news failed: %s", exc)
-        return {"error": str(exc), "enrichment_cost_usd": 0}
+        return {"error": str(exc), "enrichment_cost_credits": 0}
 
 
 def _enrich_company_signals(args: dict, ctx: ToolContext) -> dict:
@@ -74,7 +74,7 @@ def _enrich_company_signals(args: dict, ctx: ToolContext) -> dict:
         return result
     except Exception as exc:
         logger.exception("enrich_company_signals failed: %s", exc)
-        return {"error": str(exc), "enrichment_cost_usd": 0}
+        return {"error": str(exc), "enrichment_cost_credits": 0}
 
 
 def _enrich_contact_social(args: dict, ctx: ToolContext) -> dict:
@@ -97,7 +97,7 @@ def _enrich_contact_social(args: dict, ctx: ToolContext) -> dict:
         return result
     except Exception as exc:
         logger.exception("enrich_contact_social failed: %s", exc)
-        return {"error": str(exc), "enrichment_cost_usd": 0}
+        return {"error": str(exc), "enrichment_cost_credits": 0}
 
 
 def _enrich_contact_career(args: dict, ctx: ToolContext) -> dict:
@@ -120,7 +120,7 @@ def _enrich_contact_career(args: dict, ctx: ToolContext) -> dict:
         return result
     except Exception as exc:
         logger.exception("enrich_contact_career failed: %s", exc)
-        return {"error": str(exc), "enrichment_cost_usd": 0}
+        return {"error": str(exc), "enrichment_cost_credits": 0}
 
 
 def _enrich_contact_details_handler(args: dict, ctx: ToolContext) -> dict:
@@ -143,7 +143,7 @@ def _enrich_contact_details_handler(args: dict, ctx: ToolContext) -> dict:
         return result
     except Exception as exc:
         logger.exception("enrich_contact_details failed: %s", exc)
-        return {"error": str(exc), "enrichment_cost_usd": 0}
+        return {"error": str(exc), "enrichment_cost_credits": 0}
 
 
 def _check_enrichment_status(args: dict, ctx: ToolContext) -> dict:
@@ -177,8 +177,8 @@ def _check_enrichment_status(args: dict, ctx: ToolContext) -> dict:
 
     # Get tag name
     tag_row = db.session.execute(
-        text("SELECT name FROM tags WHERE id = :tid"),
-        {"tid": str(pr_row[2])},
+        text("SELECT name FROM tags WHERE id = :tid AND tenant_id = :tenant_id"),
+        {"tid": str(pr_row[2]), "tenant_id": str(ctx.tenant_id)},
     ).fetchone()
     tag_name = tag_row[0] if tag_row else "unknown"
 
@@ -189,12 +189,13 @@ def _check_enrichment_status(args: dict, ctx: ToolContext) -> dict:
         placeholders = ", ".join(f":id{i}" for i in range(len(sr_ids)))
         params = {f"id{i}": str(sid) for i, sid in enumerate(sr_ids)}
 
+        params["tenant_id"] = str(ctx.tenant_id)
         sr_rows = db.session.execute(
             text(f"""
                 SELECT id, stage, status, total, done, failed, cost_usd,
                        started_at, completed_at, error
                 FROM stage_runs
-                WHERE id IN ({placeholders})
+                WHERE id IN ({placeholders}) AND tenant_id = :tenant_id
                 ORDER BY started_at
             """),
             params,
@@ -209,14 +210,14 @@ def _check_enrichment_status(args: dict, ctx: ToolContext) -> dict:
                     "total": sr[3] or 0,
                     "done": sr[4] or 0,
                     "failed": sr[5] or 0,
-                    "cost_usd": float(sr[6]) if sr[6] else 0.0,
+                    "cost_credits": int(float(sr[6]) * 1000) if sr[6] else 0,
                     "error": sr[9],
                 }
             )
 
     total_done = sum(s["done"] for s in stage_details)
     total_items = sum(s["total"] for s in stage_details)
-    total_cost = sum(s["cost_usd"] for s in stage_details)
+    total_cost_credits = sum(s["cost_credits"] for s in stage_details)
 
     return {
         "pipeline_run_id": str(pr_row[0]),
@@ -232,14 +233,14 @@ def _check_enrichment_status(args: dict, ctx: ToolContext) -> dict:
             if total_items > 0
             else 0,
         },
-        "total_cost_usd": round(total_cost, 4),
-        "summary": "Pipeline '{}': {} — {}/{} items done ({:.1f}%). Cost: ${:.4f}".format(
+        "total_cost_credits": total_cost_credits,
+        "summary": "Pipeline '{}': {} — {}/{} items done ({:.1f}%). Cost: {} credits".format(
             tag_name,
             pr_row[3],
             total_done,
             total_items,
             round(total_done / total_items * 100, 1) if total_items > 0 else 0,
-            total_cost,
+            total_cost_credits,
         ),
     }
 
