@@ -1,9 +1,15 @@
 """Intent classification for the orchestrator.
 
 Uses Haiku for fast (<500ms) classification of user messages into
-one of five intent categories: strategy_edit, research, quick_answer,
-campaign, or outreach. The classifier uses a minimal prompt and structured
-output parsing.
+intent categories. The classifier uses a minimal prompt and structured
+output parsing. Copilot is the default fallback for simple queries.
+
+Intent categories:
+  - strategy_edit: Strategy document editing
+  - research: Web search, market analysis
+  - enrichment: Contact/company enrichment operations
+  - outreach: Message generation, campaign management
+  - copilot: Quick questions, help, data lookups (default fallback)
 """
 
 from __future__ import annotations
@@ -22,23 +28,23 @@ VALID_INTENTS = frozenset(
     [
         "strategy_edit",
         "research",
-        "quick_answer",
-        "campaign",
+        "enrichment",
         "outreach",
+        "copilot",
     ]
 )
 
-# Default intent when classification fails
-DEFAULT_INTENT = "quick_answer"
+# Default intent when classification fails — copilot handles simple queries
+DEFAULT_INTENT = "copilot"
 
 # Intent classification prompt (~120 tokens)
 INTENT_CLASSIFICATION_PROMPT = """Classify the user's message into exactly one category:
 
 - strategy_edit: Writing, updating, reviewing, or generating strategy document sections. Includes ICP tiers, buyer personas, and section completeness checks.
-- research: Web search, company research, market analysis, contact/company data queries, enrichment analysis.
-- quick_answer: Simple questions, status checks, greetings, clarifications, or questions about existing strategy content.
-- campaign: Campaign management, campaign creation, campaign analytics, contact filtering for campaigns.
-- outreach: Message generation, writing outreach messages, personalizing messages, A/B variants, message templates, reviewing or approving messages.
+- research: Web search, company research, market analysis, enrichment analysis.
+- enrichment: Running enrichment pipeline, enriching contacts/companies, checking enrichment status, triggering L1/L2/person enrichment.
+- outreach: Message generation, outreach planning, campaign management, creating email sequences, writing personalized messages.
+- copilot: Simple questions, status checks, greetings, help requests, data lookups, "how do I" questions, clarifications.
 
 Respond with ONLY the category name. No explanation, no punctuation."""
 
@@ -69,44 +75,31 @@ RESEARCH_KEYWORDS = [
     "look up",
     "find information",
     "web search",
-    "how many contacts",
-    "how many companies",
-    "list contacts",
-    "count contacts",
-    "count companies",
-    "analyze enrichment",
     "market analysis",
     "competitor",
 ]
 
-OUTREACH_KEYWORDS = [
-    "generate message",
-    "write message",
-    "write a message",
-    "write outreach",
-    "personalize message",
-    "message for",
-    "draft message",
-    "outreach message",
-    "linkedin message",
-    "email message",
-    "message template",
-    "a/b variant",
-    "ab variant",
-    "message variant",
-    "approve message",
-    "reject message",
-    "review message",
+ENRICHMENT_KEYWORDS = [
+    "enrich",
+    "enrichment",
+    "run pipeline",
+    "trigger enrichment",
+    "l1 enrichment",
+    "l2 enrichment",
+    "person enrichment",
+    "enrichment status",
 ]
 
-CAMPAIGN_KEYWORDS = [
+OUTREACH_KEYWORDS = [
+    "generate message",
+    "write outreach",
     "create campaign",
-    "campaign analytics",
-    "campaign performance",
-    "filter contacts for",
-    "send campaign",
+    "outreach",
+    "send message",
+    "campaign",
     "email sequence",
-    "launch campaign",
+    "write email",
+    "personalize message",
 ]
 
 
@@ -118,30 +111,29 @@ def classify_intent_fast(message: str) -> str | None:
     """
     lower = message.lower().strip()
 
-    # Very short messages are quick answers
+    # Very short messages are copilot
     if len(lower) < 10:
-        return "quick_answer"
+        return "copilot"
 
     # Greetings
     if lower in ("hi", "hello", "hey", "thanks", "thank you", "ok", "okay"):
-        return "quick_answer"
+        return "copilot"
 
     for kw in STRATEGY_KEYWORDS:
         if kw in lower:
             return "strategy_edit"
 
-    for kw in RESEARCH_KEYWORDS:
+    for kw in ENRICHMENT_KEYWORDS:
         if kw in lower:
-            return "research"
+            return "enrichment"
 
-    # Check outreach BEFORE campaign (more specific)
     for kw in OUTREACH_KEYWORDS:
         if kw in lower:
             return "outreach"
 
-    for kw in CAMPAIGN_KEYWORDS:
+    for kw in RESEARCH_KEYWORDS:
         if kw in lower:
-            return "campaign"
+            return "research"
 
     return None
 
@@ -154,8 +146,6 @@ def classify_intent(message: str) -> tuple[str, float]:
 
     Returns:
         Tuple of (intent_category, latency_ms).
-        intent_category is one of: strategy_edit, research, quick_answer,
-        campaign, outreach.
     """
     # Try fast path first
     fast_result = classify_intent_fast(message)
