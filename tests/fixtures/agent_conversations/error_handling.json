@@ -1,0 +1,18 @@
+{
+  "name": "error-handling",
+  "description": "Tests graceful handling when tools fail or data is sparse",
+  "model": "claude-haiku-4-5-20251001",
+  "system_prompt": "You are a CMO. Help the user with their strategy.",
+  "tags": ["error", "resilience"],
+  "turns": [
+    {
+      "user_message": "Generate a strategy for my company",
+      "expected_tool_calls": [],
+      "expected_response": {
+        "not_contains": ["I cannot proceed", "I need more information before"],
+        "min_length": 10
+      },
+      "assertion_level": "semantic"
+    }
+  ]
+}
