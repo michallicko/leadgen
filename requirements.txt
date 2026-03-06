@@ -2,3 +2,6 @@ requests
 python-dotenv
 resend
 anthropic
+langgraph
+langchain-anthropic
+langchain-core

@@ -125,11 +125,37 @@ function parseSSEEvent(block: string): Record<string, unknown> | null {
 }
 
 /**
+ * Parse output from a tool_result or TOOL_CALL_END event.
+ * The backend sends output as a JSON-encoded string — parse it so
+ * ToolCallCard receives a proper object for rendering.
+ */
+function parseToolOutput(raw: unknown): Record<string, unknown> | undefined {
+  if (typeof raw === 'string' && raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // Not valid JSON — leave as undefined
+    }
+  } else if (typeof raw === 'object' && raw !== null) {
+    return raw as Record<string, unknown>
+  }
+  return undefined
+}
+
+/**
  * Dispatch a parsed SSE event to the appropriate callback.
+ *
+ * Supports both legacy custom events (chunk, tool_start, tool_result, done)
+ * and AG-UI protocol events (TEXT_MESSAGE_CONTENT, TOOL_CALL_START, etc.).
+ * This enables gradual migration from custom to AG-UI events.
  */
 function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallbacks): void {
   const eventType = event.type as string | undefined
 
+  // --- Legacy custom events ---
   if (eventType === 'chunk') {
     callbacks.onChunk(event.text as string)
   } else if (eventType === 'done') {
@@ -148,28 +174,12 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
       input: (event.input as Record<string, unknown>) ?? {},
     })
   } else if (eventType === 'tool_result') {
-    // The backend sends `output` as a JSON-encoded string (not an object).
-    // Parse it so ToolCallCard receives a proper object for rendering.
-    let parsedOutput: Record<string, unknown> | undefined
-    if (typeof event.output === 'string' && event.output) {
-      try {
-        const parsed = JSON.parse(event.output)
-        if (typeof parsed === 'object' && parsed !== null) {
-          parsedOutput = parsed as Record<string, unknown>
-        }
-      } catch {
-        // Not valid JSON — leave as undefined
-      }
-    } else if (typeof event.output === 'object' && event.output !== null) {
-      parsedOutput = event.output as Record<string, unknown>
-    }
-
     callbacks.onToolResult?.({
       toolCallId: event.tool_call_id as string,
       toolName: event.tool_name as string | undefined,
       status: event.status as 'success' | 'error',
       summary: event.summary as string,
-      output: parsedOutput,
+      output: parseToolOutput(event.output),
       durationMs: event.duration_ms as number,
     })
   } else if (eventType === 'thinking') {
@@ -201,6 +211,68 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
     callbacks.onSectionContentChunk?.(event.text as string)
   } else if (eventType === 'section_content_done') {
     callbacks.onSectionContentDone?.(event.section as string)
+
+  // --- AG-UI protocol events ---
+  } else if (eventType === 'RUN_STARTED') {
+    // No-op for now — future: could set a "run in progress" state
+  } else if (eventType === 'RUN_FINISHED') {
+    // Map to onDone with AG-UI field names
+    callbacks.onDone({
+      messageId: (event.runId as string) ?? '',
+      toolCalls: event.tool_calls as ToolCallSummary[] | undefined,
+      documentChanged: event.document_changed as boolean | undefined,
+      changesSummary: event.changes_summary as string | null | undefined,
+    })
+  } else if (eventType === 'TEXT_MESSAGE_START') {
+    // If section is present, this is a section content stream
+    if (event.section) {
+      callbacks.onSectionContentStart?.(event.section as string)
+    }
+    // Otherwise, start of regular text — no-op (chunk handles content)
+  } else if (eventType === 'TEXT_MESSAGE_CONTENT') {
+    const delta = (event.delta as string) ?? ''
+    const msgId = (event.messageId as string) ?? ''
+    // Route section content to section callbacks
+    if (msgId.endsWith('_section')) {
+      callbacks.onSectionContentChunk?.(delta)
+    } else {
+      callbacks.onChunk(delta)
+    }
+  } else if (eventType === 'TEXT_MESSAGE_END') {
+    if (event.section) {
+      callbacks.onSectionContentDone?.(event.section as string)
+    }
+  } else if (eventType === 'TOOL_CALL_START') {
+    callbacks.onToolStart?.({
+      toolCallId: (event.toolCallId as string) ?? '',
+      toolName: (event.toolCallName as string) ?? '',
+      input: (event.input as Record<string, unknown>) ?? {},
+    })
+  } else if (eventType === 'TOOL_CALL_END') {
+    callbacks.onToolResult?.({
+      toolCallId: (event.toolCallId as string) ?? '',
+      toolName: (event.toolCallName as string) ?? undefined,
+      status: (event.status as 'success' | 'error') ?? 'success',
+      summary: (event.summary as string) ?? '',
+      output: parseToolOutput(event.output),
+      durationMs: (event.durationMs as number) ?? 0,
+    })
+  } else if (eventType === 'STATE_DELTA') {
+    // Map state delta to section_update if it contains section data
+    const delta = event.delta as Record<string, unknown> | undefined
+    if (delta?.section) {
+      callbacks.onSectionUpdate?.({
+        section: delta.section as string,
+        content: (delta.content as string) ?? '',
+        action: (delta.action as 'update' | 'append') ?? 'update',
+      })
+    }
+  } else if (eventType === 'CUSTOM:research_status') {
+    callbacks.onResearchStatus?.({
+      status: event.status as ResearchStatusEvent['status'],
+      domain: event.domain as string,
+      message: event.message as string,
+    })
   }
 }
 
