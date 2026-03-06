@@ -167,9 +167,7 @@ def tools_node(state: AgentState) -> dict:
                     },
                 )
             )
-            tool_messages.append(
-                ToolMessage(content=error_msg, tool_call_id=tool_id)
-            )
+            tool_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id))
             continue
 
         try:
@@ -199,10 +197,7 @@ def tools_node(state: AgentState) -> dict:
             )
 
             # Emit section_update for live document animation
-            if (
-                tool_name in ("update_strategy_section", "append_to_section")
-                and result
-            ):
+            if tool_name in ("update_strategy_section", "append_to_section") and result:
                 section_name = result.get("section", "")
                 content_preview = result.get("content_preview", "")
 
@@ -264,9 +259,7 @@ def tools_node(state: AgentState) -> dict:
                     },
                 )
             )
-            tool_messages.append(
-                ToolMessage(content=error_msg, tool_call_id=tool_id)
-            )
+            tool_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id))
 
     return {"messages": tool_messages}
 
@@ -287,9 +280,7 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
 
     # Check iteration limit
     if iteration >= MAX_TOOL_ITERATIONS:
-        logger.warning(
-            "Agent reached max iterations (%d)", MAX_TOOL_ITERATIONS
-        )
+        logger.warning("Agent reached max iterations (%d)", MAX_TOOL_ITERATIONS)
         return "end"
 
     # Check for tool calls
@@ -468,9 +459,7 @@ def execute_graph_turn(
             "tenant_id": str(tool_context.tenant_id) if tool_context.tenant_id else "",
             "user_id": str(tool_context.user_id) if tool_context.user_id else None,
             "document_id": (
-                str(tool_context.document_id)
-                if tool_context.document_id
-                else None
+                str(tool_context.document_id) if tool_context.document_id else None
             ),
             "turn_id": tool_context.turn_id,
             "_app": app,
@@ -499,9 +488,7 @@ def execute_graph_turn(
                 # Check turn timeout
                 elapsed = time.monotonic() - turn_start
                 if elapsed > MAX_TURN_SECONDS:
-                    logger.warning(
-                        "Agent turn timed out after %.0fs", elapsed
-                    )
+                    logger.warning("Agent turn timed out after %.0fs", elapsed)
                     yield SSEEvent(
                         type="chunk",
                         data={
@@ -533,9 +520,7 @@ def execute_graph_turn(
                     "input_args": tc.get("input", {}),
                     "output_data": tc.get("output", ""),
                     "error_message": (
-                        tc.get("summary", "")
-                        if tc.get("status") == "error"
-                        else None
+                        tc.get("summary", "") if tc.get("status") == "error" else None
                     ),
                     "duration_ms": tc.get("duration_ms", 0),
                 }
@@ -578,3 +563,172 @@ def _estimate_cost(model, input_tokens, output_tokens):
     input_cost = (input_tokens / 1_000_000) * pricing["input_per_m"]
     output_cost = (output_tokens / 1_000_000) * pricing["output_per_m"]
     return round(input_cost + output_cost, 6)
+
+
+# ---------------------------------------------------------------------------
+# Orchestrated execution entry point (multi-agent routing)
+# ---------------------------------------------------------------------------
+
+
+def execute_orchestrated_turn(
+    system_prompt: str,
+    messages: list[dict],
+    tool_context: ToolContext,
+    model: str = "claude-haiku-4-5-20251001",
+    app=None,
+    system_messages: Optional[list] = None,
+):
+    """Execute a turn using the multi-agent orchestrator.
+
+    Routes user messages to specialist subgraphs (Strategy, Research)
+    based on intent classification. Falls back to quick_response for
+    simple queries.
+
+    Same interface as execute_graph_turn() — yields SSEEvent objects.
+
+    Args:
+        system_prompt: System prompt string (legacy fallback).
+        messages: List of message dicts in Anthropic format.
+        tool_context: ToolContext with tenant_id, user_id, document_id.
+        model: Model name for the LLM.
+        app: Flask app for database access in tool handlers.
+        system_messages: Pre-built LangChain SystemMessage list.
+
+    Yields:
+        SSEEvent objects (intent_classified, tool_start, tool_result, chunk, done).
+    """
+    from .orchestrator import build_orchestrator_graph
+
+    graph = build_orchestrator_graph()
+
+    # Convert Anthropic-format messages to LangChain messages
+    if system_messages:
+        lc_messages = list(system_messages)
+    else:
+        lc_messages = [SystemMessage(content=system_prompt)]
+
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+
+        if role == "user":
+            if isinstance(content, list):
+                for block in content:
+                    if block.get("type") == "tool_result":
+                        lc_messages.append(
+                            ToolMessage(
+                                content=block.get("content", ""),
+                                tool_call_id=block.get("tool_use_id", ""),
+                            )
+                        )
+                    else:
+                        lc_messages.append(HumanMessage(content=str(content)))
+                        break
+            else:
+                lc_messages.append(HumanMessage(content=str(content)))
+        elif role == "assistant":
+            if isinstance(content, list):
+                text_parts = []
+                tool_calls = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_use":
+                            tool_calls.append(
+                                {
+                                    "name": block.get("name", ""),
+                                    "args": block.get("input", {}),
+                                    "id": block.get("id", ""),
+                                }
+                            )
+                ai_msg = AIMessage(
+                    content="".join(text_parts),
+                    tool_calls=tool_calls if tool_calls else [],
+                )
+                lc_messages.append(ai_msg)
+            else:
+                lc_messages.append(AIMessage(content=str(content)))
+
+    # Build initial state with orchestrator fields
+    initial_state: AgentState = {
+        "messages": lc_messages,
+        "tool_context": {
+            "tenant_id": str(tool_context.tenant_id) if tool_context.tenant_id else "",
+            "user_id": str(tool_context.user_id) if tool_context.user_id else None,
+            "document_id": (
+                str(tool_context.document_id) if tool_context.document_id else None
+            ),
+            "turn_id": tool_context.turn_id,
+            "_app": app,
+        },
+        "iteration": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_cost_usd": "0",
+        "model": model,
+        "intent": None,
+        "active_agent": None,
+        "research_results": None,
+        "section_completeness": None,
+    }
+
+    # Stream the orchestrator execution
+    tool_executions = []
+    turn_start = time.monotonic()
+
+    try:
+        for event in graph.stream(
+            initial_state,
+            stream_mode="custom",
+        ):
+            if isinstance(event, SSEEvent):
+                if event.type == "tool_result":
+                    tool_executions.append(event.data)
+
+                elapsed = time.monotonic() - turn_start
+                if elapsed > MAX_TURN_SECONDS:
+                    logger.warning("Orchestrated turn timed out after %.0fs", elapsed)
+                    yield SSEEvent(
+                        type="chunk",
+                        data={
+                            "text": "I ran out of time for this turn. "
+                            "Here's what I've completed so far. "
+                            "Send another message to continue.",
+                        },
+                    )
+                    break
+
+                yield event
+
+    except Exception as exc:
+        logger.exception("Orchestrator execution error: %s", exc)
+        yield SSEEvent(
+            type="chunk",
+            data={"text": "An error occurred: {}".format(str(exc))},
+        )
+
+    # Yield the final done event
+    yield SSEEvent(
+        type="done",
+        data={
+            "tool_calls": [
+                {
+                    "tool_name": tc.get("tool_name", ""),
+                    "tool_call_id": tc.get("tool_call_id", ""),
+                    "status": tc.get("status", "success"),
+                    "input_args": tc.get("input", {}),
+                    "output_data": tc.get("output", ""),
+                    "error_message": (
+                        tc.get("summary", "") if tc.get("status") == "error" else None
+                    ),
+                    "duration_ms": tc.get("duration_ms", 0),
+                }
+                for tc in tool_executions
+            ],
+            "model": model,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_cost_usd": "0",
+        },
+    )
