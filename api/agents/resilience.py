@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_FALLBACK_CHAIN = [
     "claude-sonnet-4-5-20241022",
     "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-5-20241022",  # Retry sonnet after haiku attempt
 ]
 
 
@@ -61,7 +60,7 @@ class ModelFallbackChain:
         """Get the full model chain: primary + fallbacks (deduplicated in order)."""
         chain = [self.primary]
         for model in self.fallbacks:
-            if model != self.primary or model not in chain:
+            if model not in chain:
                 chain.append(model)
         return chain
 

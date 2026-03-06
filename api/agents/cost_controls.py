@@ -177,9 +177,14 @@ def check_budget(
     warn_at = budget["warn_at_percent"]
     hard_limit = budget["hard_limit_percent"]
 
-    # Get current month's usage
+    # Get current period's usage (use budget's configured period start)
     now = datetime.now(timezone.utc)
-    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    period_start = budget.get("current_period_start") or now.replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    # Ensure period_start is a datetime, not a string
+    if isinstance(period_start, str):
+        period_start = datetime.fromisoformat(period_start)
 
     try:
         result = db_session.execute(
