@@ -40,7 +40,7 @@ export interface DocumentChangeInfo {
   summary: string | null
 }
 
-interface ChatContextValue {
+export interface ChatContextValue {
   // State
   messages: ChatMessage[]
   isOpen: boolean
@@ -87,7 +87,7 @@ interface ChatContextValue {
   chatInputRef: React.RefObject<HTMLTextAreaElement | null>
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null)
+export const ChatContext = createContext<ChatContextValue | null>(null)
 
 // ---------------------------------------------------------------------------
 // localStorage helpers
