@@ -255,12 +255,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onDone: (doneData) => {
             setStreamingText('')
-            setOptimisticMessages([])
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
             setThinkingStatus('Thinking...')
-            chatQuery.refetch()
+            // Keep optimistic messages visible until server data arrives
+            chatQuery.refetch().then(() => {
+              setOptimisticMessages([])
+            })
 
             // Detect document changes from strategy tool calls
             const doneToolCalls = doneData.toolCalls
@@ -448,10 +450,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }))
   }, [chatQuery.data?.messages])
 
-  const allMessages = useMemo(
-    () => [...serverMessages, ...optimisticMessages],
-    [serverMessages, optimisticMessages],
-  )
+  const allMessages = useMemo(() => {
+    // Deduplicate: if server already has a message with same content, drop the optimistic copy
+    const serverContents = new Set(serverMessages.map((m) => m.content))
+    const dedupedOptimistic = optimisticMessages.filter((m) => !serverContents.has(m.content))
+    return [...serverMessages, ...dedupedOptimistic].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+  }, [serverMessages, optimisticMessages])
 
   // ---------------------------------------------------------------------------
   // Context value
