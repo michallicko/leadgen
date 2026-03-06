@@ -47,6 +47,11 @@ from ..services.playbook_service import (
 )
 from ..services.tool_registry import ToolContext, get_tools_for_api
 
+# LangGraph agent (Sprint 11) — toggled via USE_LANGGRAPH env var
+_USE_LANGGRAPH = os.environ.get("USE_LANGGRAPH", "0") == "1"
+if _USE_LANGGRAPH:
+    from ..agents.graph import build_system_messages, execute_graph_turn
+
 logger = logging.getLogger(__name__)
 
 
@@ -2015,20 +2020,45 @@ def _stream_agent_response(
                 page_context=page_context,
             )
 
+            # Build layered system messages for LangGraph path
+            system_msgs = None
+            if _USE_LANGGRAPH:
+                company_name = tenant.company_name if tenant else "Your Company"
+                system_msgs = build_system_messages(
+                    company_name=company_name,
+                    document=doc,
+                    enrichment_data=enrichment_data,
+                    phase=phase,
+                    page_context=page_context,
+                    tenant=tenant,
+                )
+
         # --- Agent turn (yields chunk / tool_start / tool_result events) ---
         full_text = []
         msg_id = None
         done_data = None
 
         try:
-            for sse_event in execute_agent_turn(
-                client=client,
-                system_prompt=system_prompt,
-                messages=messages,
-                tools=tools,
-                tool_context=tool_context,
-                app=app,
-            ):
+            if _USE_LANGGRAPH:
+                agent_gen = execute_graph_turn(
+                    system_prompt=system_prompt,
+                    messages=messages,
+                    tool_context=tool_context,
+                    model=client.default_model,
+                    app=app,
+                    system_messages=system_msgs,
+                )
+            else:
+                agent_gen = execute_agent_turn(
+                    client=client,
+                    system_prompt=system_prompt,
+                    messages=messages,
+                    tools=tools,
+                    tool_context=tool_context,
+                    app=app,
+                )
+
+            for sse_event in agent_gen:
                 if sse_event.type == "chunk":
                     full_text.append(sse_event.data.get("text", ""))
                     yield "data: {}\n\n".format(
@@ -2048,6 +2078,15 @@ def _stream_agent_response(
                 elif sse_event.type == "section_update":
                     yield "data: {}\n\n".format(
                         json.dumps(sse_event.data | {"type": "section_update"})
+                    )
+
+                elif sse_event.type in (
+                    "section_content_start",
+                    "section_content_chunk",
+                    "section_content_done",
+                ):
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": sse_event.type})
                     )
 
                 elif sse_event.type == "done":
