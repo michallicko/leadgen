@@ -156,7 +156,7 @@ def get_file_content(file_id):
         ), 202
 
     level = "l2" if request.args.get("detail") == "full" else "l1"
-    result = get_file_context(file_id, level)
+    result = get_file_context(file_id, level, tenant_id=str(tenant_id))
 
     if not result:
         return jsonify({"error": "No content available."}), 404

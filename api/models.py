@@ -1623,12 +1623,8 @@ class FileUpload(db.Model):
     storage_path = db.Column(db.Text, nullable=False)
     processing_status = db.Column(db.String(20), nullable=False, default="pending")
     error_message = db.Column(db.Text)
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
-    updated_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     contents = db.relationship(
         "ExtractedContent",
@@ -1673,9 +1669,7 @@ class ExtractedContent(db.Model):
     content_summary = db.Column(db.Text)
     page_range = db.Column(db.String(50))
     token_count = db.Column(db.Integer)
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     file_upload = db.relationship("FileUpload", back_populates="contents")
 
@@ -1721,12 +1715,8 @@ class MemoryEmbedding(db.Model):
     embedding = db.Column(db.Text)
     metadata_ = db.Column("metadata", JSONB, server_default=db.text("'{}'::jsonb"))
     source_message_id = db.Column(UUID(as_uuid=False))
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
-    updated_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     def to_dict(self):
         return {

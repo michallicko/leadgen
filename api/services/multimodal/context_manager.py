@@ -32,6 +32,7 @@ def get_file_context(
     file_id: str,
     detail_level: str = "l1",
     max_tokens: Optional[int] = None,
+    tenant_id: Optional[str] = None,
 ) -> Optional[dict]:
     """Get file content at the specified detail level.
 
@@ -39,11 +40,18 @@ def get_file_context(
         file_id: UUID of the file upload.
         detail_level: One of 'l0', 'l1', 'l2'.
         max_tokens: Override max tokens for this request.
+        tenant_id: Tenant UUID for isolation. If provided, file must belong
+            to this tenant or None is returned.
 
     Returns:
         {"content": str, "tokens": int, "level": str} or None.
     """
-    file_record = db.session.get(FileUpload, file_id)
+    if tenant_id:
+        file_record = FileUpload.query.filter_by(
+            id=file_id, tenant_id=str(tenant_id)
+        ).first()
+    else:
+        file_record = db.session.get(FileUpload, file_id)
     if not file_record:
         return None
 
@@ -72,7 +80,7 @@ def get_file_context(
                 "level": "l1",
             }
         # Fall back to L0 if no summary
-        return get_file_context(file_id, "l0")
+        return get_file_context(file_id, "l0", tenant_id=tenant_id)
 
     if detail_level == "l2":
         full = _get_content_by_type(file_id, "full_text")
@@ -89,7 +97,7 @@ def get_file_context(
                 "tokens": token_count,
                 "level": "l2",
             }
-        return get_file_context(file_id, "l1")
+        return get_file_context(file_id, "l1", tenant_id=tenant_id)
 
     return None
 
@@ -97,6 +105,7 @@ def get_file_context(
 def build_multimodal_context(
     file_ids: list[str],
     budget_tokens: int = MAX_MULTIMODAL_TOKENS,
+    tenant_id: Optional[str] = None,
 ) -> list[dict]:
     """Build context entries for multiple files within a token budget.
 
@@ -118,7 +127,7 @@ def build_multimodal_context(
     total_tokens = 0
 
     for fid in file_ids:
-        ctx = get_file_context(fid, "l1")
+        ctx = get_file_context(fid, "l1", tenant_id=tenant_id)
         if ctx:
             entries.append({"file_id": fid, **ctx})
             total_tokens += ctx["tokens"]
@@ -140,7 +149,7 @@ def build_multimodal_context(
             remaining_budget -= entry["tokens"]
         else:
             # Downgrade to L0
-            l0 = get_file_context(entry["file_id"], "l0")
+            l0 = get_file_context(entry["file_id"], "l0", tenant_id=tenant_id)
             if l0:
                 result.append({"file_id": entry["file_id"], **l0})
                 remaining_budget -= l0["tokens"]

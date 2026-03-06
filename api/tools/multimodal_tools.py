@@ -36,7 +36,7 @@ def analyze_document(args: dict, ctx: ToolContext) -> dict:
     if not file_record:
         return {"error": "File not found."}
 
-    result = get_file_context(file_id, detail)
+    result = get_file_context(file_id, detail, tenant_id=ctx.tenant_id)
     if not result:
         return {"error": "No content available for this file."}
 
@@ -69,7 +69,7 @@ def extract_data(args: dict, ctx: ToolContext) -> dict:
         return {"error": "File not found."}
 
     # Get full text for searching
-    result = get_file_context(file_id, "l2", max_tokens=4000)
+    result = get_file_context(file_id, "l2", max_tokens=4000, tenant_id=ctx.tenant_id)
     if not result or not result.get("content"):
         return {"error": "No content available to search."}
 
@@ -100,7 +100,7 @@ def analyze_image(args: dict, ctx: ToolContext) -> dict:
     if not file_record.mime_type.startswith("image/"):
         return {"error": "This file is not an image."}
 
-    result = get_file_context(file_id, "l2")
+    result = get_file_context(file_id, "l2", tenant_id=ctx.tenant_id)
     if not result or not result.get("content"):
         return {"error": "No analysis available for this image."}
 

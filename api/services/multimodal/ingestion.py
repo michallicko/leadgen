@@ -6,11 +6,14 @@ or S3 (production), and dispatches to the appropriate extractor.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
+import socket
 import uuid
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from ...models import ExtractedContent, FileUpload, db
 
@@ -34,7 +37,7 @@ ALLOWED_MIME_TYPES = {
 # Extension to MIME type fallback (when Content-Type is generic)
 EXTENSION_MAP = {
     ".pdf": "application/pdf",
-    ".jpg": "application/pdf",
+    ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
     ".webp": "image/webp",
@@ -204,6 +207,61 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+_BLOCKED_HOSTNAMES = {"metadata.google.internal"}
+
+# Private/reserved IP networks that must not be accessed
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+]
+
+
+def _validate_url_safety(url: str) -> None:
+    """Validate that a URL is safe to fetch (no SSRF).
+
+    Raises ValueError if the URL targets a private/internal resource.
+    """
+    parsed = urlparse(url)
+
+    # Only allow http and https schemes
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Only http:// and https:// URLs are allowed.")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Invalid URL: no hostname.")
+
+    # Block hostnames without dots (e.g. "localhost", "internal")
+    if "." not in hostname and ":" not in hostname:
+        raise ValueError("Invalid URL: bare hostname not allowed.")
+
+    # Block known dangerous hostnames
+    if hostname.lower() in _BLOCKED_HOSTNAMES:
+        raise ValueError("Access to {} is not allowed.".format(hostname))
+
+    # Resolve hostname to IP and check against blocked networks
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise ValueError("Could not resolve hostname: {}".format(hostname))
+
+    for family, _type, _proto, _canonname, sockaddr in addr_infos:
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        for network in _BLOCKED_NETWORKS:
+            if ip in network:
+                raise ValueError(
+                    "Access to private/internal IP {} is not allowed.".format(ip_str)
+                )
+
+
 def fetch_url_content(url: str) -> dict:
     """Fetch content from a URL for processing.
 
@@ -212,6 +270,11 @@ def fetch_url_content(url: str) -> dict:
         or {"error": str} on failure.
     """
     import requests
+
+    try:
+        _validate_url_safety(url)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
     try:
         resp = requests.get(
