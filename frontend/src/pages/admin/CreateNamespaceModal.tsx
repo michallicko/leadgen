@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Modal } from '../../components/ui/Modal'
 import { useCreateNamespace, type CreateNamespaceResponse } from '../../api/queries/useAdmin'
+import { setLastNamespace } from '../../lib/auth'
 
 function toSlug(name: string): string {
   return name
@@ -26,6 +28,7 @@ export function CreateNamespaceModal({ open, onClose, onCreated }: CreateNamespa
   const [copied, setCopied] = useState(false)
 
   const createNamespace = useCreateNamespace()
+  const navigate = useNavigate()
 
   function reset() {
     setName('')
@@ -39,8 +42,12 @@ export function CreateNamespaceModal({ open, onClose, onCreated }: CreateNamespa
   }
 
   function handleClose() {
+    const navigateToSlug = successData?.tenant.slug
     reset()
     onClose()
+    if (navigateToSlug) {
+      navigate(`/${navigateToSlug}/playbook`)
+    }
   }
 
   function handleNameChange(value: string) {
@@ -83,10 +90,11 @@ export function CreateNamespaceModal({ open, onClose, onCreated }: CreateNamespa
     createNamespace.mutate(payload, {
       onSuccess: (data) => {
         onCreated()
+        setLastNamespace(data.tenant.slug)
         if (data.admin_user?.temp_password) {
           setSuccessData(data)
         } else {
-          handleClose()
+          navigate(`/${data.tenant.slug}/playbook`)
         }
       },
       onError: (err) => {

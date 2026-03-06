@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -11,6 +11,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from 'tiptap-markdown'
 import { MermaidExtension } from './MermaidExtension'
 import { STRATEGY_TEMPLATE } from './strategy-template'
+import { useTypewriter } from '../../hooks/useTypewriter'
 import './strategy-editor.css'
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,12 @@ interface StrategyEditorProps {
   content: string | null
   onUpdate: (content: string) => void
   editable?: boolean
+  /** Accumulated streaming text for typewriter effect. */
+  sectionStreamingText?: string
+  /** True while section content is streaming in. */
+  isSectionStreaming?: boolean
+  /** Which section is currently being streamed. */
+  streamingSection?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +205,25 @@ export function StrategyEditor({
   content,
   onUpdate,
   editable = true,
+  sectionStreamingText = '',
+  isSectionStreaming = false,
+  streamingSection = null,
 }: StrategyEditorProps) {
+  // Typewriter effect for streaming text
+  const displayedText = useTypewriter(sectionStreamingText, 30)
+
+  // Track overlay visibility for fade transitions
+  const [overlayVisible, setOverlayVisible] = useState(false)
+  useEffect(() => {
+    if (isSectionStreaming && sectionStreamingText) {
+      setOverlayVisible(true)
+    } else if (!isSectionStreaming) {
+      // Delay hiding to allow fade-out
+      const timer = setTimeout(() => setOverlayVisible(false), 300)
+      return () => clearTimeout(timer)
+    }
+  }, [isSectionStreaming, sectionStreamingText])
+
   // Track the last content we set from props to avoid cyclic updates.
   // When server pushes new content (e.g. after AI edit), we compare
   // against this ref to decide whether to force-update the editor.
@@ -270,6 +295,14 @@ export function StrategyEditor({
       skipNextUpdateRef.current = true
       lastServerContentRef.current = content
       editor.commands.setContent(content)
+      // Notify parent of new content so autosave can track it.
+      // The skipNextUpdateRef blocks Tiptap's built-in onUpdate from firing,
+      // so we emit manually here to ensure PlaybookPage sees AI-generated content.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markdown = (editor.storage as any).markdown?.getMarkdown()
+      if (markdown) {
+        onUpdate(markdown)
+      }
     }
   }, [editor, content])
 
@@ -277,6 +310,34 @@ export function StrategyEditor({
     <div className="strategy-editor rounded-lg border border-border-solid bg-surface">
       {editable && <Toolbar editor={editor} />}
       <EditorContent editor={editor} />
+      {overlayVisible && (
+        <div
+          className="border-t border-border transition-opacity duration-300"
+          style={{ opacity: isSectionStreaming ? 1 : 0 }}
+        >
+          {streamingSection && (
+            <div className="px-8 pt-3 pb-0">
+              <span className="text-xs font-medium text-accent tracking-wide uppercase">
+                Writing: {streamingSection}
+              </span>
+            </div>
+          )}
+          <div
+            className="whitespace-pre-wrap"
+            style={{
+              /* Match ProseMirror editor typography exactly */
+              padding: '0.75rem 2rem 1.5rem',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              lineHeight: '1.75',
+              color: 'var(--color-text)',
+            }}
+          >
+            {displayedText}
+            <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

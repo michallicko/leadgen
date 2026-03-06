@@ -40,7 +40,7 @@ export interface DocumentChangeInfo {
   summary: string | null
 }
 
-interface ChatContextValue {
+export interface ChatContextValue {
   // State
   messages: ChatMessage[]
   isOpen: boolean
@@ -65,6 +65,13 @@ interface ChatContextValue {
   /** Dynamic suggestion chips extracted from proactive analysis. */
   analysisSuggestions: string[]
 
+  /** Section content streaming: accumulated text for the typewriter effect. */
+  sectionStreamingText: string
+  /** Section content streaming: true while content is being streamed. */
+  isSectionStreaming: boolean
+  /** Section content streaming: which section is currently streaming. */
+  streamingSection: string | null
+
   // Actions
   toggleChat: () => void
   openChat: () => void
@@ -80,7 +87,7 @@ interface ChatContextValue {
   chatInputRef: React.RefObject<HTMLTextAreaElement | null>
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null)
+export const ChatContext = createContext<ChatContextValue | null>(null)
 
 // ---------------------------------------------------------------------------
 // localStorage helpers
@@ -139,6 +146,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
   const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
   const [analysisSuggestions, setAnalysisSuggestions] = useState<string[]>([])
+
+  // Section content streaming state (typewriter effect)
+  const [sectionStreamingText, setSectionStreamingText] = useState('')
+  const [isSectionStreaming, setIsSectionStreaming] = useState(false)
+  const [streamingSection, setStreamingSection] = useState<string | null>(null)
 
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -221,6 +233,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
+      setSectionStreamingText('')
+      setIsSectionStreaming(false)
+      setStreamingSection(null)
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -240,12 +255,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onDone: (doneData) => {
             setStreamingText('')
-            setOptimisticMessages([])
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
             setThinkingStatus('Thinking...')
-            chatQuery.refetch()
+            // Keep optimistic messages visible until server data arrives
+            chatQuery.refetch().then(() => {
+              setOptimisticMessages([])
+            })
 
             // Detect document changes from strategy tool calls
             const doneToolCalls = doneData.toolCalls
@@ -301,6 +318,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setThinkingStatus('Thinking...')
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
           },
           onToolStart: (event) => {
             setIsThinking(false)
@@ -336,7 +356,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setThinkingStatus('Thinking...')
           },
           onSectionUpdate: () => {
-            // Refresh the strategy document so the editor shows live updates
+            // Refresh is now deferred to onSectionContentDone for typewriter effect.
+            // Only refresh immediately if no streaming follows (fallback).
+            // The section_content_start event arrives right after, so this is a no-op
+            // when streaming is active.
+          },
+          onSectionContentStart: (section) => {
+            setIsSectionStreaming(true)
+            setSectionStreamingText('')
+            setStreamingSection(section)
+          },
+          onSectionContentChunk: (text) => {
+            setSectionStreamingText((prev) => prev + text)
+          },
+          onSectionContentDone: () => {
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
+            // Now do the full refetch to sync editor with DB
             queryClient.invalidateQueries({ queryKey: ['playbook'] })
           },
           onThinking: () => {
@@ -388,19 +425,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
 
-        if (isOnPlaybookPage) {
-          // Focus the inline chat input
-          chatInputRef.current?.focus()
-          return
-        }
-
-        // Toggle the sliding panel
+        // Toggle the sidebar; after opening, focus input
         toggleChat()
+        setTimeout(() => chatInputRef.current?.focus(), 350)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOnPlaybookPage, toggleChat])
+  }, [toggleChat])
 
   // ---------------------------------------------------------------------------
   // Derived messages
@@ -418,10 +450,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }))
   }, [chatQuery.data?.messages])
 
-  const allMessages = useMemo(
-    () => [...serverMessages, ...optimisticMessages],
-    [serverMessages, optimisticMessages],
-  )
+  const allMessages = useMemo(() => {
+    // Deduplicate: if server already has a message with same content, drop the optimistic copy
+    const serverContents = new Set(serverMessages.map((m) => m.content))
+    const dedupedOptimistic = optimisticMessages.filter((m) => !serverContents.has(m.content))
+    return [...serverMessages, ...dedupedOptimistic].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+  }, [serverMessages, optimisticMessages])
 
   // ---------------------------------------------------------------------------
   // Context value
@@ -443,6 +479,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
       toggleChat,
       openChat,
       closeChat,
@@ -467,6 +506,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
       toggleChat,
       openChat,
       closeChat,

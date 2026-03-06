@@ -79,6 +79,12 @@ export interface UseSSECallbacks {
   onAnalysisDone?: (data: AnalysisDoneEventData) => void
   /** Fired when research status updates arrive (before AI generation). */
   onResearchStatus?: (event: ResearchStatusEvent) => void
+  /** Fired when section content streaming starts (typewriter effect). */
+  onSectionContentStart?: (section: string) => void
+  /** Fired for each text chunk of section content streaming. */
+  onSectionContentChunk?: (text: string) => void
+  /** Fired when section content streaming completes. */
+  onSectionContentDone?: (section: string) => void
 }
 
 interface UseSSEReturn {
@@ -189,6 +195,12 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
       domain: event.domain as string,
       message: event.message as string,
     })
+  } else if (eventType === 'section_content_start') {
+    callbacks.onSectionContentStart?.(event.section as string)
+  } else if (eventType === 'section_content_chunk') {
+    callbacks.onSectionContentChunk?.(event.text as string)
+  } else if (eventType === 'section_content_done') {
+    callbacks.onSectionContentDone?.(event.section as string)
   }
 }
 

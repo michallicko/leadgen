@@ -15,7 +15,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
-import { ThinkingIndicator } from '../playbook/ThinkingIndicator'
+// ThinkingIndicator replaced by inline unified working state block
 import { ChatMermaidBlock } from './ChatMermaidBlock'
 import { WorkflowSuggestions } from './WorkflowSuggestions'
 
@@ -442,13 +442,34 @@ export function ChatMessages({
         <MessageBubble key={msg.id} message={msg} />
       ))}
 
-      {/* THINK: Thinking indicator (AC-1: before first tool_start or chunk) */}
-      {isThinking && <ThinkingIndicator statusText={thinkingStatus} />}
-
-      {/* THINK: In-flight tool call cards (AC-2, AC-4) */}
-      {toolCalls.length > 0 && (
-        <div className="ml-10">
-          <ToolCallCardList toolCalls={toolCalls} />
+      {/* Unified working state: thinking + tool progress in one block */}
+      {(isThinking || (toolCalls && toolCalls.length > 0)) && (
+        <div className="flex gap-3 flex-row">
+          {/* Avatar */}
+          <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent-cyan/15 text-accent-cyan">
+            <AssistantIcon />
+          </div>
+          {/* Progress block */}
+          <div className="rounded-lg px-4 py-2.5 bg-surface-alt border border-border-solid flex flex-col gap-2 max-w-[320px]">
+            {/* Line 1: Pulsing dot + primary status */}
+            <div className="flex items-center gap-2.5">
+              <span
+                className="w-2 h-2 rounded-full bg-accent-cyan flex-shrink-0"
+                style={{ animation: 'thinkPulse 1.4s ease-in-out infinite' }}
+              />
+              <span className="text-xs text-text-muted truncate">
+                {thinkingStatus || 'Thinking...'}
+              </span>
+            </div>
+            {/* Line 2: Active tool or tool progress (if any) */}
+            {toolCalls && toolCalls.length > 0 && (
+              <div className="text-[11px] text-text-muted/70 pl-[18px]">
+                {toolCalls.filter((t) => t.status === 'running').length > 0
+                  ? `Running ${toolCalls.filter((t) => t.status === 'running').length} tool${toolCalls.filter((t) => t.status === 'running').length > 1 ? 's' : ''}...`
+                  : `${toolCalls.filter((t) => t.status === 'done' || t.status === 'success').length} tool${toolCalls.filter((t) => t.status === 'done' || t.status === 'success').length > 1 ? 's' : ''} completed`}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -420,16 +420,37 @@ def execute_agent_turn(
                 and not exec_record.is_error
                 and exec_record.output
             ):
+                section_name = exec_record.output.get("section", "")
+                content_preview = exec_record.output.get("content_preview", "")
+
                 yield SSEEvent(
                     type="section_update",
                     data={
-                        "section": exec_record.output.get("section", ""),
-                        "content": exec_record.output.get("content_preview", ""),
+                        "section": section_name,
+                        "content": content_preview,
                         "action": "update"
                         if tool_name == "update_strategy_section"
                         else "append",
                     },
                 )
+
+                # Stream section content character-by-character for
+                # typewriter effect on the frontend.
+                if content_preview:
+                    yield SSEEvent(
+                        type="section_content_start",
+                        data={"section": section_name},
+                    )
+                    chunk_size = 10
+                    for i in range(0, len(content_preview), chunk_size):
+                        yield SSEEvent(
+                            type="section_content_chunk",
+                            data={"text": content_preview[i : i + chunk_size]},
+                        )
+                    yield SSEEvent(
+                        type="section_content_done",
+                        data={"section": section_name},
+                    )
 
             # Build tool_result message for Claude
             if exec_record.is_error:

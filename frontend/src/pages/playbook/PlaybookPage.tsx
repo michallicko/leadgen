@@ -1,14 +1,14 @@
 /**
- * PlaybookPage -- split-view editor + AI chat for GTM strategy.
+ * PlaybookPage -- full-width GTM strategy editor.
  *
- * Left panel (~60%): Phase-specific content (StrategyEditor for strategy, placeholders for others)
- * Right panel (~40%): AI chat — uses ChatProvider for persistent state
+ * Phase-specific content (StrategyEditor for strategy, placeholders for others).
+ * Chat is provided by the unified ChatSidebar in AppShell.
  *
  * Shows onboarding flow for first-time visitors (no enrichment data yet).
  *
  * Wires together: usePlaybookDocument, useSavePlaybook,
- * useExtractStrategy, PhasePanel, PlaybookChat, PlaybookOnboarding.
- * Chat state is provided by ChatProvider (app-level).
+ * useExtractStrategy, PhasePanel, PlaybookOnboarding.
+ * Chat is handled by ChatSidebar in AppShell (app-level).
  *
  * WRITE feature: handles document_changed signals from AI tool calls,
  * refreshes editor content, and provides undo for AI edits.
@@ -19,7 +19,6 @@ import { useParams, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { PHASE_ORDER, type PhaseKey } from '../../components/playbook/PhaseIndicator'
 import { PhasePanel } from '../../components/playbook/PhasePanel'
-import { PlaybookChat } from '../../components/playbook/PlaybookChat'
 import { PlaybookOnboarding, type OnboardingPayload } from '../../components/playbook/PlaybookOnboarding'
 import { TemplateSelector } from '../../components/playbook/TemplateSelector'
 import { IcpTiersTab } from '../../components/playbook/IcpTiersTab'
@@ -66,17 +65,6 @@ function UndoIcon() {
 
 
 // ---------------------------------------------------------------------------
-// Phase-specific placeholder text for chat input
-// ---------------------------------------------------------------------------
-
-const PHASE_PLACEHOLDERS: Record<string, string> = {
-  strategy: 'Ask about your GTM strategy...',
-  contacts: 'Which contacts should we target?',
-  messages: "Let's craft your outreach messages...",
-  campaign: 'Configure your campaign...',
-}
-
-// ---------------------------------------------------------------------------
 // PlaybookPage
 // ---------------------------------------------------------------------------
 
@@ -88,22 +76,14 @@ export function PlaybookPage() {
 
   // Chat state from provider (persists across navigation)
   const {
-    messages,
     isStreaming,
-    streamingText,
-    isLoading: chatLoading,
     sendMessage,
-    chatInputRef,
     documentChanged,
     clearDocumentChanged,
     toolCalls,
-    isThinking,
-    activeToolName,
-    thinkingStatus,
-    analysisStreamingText,
-    isAnalysisStreaming,
-    analysisSuggestions,
-    startNewThread,
+    sectionStreamingText,
+    isSectionStreaming,
+    streamingSection,
   } = useChatContext()
 
   // Server state
@@ -135,7 +115,6 @@ export function PlaybookPage() {
   // Poll research status once research has been triggered
   const researchQuery = useResearchStatus(researchTriggered)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
   // BL-201: extractionResult state removed — extraction is now continuous
 
   // Refs for debounced auto-save
@@ -480,10 +459,8 @@ export function PlaybookPage() {
 
       sendMessage(parts.join(' '))
 
-      // Exit onboarding gate immediately -- the chat panel is visible in the
-      // main split view so the user can follow the AI's progress there
+      // Exit onboarding gate immediately -- the chat sidebar shows AI progress
       setSkipped(true)
-      setShowSuggestions(true)
     },
     [sendMessage, saveMutation, triggerResearch],
   )
@@ -512,27 +489,6 @@ export function PlaybookPage() {
     },
     [applyTemplateMutation],
   )
-
-  // Wrap sendMessage to dismiss suggestions on first user follow-up
-  const handleSendWithSuggestionDismiss = useCallback(
-    (text: string) => {
-      setShowSuggestions(false)
-      sendMessage(text)
-    },
-    [sendMessage],
-  )
-
-  const ONBOARDING_SUGGESTIONS = [
-    'Refine my ICP criteria',
-    'Add more buyer personas',
-    'Strengthen the value proposition',
-    'Suggest outreach channels',
-  ]
-
-  // Dynamic suggestions from proactive analysis take priority over static ones
-  const activeSuggestions = analysisSuggestions.length > 0
-    ? analysisSuggestions
-    : (showSuggestions ? ONBOARDING_SUGGESTIONS : [])
 
   // ---------------------------------------------------------------------------
   // Loading / error states
@@ -685,63 +641,44 @@ export function PlaybookPage() {
 
       {/* BL-201: Extraction side panel removed — extraction is now continuous */}
 
-      {/* Split layout */}
-      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
-        {/* Left: Phase-specific panel OR onboarding box */}
-        <div className="flex-[3] min-w-0 flex flex-col min-h-0">
-          {needsOnboarding && showTemplateSelector ? (
-            <div className="flex items-center justify-center h-full">
-              <TemplateSelector
-                onSelect={handleTemplateSelect}
-                onBack={() => setShowTemplateSelector(false)}
-                isApplying={applyTemplateMutation.isPending}
-              />
-            </div>
-          ) : needsOnboarding ? (
-            <div className="flex-1 overflow-y-auto">
-              <PlaybookOnboarding
-                onSkip={() => setSkipped(true)}
-                onGenerate={handleOnboardGenerate}
-                isGenerating={isStreaming}
-                onBrowseTemplates={() => setShowTemplateSelector(true)}
-              />
-            </div>
-          ) : viewPhase === 'strategy' && activeStrategyTab === 'tiers' ? (
-            <IcpTiersTab />
-          ) : viewPhase === 'strategy' && activeStrategyTab === 'personas' ? (
-            <BuyerPersonasTab />
-          ) : (
-            <PhasePanel
-              phase={viewPhase}
-              content={localContent}
-              onEditorUpdate={handleEditorUpdate}
-              editable={saveStatus !== 'saving'}
-              extractedData={docQuery.data?.extracted_data}
-              playbookSelections={docQuery.data?.playbook_selections}
-              playbookId={docQuery.data?.id}
-              onPhaseAdvance={handlePhaseNavigate}
+      {/* Phase content -- full width (chat is in the sidebar) */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {needsOnboarding && showTemplateSelector ? (
+          <div className="flex items-center justify-center h-full">
+            <TemplateSelector
+              onSelect={handleTemplateSelect}
+              onBack={() => setShowTemplateSelector(false)}
+              isApplying={applyTemplateMutation.isPending}
             />
-          )}
-        </div>
-
-        {/* Right: Inline Chat (uses ChatProvider state) */}
-        <div className="flex-[2] min-w-0 flex flex-col min-h-0">
-          <PlaybookChat
-            messages={messages}
-            onSendMessage={handleSendWithSuggestionDismiss}
-            isStreaming={isStreaming || isAnalysisStreaming}
-            streamingText={isAnalysisStreaming ? analysisStreamingText : streamingText}
-            placeholder={docQuery.data?.chat_placeholder ?? PHASE_PLACEHOLDERS[viewPhase]}
-            activeToolName={isAnalysisStreaming ? 'Analyzing strategy...' : activeToolName}
-            isLoading={chatLoading}
-            inputRef={chatInputRef}
-            toolCalls={toolCalls}
-            isThinking={isThinking}
-            thinkingStatus={isAnalysisStreaming ? 'Analyzing strategy...' : thinkingStatus}
-            suggestions={activeSuggestions}
-            onNewThread={startNewThread}
+          </div>
+        ) : needsOnboarding ? (
+          <div className="flex-1 overflow-y-auto">
+            <PlaybookOnboarding
+              onSkip={() => setSkipped(true)}
+              onGenerate={handleOnboardGenerate}
+              isGenerating={isStreaming}
+              onBrowseTemplates={() => setShowTemplateSelector(true)}
+            />
+          </div>
+        ) : viewPhase === 'strategy' && activeStrategyTab === 'tiers' ? (
+          <IcpTiersTab />
+        ) : viewPhase === 'strategy' && activeStrategyTab === 'personas' ? (
+          <BuyerPersonasTab />
+        ) : (
+          <PhasePanel
+            phase={viewPhase}
+            content={localContent}
+            onEditorUpdate={handleEditorUpdate}
+            editable={saveStatus !== 'saving'}
+            extractedData={docQuery.data?.extracted_data}
+            playbookSelections={docQuery.data?.playbook_selections}
+            playbookId={docQuery.data?.id}
+            onPhaseAdvance={handlePhaseNavigate}
+            sectionStreamingText={sectionStreamingText}
+            isSectionStreaming={isSectionStreaming}
+            streamingSection={streamingSection}
           />
-        </div>
+        )}
       </div>
     </div>
   )

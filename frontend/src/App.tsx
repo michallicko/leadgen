@@ -19,6 +19,7 @@ import { ImportPage } from './pages/import/ImportPage'
 import { AdminPage } from './pages/admin/AdminPage'
 import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
+import { PlaybookDemo } from './pages/playbook/PlaybookDemo'
 import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 import { TokensPage } from './pages/tokens/TokensPage'
 import { TriageReviewPage } from './pages/companies/TriageReviewPage'
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="campaigns/:campaignId/review" element={<MessageReviewPage />} />
               <Route path="playbook" element={<PlaybookPage />} />
               <Route path="playbook/:phase" element={<PlaybookPage />} />
+              <Route path="playbook-demo" element={<PlaybookDemo />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="admin/tokens" element={<TokensPage />} />

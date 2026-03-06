@@ -301,12 +301,9 @@ export function AppNav() {
 // ---- Chat toggle button sub-component ----
 
 function ChatToggleButton() {
-  const { toggleChat, isOnPlaybookPage, isOpen } = useChatContext()
+  const { toggleChat, isOpen } = useChatContext()
   const hasUnread = useHasUnread()
-  const { data: nudgeCount = 0 } = useNudgeCount(!isOnPlaybookPage)
-
-  // Don't show toggle on playbook page — chat is inline there
-  if (isOnPlaybookPage) return null
+  const { data: nudgeCount = 0 } = useNudgeCount(true)
 
   // Show badge: nudge count when panel is closed, or unread dot
   const showNudgeBadge = !isOpen && nudgeCount > 0
