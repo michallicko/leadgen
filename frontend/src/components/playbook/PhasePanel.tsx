@@ -20,6 +20,12 @@ interface PhasePanelProps {
   playbookSelections?: Record<string, unknown>
   playbookId?: string
   onPhaseAdvance?: (phase: string) => void
+  /** Accumulated streaming text for typewriter effect. */
+  sectionStreamingText?: string
+  /** True while section content is streaming in. */
+  isSectionStreaming?: boolean
+  /** Which section is currently being streamed. */
+  streamingSection?: string | null
 }
 
 export function PhasePanel({
@@ -31,12 +37,22 @@ export function PhasePanel({
   playbookSelections,
   playbookId,
   onPhaseAdvance,
+  sectionStreamingText,
+  isSectionStreaming,
+  streamingSection,
 }: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
       return (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
+          <StrategyEditor
+            content={content}
+            onUpdate={onEditorUpdate}
+            editable={editable}
+            sectionStreamingText={sectionStreamingText}
+            isSectionStreaming={isSectionStreaming}
+            streamingSection={streamingSection}
+          />
         </div>
       )
     case 'contacts': {
@@ -64,7 +80,14 @@ export function PhasePanel({
     default:
       return (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
+          <StrategyEditor
+            content={content}
+            onUpdate={onEditorUpdate}
+            editable={editable}
+            sectionStreamingText={sectionStreamingText}
+            isSectionStreaming={isSectionStreaming}
+            streamingSection={streamingSection}
+          />
         </div>
       )
   }

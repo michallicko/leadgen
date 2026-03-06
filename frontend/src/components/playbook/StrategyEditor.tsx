@@ -60,6 +60,12 @@ interface StrategyEditorProps {
   content: string | null
   onUpdate: (content: string) => void
   editable?: boolean
+  /** Accumulated streaming text for typewriter effect. */
+  sectionStreamingText?: string
+  /** True while section content is streaming in. */
+  isSectionStreaming?: boolean
+  /** Which section is currently being streamed. */
+  streamingSection?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +204,9 @@ export function StrategyEditor({
   content,
   onUpdate,
   editable = true,
+  sectionStreamingText = '',
+  isSectionStreaming = false,
+  streamingSection = null,
 }: StrategyEditorProps) {
   // Track the last content we set from props to avoid cyclic updates.
   // When server pushes new content (e.g. after AI edit), we compare
@@ -285,6 +294,19 @@ export function StrategyEditor({
     <div className="strategy-editor rounded-lg border border-border-solid bg-surface">
       {editable && <Toolbar editor={editor} />}
       <EditorContent editor={editor} />
+      {isSectionStreaming && sectionStreamingText && (
+        <div className="px-4 py-3 border-t border-border bg-surface-alt/50">
+          {streamingSection && (
+            <div className="text-xs font-medium text-accent mb-1.5">
+              Writing: {streamingSection}
+            </div>
+          )}
+          <div className="text-sm text-secondary whitespace-pre-wrap leading-relaxed">
+            {sectionStreamingText}
+            <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

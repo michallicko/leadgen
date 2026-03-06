@@ -252,6 +252,7 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
         "section": section,
         "version": doc.version,
         "previous_version": previous_version,
+        "content_preview": new_content.strip(),
     }
 
 
@@ -554,6 +555,7 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
         "action": "appended",
         "version": doc.version,
         "previous_version": previous_version,
+        "content_preview": new_content.strip(),
     }
 
 

@@ -81,6 +81,9 @@ export function PlaybookPage() {
     documentChanged,
     clearDocumentChanged,
     toolCalls,
+    sectionStreamingText,
+    isSectionStreaming,
+    streamingSection,
   } = useChatContext()
 
   // Server state
@@ -671,6 +674,9 @@ export function PlaybookPage() {
             playbookSelections={docQuery.data?.playbook_selections}
             playbookId={docQuery.data?.id}
             onPhaseAdvance={handlePhaseNavigate}
+            sectionStreamingText={sectionStreamingText}
+            isSectionStreaming={isSectionStreaming}
+            streamingSection={streamingSection}
           />
         )}
       </div>

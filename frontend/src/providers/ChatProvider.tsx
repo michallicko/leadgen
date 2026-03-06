@@ -65,6 +65,13 @@ interface ChatContextValue {
   /** Dynamic suggestion chips extracted from proactive analysis. */
   analysisSuggestions: string[]
 
+  /** Section content streaming: accumulated text for the typewriter effect. */
+  sectionStreamingText: string
+  /** Section content streaming: true while content is being streamed. */
+  isSectionStreaming: boolean
+  /** Section content streaming: which section is currently streaming. */
+  streamingSection: string | null
+
   // Actions
   toggleChat: () => void
   openChat: () => void
@@ -139,6 +146,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
   const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
   const [analysisSuggestions, setAnalysisSuggestions] = useState<string[]>([])
+
+  // Section content streaming state (typewriter effect)
+  const [sectionStreamingText, setSectionStreamingText] = useState('')
+  const [isSectionStreaming, setIsSectionStreaming] = useState(false)
+  const [streamingSection, setStreamingSection] = useState<string | null>(null)
 
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -221,6 +233,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
+      setSectionStreamingText('')
+      setIsSectionStreaming(false)
+      setStreamingSection(null)
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -301,6 +316,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setThinkingStatus('Thinking...')
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
           },
           onToolStart: (event) => {
             setIsThinking(false)
@@ -336,7 +354,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setThinkingStatus('Thinking...')
           },
           onSectionUpdate: () => {
-            // Refresh the strategy document so the editor shows live updates
+            // Refresh is now deferred to onSectionContentDone for typewriter effect.
+            // Only refresh immediately if no streaming follows (fallback).
+            // The section_content_start event arrives right after, so this is a no-op
+            // when streaming is active.
+          },
+          onSectionContentStart: (section) => {
+            setIsSectionStreaming(true)
+            setSectionStreamingText('')
+            setStreamingSection(section)
+          },
+          onSectionContentChunk: (text) => {
+            setSectionStreamingText((prev) => prev + text)
+          },
+          onSectionContentDone: () => {
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
+            // Now do the full refetch to sync editor with DB
             queryClient.invalidateQueries({ queryKey: ['playbook'] })
           },
           onThinking: () => {
@@ -438,6 +473,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
       toggleChat,
       openChat,
       closeChat,
@@ -462,6 +500,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
       toggleChat,
       openChat,
       closeChat,
