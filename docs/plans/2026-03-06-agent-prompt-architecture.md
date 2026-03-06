@@ -699,7 +699,373 @@ Research task     1 (scope gate: what to research)
 Campaign create   2 (scope gate, message review)
 ```
 
-## 10. Open Questions for Discussion
+## 10. Framework Evaluation: Build vs Adopt
+
+### Current Custom Stack
+
+```
+┌──────────────────────────────────────────┐
+│           CURRENT ARCHITECTURE           │
+├──────────────────────────────────────────┤
+│  Flask Route                             │
+│    └─ playbook_service.build_system_prompt│
+│    └─ agent_executor.execute_agent_turn  │
+│         └─ requests.post(anthropic API)  │
+│         └─ tool_registry.execute()       │
+│         └─ SSE yield (custom generator)  │
+├──────────────────────────────────────────┤
+│  Lines of code:     ~800 (executor+tools)│
+│  External deps:     requests, flask      │
+│  Observability:     None                 │
+│  Streaming:         Custom SSE generator │
+│  State machine:     Implicit (loop+nudge)│
+│  Halt gates:        Not implemented      │
+│  Multi-model:       Not implemented      │
+│  Prompt caching:    Not implemented      │
+└──────────────────────────────────────────┘
+```
+
+### Option A: Stay Custom + Incremental Improvements
+
+Keep the current architecture, add features incrementally:
+
+```
+WHAT TO ADD              EFFORT    BENEFIT
+──────────               ──────    ───────
+Prompt caching           2 hours   50% token savings
+Phase-filtered tools     4 hours   Better tool selection
+request_user_decision    1 day     Halt gates
+Conversation summary     1 day     Better context mgmt
+Intent classifier        2 days    Smarter routing
+LangSmith-like tracing   3-5 days  Observability
+Multi-model routing      1 day     Cost optimization
+```
+
+**Total: ~2 weeks to match framework features.**
+
+**Pros:**
+- Zero migration risk
+- Full control, no abstractions
+- SSE streaming already works
+- No new dependencies
+- You understand every line
+
+**Cons:**
+- You maintain everything yourself
+- No community patterns to follow
+- Observability is DIY (fragile, incomplete)
+- State machine logic stays implicit
+- Halt gates need custom protocol
+- Testing agent flows is manual
+
+### Option B: LangGraph + LangSmith
+
+LangGraph is LangChain's graph-based agent framework. It models agent flows as directed graphs with typed state, conditional edges, and built-in interrupts.
+
+```
+┌──────────────────────────────────────────┐
+│          LANGGRAPH ARCHITECTURE          │
+├──────────────────────────────────────────┤
+│                                          │
+│  StateGraph                              │
+│    ├─ Node: research                     │
+│    │   └─ tools: [web_search,            │
+│    │              research_own_company]   │
+│    │   └─ model: claude-haiku            │
+│    │                                     │
+│    ├─ Edge: research → scope_gate        │
+│    │   └─ interrupt(decision_request)    │
+│    │                                     │
+│    ├─ Node: draft_strategy               │
+│    │   └─ tools: [update_strategy_section│
+│    │              set_icp_tiers, ...]    │
+│    │   └─ model: claude-sonnet           │
+│    │                                     │
+│    ├─ Edge: draft → review_gate          │
+│    │   └─ interrupt(review_request)      │
+│    │                                     │
+│    ├─ Node: finalize                     │
+│    │   └─ tools: [check_readiness]       │
+│    │   └─ model: claude-haiku            │
+│    │                                     │
+│    └─ Conditional Edge: phase_router     │
+│        └─ strategy → contacts → msgs    │
+│                                          │
+├──────────────────────────────────────────┤
+│  LangSmith (cloud observability)         │
+│    ├─ Trace every node execution         │
+│    ├─ Token cost per step                │
+│    ├─ Latency heatmaps                   │
+│    ├─ Prompt versioning + A/B testing    │
+│    ├─ Replay + debug failed runs         │
+│    └─ Evaluation datasets                │
+└──────────────────────────────────────────┘
+```
+
+#### LangGraph Agent Flow (replacing agent_executor.py)
+
+```
+                    ┌──────────┐
+                    │  START   │
+                    └────┬─────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │   research    │  ← web_search, research_own_company
+                 │  (Haiku 4.5)  │
+                 └───────┬───────┘
+                         │
+                    ┌────┴────┐
+                    │ Found   │
+                    │ multiple│──── yes ────┐
+                    │ scopes? │             │
+                    └────┬────┘             ▼
+                     no  │          ┌──────────────┐
+                         │          │  INTERRUPT:  │
+                         │          │  scope_gate  │
+                         │          │  (user picks)│
+                         │          └──────┬───────┘
+                         │                 │
+                         ▼◄────────────────┘
+                 ┌───────────────┐
+                 │   position    │  ← analyze competitors, draft VP
+                 │ (Sonnet 4.6)  │
+                 └───────┬───────┘
+                         │
+                    ┌────┴────┐
+                    │ Multiple│
+                    │  ICP    │──── yes ────┐
+                    │ options?│             │
+                    └────┬────┘             ▼
+                     no  │          ┌──────────────┐
+                         │          │  INTERRUPT:  │
+                         │          │direction_gate│
+                         │          │  (user picks)│
+                         │          └──────┬───────┘
+                         │                 │
+                         ▼◄────────────────┘
+                 ┌───────────────┐
+                 │    draft      │  ← update_strategy_section ×7
+                 │ (Sonnet 4.6)  │    set_icp_tiers, set_personas
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌──────────────┐
+                 │  INTERRUPT:  │
+                 │ review_gate  │
+                 │ (user reviews│
+                 │  draft)      │
+                 └──────┬───────┘
+                        │
+                        ▼
+                 ┌───────────────┐
+                 │   finalize    │  ← check_readiness, messaging
+                 │  (Haiku 4.5)  │
+                 └───────┬───────┘
+                         │
+                         ▼
+                    ┌─────────┐
+                    │  DONE   │
+                    └─────────┘
+```
+
+#### LangGraph Halt Gates (interrupt)
+
+LangGraph has BUILT-IN interrupt support:
+
+```python
+from langgraph.graph import StateGraph, interrupt
+
+def scope_gate(state):
+    """Pause and ask user which product to focus on."""
+    products = state["research_results"]["products"]
+    if len(products) > 1:
+        # This pauses the graph and sends options to the user
+        decision = interrupt({
+            "question": f"Found {len(products)} products. Focus on which?",
+            "options": [p["name"] for p in products],
+            "gate_type": "scope"
+        })
+        state["scope"] = decision
+    return state
+```
+
+The graph pauses at `interrupt()`, serializes state, and resumes when the user responds. No custom protocol needed.
+
+#### LangSmith Observability
+
+What you'd get for free:
+
+```
+┌─────────────────────────────────────────────────┐
+│  LangSmith Trace View                           │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  Run: "Generate strategy for acme.com"          │
+│  Duration: 47.2s | Tokens: 28,450 | Cost: $0.08 │
+│                                                 │
+│  ┌─ research (Haiku)          8.2s   4,200 tok  │
+│  │  ├─ web_search             2.1s              │
+│  │  └─ research_own_company   5.8s              │
+│  │                                              │
+│  ├─ scope_gate (interrupt)   12.0s   (waiting)  │
+│  │  └─ User chose: "DataFlow only"              │
+│  │                                              │
+│  ├─ position (Sonnet)        11.3s   8,900 tok  │
+│  │  └─ update_strategy_section ×2               │
+│  │                                              │
+│  ├─ direction_gate (interrupt) 8.1s  (waiting)  │
+│  │  └─ User chose: "Segment A"                  │
+│  │                                              │
+│  └─ draft (Sonnet)           15.6s  15,350 tok  │
+│     ├─ update_strategy_section ×5               │
+│     ├─ set_icp_tiers                            │
+│     └─ set_buyer_personas                       │
+│                                                 │
+│  [Replay] [Compare] [Export] [Evaluate]         │
+└─────────────────────────────────────────────────┘
+```
+
+Features:
+- **Trace tree**: see every node, tool call, and LLM invocation
+- **Token costs**: per-step and cumulative
+- **Latency**: identify bottlenecks
+- **Prompt playground**: test prompt changes against real conversations
+- **Evaluation**: run test datasets against new prompt versions
+- **Comparison**: A/B test Haiku vs Sonnet on same inputs
+
+#### Migration Path: Custom → LangGraph
+
+```
+PHASE   WHAT                              EFFORT   RISK
+─────   ────                              ──────   ────
+  1     Add langgraph + langsmith deps    1 hour   None
+  2     Wrap existing tools as LG tools   4 hours  Low
+  3     Model agent_executor as graph     2 days   Medium
+  4     Wire SSE streaming to LG events   1 day    Medium
+  5     Add interrupt nodes (halt gates)  1 day    Low
+  6     Connect LangSmith tracing         2 hours  None
+  7     Phase-filtered tool routing       4 hours  Low
+  8     Multi-model nodes                 4 hours  Low
+  9     Remove old executor code          2 hours  None
+─────                                     ──────
+TOTAL                                     ~1 week
+```
+
+Phase 1-2 are non-breaking — old code keeps working. Phase 3 is the main migration. Phases 4-9 can be done incrementally.
+
+**Pros:**
+- Halt gates built in (`interrupt()`)
+- Observability out of the box (LangSmith)
+- Graph visualization of agent flow
+- State management with typed schemas
+- Multi-model routing per node
+- Community patterns for common agent architectures
+- Replay/debug failed conversations
+- Prompt versioning and A/B testing
+
+**Cons:**
+- New dependency (langchain-core, langgraph, langsmith)
+- Abstraction overhead — LangChain has deep class hierarchies
+- SSE streaming needs rewiring (LangGraph uses async iterators, not generators)
+- Learning curve for graph concepts
+- LangSmith is a paid cloud service ($39/mo dev, usage-based for prod)
+- Framework updates can break things
+- Less control over exact API call format
+
+### Option C: Anthropic Agent SDK (claude_agent_sdk)
+
+Anthropic's own lightweight agent framework. Thinner than LangGraph, Anthropic-native.
+
+```
+┌──────────────────────────────────────────┐
+│       ANTHROPIC AGENT SDK                │
+├──────────────────────────────────────────┤
+│  Agent(                                  │
+│    model="claude-sonnet-4-6",            │
+│    tools=[tool1, tool2, ...],            │
+│    system_prompt="...",                   │
+│    max_turns=25,                          │
+│  )                                       │
+│                                          │
+│  result = agent.run("Generate strategy") │
+│                                          │
+│  # Streaming via callbacks               │
+│  for event in agent.stream(...):         │
+│    if event.type == "tool_use": ...      │
+│    if event.type == "text": ...          │
+├──────────────────────────────────────────┤
+│  Lines to replace executor:   ~100       │
+│  Halt gates:        Not built in         │
+│  Multi-model:       Manual               │
+│  Observability:     Basic callbacks      │
+│  State machine:     No (simple loop)     │
+│  Graph viz:         No                   │
+└──────────────────────────────────────────┘
+```
+
+**Pros:**
+- Minimal abstraction — thin wrapper around Messages API
+- Native Anthropic support (prompt caching, tool use, streaming)
+- ~100 lines to replace executor
+- No LangChain dependency bloat
+- Easy to understand and debug
+
+**Cons:**
+- No halt gates (same problem as current custom code)
+- No observability platform (DIY tracing)
+- No graph-based flow control
+- No multi-model routing
+- Simple loop, not a state machine — doesn't solve the architectural needs
+- Relatively new, less community patterns
+
+### Recommendation
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    DECISION MATRIX                       │
+├──────────────┬──────────┬───────────┬───────────────────┤
+│ Criterion    │ Custom   │ LangGraph │ Agent SDK         │
+├──────────────┼──────────┼───────────┼───────────────────┤
+│ Halt gates   │ Build ⚠️  │ Built in ✅│ Build ⚠️           │
+│ Observability│ DIY 🔴   │ LangSmith✅│ DIY 🔴            │
+│ Multi-model  │ Build ⚠️  │ Built in ✅│ Manual ⚠️          │
+│ Migration    │ None ✅  │ ~1 week ⚠️ │ ~2 days ✅        │
+│ Complexity   │ Grows 🔴 │ Managed ✅ │ Grows 🔴          │
+│ Control      │ Full ✅  │ Good ✅   │ Full ✅            │
+│ Lock-in      │ None ✅  │ Medium ⚠️ │ Anthropic-only ⚠️ │
+│ Cost         │ Free ✅  │ LangSmith$│ Free ✅            │
+│ Future-proof │ Manual 🔴│ Active ✅  │ Early stage ⚠️    │
+├──────────────┼──────────┼───────────┼───────────────────┤
+│ SCORE        │ 5/9      │ 7/9      │ 5/9               │
+└──────────────┴──────────┴───────────┴───────────────────┘
+```
+
+**Recommended: LangGraph + LangSmith**
+
+The deciding factors:
+1. **Halt gates** are your #1 architectural need — LangGraph has them built in
+2. **Observability** is critical as the agent grows — LangSmith is the best-in-class tracing platform
+3. **Multi-model routing** (Haiku for Q&A, Sonnet for generation) is trivial in LangGraph
+4. **Migration is manageable** — ~1 week, can be done incrementally
+
+The lock-in risk is real but mitigable — LangGraph tools are standard Python functions, easily portable. The main lock-in is LangSmith for tracing, but you can self-host LangSmith OSS or switch to OpenTelemetry later.
+
+### Hybrid Approach (if lock-in is a concern)
+
+```
+KEEP CUSTOM:             ADOPT FROM LANGGRAPH:
+────────────             ─────────────────────
+Flask routes             StateGraph for agent flow
+SSE streaming adapter    interrupt() for halt gates
+Tool implementations     LangSmith for tracing
+Prompt templates         Conditional edges for routing
+                         Typed state schemas
+```
+
+Wrap LangGraph inside your existing Flask route. Your SSE generator yields events from LangGraph's async iterator. Tools stay as plain Python functions — just registered with LangGraph's `@tool` decorator. The migration is internal — no API changes, no frontend changes.
+
+## 11. Open Questions for Discussion
 
 1. **Model upgrade**: Should strategy generation use Sonnet instead of Haiku? Better reasoning but 10x cost. Could use Haiku for simple Q&A and Sonnet for generation.
 
@@ -720,3 +1086,9 @@ Campaign create   2 (scope gate, message review)
 9. **Gate frequency**: How many confirmation gates per strategy generation? 3-4 recommended, but user may want faster autonomous runs for subsequent strategies.
 
 10. **Decision persistence**: Should user decisions at gates be remembered for future strategies? (e.g., "always focus on primary product only")
+
+11. **LangSmith cost**: At scale (1000 conversations/month), LangSmith costs ~$100-300/mo. Worth it for observability, or build lightweight tracing?
+
+12. **Migration timing**: Adopt LangGraph now (before halt gates) or after implementing halt gates custom (then migrate)?
+
+13. **Self-hosted vs cloud LangSmith**: LangSmith OSS can be self-hosted but lacks some features. Start with cloud, consider self-hosting later?
