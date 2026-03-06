@@ -94,11 +94,9 @@ def _collect_enrichment_insights(tenant_id: str, limit: int = 50) -> dict:
             industries[c.industry] += 1
 
     # Aggregate L2 data (deep research)
-    l2_data = (
-        CompanyEnrichmentL2.query.filter(
-            CompanyEnrichmentL2.company_id.in_(company_ids)
-        ).all()
-    )
+    l2_data = CompanyEnrichmentL2.query.filter(
+        CompanyEnrichmentL2.company_id.in_(company_ids)
+    ).all()
 
     competitors_list = []
     ai_opportunities_list = []
@@ -119,11 +117,9 @@ def _collect_enrichment_insights(tenant_id: str, limit: int = 50) -> dict:
             hiring_list.append(_safe_text(l2.hiring_signals, 300))
 
     # Aggregate profile data
-    profiles = (
-        CompanyEnrichmentProfile.query.filter(
-            CompanyEnrichmentProfile.company_id.in_(company_ids)
-        ).all()
-    )
+    profiles = CompanyEnrichmentProfile.query.filter(
+        CompanyEnrichmentProfile.company_id.in_(company_ids)
+    ).all()
     customer_segments_list = []
     for p in profiles:
         if p.competitors and not any(
@@ -134,11 +130,9 @@ def _collect_enrichment_insights(tenant_id: str, limit: int = 50) -> dict:
             customer_segments_list.append(_safe_text(p.customer_segments, 300))
 
     # Aggregate opportunity data
-    opportunities = (
-        CompanyEnrichmentOpportunity.query.filter(
-            CompanyEnrichmentOpportunity.company_id.in_(company_ids)
-        ).all()
-    )
+    opportunities = CompanyEnrichmentOpportunity.query.filter(
+        CompanyEnrichmentOpportunity.company_id.in_(company_ids)
+    ).all()
     industry_pain_list = []
     quick_wins_list = []
     for opp in opportunities:
@@ -155,19 +149,15 @@ def _collect_enrichment_insights(tenant_id: str, limit: int = 50) -> dict:
             quick_wins_list.append(qw)
 
     # Aggregate signals
-    signals = (
-        CompanyEnrichmentSignals.query.filter(
-            CompanyEnrichmentSignals.company_id.in_(company_ids)
-        ).all()
-    )
+    signals = CompanyEnrichmentSignals.query.filter(
+        CompanyEnrichmentSignals.company_id.in_(company_ids)
+    ).all()
     digital_initiatives_list = []
     for sig in signals:
         if sig.digital_initiatives:
             digital_initiatives_list.append(_safe_text(sig.digital_initiatives, 300))
         if sig.hiring_signals and not any(
-            h
-            for h in hiring_list
-            if h and sig.hiring_signals.strip()[:50] in (h or "")
+            h for h in hiring_list if h and sig.hiring_signals.strip()[:50] in (h or "")
         ):
             hiring_list.append(_safe_text(sig.hiring_signals, 300))
 
@@ -231,9 +221,7 @@ def _compare_with_strategy(insights: dict, extracted_data: dict) -> list[dict]:
 
     if enrichment_industries and strategy_industries:
         new_industries = [
-            ind
-            for ind in enrichment_industries[:5]
-            if ind not in strategy_industries
+            ind for ind in enrichment_industries[:5] if ind not in strategy_industries
         ]
         if new_industries:
             refinements.append(

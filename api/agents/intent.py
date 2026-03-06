@@ -77,6 +77,9 @@ RESEARCH_KEYWORDS = [
     "web search",
     "market analysis",
     "competitor",
+    "how many",
+    "count",
+    "analyze",
 ]
 
 ENRICHMENT_KEYWORDS = [
@@ -93,6 +96,11 @@ ENRICHMENT_KEYWORDS = [
 OUTREACH_KEYWORDS = [
     "generate message",
     "write outreach",
+    "write a message",
+    "write message",
+    "draft message",
+    "linkedin message",
+    "approve message",
     "create campaign",
     "outreach",
     "send message",

@@ -40,16 +40,16 @@ from api.agents.orchestrator import (
 class TestIntentClassifyFast:
     """Test keyword-based fast classification."""
 
-    def test_greetings_are_quick_answer(self):
-        assert classify_intent_fast("hi") == "quick_answer"
-        assert classify_intent_fast("hello") == "quick_answer"
-        assert classify_intent_fast("thanks") == "quick_answer"
-        assert classify_intent_fast("ok") == "quick_answer"
+    def test_greetings_are_copilot(self):
+        assert classify_intent_fast("hi") == "copilot"
+        assert classify_intent_fast("hello") == "copilot"
+        assert classify_intent_fast("thanks") == "copilot"
+        assert classify_intent_fast("ok") == "copilot"
 
-    def test_short_messages_are_quick_answer(self):
-        assert classify_intent_fast("yes") == "quick_answer"
-        assert classify_intent_fast("no") == "quick_answer"
-        assert classify_intent_fast("sure") == "quick_answer"
+    def test_short_messages_are_copilot(self):
+        assert classify_intent_fast("yes") == "copilot"
+        assert classify_intent_fast("no") == "copilot"
+        assert classify_intent_fast("sure") == "copilot"
 
     def test_strategy_keywords(self):
         assert (
@@ -69,28 +69,35 @@ class TestIntentClassifyFast:
             classify_intent_fast("search for AI trends in manufacturing") == "research"
         )
         assert classify_intent_fast("research our competitors") == "research"
-        assert classify_intent_fast("how many contacts do we have?") == "research"
-        assert classify_intent_fast("count companies in our CRM") == "research"
-        assert classify_intent_fast("analyze enrichment data") == "research"
+        assert (
+            classify_intent_fast("look up information about this market") == "research"
+        )
+        assert (
+            classify_intent_fast("find information on competitor landscape")
+            == "research"
+        )
+        assert classify_intent_fast("web search for latest trends") == "research"
 
-    def test_campaign_keywords(self):
-        assert classify_intent_fast("generate message for the contacts") == "campaign"
-        assert classify_intent_fast("create campaign for Q2") == "campaign"
-        assert classify_intent_fast("write outreach email") == "campaign"
+    def test_campaign_keywords_route_to_outreach(self):
+        """Campaign/message keywords now route to outreach intent."""
+        assert classify_intent_fast("generate message for the contacts") == "outreach"
+        assert classify_intent_fast("create campaign for Q2") == "outreach"
+        assert classify_intent_fast("write outreach email") == "outreach"
 
     def test_ambiguous_returns_none(self):
         result = classify_intent_fast("what do you think about our positioning?")
         assert result is None
 
     def test_empty_message(self):
-        assert classify_intent_fast("") == "quick_answer"
+        assert classify_intent_fast("") == "copilot"
 
     def test_all_valid_intents(self):
         """All possible intent values are in the VALID_INTENTS set."""
         assert "strategy_edit" in VALID_INTENTS
         assert "research" in VALID_INTENTS
-        assert "quick_answer" in VALID_INTENTS
-        assert "campaign" in VALID_INTENTS
+        assert "enrichment" in VALID_INTENTS
+        assert "outreach" in VALID_INTENTS
+        assert "copilot" in VALID_INTENTS
 
 
 class TestIntentClassifyLLM:
@@ -120,7 +127,7 @@ class TestIntentClassifyLLM:
         intent, _ = classify_intent(
             "What's the best approach for our go-to-market in the European market?"
         )
-        assert intent == "quick_answer"  # default
+        assert intent == "copilot"  # default
 
     @patch("api.agents.intent.ChatAnthropic")
     def test_classify_exception_defaults(self, mock_chat):
@@ -129,7 +136,7 @@ class TestIntentClassifyLLM:
         intent, _ = classify_intent(
             "What's the best approach for our go-to-market in the European market?"
         )
-        assert intent == "quick_answer"
+        assert intent == "copilot"
 
 
 # ---------------------------------------------------------------------------
@@ -210,8 +217,8 @@ class TestResearchSubgraph:
     """Test research agent subgraph construction and tool scoping."""
 
     def test_research_tool_names_count(self):
-        """Research agent should have exactly 7 tools."""
-        assert len(RESEARCH_TOOL_NAMES) == 7
+        """Research agent should have exactly 13 tools (expanded in Sprint 20)."""
+        assert len(RESEARCH_TOOL_NAMES) == 13
 
     def test_research_tool_names_correct(self):
         """All expected research tools are in the set."""
@@ -223,6 +230,12 @@ class TestResearchSubgraph:
             "list_contacts",
             "filter_contacts",
             "analyze_enrichment_insights",
+            "check_enrichment_status",
+            "enrich_company_news",
+            "enrich_company_signals",
+            "enrich_contact_career",
+            "enrich_contact_details",
+            "enrich_contact_social",
         }
         assert RESEARCH_TOOL_NAMES == expected
 
@@ -283,25 +296,25 @@ class TestOrchestratorRouting:
         state = {"intent": "research"}
         assert route_to_agent(state) == "research_node"
 
-    def test_route_quick_answer(self):
-        state = {"intent": "quick_answer"}
-        assert route_to_agent(state) == "quick_response_node"
+    def test_route_copilot(self):
+        state = {"intent": "copilot"}
+        assert route_to_agent(state) == "copilot_node"
 
-    def test_route_campaign(self):
-        state = {"intent": "campaign"}
-        assert route_to_agent(state) == "passthrough_node"
+    def test_route_outreach(self):
+        state = {"intent": "outreach"}
+        assert route_to_agent(state) == "outreach_node"
 
-    def test_route_unknown_defaults_to_quick(self):
+    def test_route_unknown_defaults_to_copilot(self):
         state = {"intent": "unknown_intent"}
-        assert route_to_agent(state) == "quick_response_node"
+        assert route_to_agent(state) == "copilot_node"
 
-    def test_route_none_defaults_to_quick(self):
+    def test_route_none_defaults_to_copilot(self):
         state = {"intent": None}
-        assert route_to_agent(state) == "quick_response_node"
+        assert route_to_agent(state) == "copilot_node"
 
     def test_route_missing_intent(self):
         state = {}
-        assert route_to_agent(state) == "quick_response_node"
+        assert route_to_agent(state) == "copilot_node"
 
 
 class TestOrchestratorGraph:

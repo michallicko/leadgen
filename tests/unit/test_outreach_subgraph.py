@@ -191,13 +191,13 @@ class TestOutreachIntentClassification:
         assert classify_intent_fast("linkedin message for Jane") == "outreach"
         assert classify_intent_fast("approve message for batch") == "outreach"
 
-    def test_campaign_keywords_match(self):
-        """Campaign keywords should route to campaign intent."""
+    def test_campaign_keywords_route_to_outreach(self):
+        """Campaign keywords route to outreach (no separate campaign intent in Sprint 20)."""
         from api.agents.intent import classify_intent_fast
 
-        assert classify_intent_fast("create campaign for batch-1") == "campaign"
-        assert classify_intent_fast("launch campaign for tier 1") == "campaign"
-        assert classify_intent_fast("campaign analytics for Q1") == "campaign"
+        assert classify_intent_fast("create campaign for batch-1") == "outreach"
+        assert classify_intent_fast("launch campaign for tier 1") == "outreach"
+        assert classify_intent_fast("campaign analytics for Q1") == "outreach"
 
     def test_strategy_keywords_dont_match_outreach(self):
         """Strategy keywords should NOT route to campaign."""

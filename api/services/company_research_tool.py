@@ -117,9 +117,7 @@ def research_own_company(args: dict, ctx: ToolContext) -> dict:
             on_progress=None,  # Tool result is sufficient; agent executor handles events
         )
     except Exception as exc:
-        logger.exception(
-            "CompanyResearchService failed for domain=%s: %s", domain, exc
-        )
+        logger.exception("CompanyResearchService failed for domain=%s: %s", domain, exc)
         return {
             "error": "Research pipeline failed: {}".format(str(exc)),
             "domain": domain,

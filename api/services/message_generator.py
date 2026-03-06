@@ -37,19 +37,19 @@ VARIANT_ANGLES = [
         "key": "pain",
         "label": "Pain-focused",
         "instruction": "Focus on a specific pain point or challenge the prospect likely faces. "
-                       "Lead with the problem, then position the solution.",
+        "Lead with the problem, then position the solution.",
     },
     {
         "key": "opportunity",
         "label": "Opportunity-focused",
         "instruction": "Focus on a growth opportunity or competitive advantage the prospect could gain. "
-                       "Lead with the upside potential, not the problem.",
+        "Lead with the upside potential, not the problem.",
     },
     {
         "key": "social_proof",
         "label": "Social proof",
         "instruction": "Lead with credibility — mention relevant case studies, industry recognition, "
-                       "or similar companies that benefited. Focus on trust and validation.",
+        "or similar companies that benefited. Focus on trust and validation.",
     },
 ]
 
@@ -355,9 +355,7 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
             )
 
             # BL-181: variant_count from generation_config (default 1, max 3)
-            variant_count = min(
-                int(generation_config.get("variant_count", 1)), 3
-            )
+            variant_count = min(int(generation_config.get("variant_count", 1)), 3)
 
             # Generate each enabled step
             contact_cost = Decimal("0")
@@ -385,8 +383,14 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
 
                 # Generate additional variants B, C with different angles
                 for vi in range(1, variant_count):
-                    angle = VARIANT_ANGLES[vi - 1] if vi - 1 < len(VARIANT_ANGLES) else None
-                    letter = VARIANT_LETTERS[vi].lower() if vi < len(VARIANT_LETTERS) else chr(ord("a") + vi)
+                    angle = (
+                        VARIANT_ANGLES[vi - 1] if vi - 1 < len(VARIANT_ANGLES) else None
+                    )
+                    letter = (
+                        VARIANT_LETTERS[vi].lower()
+                        if vi < len(VARIANT_LETTERS)
+                        else chr(ord("a") + vi)
+                    )
                     msg_cost = _generate_single_message(
                         campaign_id=campaign_id,
                         tenant_id=tenant_id,
