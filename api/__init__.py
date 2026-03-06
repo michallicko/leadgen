@@ -27,6 +27,7 @@ def create_app():
     from .services.strategy_refinement_tools import STRATEGY_REFINEMENT_TOOLS
     from .services.strategy_tools import STRATEGY_TOOLS
     from .services.tool_registry import register_tool
+    from .tools.enrichment_tools import ENRICHMENT_AGENT_TOOLS
 
     for tool in (
         STRATEGY_TOOLS
@@ -38,6 +39,7 @@ def create_app():
         + ENRICHMENT_TOOLS
         + ENRICHMENT_TRIGGER_TOOLS
         + STRATEGY_REFINEMENT_TOOLS
+        + ENRICHMENT_AGENT_TOOLS
     ):
         try:
             register_tool(tool)

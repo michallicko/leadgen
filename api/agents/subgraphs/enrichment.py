@@ -1,17 +1,14 @@
-"""Research Agent subgraph — focused on research and data discovery.
+"""Enrichment Agent subgraph — coordinates enrichment operations.
 
-This subgraph handles web searches, company research, contact/company
-queries, enrichment analysis, and enrichment operations. Results are
-stored in shared state for consumption by other agents (e.g., Strategy
-Agent).
+This subgraph handles enrichment tool calls from the Research Agent,
+coordinating which enrichers to run and in what order based on the
+stage dependency graph.
 
-Tools bound (13): web_search, research_own_company, count_contacts,
-count_companies, list_contacts, filter_contacts,
-analyze_enrichment_insights, enrich_company_news,
-enrich_company_signals, enrich_contact_social, enrich_contact_career,
-enrich_contact_details, check_enrichment_status.
+Tools bound (6): enrich_company_news, enrich_company_signals,
+enrich_contact_social, enrich_contact_career, enrich_contact_details,
+check_enrichment_status.
 
-Model: Haiku for simple queries, can be escalated to Sonnet.
+Model: Haiku for coordination, can be escalated to Sonnet.
 """
 
 from __future__ import annotations
@@ -33,50 +30,44 @@ from ..state import AgentState
 
 logger = logging.getLogger(__name__)
 
-MAX_RESEARCH_ITERATIONS = 15
+MAX_ENRICHMENT_ITERATIONS = 20
 
-# Research-specific tool names
-RESEARCH_TOOL_NAMES = frozenset(
+# Enrichment-specific tool names
+ENRICHMENT_TOOL_NAMES = frozenset(
     [
-        "web_search",
-        "research_own_company",
-        "count_contacts",
-        "count_companies",
-        "list_contacts",
-        "filter_contacts",
-        "analyze_enrichment_insights",
-        # Enrichment tools (wired in Sprint 18)
         "enrich_company_news",
         "enrich_company_signals",
         "enrich_contact_social",
         "enrich_contact_career",
         "enrich_contact_details",
         "check_enrichment_status",
+        "estimate_enrichment_cost",
+        "start_enrichment",
     ]
 )
 
-# Focused system prompt (~150 tokens)
-RESEARCH_AGENT_PROMPT = """You are a research analyst. Your job is to find, analyze, and synthesize information.
+# Focused system prompt
+ENRICHMENT_AGENT_PROMPT = """You are an enrichment coordinator. Your job is to run data enrichment on companies and contacts.
 
 RULES:
-- Use research_own_company for deep company intelligence (cached if already run).
-- Use web_search for market trends, competitor info, and current data. Max 3 searches per turn.
-- Use count_contacts/count_companies for CRM data queries.
-- Use list_contacts for detailed contact information.
-- Use filter_contacts to find contacts matching specific criteria.
-- Use analyze_enrichment_insights for enrichment data analysis.
-- Use enrich_company_news/enrich_company_signals for company enrichment (requires company_id).
-- Use enrich_contact_social/enrich_contact_career/enrich_contact_details for contact enrichment (requires contact_id).
-- Use check_enrichment_status to monitor running enrichment pipelines.
-- Be concise: summarize findings in bullet points.
-- After research, state what you found and suggest next steps.
+- Use enrich_company_news for news & PR data on a company.
+- Use enrich_company_signals for strategic signals (hiring, AI adoption, growth).
+- Use enrich_contact_social for social media and online presence.
+- Use enrich_contact_career for career history and previous companies.
+- Use enrich_contact_details for email, phone, LinkedIn, and profile photo.
+- Use check_enrichment_status to monitor a running enrichment pipeline.
+- Use estimate_enrichment_cost before bulk enrichment to show costs.
+- Use start_enrichment only after user confirms the cost estimate.
+- Company enrichment (news, signals) requires a company_id.
+- Contact enrichment (social, career, details) requires a contact_id.
+- After enrichment, summarize what was found.
 - Max 150 words in conversational responses."""
 
 
-def _get_research_tool_defs() -> list[dict]:
-    """Get Claude API format tool definitions for research tools only."""
+def _get_enrichment_tool_defs() -> list[dict]:
+    """Get Claude API format tool definitions for enrichment tools only."""
     defs = []
-    for name in RESEARCH_TOOL_NAMES:
+    for name in ENRICHMENT_TOOL_NAMES:
         tool = get_tool(name)
         if tool is not None:
             defs.append(
@@ -89,25 +80,24 @@ def _get_research_tool_defs() -> list[dict]:
     return defs
 
 
-def research_agent_node(state: AgentState) -> dict:
-    """Call the LLM with research-focused prompt and tools."""
+def enrichment_agent_node(state: AgentState) -> dict:
+    """Call the LLM with enrichment-focused prompt and tools."""
     writer = get_stream_writer()
     model_name = state.get("model", "claude-haiku-4-5-20251001")
 
     model = ChatAnthropic(
         model=model_name,
-        temperature=0.3,
+        temperature=0.2,
         max_tokens=4096,
     )
 
-    tool_defs = _get_research_tool_defs()
+    tool_defs = _get_enrichment_tool_defs()
     if tool_defs:
         model = model.bind_tools(tool_defs)
 
     messages = list(state["messages"])
-    # Ensure system message is first
     if not messages or not isinstance(messages[0], SystemMessage):
-        messages.insert(0, SystemMessage(content=RESEARCH_AGENT_PROMPT))
+        messages.insert(0, SystemMessage(content=ENRICHMENT_AGENT_PROMPT))
 
     response = model.invoke(messages)
 
@@ -141,12 +131,12 @@ def research_agent_node(state: AgentState) -> dict:
         "total_input_tokens": new_total_input,
         "total_output_tokens": new_total_output,
         "total_cost_usd": new_total_cost,
-        "active_agent": "research",
+        "active_agent": "enrichment",
     }
 
 
-def research_tools_node(state: AgentState) -> dict:
-    """Execute research tool calls and store results in shared state."""
+def enrichment_tools_node(state: AgentState) -> dict:
+    """Execute enrichment tool calls."""
     writer = get_stream_writer()
     messages = state["messages"]
     last_message = messages[-1]
@@ -163,17 +153,14 @@ def research_tools_node(state: AgentState) -> dict:
     )
 
     tool_messages = []
-    # Accumulate research results for shared state
-    accumulated_results = dict(state.get("research_results") or {})
 
     for tool_call in last_message.tool_calls:
         tool_name = tool_call["name"]
         tool_id = tool_call["id"]
         tool_input = tool_call.get("args", {})
 
-        # Only allow research tools
-        if tool_name not in RESEARCH_TOOL_NAMES:
-            error_msg = "Tool '{}' not available in research agent".format(tool_name)
+        if tool_name not in ENRICHMENT_TOOL_NAMES:
+            error_msg = "Tool '{}' not available in enrichment agent".format(tool_name)
             writer(
                 SSEEvent(
                     type="tool_result",
@@ -248,21 +235,13 @@ def research_tools_node(state: AgentState) -> dict:
                 )
             )
 
-            # Store results in shared state for other agents
-            if result:
-                accumulated_results[tool_name] = {
-                    "data": result,
-                    "timestamp": time.time(),
-                    "input": tool_input,
-                }
-
             tool_messages.append(
                 ToolMessage(content=result_str or "OK", tool_call_id=tool_id)
             )
 
         except Exception as exc:
             elapsed_ms = int((time.monotonic() - start) * 1000)
-            logger.exception("Research tool '%s' failed: %s", tool_name, exc)
+            logger.exception("Enrichment tool '%s' failed: %s", tool_name, exc)
             error_msg = str(exc)
             writer(
                 SSEEvent(
@@ -279,14 +258,11 @@ def research_tools_node(state: AgentState) -> dict:
             )
             tool_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id))
 
-    return {
-        "messages": tool_messages,
-        "research_results": accumulated_results,
-    }
+    return {"messages": tool_messages}
 
 
-def research_should_continue(state: AgentState) -> Literal["tools", "end"]:
-    """Decide whether to continue the research agent loop."""
+def enrichment_should_continue(state: AgentState) -> Literal["tools", "end"]:
+    """Decide whether to continue the enrichment agent loop."""
     messages = state["messages"]
     if not messages:
         return "end"
@@ -294,9 +270,10 @@ def research_should_continue(state: AgentState) -> Literal["tools", "end"]:
     last_message = messages[-1]
     iteration = state.get("iteration", 0)
 
-    if iteration >= MAX_RESEARCH_ITERATIONS:
+    if iteration >= MAX_ENRICHMENT_ITERATIONS:
         logger.warning(
-            "Research agent reached max iterations (%d)", MAX_RESEARCH_ITERATIONS
+            "Enrichment agent reached max iterations (%d)",
+            MAX_ENRICHMENT_ITERATIONS,
         )
         return "end"
 
@@ -306,24 +283,24 @@ def research_should_continue(state: AgentState) -> Literal["tools", "end"]:
     return "end"
 
 
-def build_research_subgraph() -> StateGraph:
-    """Build and compile the research agent subgraph."""
+def build_enrichment_subgraph() -> StateGraph:
+    """Build and compile the enrichment agent subgraph."""
     graph = StateGraph(AgentState)
 
-    graph.add_node("research_agent", research_agent_node)
-    graph.add_node("research_tools", research_tools_node)
+    graph.add_node("enrichment_agent", enrichment_agent_node)
+    graph.add_node("enrichment_tools", enrichment_tools_node)
 
-    graph.set_entry_point("research_agent")
+    graph.set_entry_point("enrichment_agent")
 
     graph.add_conditional_edges(
-        "research_agent",
-        research_should_continue,
+        "enrichment_agent",
+        enrichment_should_continue,
         {
-            "tools": "research_tools",
+            "tools": "enrichment_tools",
             "end": END,
         },
     )
 
-    graph.add_edge("research_tools", "research_agent")
+    graph.add_edge("enrichment_tools", "enrichment_agent")
 
     return graph.compile()
