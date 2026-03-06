@@ -435,7 +435,271 @@ Classify user intent before building prompt. Route to specialized prompt+tool co
 ### Pattern 6: Model Selection by Complexity
 Use Haiku for quick answers and simple edits. Use Sonnet for complex strategy generation, research synthesis, and multi-tool orchestration.
 
-## 9. Open Questions for Discussion
+## 9. Agent Conversation Flow Control
+
+### The Problem: Blind Execution
+
+Currently the agent receives a prompt like "Generate a GTM strategy for acme.com" and runs autonomously for up to 25 tool iterations, making every decision itself. It produces a complete 7-section strategy without ever checking if it's on the right track. This leads to:
+
+- Strategy about the wrong product line (company has 5 products, AI picked one)
+- Wrong ICP scope (B2B + B2C company, AI assumed both)
+- Generic positioning because AI didn't confirm differentiators
+- Wasted tokens on sections that get thrown away after user review
+
+### Proposed: Progressive Confirmation Gates
+
+The agent should decompose work into phases and HALT at critical decision points — moments where a wrong assumption would invalidate everything downstream.
+
+```
+User: "Generate a strategy for acme-saas.com"
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  PHASE 1: RESEARCH (autonomous)         │
+│  ─ web_search: company website          │
+│  ─ research_own_company: deep profile   │
+│  ─ Extract: products, markets, team     │
+└────────────────┬────────────────────────┘
+                 │
+    ─────── HALT GATE 1: Company Scope ────────
+    │                                          │
+    │  "I found Acme has 3 products:           │
+    │   1. DataFlow (analytics, $2M ARR)       │
+    │   2. QuickSync (integration, $500K)      │
+    │   3. CloudVault (storage, $800K)         │
+    │                                          │
+    │   Strategy for all 3, or focus on one?"  │
+    │                                          │
+    │  [All products] [DataFlow only]          │
+    │  [DataFlow + QuickSync] [Other]          │
+    │                                          │
+    ────────────────────────────────────────────
+                 │
+                 ▼ (user picks "DataFlow only")
+                 │
+┌─────────────────────────────────────────┐
+│  PHASE 2: POSITIONING (autonomous)      │
+│  ─ Analyze DataFlow competitors         │
+│  ─ Draft value proposition              │
+│  ─ Define target market segments        │
+└────────────────┬────────────────────────┘
+                 │
+    ─────── HALT GATE 2: ICP Direction ────────
+    │                                          │
+    │  "Two strong ICP segments emerge:        │
+    │   A. VP Ops at mid-market SaaS (200-2K)  │
+    │   B. CFO at enterprise fintech (2K+)     │
+    │                                          │
+    │   Go broad (both) or narrow (one)?"      │
+    │                                          │
+    │  [Both segments] [Segment A]             │
+    │  [Segment B] [Other]                     │
+    ────────────────────────────────────────────
+                 │
+                 ▼ (user picks "Segment A")
+                 │
+┌─────────────────────────────────────────┐
+│  PHASE 3: STRATEGY DRAFT (autonomous)   │
+│  ─ Write Executive Summary              │
+│  ─ Write ICP tiers (based on Segment A) │
+│  ─ Write Positioning                    │
+│  ─ Write Channel Strategy               │
+└────────────────┬────────────────────────┘
+                 │
+    ─────── HALT GATE 3: Draft Review ─────────
+    │                                          │
+    │  "Strategy draft complete. Key choices:  │
+    │   ─ Primary channel: LinkedIn outbound   │
+    │   ─ Tone: consultative, not salesy       │
+    │   ─ Metric target: 5% reply rate         │
+    │                                          │
+    │   Looks right, or adjust?"               │
+    │                                          │
+    │  [Looks good, continue] [Adjust tone]    │
+    │  [Change channel] [Review full draft]    │
+    ────────────────────────────────────────────
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│  PHASE 4: MESSAGING + ACTION PLAN       │
+│  ─ Write Messaging Framework            │
+│  ─ Write 90-Day Action Plan             │
+│  ─ Set buyer personas                   │
+│  ─ Check readiness for Contacts phase   │
+└─────────────────────────────────────────┘
+```
+
+### Halt Gate Taxonomy
+
+Not every pause is a halt gate. Define clear categories:
+
+```
+GATE TYPE         TRIGGER                           EXAMPLE
+──────────        ───────                           ───────
+Scope Gate        Multiple valid scopes found       "Which product line?"
+Direction Gate    Mutually exclusive strategies     "Broad or narrow ICP?"
+Assumption Gate   AI made a guess it's unsure about "I assumed B2B only — correct?"
+Review Gate       Major deliverable complete        "Strategy draft ready — review?"
+Resource Gate     Expensive action about to happen  "Enrichment will cost 450 credits — proceed?"
+```
+
+### When to HALT vs Continue
+
+```
+HALT when:                              CONTINUE when:
+──────────                              ──────────────
+Decision invalidates downstream work    Decision is easily reversible
+Multiple valid options, no clear winner Single obvious path forward
+User preference matters (tone, scope)   Factual/technical choice
+Expensive operation ahead               Low-cost operation
+First time encountering this decision   Same decision was made before
+```
+
+### Implementation: Halt Gate Protocol
+
+The agent needs a structured way to halt. Two approaches:
+
+**Option A: Tool-Based Halts**
+
+Add a `request_user_decision` tool:
+```json
+{
+  "name": "request_user_decision",
+  "description": "Pause execution and ask the user to choose between options. Use at critical decision points where the wrong choice would waste significant work.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "question": {"type": "string", "description": "Clear question for the user"},
+      "options": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "2-4 concrete options the user can pick"
+      },
+      "context": {"type": "string", "description": "Brief context for why this matters"},
+      "gate_type": {
+        "type": "string",
+        "enum": ["scope", "direction", "assumption", "review", "resource"]
+      }
+    },
+    "required": ["question", "options", "context", "gate_type"]
+  }
+}
+```
+
+When the AI calls this tool, the executor:
+1. Yields the question as a special SSE event (`decision_request`)
+2. Stops the agent loop
+3. Frontend shows the question with option buttons
+4. User's choice is sent as the next message
+5. Agent resumes with the decision as context
+
+**Option B: Prompt-Instructed Halts**
+
+No new tool — instruct the AI in the system prompt to stop and ask:
+```
+HALT GATE RULES:
+When you encounter these situations, STOP generating and ask the user:
+1. SCOPE: You found multiple products/business lines → ask which to focus on
+2. DIRECTION: Two valid ICP segments → ask broad or narrow
+3. ASSUMPTION: You're guessing about market/industry → verify
+4. REVIEW: You completed a major section → ask if direction is right
+
+Format halt questions as:
+- One sentence context
+- The question
+- 3-4 clickable options (format as numbered list)
+
+After asking, STOP. Do not continue until the user responds.
+```
+
+**Recommended: Option A (tool-based)** — more reliable. Prompt-only halts are easy for the AI to skip, especially with Haiku. A tool call forces a real pause in the executor loop.
+
+### Frontend: Decision Request UI
+
+When a `decision_request` SSE event arrives:
+
+```
+┌─────────────────────────────────────────┐
+│  🔍 Research Complete                    │
+│                                         │
+│  Acme has 3 product lines. Which        │
+│  should the strategy focus on?          │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │ DataFlow (analytics, $2M ARR)  │    │
+│  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │ All products                    │    │
+│  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │ DataFlow + QuickSync           │    │
+│  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │ Other...                        │    │
+│  └─────────────────────────────────┘    │
+└─────────────────────────────────────────┘
+```
+
+Render as interactive buttons in the chat. User clicks one → sent as next message → agent resumes.
+
+### Communication Framework for Discussing Chat Interactions
+
+When designing agent interactions, use this shared vocabulary:
+
+```
+TERM              MEANING
+────              ───────
+Turn              One user message → full agent response (may include tool loops)
+Gate              A decision point where the agent pauses for user input
+Phase             A block of autonomous work between gates
+Scope             What the strategy covers (product, market, geography)
+Direction         Strategic choice (broad/narrow, aggressive/conservative)
+Assumption        Something the AI guessed — needs verification
+Deliverable       A concrete output (section draft, ICP definition, action plan)
+Confirmation      User approves a deliverable or direction
+Rejection         User sends back a deliverable for revision
+Pivot             User changes scope or direction mid-flow
+```
+
+### Task Decomposition Rules
+
+The agent should break a large request into phases with gates:
+
+```
+USER REQUEST               DECOMPOSITION
+────────────               ─────────────
+"Generate strategy"        Research → [Scope Gate] → Position → [Direction Gate]
+                          → Draft → [Review Gate] → Finalize
+
+"Find contacts"           Review ICP → [Assumption Gate: ICP correct?]
+                          → Filter → [Review Gate: sample looks right?]
+                          → Full list
+
+"Create campaign"         Select contacts → [Scope Gate: how many?]
+                          → Draft messages → [Review Gate: tone right?]
+                          → Schedule
+
+"Improve positioning"     Read current → [Assumption Gate: what's wrong?]
+                          → Revise → [Review Gate]
+```
+
+### Gate Frequency Guideline
+
+```
+Too few gates:    AI runs for 3 minutes, produces wrong strategy → waste
+Too many gates:   AI asks 10 questions before writing anything → annoying
+Sweet spot:       2-4 gates per major task, 0-1 for minor edits
+
+TASK SIZE         GATES
+─────────         ─────
+Full strategy     3-4 (scope, direction, draft review, final review)
+Section rewrite   1 (review gate after draft)
+Quick edit        0 (just do it)
+Research task     1 (scope gate: what to research)
+Campaign create   2 (scope gate, message review)
+```
+
+## 10. Open Questions for Discussion
 
 1. **Model upgrade**: Should strategy generation use Sonnet instead of Haiku? Better reasoning but 10x cost. Could use Haiku for simple Q&A and Sonnet for generation.
 
@@ -450,3 +714,9 @@ Use Haiku for quick answers and simple edits. Use Sonnet for complex strategy ge
 6. **Streaming granularity**: Current 10-char chunks from backend. Should we switch to word-level or sentence-level streaming for more natural typewriter effect?
 
 7. **Multi-model orchestration**: Haiku for routing + Sonnet for generation? Or keep single model?
+
+8. **Halt gate implementation**: Tool-based (`request_user_decision`) or prompt-instructed? Tool-based is more reliable but requires backend + frontend changes.
+
+9. **Gate frequency**: How many confirmation gates per strategy generation? 3-4 recommended, but user may want faster autonomous runs for subsequent strategies.
+
+10. **Decision persistence**: Should user decisions at gates be remembered for future strategies? (e.g., "always focus on primary product only")
