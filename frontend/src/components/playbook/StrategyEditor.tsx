@@ -270,6 +270,14 @@ export function StrategyEditor({
       skipNextUpdateRef.current = true
       lastServerContentRef.current = content
       editor.commands.setContent(content)
+      // Notify parent of new content so autosave can track it.
+      // The skipNextUpdateRef blocks Tiptap's built-in onUpdate from firing,
+      // so we emit manually here to ensure PlaybookPage sees AI-generated content.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markdown = (editor.storage as any).markdown?.getMarkdown()
+      if (markdown) {
+        onUpdate(markdown)
+      }
     }
   }, [editor, content])
 
