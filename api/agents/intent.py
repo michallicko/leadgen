@@ -1,8 +1,8 @@
 """Intent classification for the orchestrator.
 
 Uses Haiku for fast (<500ms) classification of user messages into
-one of four intent categories: strategy_edit, research, quick_answer,
-or campaign. The classifier uses a minimal prompt and structured
+one of five intent categories: strategy_edit, research, quick_answer,
+campaign, or outreach. The classifier uses a minimal prompt and structured
 output parsing.
 """
 
@@ -24,19 +24,21 @@ VALID_INTENTS = frozenset(
         "research",
         "quick_answer",
         "campaign",
+        "outreach",
     ]
 )
 
 # Default intent when classification fails
 DEFAULT_INTENT = "quick_answer"
 
-# Intent classification prompt (~100 tokens)
+# Intent classification prompt (~120 tokens)
 INTENT_CLASSIFICATION_PROMPT = """Classify the user's message into exactly one category:
 
 - strategy_edit: Writing, updating, reviewing, or generating strategy document sections. Includes ICP tiers, buyer personas, and section completeness checks.
 - research: Web search, company research, market analysis, contact/company data queries, enrichment analysis.
 - quick_answer: Simple questions, status checks, greetings, clarifications, or questions about existing strategy content.
-- campaign: Message generation, outreach planning, campaign management, contact filtering for outreach.
+- campaign: Campaign management, campaign creation, campaign analytics, contact filtering for campaigns.
+- outreach: Message generation, writing outreach messages, personalizing messages, A/B variants, message templates, reviewing or approving messages.
 
 Respond with ONLY the category name. No explanation, no punctuation."""
 
@@ -77,15 +79,34 @@ RESEARCH_KEYWORDS = [
     "competitor",
 ]
 
-CAMPAIGN_KEYWORDS = [
+OUTREACH_KEYWORDS = [
     "generate message",
+    "write message",
+    "write a message",
     "write outreach",
+    "personalize message",
+    "message for",
+    "draft message",
+    "outreach message",
+    "linkedin message",
+    "email message",
+    "message template",
+    "a/b variant",
+    "ab variant",
+    "message variant",
+    "approve message",
+    "reject message",
+    "review message",
+]
+
+CAMPAIGN_KEYWORDS = [
     "create campaign",
+    "campaign analytics",
+    "campaign performance",
     "filter contacts for",
-    "outreach",
-    "send message",
-    "campaign",
+    "send campaign",
     "email sequence",
+    "launch campaign",
 ]
 
 
@@ -113,6 +134,11 @@ def classify_intent_fast(message: str) -> str | None:
         if kw in lower:
             return "research"
 
+    # Check outreach BEFORE campaign (more specific)
+    for kw in OUTREACH_KEYWORDS:
+        if kw in lower:
+            return "outreach"
+
     for kw in CAMPAIGN_KEYWORDS:
         if kw in lower:
             return "campaign"
@@ -128,7 +154,8 @@ def classify_intent(message: str) -> tuple[str, float]:
 
     Returns:
         Tuple of (intent_category, latency_ms).
-        intent_category is one of: strategy_edit, research, quick_answer, campaign.
+        intent_category is one of: strategy_edit, research, quick_answer,
+        campaign, outreach.
     """
     # Try fast path first
     fast_result = classify_intent_fast(message)

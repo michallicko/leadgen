@@ -26,7 +26,7 @@ class AgentState(TypedDict):
         total_cost_usd: Accumulated cost in USD across all LLM calls.
         model: Model name used for the turn.
         intent: Classified intent from the orchestrator
-            (strategy_edit, research, quick_answer, campaign).
+            (strategy_edit, research, quick_answer, campaign, outreach).
         active_agent: Which subgraph is currently running.
         research_results: Research agent outputs, shared with other agents.
         section_completeness: Strategy section completeness status.
