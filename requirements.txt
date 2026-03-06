@@ -9,3 +9,5 @@ pdfplumber
 Pillow
 trafilatura
 python-docx
+openpyxl
+yt-dlp
