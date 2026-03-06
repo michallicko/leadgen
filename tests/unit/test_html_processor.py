@@ -1,14 +1,11 @@
 """Tests for HTML processor (BL-266)."""
 
-import pytest
-
 from api.services.multimodal.html_processor import (
     validate_url,
     _cache_key,
     _get_cached,
     _set_cached,
     _url_cache,
-    HTMLExtractionResult,
 )
 
 

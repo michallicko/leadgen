@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Default upload directory for local development
 DEFAULT_UPLOAD_DIR = "/tmp/leadgen-uploads"
 
+# Maximum upload size: 50 MB
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
 # Approximate tokens per character
 CHARS_PER_TOKEN = 4
 
@@ -49,7 +52,16 @@ class DocumentStore:
 
         Returns:
             The file upload UUID, or None on error.
+
+        Raises:
+            ValueError: If file exceeds MAX_UPLOAD_BYTES.
         """
+        if size_bytes > MAX_UPLOAD_BYTES:
+            raise ValueError(
+                "File size {} bytes exceeds maximum allowed {} bytes".format(
+                    size_bytes, MAX_UPLOAD_BYTES
+                )
+            )
         try:
             from sqlalchemy import text as sa_text
 
@@ -78,12 +90,15 @@ class DocumentStore:
             db.session.rollback()
             return None
 
-    def update_status(self, file_id: str, status: str, page_count: int = None) -> bool:
+    def update_status(
+        self, file_id: str, status: str, tenant_id: str, page_count: int = None
+    ) -> bool:
         """Update the processing status of a file upload.
 
         Args:
             file_id: File upload UUID.
             status: New status (pending, processing, done, failed).
+            tenant_id: Tenant UUID (for isolation).
             page_count: Number of pages (for PDFs).
 
         Returns:
@@ -92,7 +107,7 @@ class DocumentStore:
         try:
             from sqlalchemy import text as sa_text
 
-            params = {"fid": file_id, "st": status}
+            params = {"fid": file_id, "st": status, "tid": tenant_id}
             set_clause = "status = :st"
             if page_count is not None:
                 set_clause += ", page_count = :pc"
@@ -100,7 +115,9 @@ class DocumentStore:
 
             db.session.execute(
                 sa_text(
-                    "UPDATE file_uploads SET {} WHERE id = :fid".format(set_clause)
+                    "UPDATE file_uploads SET {} WHERE id = :fid AND tenant_id = :tid".format(
+                        set_clause
+                    )
                 ),
                 params,
             )
@@ -164,11 +181,12 @@ class DocumentStore:
             db.session.rollback()
             return None
 
-    def get_file_summary(self, file_id: str) -> Optional[str]:
+    def get_file_summary(self, file_id: str, tenant_id: str) -> Optional[str]:
         """Get the cached summary for a file.
 
         Args:
             file_id: File upload UUID.
+            tenant_id: Tenant UUID (for isolation).
 
         Returns:
             Summary text, or None if not available.
@@ -178,11 +196,13 @@ class DocumentStore:
 
             result = db.session.execute(
                 sa_text(
-                    "SELECT content_summary FROM extracted_content "
-                    "WHERE file_id = :fid AND content_type = 'summary' "
-                    "ORDER BY created_at DESC LIMIT 1"
+                    "SELECT ec.content_summary FROM extracted_content ec "
+                    "JOIN file_uploads fu ON fu.id = ec.file_id "
+                    "WHERE ec.file_id = :fid AND fu.tenant_id = :tid "
+                    "AND ec.content_type = 'summary' "
+                    "ORDER BY ec.created_at DESC LIMIT 1"
                 ),
-                {"fid": file_id},
+                {"fid": file_id, "tid": tenant_id},
             )
             row = result.fetchone()
             return row[0] if row else None
@@ -190,11 +210,12 @@ class DocumentStore:
             logger.exception("Failed to get file summary")
             return None
 
-    def get_extracted_text(self, file_id: str) -> Optional[str]:
+    def get_extracted_text(self, file_id: str, tenant_id: str) -> Optional[str]:
         """Get the full extracted text for a file.
 
         Args:
             file_id: File upload UUID.
+            tenant_id: Tenant UUID (for isolation).
 
         Returns:
             Concatenated extracted text, or None.
@@ -204,11 +225,13 @@ class DocumentStore:
 
             result = db.session.execute(
                 sa_text(
-                    "SELECT content_text FROM extracted_content "
-                    "WHERE file_id = :fid AND content_type = 'text' "
-                    "ORDER BY page_number ASC NULLS LAST"
+                    "SELECT ec.content_text FROM extracted_content ec "
+                    "JOIN file_uploads fu ON fu.id = ec.file_id "
+                    "WHERE ec.file_id = :fid AND fu.tenant_id = :tid "
+                    "AND ec.content_type = 'text' "
+                    "ORDER BY ec.page_number ASC NULLS LAST"
                 ),
-                {"fid": file_id},
+                {"fid": file_id, "tid": tenant_id},
             )
             rows = result.fetchall()
             if not rows:
@@ -218,11 +241,12 @@ class DocumentStore:
             logger.exception("Failed to get extracted text")
             return None
 
-    def get_upload_info(self, file_id: str) -> Optional[dict]:
+    def get_upload_info(self, file_id: str, tenant_id: str) -> Optional[dict]:
         """Get upload metadata for a file.
 
         Args:
             file_id: File upload UUID.
+            tenant_id: Tenant UUID (for isolation).
 
         Returns:
             Dict with file metadata, or None.
@@ -234,9 +258,9 @@ class DocumentStore:
                 sa_text(
                     "SELECT id, tenant_id, filename, mime_type, size_bytes, "
                     "storage_path, status, page_count, created_at "
-                    "FROM file_uploads WHERE id = :fid"
+                    "FROM file_uploads WHERE id = :fid AND tenant_id = :tid"
                 ),
-                {"fid": file_id},
+                {"fid": file_id, "tid": tenant_id},
             )
             row = result.fetchone()
             if not row:

@@ -1,7 +1,5 @@
 """Tests for conversation summarization (BL-263)."""
 
-import pytest
-
 from api.services.memory.conversation_manager import (
     RECENT_WINDOW,
     apply_floating_window,

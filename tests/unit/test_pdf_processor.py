@@ -1,11 +1,6 @@
 """Tests for PDF processor (BL-265)."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from api.services.multimodal.pdf_processor import (
-    SPARSE_TEXT_THRESHOLD,
     PageResult,
     PDFExtractionResult,
     get_vision_pages,

@@ -1,6 +1,6 @@
 """Tests for image processor (BL-265)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

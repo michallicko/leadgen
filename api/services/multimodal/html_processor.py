@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 # Cache TTL in seconds (24 hours)
 CACHE_TTL = 86400
 
+# Maximum number of cached URL entries before eviction
+MAX_CACHE_SIZE = 500
+
 # Simple in-memory cache (replaced by PG cache in production)
 _url_cache: dict[str, tuple[float, dict]] = {}
 
@@ -192,6 +195,15 @@ def _get_cached(url: str) -> Optional[dict]:
 
 
 def _set_cached(url: str, data: dict) -> None:
-    """Cache an extraction result."""
+    """Cache an extraction result.
+
+    Evicts the oldest half of entries when cache exceeds MAX_CACHE_SIZE.
+    """
+    if len(_url_cache) >= MAX_CACHE_SIZE:
+        # Evict oldest half by timestamp
+        sorted_keys = sorted(_url_cache, key=lambda k: _url_cache[k][0])
+        for k in sorted_keys[: len(sorted_keys) // 2]:
+            del _url_cache[k]
+
     key = _cache_key(url)
     _url_cache[key] = (time.time(), data.copy())

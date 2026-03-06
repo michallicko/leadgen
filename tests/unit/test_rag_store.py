@@ -1,11 +1,8 @@
 """Tests for RAG long-term memory store (BL-262)."""
 
-import json
-
 import pytest
 
 from api.services.memory.rag_store import (
-    MAX_MEMORY_TOKENS,
     MemoryStore,
     extract_keywords,
     _parse_keywords,
@@ -75,8 +72,7 @@ class TestMemoryStore:
         with app.app_context():
             db.session.execute(
                 sa_text(
-                    "INSERT INTO tenants (id, name, slug) "
-                    "VALUES (:id, 'test', 'test')"
+                    "INSERT INTO tenants (id, name, slug) VALUES (:id, 'test', 'test')"
                 ),
                 {"id": tenant_id},
             )
@@ -158,7 +154,11 @@ class TestMemoryStore:
         """Formatted output should include fact type prefixes."""
         facts = [
             {"text": "We target enterprise SaaS", "type": "decision", "score": 0.9},
-            {"text": "User prefers consultative tone", "type": "preference", "score": 0.8},
+            {
+                "text": "User prefers consultative tone",
+                "type": "preference",
+                "score": 0.8,
+            },
         ]
         output = store.format_for_injection(facts)
         assert "Decision:" in output

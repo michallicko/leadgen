@@ -173,4 +173,10 @@ def _resize_if_needed(img, max_dim: int):
         new_h = max_dim
         new_w = int(w * (max_dim / h))
 
-    return img.resize((new_w, new_h), getattr(img, "LANCZOS", 1))
+    from PIL import Image
+
+    try:
+        resample = Image.Resampling.LANCZOS  # Pillow 9.1+
+    except AttributeError:
+        resample = Image.LANCZOS  # Pillow < 9.1
+    return img.resize((new_w, new_h), resample)

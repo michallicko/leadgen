@@ -25,16 +25,12 @@ def analyze_document(args: dict, ctx: ToolContext) -> dict:
 
     store = DocumentStore()
 
-    info = store.get_upload_info(file_id)
+    info = store.get_upload_info(file_id, ctx.tenant_id)
     if not info:
         return {"error": "File not found: {}".format(file_id)}
 
-    # Check tenant isolation
-    if info["tenant_id"] != ctx.tenant_id:
-        return {"error": "File not found"}
-
     # Try summary first (L1), fall back to full text (L2)
-    summary = store.get_file_summary(file_id)
+    summary = store.get_file_summary(file_id, ctx.tenant_id)
     if summary:
         return {
             "filename": info["filename"],
@@ -43,7 +39,7 @@ def analyze_document(args: dict, ctx: ToolContext) -> dict:
             "detail_level": "summary",
         }
 
-    full_text = store.get_extracted_text(file_id)
+    full_text = store.get_extracted_text(file_id, ctx.tenant_id)
     if full_text:
         # Truncate to avoid token overflow
         if len(full_text) > 8000:
@@ -74,15 +70,12 @@ def analyze_image(args: dict, ctx: ToolContext) -> dict:
         return {"error": "file_id is required"}
 
     store = DocumentStore()
-    info = store.get_upload_info(file_id)
+    info = store.get_upload_info(file_id, ctx.tenant_id)
     if not info:
         return {"error": "File not found: {}".format(file_id)}
 
-    if info["tenant_id"] != ctx.tenant_id:
-        return {"error": "File not found"}
-
     # Check for cached description
-    summary = store.get_file_summary(file_id)
+    summary = store.get_file_summary(file_id, ctx.tenant_id)
     if summary:
         return {
             "filename": info["filename"],

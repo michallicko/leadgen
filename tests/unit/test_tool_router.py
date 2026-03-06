@@ -59,9 +59,11 @@ class TestGetToolsForContext:
             names = {t["name"] for t in tools}
 
         # Campaign-only tools should not appear
-        campaign_only = set(PHASE_TOOLS.get("campaign", [])) - set(
-            PHASE_TOOLS["strategy"]
-        ) - set(UNIVERSAL_TOOLS)
+        campaign_only = (
+            set(PHASE_TOOLS.get("campaign", []))
+            - set(PHASE_TOOLS["strategy"])
+            - set(UNIVERSAL_TOOLS)
+        )
         for tool in campaign_only:
             assert tool not in names, "Unexpected campaign tool: {}".format(tool)
 
