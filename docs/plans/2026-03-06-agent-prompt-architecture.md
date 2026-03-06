@@ -1555,7 +1555,160 @@ CopilotKit provides ready-made React components that consume AG-UI events. Howev
 
 ---
 
-## 15. Open Questions for Discussion
+## 15. Editor Strategy — Tiptap AI Toolkit
+
+**Decision: Stay on Tiptap. Adopt Tiptap AI Toolkit features for best-in-class editor + chat integration.**
+
+The current stack uses Tiptap (ProseMirror-based) in StrategyEditor. After evaluating alternatives:
+
+### Alternatives Considered
+
+| Editor | Base | AI Features | Verdict |
+|--------|------|-------------|---------|
+| **Tiptap** (current) | ProseMirror | AI Toolkit (copilot, streaming, agent edits) | Keep — headless, full control, best AI integration |
+| **Plate** | Slate.js | AI SDK + MCP support, shadcn/ui | Strong contender but different doc model — migration = full rewrite |
+| **Novel** | Tiptap wrapper | Vercel AI SDK autocompletion | Opinionated layer on what we already have |
+| **BlockNote** | Tiptap wrapper | Notion-style blocks + AI | Block-based, less flexible for long-form strategy docs |
+
+### Why Tiptap Wins
+
+1. Novel and BlockNote are BUILT ON Tiptap — switching to them adds abstraction on top of what we have
+2. Tiptap AI Toolkit provides native Cursor-style editing (inline suggestions, streaming, agent edits)
+3. Headless architecture means AG-UI events flow naturally: AG-UI → ChatProvider → Tiptap commands
+4. Plate (Slate.js) would require full document model rewrite — different paradigm, not worth the migration cost
+
+### Features to Adopt from Tiptap AI Toolkit
+
+1. **Inline AI suggestions (copilot-style autocompletion)**
+   - As user types in the strategy editor, AI suggests completions
+   - Tab to accept, Esc to dismiss
+   - Uses lightweight model (Haiku) for low-latency suggestions
+   - Context: current section + playbook phase + company research
+
+2. **Agent document editing (in-place section updates)**
+   - Strategy agent edits sections directly in the editor, not via full replacement
+   - User sees diffs: additions highlighted green, deletions struck through
+   - Maps to AG-UI STATE_DELTA events — agent sends document patches, not full content
+   - Current `setContent()` approach replaced with surgical `insertContentAt()` / `deleteRange()`
+
+3. **Accept/reject changes (review mode)**
+   - After agent edits, user reviews changes inline (like Google Docs suggestions)
+   - Accept individual changes or accept all
+   - Reject reverts to previous content
+   - Critical for halt gates: agent proposes strategy section → user reviews before it's committed
+
+4. **Streaming display (already implemented)**
+   - useTypewriter hook already provides character-by-character reveal
+   - With AG-UI: TEXT_MESSAGE_CONTENT events → useTypewriter → Tiptap
+   - Upgrade path: Tiptap's native streaming extension for tighter integration
+
+### Architecture with AG-UI
+
+```
+AG-UI Events           ChatProvider          Tiptap Editor
+─────────────         ────────────          ──────────────
+TEXT_MESSAGE    →    streaming state   →   useTypewriter overlay
+STATE_DELTA     →    document patches  →   editor.commands.insertContentAt()
+TOOL_CALL       →    tool UI cards     →   (shown in chat, not editor)
+RUN_FINISHED    →    review mode       →   show accept/reject UI
+```
+
+### Implementation Priority
+
+1. Streaming display — already done (useTypewriter)
+2. Agent document editing — switch from setContent() to surgical edits (~1 week)
+3. Accept/reject changes — Tiptap collaboration extension + suggestion mode (~1 week)
+4. Inline AI suggestions — copilot extension with Haiku backend (~2 weeks)
+
+---
+
+## 16. Operational Concerns
+
+### Agent Testing Strategy
+
+How to test prompts, tools, and agent flows:
+
+**Prompt testing:**
+- Snapshot tests -- save expected outputs for known inputs, flag regressions when prompt changes shift behavior
+- LangSmith (when adopted) has built-in prompt evaluation datasets
+- Golden conversation sets -- curated input/output pairs per agent type
+
+**Tool testing:**
+- Unit tests per tool -- mock external APIs, assert output shape and error handling
+- Already established pattern in `tests/unit/`
+- Each new tool gets a corresponding test file
+
+**Integration testing:**
+- Record real agent conversations -> replay as regression tests
+- LangGraph has a `replay` mode for deterministic re-execution
+- Test orchestrator routing: given intent X, does it pick agent Y?
+
+**Eval metrics:**
+- Task completion rate (did the agent achieve the user's goal?)
+- Hallucination rate (did it fabricate company/contact data?)
+- Halt gate accuracy (did it stop when it should have? Did it stop unnecessarily?)
+- Tool selection accuracy (did it pick the right tool for the task?)
+
+### Error Handling & Retry Patterns
+
+**LLM failures:**
+- Exponential backoff with fallback model chain: primary model fails -> retry same model (1x) -> fallback to next tier -> surface error to user
+- Never silently swallow errors -- always inform the user
+
+**Tool failures:**
+- AG-UI TOOL_CALL_END with error status -> show error inline in chat
+- Agent decides whether to retry, try alternative approach, or ask user
+- Max 2 retries per tool call, then escalate
+
+**Sub-agent failures:**
+- Orchestrator catches failures from specialist agents
+- Can reassign to different agent or surface to user: "Research failed -- want me to try a different approach?"
+- Partial results are preserved -- don't discard successful sub-agent outputs when one fails
+
+**Timeout handling:**
+- Per-agent time budgets (e.g., research agent: 60s, strategy agent: 120s)
+- Orchestrator kills stuck sub-agents and reports partial results
+- User sees progress indicator throughout -- never a silent hang
+
+### Analytics & Metrics
+
+Key metrics to track (most available via LangSmith when adopted):
+
+| Metric | Purpose | Source |
+|--------|---------|--------|
+| Token cost per conversation | Billing, budget tracking | LLM API response |
+| Token cost per agent | Identify expensive agents | LangSmith traces |
+| Agent routing accuracy | Is orchestrator picking the right specialist? | Manual eval + user feedback |
+| Halt gate effectiveness | How often do users override vs accept? | Frontend events |
+| Time to completion | Per phase, per agent | LangSmith traces |
+| Tool success rate | Which tools fail most? | Tool call results |
+| User satisfaction signals | Implicit: edits after agent writes, explicit: thumbs up/down | Frontend events |
+
+**Decision:** LangSmith provides most of this for free. Build lightweight custom tracking only for frontend-specific metrics (halt gate overrides, user edits).
+
+### Cost Controls per Tenant
+
+**Token budgets:**
+- Namespace admins set monthly token limits
+- Dashboard shows usage vs budget (already decided: credits display, not USD)
+- Soft warning at 80% usage, hard cap at 100% (configurable)
+
+**Per-request warnings:**
+- Before expensive operations, warn with estimated token cost: "This research will use ~5,000 tokens. Proceed?"
+- File processing (multimodal): show estimated cost before processing large files
+- Already decided in Q14: transparency over silent processing
+
+**Model access:**
+- All models available to all users -- no tier restrictions
+- Users pay tokens regardless of model used
+- Warning before expensive model usage: "Using Opus for this task (~3x cost vs Sonnet). This gives better results for complex strategy work. Proceed?"
+- The user always decides -- never silently use an expensive model without informing them
+
+**Decision:** No model gatekeeping. Every user gets access to the best models. Warnings + transparency replace restrictions. Users are adults -- show them the cost, let them choose.
+
+---
+
+## 17. Open Questions for Discussion
 
 1. **Model upgrade**: Should strategy generation use Sonnet instead of Haiku? Better reasoning but 10x cost. Could use Haiku for simple Q&A and Sonnet for generation.
 

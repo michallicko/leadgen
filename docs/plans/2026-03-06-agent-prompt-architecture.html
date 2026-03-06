@@ -2106,7 +2106,220 @@ User <span class="arrow">&#8596;</span> [<span class="hl">AG-UI</span>] <span cl
 </details>
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<h2 id="s15"><span class="num">15.</span> Open Questions for Discussion</h2>
+<h2 id="s15"><span class="num">15.</span> Editor Strategy &mdash; Tiptap AI Toolkit</h2>
+
+<p><strong>Decision: Stay on Tiptap. Adopt Tiptap AI Toolkit features for best-in-class editor + chat integration.</strong></p>
+
+<p>The current stack uses Tiptap (ProseMirror-based) in StrategyEditor. After evaluating alternatives:</p>
+
+<h3 id="s15-alternatives">Alternatives Considered</h3>
+
+<details>
+  <summary>Editor comparison table</summary>
+<table>
+  <thead>
+    <tr><th>Editor</th><th>Base</th><th>AI Features</th><th>Verdict</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Tiptap</strong> (current)</td><td>ProseMirror</td><td>AI Toolkit (copilot, streaming, agent edits)</td><td>Keep &mdash; headless, full control, best AI integration</td></tr>
+    <tr><td><strong>Plate</strong></td><td>Slate.js</td><td>AI SDK + MCP support, shadcn/ui</td><td>Strong contender but different doc model &mdash; migration = full rewrite</td></tr>
+    <tr><td><strong>Novel</strong></td><td>Tiptap wrapper</td><td>Vercel AI SDK autocompletion</td><td>Opinionated layer on what we already have</td></tr>
+    <tr><td><strong>BlockNote</strong></td><td>Tiptap wrapper</td><td>Notion-style blocks + AI</td><td>Block-based, less flexible for long-form strategy docs</td></tr>
+  </tbody>
+</table>
+</details>
+
+<h3 id="s15-why">Why Tiptap Wins</h3>
+
+<ol>
+  <li>Novel and BlockNote are BUILT ON Tiptap &mdash; switching to them adds abstraction on top of what we have</li>
+  <li>Tiptap AI Toolkit provides native Cursor-style editing (inline suggestions, streaming, agent edits)</li>
+  <li>Headless architecture means AG-UI events flow naturally: AG-UI &rarr; ChatProvider &rarr; Tiptap commands</li>
+  <li>Plate (Slate.js) would require full document model rewrite &mdash; different paradigm, not worth the migration cost</li>
+</ol>
+
+<h3 id="s15-features">Features to Adopt from Tiptap AI Toolkit</h3>
+
+<ol>
+  <li><strong>Inline AI suggestions (copilot-style autocompletion)</strong>
+    <ul>
+      <li>As user types in the strategy editor, AI suggests completions</li>
+      <li>Tab to accept, Esc to dismiss</li>
+      <li>Uses lightweight model (Haiku) for low-latency suggestions</li>
+      <li>Context: current section + playbook phase + company research</li>
+    </ul>
+  </li>
+  <li><strong>Agent document editing (in-place section updates)</strong>
+    <ul>
+      <li>Strategy agent edits sections directly in the editor, not via full replacement</li>
+      <li>User sees diffs: additions highlighted green, deletions struck through</li>
+      <li>Maps to AG-UI STATE_DELTA events &mdash; agent sends document patches, not full content</li>
+      <li>Current <code>setContent()</code> approach replaced with surgical <code>insertContentAt()</code> / <code>deleteRange()</code></li>
+    </ul>
+  </li>
+  <li><strong>Accept/reject changes (review mode)</strong>
+    <ul>
+      <li>After agent edits, user reviews changes inline (like Google Docs suggestions)</li>
+      <li>Accept individual changes or accept all</li>
+      <li>Reject reverts to previous content</li>
+      <li>Critical for halt gates: agent proposes strategy section &rarr; user reviews before it&rsquo;s committed</li>
+    </ul>
+  </li>
+  <li><strong>Streaming display (already implemented)</strong>
+    <ul>
+      <li>useTypewriter hook already provides character-by-character reveal</li>
+      <li>With AG-UI: TEXT_MESSAGE_CONTENT events &rarr; useTypewriter &rarr; Tiptap</li>
+      <li>Upgrade path: Tiptap&rsquo;s native streaming extension for tighter integration</li>
+    </ul>
+  </li>
+</ol>
+
+<h3 id="s15-arch">Architecture with AG-UI</h3>
+
+<details>
+  <summary>AG-UI to Tiptap architecture diagram</summary>
+<pre>
+AG-UI Events           ChatProvider          Tiptap Editor
+<span class="cmt">─────────────</span>         <span class="cmt">────────────</span>          <span class="cmt">──────────────</span>
+<span class="kw">TEXT_MESSAGE</span>    <span class="arrow">&rarr;</span>    streaming state   <span class="arrow">&rarr;</span>   useTypewriter overlay
+<span class="kw">STATE_DELTA</span>     <span class="arrow">&rarr;</span>    document patches  <span class="arrow">&rarr;</span>   editor.commands.insertContentAt()
+<span class="kw">TOOL_CALL</span>       <span class="arrow">&rarr;</span>    tool UI cards     <span class="arrow">&rarr;</span>   (shown in chat, not editor)
+<span class="kw">RUN_FINISHED</span>    <span class="arrow">&rarr;</span>    review mode       <span class="arrow">&rarr;</span>   show accept/reject UI
+</pre>
+</details>
+
+<h3 id="s15-priority">Implementation Priority</h3>
+
+<ol>
+  <li>Streaming display &mdash; already done (useTypewriter)</li>
+  <li>Agent document editing &mdash; switch from <code>setContent()</code> to surgical edits (~1 week)</li>
+  <li>Accept/reject changes &mdash; Tiptap collaboration extension + suggestion mode (~1 week)</li>
+  <li>Inline AI suggestions &mdash; copilot extension with Haiku backend (~2 weeks)</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s16"><span class="num">16.</span> Operational Concerns</h2>
+
+<h3 id="s16-testing">Agent Testing Strategy</h3>
+
+<p>How to test prompts, tools, and agent flows:</p>
+
+<p><strong>Prompt testing:</strong></p>
+<ul>
+  <li>Snapshot tests &mdash; save expected outputs for known inputs, flag regressions when prompt changes shift behavior</li>
+  <li>LangSmith (when adopted) has built-in prompt evaluation datasets</li>
+  <li>Golden conversation sets &mdash; curated input/output pairs per agent type</li>
+</ul>
+
+<p><strong>Tool testing:</strong></p>
+<ul>
+  <li>Unit tests per tool &mdash; mock external APIs, assert output shape and error handling</li>
+  <li>Already established pattern in <code>tests/unit/</code></li>
+  <li>Each new tool gets a corresponding test file</li>
+</ul>
+
+<p><strong>Integration testing:</strong></p>
+<ul>
+  <li>Record real agent conversations &rarr; replay as regression tests</li>
+  <li>LangGraph has a <code>replay</code> mode for deterministic re-execution</li>
+  <li>Test orchestrator routing: given intent X, does it pick agent Y?</li>
+</ul>
+
+<p><strong>Eval metrics:</strong></p>
+<ul>
+  <li>Task completion rate (did the agent achieve the user&rsquo;s goal?)</li>
+  <li>Hallucination rate (did it fabricate company/contact data?)</li>
+  <li>Halt gate accuracy (did it stop when it should have? Did it stop unnecessarily?)</li>
+  <li>Tool selection accuracy (did it pick the right tool for the task?)</li>
+</ul>
+
+<h3 id="s16-errors">Error Handling &amp; Retry Patterns</h3>
+
+<p><strong>LLM failures:</strong></p>
+<ul>
+  <li>Exponential backoff with fallback model chain: primary model fails &rarr; retry same model (1x) &rarr; fallback to next tier &rarr; surface error to user</li>
+  <li>Never silently swallow errors &mdash; always inform the user</li>
+</ul>
+
+<p><strong>Tool failures:</strong></p>
+<ul>
+  <li>AG-UI <code>TOOL_CALL_END</code> with error status &rarr; show error inline in chat</li>
+  <li>Agent decides whether to retry, try alternative approach, or ask user</li>
+  <li>Max 2 retries per tool call, then escalate</li>
+</ul>
+
+<p><strong>Sub-agent failures:</strong></p>
+<ul>
+  <li>Orchestrator catches failures from specialist agents</li>
+  <li>Can reassign to different agent or surface to user: &ldquo;Research failed &mdash; want me to try a different approach?&rdquo;</li>
+  <li>Partial results are preserved &mdash; don&rsquo;t discard successful sub-agent outputs when one fails</li>
+</ul>
+
+<p><strong>Timeout handling:</strong></p>
+<ul>
+  <li>Per-agent time budgets (e.g., research agent: 60s, strategy agent: 120s)</li>
+  <li>Orchestrator kills stuck sub-agents and reports partial results</li>
+  <li>User sees progress indicator throughout &mdash; never a silent hang</li>
+</ul>
+
+<h3 id="s16-analytics">Analytics &amp; Metrics</h3>
+
+<p>Key metrics to track (most available via LangSmith when adopted):</p>
+
+<details>
+  <summary>Analytics metrics table</summary>
+<table>
+  <thead>
+    <tr><th>Metric</th><th>Purpose</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Token cost per conversation</td><td>Billing, budget tracking</td><td>LLM API response</td></tr>
+    <tr><td>Token cost per agent</td><td>Identify expensive agents</td><td>LangSmith traces</td></tr>
+    <tr><td>Agent routing accuracy</td><td>Is orchestrator picking the right specialist?</td><td>Manual eval + user feedback</td></tr>
+    <tr><td>Halt gate effectiveness</td><td>How often do users override vs accept?</td><td>Frontend events</td></tr>
+    <tr><td>Time to completion</td><td>Per phase, per agent</td><td>LangSmith traces</td></tr>
+    <tr><td>Tool success rate</td><td>Which tools fail most?</td><td>Tool call results</td></tr>
+    <tr><td>User satisfaction signals</td><td>Implicit: edits after agent writes, explicit: thumbs up/down</td><td>Frontend events</td></tr>
+  </tbody>
+</table>
+</details>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Decision</div>
+  <p>LangSmith provides most of this for free. Build lightweight custom tracking only for frontend-specific metrics (halt gate overrides, user edits).</p>
+</div>
+
+<h3 id="s16-cost-controls">Cost Controls per Tenant</h3>
+
+<p><strong>Token budgets:</strong></p>
+<ul>
+  <li>Namespace admins set monthly token limits</li>
+  <li>Dashboard shows usage vs budget (already decided: credits display, not USD)</li>
+  <li>Soft warning at 80% usage, hard cap at 100% (configurable)</li>
+</ul>
+
+<p><strong>Per-request warnings:</strong></p>
+<ul>
+  <li>Before expensive operations, warn with estimated token cost: &ldquo;This research will use ~5,000 tokens. Proceed?&rdquo;</li>
+  <li>File processing (multimodal): show estimated cost before processing large files</li>
+  <li>Already decided in Q14: transparency over silent processing</li>
+</ul>
+
+<p><strong>Model access:</strong></p>
+<ul>
+  <li>All models available to all users &mdash; no tier restrictions</li>
+  <li>Users pay tokens regardless of model used</li>
+  <li>Warning before expensive model usage: &ldquo;Using Opus for this task (~3x cost vs Sonnet). This gives better results for complex strategy work. Proceed?&rdquo;</li>
+  <li>The user always decides &mdash; never silently use an expensive model without informing them</li>
+</ul>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Decision: No Model Gatekeeping</div>
+  <p>Every user gets access to the best models. Warnings + transparency replace restrictions. Users are adults &mdash; show them the cost, let them choose.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s17"><span class="num">17.</span> Open Questions for Discussion</h2>
 
 <div class="questions-grid">
 
