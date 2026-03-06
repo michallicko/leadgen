@@ -97,7 +97,8 @@ class TestIntentClassifyLLM:
     """Test LLM-based classification (mocked)."""
 
     @patch("api.agents.intent.ChatAnthropic")
-    def test_classify_uses_haiku(self, mock_chat):
+    def test_classify_fast_path(self, mock_chat):
+        """classify_intent returns fast-path result without calling LLM."""
         mock_response = MagicMock()
         mock_response.content = "research"
         mock_chat.return_value.invoke.return_value = mock_response
@@ -105,8 +106,9 @@ class TestIntentClassifyLLM:
         intent, latency = classify_intent(
             "analyze our market competitors and find gaps"
         )
-        # Fast path matches "competitor" keyword
+        # Fast path matches "competitor" keyword — LLM is never called
         assert intent == "research"
+        mock_chat.return_value.invoke.assert_not_called()
 
     @patch("api.agents.intent.ChatAnthropic")
     def test_classify_invalid_response_defaults(self, mock_chat):

@@ -85,14 +85,16 @@ def strategy_node(state: AgentState) -> dict:
     graph = build_strategy_subgraph()
     writer = get_stream_writer()
 
-    # Stream the subgraph execution
+    # Stream with both custom (SSE) and values (state) modes in a single pass
     result_state = None
-    for event in graph.stream(state, stream_mode="custom"):
-        if isinstance(event, SSEEvent):
+    for mode, event in graph.stream(state, stream_mode=["custom", "values"]):
+        if mode == "custom" and isinstance(event, SSEEvent):
             writer(event)
+        elif mode == "values":
+            result_state = event
 
-    # Get final state from values mode
-    result_state = graph.invoke(state)
+    if result_state is None:
+        result_state = {}
 
     return {
         "messages": result_state.get("messages", []),
@@ -109,13 +111,16 @@ def research_node(state: AgentState) -> dict:
     graph = build_research_subgraph()
     writer = get_stream_writer()
 
-    # Stream the subgraph execution
-    for event in graph.stream(state, stream_mode="custom"):
-        if isinstance(event, SSEEvent):
+    # Stream with both custom (SSE) and values (state) modes in a single pass
+    result_state = None
+    for mode, event in graph.stream(state, stream_mode=["custom", "values"]):
+        if mode == "custom" and isinstance(event, SSEEvent):
             writer(event)
+        elif mode == "values":
+            result_state = event
 
-    # Get final state from values mode
-    result_state = graph.invoke(state)
+    if result_state is None:
+        result_state = {}
 
     return {
         "messages": result_state.get("messages", []),
