@@ -15,15 +15,7 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-STRATEGY_SECTIONS = [
-    "Executive Summary",
-    "Value Proposition & Messaging",
-    "Competitive Positioning",
-    "Channel Strategy",
-    "Messaging Framework",
-    "Metrics & KPIs",
-    "90-Day Action Plan",
-]
+from . import STRATEGY_SECTIONS
 
 
 def build_context_block(
@@ -58,39 +50,47 @@ def build_context_block(
         content = json.dumps(content, indent=2, default=str)
 
     if content and content.strip():
-        parts.extend([
-            "",
-            "--- Current Strategy Document (Markdown) ---",
-            content,
-            "--- End of Current Strategy ---",
-        ])
+        parts.extend(
+            [
+                "",
+                "--- Current Strategy Document (Markdown) ---",
+                content,
+                "--- End of Current Strategy ---",
+            ]
+        )
 
         # Section completeness
         section_status = _compute_section_status(content)
         if section_status:
-            parts.extend([
-                "",
-                "STRATEGY COMPLETENESS STATUS:",
-                "\n".join(section_status),
-                "",
-                "Prioritize helping the user fill EMPTY and NEEDS WORK sections.",
-            ])
+            parts.extend(
+                [
+                    "",
+                    "STRATEGY COMPLETENESS STATUS:",
+                    "\n".join(section_status),
+                    "",
+                    "Prioritize helping the user fill EMPTY and NEEDS WORK sections.",
+                ]
+            )
     else:
-        parts.extend([
-            "",
-            "The strategy document is currently empty. Immediately start "
-            "writing sections using `update_strategy_section` — do not wait "
-            "for permission.",
-        ])
+        parts.extend(
+            [
+                "",
+                "The strategy document is currently empty. Immediately start "
+                "writing sections using `update_strategy_section` — do not wait "
+                "for permission.",
+            ]
+        )
 
     # Document awareness
-    parts.extend([
-        "",
-        "DOCUMENT AWARENESS (mandatory):",
-        "- Always reference the strategy document content provided above.",
-        "- Never ask the user to repeat information already in the document.",
-        "- If the document is empty, immediately start writing sections.",
-    ])
+    parts.extend(
+        [
+            "",
+            "DOCUMENT AWARENESS (mandatory):",
+            "- Always reference the strategy document content provided above.",
+            "- Never ask the user to repeat information already in the document.",
+            "- If the document is empty, immediately start writing sections.",
+        ]
+    )
 
     # ICP/persona status
     extracted = document.extracted_data or {}
@@ -117,12 +117,14 @@ def build_context_block(
     if enrichment_data:
         parts.extend(_format_enrichment(enrichment_data))
     else:
-        parts.extend([
-            "",
-            "--- Company Research Status ---",
-            "No company research data available yet.",
-            "--- End of Research Status ---",
-        ])
+        parts.extend(
+            [
+                "",
+                "--- Company Research Status ---",
+                "No company research data available yet.",
+                "--- End of Research Status ---",
+            ]
+        )
 
     # Phase instructions
     active_phase = phase or getattr(document, "phase", "strategy") or "strategy"
@@ -134,12 +136,14 @@ def build_context_block(
     if page_context and page_context != "playbook":
         hint = _get_page_hint(page_context)
         if hint:
-            parts.extend([
-                "",
-                "--- Current Page Context ---",
-                "The user is currently on the '{}' page.".format(page_context),
-                hint,
-            ])
+            parts.extend(
+                [
+                    "",
+                    "--- Current Page Context ---",
+                    "The user is currently on the '{}' page.".format(page_context),
+                    hint,
+                ]
+            )
 
     # Language override
     if tenant:
@@ -160,13 +164,11 @@ def _compute_section_status(content: str) -> list[str]:
             idx = content.index(heading)
             next_heading = content.find("\n## ", idx + len(heading))
             if next_heading == -1:
-                section_content = content[idx + len(heading):]
+                section_content = content[idx + len(heading) :]
             else:
-                section_content = content[idx + len(heading):next_heading]
+                section_content = content[idx + len(heading) : next_heading]
             lines = [
-                ln.strip()
-                for ln in section_content.strip().split("\n")
-                if ln.strip()
+                ln.strip() for ln in section_content.strip().split("\n") if ln.strip()
             ]
             word_count = sum(len(ln.split()) for ln in lines)
             if word_count < 20:
@@ -222,12 +224,14 @@ def _append_language(parts: list[str], tenant) -> None:
         lang = get_effective_language(tenant)
         if lang and lang != "en":
             lang_name = LANGUAGE_NAMES.get(lang, lang)
-            parts.extend([
-                "",
-                "--- Language ---",
-                "IMPORTANT: Respond in {}. ".format(lang_name)
-                + "Strategy document section titles may stay in English, "
-                + "but all conversational text must be in {}.".format(lang_name),
-            ])
+            parts.extend(
+                [
+                    "",
+                    "--- Language ---",
+                    "IMPORTANT: Respond in {}. ".format(lang_name)
+                    + "Strategy document section titles may stay in English, "
+                    + "but all conversational text must be in {}.".format(lang_name),
+                ]
+            )
     except (ImportError, AttributeError):
         pass

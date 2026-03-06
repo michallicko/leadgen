@@ -78,9 +78,7 @@ class TestShouldContinue:
 
         msg = AIMessage(
             content="",
-            tool_calls=[
-                {"name": "test_tool", "args": {}, "id": "tc_1"}
-            ],
+            tool_calls=[{"name": "test_tool", "args": {}, "id": "tc_1"}],
         )
         state = {"messages": [msg], "iteration": 0}
         assert should_continue(state) == "tools"
@@ -90,9 +88,7 @@ class TestShouldContinue:
 
         msg = AIMessage(
             content="",
-            tool_calls=[
-                {"name": "test_tool", "args": {}, "id": "tc_1"}
-            ],
+            tool_calls=[{"name": "test_tool", "args": {}, "id": "tc_1"}],
         )
         state = {"messages": [msg], "iteration": 25}
         assert should_continue(state) == "end"
@@ -150,9 +146,7 @@ class TestPromptLayering:
         doc.extracted_data = {}
         doc.phase = "strategy"
 
-        msgs = build_system_messages(
-            company_name="TestCorp", document=doc
-        )
+        msgs = build_system_messages(company_name="TestCorp", document=doc)
         assert len(msgs) == 1
         assert isinstance(msgs[0], SystemMessage)
 
@@ -180,11 +174,7 @@ class TestSectionStatus:
         assert "[PARTIAL" in exec_line
 
     def test_complete_section(self):
-        content = (
-            "## Executive Summary\n"
-            + " ".join(["word"] * 100)
-            + "\n"
-        )
+        content = "## Executive Summary\n" + " ".join(["word"] * 100) + "\n"
         status = _compute_section_status(content)
         exec_line = [s for s in status if "Executive Summary" in s][0]
         assert "[COMPLETE" in exec_line
@@ -217,9 +207,7 @@ class TestAGUIEvents:
         assert ev.data["toolCallName"] == "web_search"
 
     def test_tool_call_end_event(self):
-        ev = tool_call_end(
-            "tc-1", "web_search", "success", "Found results", "", 150
-        )
+        ev = tool_call_end("tc-1", "web_search", "success", "Found results", "", 150)
         assert ev.type == TOOL_CALL_END
         assert ev.data["status"] == "success"
         assert ev.data["durationMs"] == 150
@@ -260,9 +248,7 @@ class TestAGUIEvents:
         assert events[0].type == TOOL_CALL_END
 
     def test_sse_to_agui_done(self):
-        events = sse_to_agui(
-            "done", {"tool_calls": [], "model": "haiku"}, "r1"
-        )
+        events = sse_to_agui("done", {"tool_calls": [], "model": "haiku"}, "r1")
         assert events[0].type == RUN_FINISHED
 
     def test_sse_to_agui_section_update(self):

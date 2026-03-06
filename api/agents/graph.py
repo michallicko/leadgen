@@ -167,9 +167,7 @@ def tools_node(state: AgentState) -> dict:
                     },
                 )
             )
-            tool_messages.append(
-                ToolMessage(content=error_msg, tool_call_id=tool_id)
-            )
+            tool_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id))
             continue
 
         try:
@@ -199,10 +197,7 @@ def tools_node(state: AgentState) -> dict:
             )
 
             # Emit section_update for live document animation
-            if (
-                tool_name in ("update_strategy_section", "append_to_section")
-                and result
-            ):
+            if tool_name in ("update_strategy_section", "append_to_section") and result:
                 section_name = result.get("section", "")
                 content_preview = result.get("content_preview", "")
 
@@ -264,9 +259,7 @@ def tools_node(state: AgentState) -> dict:
                     },
                 )
             )
-            tool_messages.append(
-                ToolMessage(content=error_msg, tool_call_id=tool_id)
-            )
+            tool_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id))
 
     return {"messages": tool_messages}
 
@@ -287,9 +280,7 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
 
     # Check iteration limit
     if iteration >= MAX_TOOL_ITERATIONS:
-        logger.warning(
-            "Agent reached max iterations (%d)", MAX_TOOL_ITERATIONS
-        )
+        logger.warning("Agent reached max iterations (%d)", MAX_TOOL_ITERATIONS)
         return "end"
 
     # Check for tool calls
@@ -468,9 +459,7 @@ def execute_graph_turn(
             "tenant_id": str(tool_context.tenant_id) if tool_context.tenant_id else "",
             "user_id": str(tool_context.user_id) if tool_context.user_id else None,
             "document_id": (
-                str(tool_context.document_id)
-                if tool_context.document_id
-                else None
+                str(tool_context.document_id) if tool_context.document_id else None
             ),
             "turn_id": tool_context.turn_id,
             "_app": app,
@@ -484,24 +473,55 @@ def execute_graph_turn(
 
     # Stream the graph execution, collecting custom SSE events
     tool_executions = []
+    accumulated_input_tokens = 0
+    accumulated_output_tokens = 0
+    accumulated_cost_usd = Decimal("0")
     turn_start = time.monotonic()
 
     try:
         for event in graph.stream(
             initial_state,
-            stream_mode="custom",
+            stream_mode=["custom", "updates"],
         ):
-            if isinstance(event, SSEEvent):
-                # Track tool executions for the done event
+            # stream_mode=["custom", "updates"] yields tuples of (mode, data)
+            if isinstance(event, tuple) and len(event) == 2:
+                mode, payload = event
+                if mode == "custom" and isinstance(payload, SSEEvent):
+                    # Track tool executions for the done event
+                    if payload.type == "tool_result":
+                        tool_executions.append(payload.data)
+
+                    # Check turn timeout
+                    elapsed = time.monotonic() - turn_start
+                    if elapsed > MAX_TURN_SECONDS:
+                        logger.warning("Agent turn timed out after %.0fs", elapsed)
+                        yield SSEEvent(
+                            type="chunk",
+                            data={
+                                "text": "I ran out of time for this turn. "
+                                "Here's what I've completed so far. "
+                                "Send another message to continue.",
+                            },
+                        )
+                        break
+
+                    yield payload
+                elif mode == "updates" and isinstance(payload, dict):
+                    # State updates from graph nodes contain token totals
+                    if "total_input_tokens" in payload:
+                        accumulated_input_tokens = payload["total_input_tokens"]
+                    if "total_output_tokens" in payload:
+                        accumulated_output_tokens = payload["total_output_tokens"]
+                    if "total_cost_usd" in payload:
+                        accumulated_cost_usd = Decimal(str(payload["total_cost_usd"]))
+            elif isinstance(event, SSEEvent):
+                # Fallback for single-mode streaming
                 if event.type == "tool_result":
                     tool_executions.append(event.data)
 
-                # Check turn timeout
                 elapsed = time.monotonic() - turn_start
                 if elapsed > MAX_TURN_SECONDS:
-                    logger.warning(
-                        "Agent turn timed out after %.0fs", elapsed
-                    )
+                    logger.warning("Agent turn timed out after %.0fs", elapsed)
                     yield SSEEvent(
                         type="chunk",
                         data={
@@ -533,18 +553,16 @@ def execute_graph_turn(
                     "input_args": tc.get("input", {}),
                     "output_data": tc.get("output", ""),
                     "error_message": (
-                        tc.get("summary", "")
-                        if tc.get("status") == "error"
-                        else None
+                        tc.get("summary", "") if tc.get("status") == "error" else None
                     ),
                     "duration_ms": tc.get("duration_ms", 0),
                 }
                 for tc in tool_executions
             ],
             "model": model,
-            "total_input_tokens": 0,
-            "total_output_tokens": 0,
-            "total_cost_usd": "0",
+            "total_input_tokens": accumulated_input_tokens,
+            "total_output_tokens": accumulated_output_tokens,
+            "total_cost_usd": str(accumulated_cost_usd),
         },
     )
 

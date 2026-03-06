@@ -9,15 +9,7 @@ within a single agent turn's tool loop (up to 25 iterations), the static
 portion is cached after the first call, saving ~800 tokens x 24 iterations.
 """
 
-STRATEGY_SECTIONS = [
-    "Executive Summary",
-    "Value Proposition & Messaging",
-    "Competitive Positioning",
-    "Channel Strategy",
-    "Messaging Framework",
-    "Metrics & KPIs",
-    "90-Day Action Plan",
-]
+from . import STRATEGY_SECTIONS
 
 # ~800 tokens — static across all calls
 IDENTITY_PROMPT = """CRITICAL RULES (override everything else):
