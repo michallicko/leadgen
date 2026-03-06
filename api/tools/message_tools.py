@@ -119,6 +119,7 @@ def generate_message(args: dict, ctx: ToolContext) -> dict:
     channel = args.get("channel", "linkedin")
     tone = args.get("tone", "professional")
     template_id = args.get("template")
+    context_notes = args.get("context_notes", "")
 
     # Fetch contact context for personalization
     contact_ctx = _get_contact_context(contact_id, ctx.tenant_id)
@@ -144,12 +145,24 @@ def generate_message(args: dict, ctx: ToolContext) -> dict:
             job_title or "your role", company_name
         )
         body = _build_email_body(
-            first_name, job_title, company_name, industry, tone, template_info
+            first_name,
+            job_title,
+            company_name,
+            industry,
+            tone,
+            template_info,
+            context_notes,
         )
     else:
         subject = None
         body = _build_linkedin_body(
-            first_name, job_title, company_name, industry, tone, template_info
+            first_name,
+            job_title,
+            company_name,
+            industry,
+            tone,
+            template_info,
+            context_notes,
         )
 
     # Create message record
@@ -191,6 +204,7 @@ def _build_email_body(
     industry: str,
     tone: str,
     template_info: dict | None,
+    context_notes: str = "",
 ) -> str:
     """Build a draft email body. This is a structured template that the LLM
     will further personalize in the agent loop."""
@@ -210,17 +224,22 @@ def _build_email_body(
     if template_info:
         template_hint = "\n\n[Framework: {}]".format(template_info["structure"])
 
+    context_hint = ""
+    if context_notes:
+        context_hint = "\n\n[Context: {}]".format(context_notes)
+
     return (
         "{},\n\n"
         "I noticed your work{} at {}{} and wanted to reach out.\n\n"
         "[Personalized value proposition based on their company and role]\n\n"
         "Would you be open to a brief conversation about how we might help?\n\n"
-        "Best regards{}".format(
+        "Best regards{}{}".format(
             greeting,
             role_mention,
             company_name,
             industry_mention,
             template_hint,
+            context_hint,
         )
     )
 
@@ -232,6 +251,7 @@ def _build_linkedin_body(
     industry: str,
     tone: str,
     template_info: dict | None,
+    context_notes: str = "",
 ) -> str:
     """Build a draft LinkedIn message body."""
     greeting = "Hi {}".format(first_name)
@@ -242,12 +262,16 @@ def _build_linkedin_body(
     if job_title:
         role_mention = " in your role as {}".format(job_title)
 
+    context_hint = ""
+    if context_notes:
+        context_hint = "\n\n[Context: {}]".format(context_notes)
+
     return (
         "{} — I came across your profile{} at {} and was impressed "
         "by what the team is doing.\n\n"
         "[Personalized hook based on their background]\n\n"
-        "Would love to connect and share some ideas."
-    ).format(greeting, role_mention, company_name)
+        "Would love to connect and share some ideas.{}"
+    ).format(greeting, role_mention, company_name, context_hint)
 
 
 def list_messages(args: dict, ctx: ToolContext) -> dict:
@@ -347,6 +371,8 @@ def update_message(args: dict, ctx: ToolContext) -> dict:
 
     if "status" in args:
         new_status = args["status"]
+        # "sent" is not allowed here — it is set exclusively by the campaign
+        # system when a message is actually dispatched via Lemlist/LinkedIn.
         if new_status in ("draft", "approved", "rejected"):
             message.status = new_status
             if new_status == "approved":
@@ -423,6 +449,8 @@ def generate_variants(args: dict, ctx: ToolContext) -> dict:
         .filter(Message.variant_group == (original.variant_group or original.id))
         .count()
     )
+    if existing_variants >= 26:
+        return {"error": "Maximum 26 variants per message"}
     variant_label = chr(ord("a") + existing_variants)
 
     # Create variant message
