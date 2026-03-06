@@ -5,3 +5,7 @@ anthropic
 langgraph
 langchain-anthropic
 langchain-core
+pdfplumber
+Pillow
+trafilatura
+python-docx
