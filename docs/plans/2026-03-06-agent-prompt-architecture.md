@@ -1065,30 +1065,566 @@ Prompt templates         Conditional edges for routing
 
 Wrap LangGraph inside your existing Flask route. Your SSE generator yields events from LangGraph's async iterator. Tools stay as plain Python functions — just registered with LangGraph's `@tool` decorator. The migration is internal — no API changes, no frontend changes.
 
-## 11. Open Questions for Discussion
+## 12. Multimodal Content Processing
+
+The agent currently operates on text only — strategy documents, enrichment data, chat messages. But B2B research is full of non-text content: a prospect's pitch deck PDF, their annual report, product screenshots, demo videos. If the agent can consume these formats, it becomes dramatically more useful. Instead of the user manually summarizing "I looked at their pitch deck and they seem to focus on enterprise", the agent reads the deck itself and draws its own conclusions.
+
+### Use Cases in Leadgen Context
+
+Each format unlocks specific research and strategy capabilities:
+
+| Format | Use Case | Example |
+|--------|----------|---------|
+| **PDF** | Pitch decks, annual reports, whitepapers, case studies | "Analyze this prospect's Series B deck — what's their positioning?" |
+| **Word** | Proposals, contracts, partnership docs | "Extract key terms from this draft partnership agreement" |
+| **Excel** | Financial data, contact lists, market data | "Import this spreadsheet of conference attendees as contacts" |
+| **HTML** | Competitor websites, landing pages, blog posts | "Analyze this competitor's pricing page — how do we differentiate?" |
+| **Images** | Screenshots, org charts, product photos, logos | "Look at this org chart — who's the likely decision maker?" |
+| **Videos** | Product demos, webinars, conference talks | "Watch this 5-min product demo — summarize their core value prop" |
+
+The common thread: the user has *artifacts* that contain strategic intelligence. Today they have to manually extract and type that intelligence into the chat. Multimodal processing lets the agent extract it directly.
+
+### Processing Architecture
+
+Files flow through an ingestion pipeline before reaching the LLM:
+
+```
+User Input
+    │
+    ├── Drag-drop file in chat
+    ├── Paste URL (auto-detect type)
+    └── File picker (explicit upload)
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│                  INGESTION LAYER                     │
+├─────────────────────────────────────────────────────┤
+│  1. Upload to S3 (or local /uploads in dev)         │
+│  2. Store metadata in PG (file_uploads table)       │
+│     - file_id, tenant_id, filename, mime_type       │
+│     - size_bytes, s3_key, upload_timestamp          │
+│     - processing_status: pending|processing|done    │
+│  3. Dispatch to format-specific extractor           │
+└────────────────────┬────────────────────────────────┘
+                     │
+    ┌────────────────┼────────────────────┐
+    ▼                ▼                    ▼
+┌──────────┐  ┌──────────────┐  ┌───────────────┐
+│ Text     │  │ Visual       │  │ A/V           │
+│ Extractor│  │ Extractor    │  │ Extractor     │
+├──────────┤  ├──────────────┤  ├───────────────┤
+│ PDF text │  │ PDF scanned  │  │ Video frames  │
+│ DOCX     │  │ Images       │  │ Audio → text  │
+│ XLSX     │  │ Screenshots  │  │ Scene desc.   │
+│ HTML     │  │ Charts/diagrams│ │               │
+└────┬─────┘  └──────┬───────┘  └───────┬───────┘
+     │               │                  │
+     ▼               ▼                  ▼
+┌─────────────────────────────────────────────────────┐
+│               CONTENT STORE (PG)                     │
+├─────────────────────────────────────────────────────┤
+│  extracted_content table:                            │
+│  - file_id, content_type (text|summary|transcript)  │
+│  - content_text (extracted raw text)                 │
+│  - content_summary (LLM-generated summary)          │
+│  - token_count (for budget tracking)                 │
+│  - extracted_at, model_used                          │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│          CONTEXT INJECTION (per agent turn)           │
+├─────────────────────────────────────────────────────┤
+│  When agent needs file content:                      │
+│  1. Check token budget (see Context Budget below)    │
+│  2. Inject summary (default) or full text (on drill) │
+│  3. For images: pass base64 to Claude vision API     │
+│  4. Cache — don't re-extract on every message        │
+└─────────────────────────────────────────────────────┘
+```
+
+### Format-Specific Strategies
+
+**PDF** — The most common format in B2B research.
+- **Text-heavy PDFs** (reports, whitepapers): `pdfplumber` or `PyMuPDF` for text + table extraction. Both handle multi-column layouts and embedded tables well. PyMuPDF is faster; pdfplumber has better table detection.
+- **Image-heavy PDFs** (pitch decks, brochures): Convert pages to images, send to Claude vision API. Claude handles slides, charts, and mixed layouts natively. Cost: ~1,600 tokens per page image.
+- **Hybrid approach**: Try text extraction first. If extracted text is sparse (< 100 chars/page), fall back to vision API on those pages.
+- **Large PDFs**: Extract text from all pages, but only send vision on first 20 pages. Summarize the rest.
+
+**Word (.docx)** — Proposals, contracts, internal docs.
+- `python-docx` extracts paragraphs, tables, headers, and basic formatting. No external API needed.
+- Preserve document structure: headings become markdown headers, tables become markdown tables.
+- Ignore images embedded in Word docs (or extract and process separately via vision).
+- Typical token cost: 1:1 with character count — a 10-page doc is ~3-4K tokens.
+
+**Excel (.xlsx)** — Financial data, contact lists, market sizing.
+- `openpyxl` reads cells, sheets, formulas (resolved values only).
+- **Strategy 1 — Summary**: For large sheets, generate a markdown summary: column headers, row count, sample rows, basic stats (min/max/avg on numeric columns).
+- **Strategy 2 — Full table**: For small sheets (< 50 rows), convert to markdown table and inject directly.
+- **Strategy 3 — Structured extract**: User provides a schema ("extract company name, revenue, employee count"), agent maps columns and returns JSON.
+- Sheet selection: if workbook has multiple sheets, summarize sheet names first, let agent pick relevant ones.
+
+**HTML** — Competitor websites, landing pages, prospect pages.
+- `trafilatura` for content extraction (handles boilerplate removal, gets main article text). Falls back to `BeautifulSoup` for custom parsing.
+- For visual analysis: headless browser screenshot via Playwright, then Claude vision API.
+- Two-pass approach: (1) extract text for factual content, (2) screenshot for design/positioning analysis.
+- Respect robots.txt and rate limits. Cache fetched pages — URLs don't change often.
+
+**Images** — Screenshots, org charts, product photos.
+- Direct to Claude vision API. Supports PNG, JPEG, WebP, GIF.
+- Claude is strong at: reading text in images, describing charts, understanding org structures, analyzing UI screenshots.
+- Cost: ~1,600 tokens for a typical image (varies with resolution). Resize large images to max 1568px on longest side.
+- For batch images (e.g., 10 product screenshots): process individually, then summarize.
+
+**Videos** — Product demos, webinars, conference talks. Highest complexity.
+- **Audio track**: Extract with `ffmpeg`, transcribe with Whisper API (OpenAI) or self-hosted `whisper.cpp`. A 10-min video produces ~1,500 words of transcript.
+- **Visual track**: Extract keyframes with `ffmpeg` scene detection (`-vf "select=gt(scene,0.3)"`), typically 1-3 frames per minute. Send keyframes to Claude vision.
+- **Combined**: Merge transcript + scene descriptions into a time-aligned summary.
+- **Cost reality**: A 10-min video costs ~$0.10-0.30 to fully process (Whisper transcription + 15-30 vision API calls). Expensive but valuable for high-priority prospects.
+- **YouTube/Vimeo**: Use `yt-dlp` to download, then process locally. Respect terms of service.
+
+### Context Budget Management
+
+Multimodal content is token-expensive. A single pitch deck can consume 20K+ tokens if injected raw. The agent's context window isn't infinite, and every token costs money.
+
+```
+TOKEN BUDGET PER MODALITY (recommended limits)
+─────────────────────────────────────────────────
+
+                    Injection Budget    Typical Source
+                    ─────────────────   ──────────────
+System prompt       3K - 10K tokens     (existing)
+Conversation        2K - 4K tokens      (existing)
+Tool schemas        ~2.5K tokens        (existing)
+                    ─────────────────
+Multimodal budget   ≤ 8K tokens total   ◄── NEW
+  Per-file summary  ~500 - 1,500 tok    Summaries
+  Per-image         ~1,600 tok          Vision API
+  Drill-down        up to 4K tok        On-demand detail
+                    ─────────────────
+TOTAL per call      ≤ 25K input tokens
+```
+
+**Summarize-then-inject pattern** — The default strategy:
+1. User uploads a file → extraction pipeline runs → raw content stored in PG
+2. LLM generates a 200-500 word summary of the extracted content
+3. Summary is cached alongside the raw content
+4. On each agent turn, inject the *summary* (not raw content) into context
+5. If the agent needs more detail, it calls `analyze_document(file_id, query)` which retrieves relevant sections
+
+**Progressive detail** — Three levels:
+- **L0 — Mention**: "User uploaded: pitch-deck-2026.pdf (12 pages, PDF)" — ~20 tokens
+- **L1 — Summary**: 200-500 word summary of key findings — ~300-700 tokens
+- **L2 — Deep dive**: Full extracted text or specific sections — up to 4K tokens, on-demand via tool
+
+Default injection is L0 for all files, L1 for the most recently discussed file. L2 only when the agent explicitly requests it via a tool call.
+
+**Caching**: Extracted content and summaries are stored in PG. Re-processing only happens if the user re-uploads or explicitly requests it. Vision API results are cached by file hash — identical images aren't re-analyzed.
+
+### Tool Design
+
+New tools the agent would need to work with uploaded files:
+
+```
+TOOL: analyze_document
+─────────────────────
+Input:  { file_id: str, query: str }
+Output: { summary: str, relevant_sections: [...], confidence: float }
+
+Retrieves extracted content for the file, runs query-focused analysis.
+If content isn't extracted yet, triggers extraction first (async).
+Uses the cached summary + targeted re-read of relevant sections.
+
+TOOL: extract_data
+──────────────────
+Input:  { file_id: str, schema: { fields: [...] } }
+Output: { rows: [...], unmapped_columns: [...], warnings: [...] }
+
+Structured extraction from tabular data (Excel, CSV, PDF tables).
+User or agent provides target schema, tool maps source columns.
+Returns clean JSON rows + any columns it couldn't map.
+
+TOOL: analyze_image
+───────────────────
+Input:  { file_id: str, query: str }
+Output: { description: str, extracted_text: str, analysis: str }
+
+Sends image to Claude vision API with the query as context.
+Returns structured description, any text found in the image,
+and query-specific analysis.
+
+TOOL: analyze_video
+───────────────────
+Input:  { url: str, query: str, max_duration_minutes: int = 15 }
+Output: { transcript_summary: str, visual_summary: str,
+          key_moments: [...], analysis: str }
+
+Full video processing pipeline: download → audio extract →
+transcribe → keyframe extract → vision analysis → merge.
+Async — returns a job_id, agent polls for completion.
+Expensive: shows estimated cost before processing.
+
+TOOL: fetch_and_analyze_url
+───────────────────────────
+Input:  { url: str, query: str, include_screenshot: bool = false }
+Output: { content_text: str, summary: str, screenshot_analysis: str? }
+
+Fetches URL, extracts content with trafilatura, optionally takes
+screenshot for visual analysis. Caches by URL + fetch timestamp.
+```
+
+These tools follow the existing pattern in `strategy_tools.py` — each is a Python function that takes `(args: dict, ctx: ToolContext) -> dict`. They get registered in the tools list alongside `update_strategy_section`, `set_extracted_field`, etc.
+
+### LangGraph Integration
+
+If we adopt LangGraph (recommended in Section 10), multimodal processing maps naturally to subgraphs:
+
+```
+┌───────────────────────────────────────────────────────┐
+│               DOCUMENT PROCESSING SUBGRAPH             │
+├───────────────────────────────────────────────────────┤
+│                                                        │
+│  ┌──────────┐    ┌───────────────┐    ┌────────────┐  │
+│  │ Classify  │───▶│ Extract       │───▶│ Summarize  │  │
+│  │ Format    │    │ (parallel)    │    │ + Cache    │  │
+│  └──────────┘    │  ├─ Text      │    └─────┬──────┘  │
+│                  │  ├─ Vision    │          │          │
+│                  │  └─ Audio     │          │          │
+│                  └───────────────┘          │          │
+│                                             ▼          │
+│                                    ┌──────────────┐   │
+│                                    │ Return to     │   │
+│                                    │ Main Agent    │   │
+│                                    │ Graph         │   │
+│                                    └──────────────┘   │
+│                                                        │
+└───────────────────────────────────────────────────────┘
+```
+
+- **Format classification node**: Determines extraction strategy based on MIME type
+- **Parallel extraction**: LangGraph's `Send()` API runs text, vision, and audio extraction concurrently — critical for video where all three happen
+- **Summarize + cache**: Generates the L1 summary, stores everything in PG
+- **LangSmith tracing**: Each extraction step is a traced node — you can see exactly how long PDF extraction took vs vision API calls, what tokens were consumed, and where failures occurred. This is especially valuable for video processing where multiple external APIs are involved.
+
+For the main agent graph, document analysis becomes just another tool node — the agent calls `analyze_document`, the subgraph handles the complexity internally, and the agent gets back a clean summary.
+
+### Implementation Priority
+
+Phased rollout based on value-to-effort ratio:
+
+```
+PHASE 1 — PDF + Images                    EFFORT: ~1 week
+─────────────────────────────────────────────────────────
+Why first: Highest value in B2B research. Pitch decks,
+annual reports, screenshots of competitor products.
+Claude vision API handles both natively.
+
+Scope:
+  - File upload endpoint + S3 storage
+  - PDF text extraction (pdfplumber)
+  - PDF page-to-image fallback (PyMuPDF)
+  - Image → Claude vision API
+  - analyze_document + analyze_image tools
+  - Summarize-then-inject pipeline
+  - file_uploads + extracted_content PG tables
+
+PHASE 2 — HTML + Word                     EFFORT: ~3 days
+─────────────────────────────────────────────────────────
+Why second: URL analysis is immediately useful for
+competitor research. Word docs are common but lower volume.
+
+Scope:
+  - fetch_and_analyze_url tool
+  - trafilatura + BeautifulSoup extraction
+  - Optional Playwright screenshot
+  - python-docx extraction
+  - Extend extraction pipeline for new formats
+
+PHASE 3 — Excel                            EFFORT: ~3 days
+─────────────────────────────────────────────────────────
+Why third: Structured data extraction needs schema mapping
+logic. Valuable for contact imports and financial analysis.
+
+Scope:
+  - openpyxl integration
+  - extract_data tool with schema mapping
+  - Multi-sheet handling
+  - Markdown table + JSON output modes
+
+PHASE 4 — Video                            EFFORT: ~1-2 weeks
+─────────────────────────────────────────────────────────
+Why last: Highest complexity, needs multiple external
+services (ffmpeg, Whisper, vision). Highest cost per
+analysis. But uniquely valuable for webinar/demo analysis.
+
+Scope:
+  - ffmpeg keyframe extraction
+  - Whisper API integration (or whisper.cpp self-hosted)
+  - Time-aligned transcript + visual summary
+  - analyze_video tool (async with job queue)
+  - Cost estimation + user confirmation before processing
+  - yt-dlp for YouTube/Vimeo URLs
+```
+
+Total estimated effort: ~3-4 weeks for all four phases. Phase 1 alone delivers the highest-impact capability.
+
+## 13. Multi-Agent Orchestration Architecture
+
+The current monolithic agent_executor.py handles everything — research, strategy, messaging, data analysis. This doesn't scale: prompt bloat, no specialization, no parallelism, context pollution.
+
+### Agent Taxonomy
+
+```
+User ↔ Orchestrator (Chat Agent)
+         ├── Research Agent (coordination + reasoning)
+         │     ├── Company Profiler Agent
+         │     │     ├── tool: search_web(query)
+         │     │     ├── tool: scrape_website(url)
+         │     │     └── tool: enrich_company_api(domain)
+         │     ├── Contact Enricher Agent
+         │     │     ├── tool: enrich_contact_api(email)
+         │     │     ├── tool: search_linkedin(query)
+         │     │     └── tool: verify_email(email)
+         │     ├── Market Analyst Agent
+         │     │     ├── tool: search_web(query)
+         │     │     ├── tool: analyze_document(file)
+         │     │     └── tool: search_news(query)
+         │     └── Document Processor Agent
+         │           ├── tool: extract_pdf(file)
+         │           ├── tool: extract_excel(file)
+         │           └── tool: analyze_image(file)
+         ├── Strategy Agent (playbook writing, section generation, framework application)
+         ├── Outreach Agent (message generation, personalization, campaign planning)
+         └── Data Agent (contact enrichment, Excel/CSV processing, CRM queries)
+```
+
+**Orchestrator responsibilities:**
+- Intent detection (what does the user want?)
+- Agent selection (who handles this?)
+- Context routing (what context does the sub-agent need?)
+- Result synthesis (combine outputs for the user)
+- Halt gates (when to pause and confirm)
+
+**Each specialist agent has:**
+- Focused system prompt (~200 tokens vs ~2000 in monolithic)
+- Only its relevant tools (researcher gets search tools, not strategy tools)
+- Domain-specific reasoning patterns
+- Its own conversation memory (scoped to its domain)
+
+### Orchestration Patterns
+
+1. **Sequential handoff** — Research Agent completes → results passed to Strategy Agent
+2. **Parallel fan-out** — Company Profiler + Contact Enricher run simultaneously
+3. **Hierarchical delegation** — Research Agent itself orchestrates sub-agents (Company Profiler, Contact Enricher, Market Analyst)
+
+### Example Flow
+
+```
+User: "Research Acme Corp and find me 5 decision makers"
+
+Orchestrator → Research Agent
+  Research Agent: "I need company profile + contacts"
+
+  ┌─ parallel ─────────────────────────────┐
+  │ Company Profiler:                       │
+  │   enrich_company_api("acme.com")       │
+  │   scrape_website("acme.com")           │
+  │   search_web("Acme Corp products")     │
+  │                                         │
+  │ Contact Enricher:                       │
+  │   enrich_contact_api(domain="acme.com") │
+  │   search_linkedin("Acme Corp VP")      │
+  └─────────────────────────────────────────┘
+
+  Research Agent synthesizes → halt gate:
+    "Found Acme Corp (SaaS, 200 employees, Series B).
+     5 contacts found. Confirm these are the right people?"
+
+  User confirms → results back to Orchestrator
+  Orchestrator → Strategy Agent (uses research as context)
+```
+
+### LangGraph Mapping
+
+- Each agent = a LangGraph subgraph
+- Orchestrator = parent graph with conditional edges
+- `interrupt()` for halt gates at orchestrator and agent level
+- Parallel fan-out via LangGraph's `Send()` API
+- Agent-to-agent context via LangGraph's shared state
+
+### Migration from Monolithic
+
+1. Extract strategy tools → Strategy Agent subgraph
+2. Extract research/enrichment tools → Research Agent subgraph
+3. Build orchestrator graph with routing logic
+4. Add sub-agents under Research Agent (Company Profiler, Contact Enricher, etc.)
+5. Wire up A2A protocol between agents (see Section 14)
+
+**Key insight:** Enrichment tools are dumb (API calls), enrichment agents are smart (decide what to call, in what order, and what to do with results). Separating them lets you swap APIs without changing reasoning.
+
+---
+
+## 14. Chat Experience Protocol — AG-UI
+
+**Decision: Adopt AG-UI (Agent-User Interaction Protocol) as the standard for agent↔frontend communication.**
+
+AG-UI is an open, lightweight protocol that streams JSON events over HTTP/SSE between agent backends and frontends. Born from CopilotKit's partnership with LangGraph, it's now adopted by Microsoft, Oracle, LangChain, and CrewAI.
+
+### Why AG-UI Over Alternatives
+
+| Protocol | Purpose | Our fit |
+|----------|---------|---------|
+| AG-UI | Agent ↔ Frontend | Primary — standardizes our SSE events |
+| A2A | Agent ↔ Agent | Complementary — for multi-agent orchestration |
+| Vercel AI SDK | React chat hooks | Skip — TypeScript/Next.js native, we're Flask+Vite |
+| A2UI | Generative UI format | Future — complement to AG-UI for rich components |
+| MCP | Tool/context integration | Already using — continues as tool layer |
+
+### Protocol Stack
+
+```
+User ↔ [AG-UI] ↔ Orchestrator ↔ [A2A] ↔ Research Agent
+                                  [A2A] ↔ Strategy Agent
+                                  [A2A] ↔ Outreach Agent
+
+Frontend         Protocol        Backend
+┌──────────┐    ┌──────────┐    ┌─────────────────────┐
+│ React    │◀──▶│  AG-UI   │◀──▶│ LangGraph agents    │
+│ hooks    │ SSE│  events  │    │ (Flask/FastAPI)      │
+└──────────┘    └──────────┘    └─────────────────────┘
+```
+
+### AG-UI Event Taxonomy
+
+Replaces our custom SSE events:
+
+| AG-UI Event | Replaces our current | Purpose |
+|-------------|---------------------|---------|
+| RUN_STARTED | (none — new) | Agent begins processing |
+| RUN_FINISHED | (none — new) | Agent completes |
+| TEXT_MESSAGE_START | analysis_start | Begin streaming text |
+| TEXT_MESSAGE_CONTENT | analysis_chunk, section_content_chunk | Stream text tokens |
+| TEXT_MESSAGE_END | analysis_done, section_content_done | End streaming text |
+| TOOL_CALL_START | tool_start | Agent begins tool execution |
+| TOOL_CALL_ARGS | (none — new) | Stream tool arguments |
+| TOOL_CALL_END | tool_result | Tool execution complete |
+| STATE_DELTA | (none — new) | Incremental state update (shared state patches) |
+| STATE_SNAPSHOT | (none — new) | Full state sync |
+
+### What AG-UI Enables
+
+Things we don't have today:
+
+1. **Generative UI** — agent sends STATE_DELTA patches, frontend renders rich components (tables, charts, approval forms) inline in chat instead of just text
+2. **Inline approval gates** — TOOL_CALL_START event pauses and shows approve/reject UI. Halt moments become first-class UI components, not text questions
+3. **Shared state** — agent and frontend share a synchronized state object. Agent updates company data → frontend table updates in real-time without refetch
+4. **Tool approval UX** — "Agent wants to enrich 50 contacts (est. 500 tokens). Approve?" with a real button, not a chat message
+
+### LangGraph + AG-UI Integration
+
+- `ag-ui-langgraph` Python package (on PyPI) wraps LangGraph agents as AG-UI endpoints
+- Zero boilerplate — your LangGraph graph becomes an AG-UI-compatible endpoint
+- FastAPI adapter available, Flask adapter straightforward to build
+- Our current ChatProvider SSE consumption maps directly to AG-UI event handlers
+
+### Migration from Current Custom SSE
+
+1. Install `ag-ui-langgraph` package
+2. Define AG-UI event mappings for our current SSE events (see table above)
+3. Update Flask endpoints to emit AG-UI events instead of custom ones
+4. Update frontend ChatProvider to consume AG-UI events (useChat-style hooks or custom)
+5. Add STATE_DELTA events for shared state (playbook content, research results)
+6. Add TOOL_CALL approval flow for halt gates
+7. Remove custom SSE event types
+
+### CopilotKit vs Custom React Hooks
+
+CopilotKit provides ready-made React components that consume AG-UI events. However, we already have a custom ChatProvider/ChatSidebar that works well. Recommendation: keep our custom React components but adopt AG-UI's event protocol on the transport layer. We can evaluate CopilotKit later if we need generative UI components out of the box.
+
+### Key Gaps AG-UI Fills
+
+| Feature | Current state | With AG-UI |
+|---------|--------------|------------|
+| Streaming text | Custom SSE events | Standardized TEXT_MESSAGE events |
+| Tool calls | Custom tool_start/result | TOOL_CALL lifecycle with approval |
+| Halt gates | Not implemented | STATE_DELTA + tool approval flow |
+| Generative UI | Not available | STATE_DELTA → render components |
+| Citations | Not available | Metadata in TEXT_MESSAGE events |
+| File attachments | Not available | Via STATE_DELTA + multimodal tools |
+| Progress tracking | Basic ThinkingIndicator | RUN lifecycle + TOOL_CALL events |
+
+---
+
+## 15. Open Questions for Discussion
 
 1. **Model upgrade**: Should strategy generation use Sonnet instead of Haiku? Better reasoning but 10x cost. Could use Haiku for simple Q&A and Sonnet for generation.
 
+> **Decision:** Use the best model for the job. Users pay per token, so quality matters more than cost optimization. Opus 4.6 is acceptable when the task warrants it.
+
 2. **Prompt caching priority**: Should we implement caching first (quick win, ~50% token savings) or restructure the prompt layers first (bigger change, better architecture)?
+
+> **Decision:** Implement prompt caching. Proceed with the proposed approach.
 
 3. **Tool routing**: Rules-based (keyword matching) or LLM-based (lightweight classifier) for intent detection?
 
+> **Decision:** Implement document context optimization.
+
 4. **Document context**: Option A (lazy load), B (relevant section + status), or C (compressed summary)? B is recommended but adds complexity.
+
+> **Decision:** Option B (smart section extraction) as default, with Option C (full document) available when the agent determines complete context is needed.
 
 5. **Conversation memory**: Simple window + summary, or more sophisticated retrieval (embed messages, retrieve relevant ones)?
 
+> **Decision:** RAG for long-term memory (cross-session knowledge). Floating context window with compaction for short-term (within-session) memory.
+
 6. **Streaming granularity**: Current 10-char chunks from backend. Should we switch to word-level or sentence-level streaming for more natural typewriter effect?
+
+> **Decision:** Implement intent-aware tool routing.
 
 7. **Multi-model orchestration**: Haiku for routing + Sonnet for generation? Or keep single model?
 
+> **Decision:** Implement model-specific prompt optimization to maximize each model's strengths.
+
 8. **Halt gate implementation**: Tool-based (`request_user_decision`) or prompt-instructed? Tool-based is more reliable but requires backend + frontend changes.
+
+> **Decision:** Prefer reliable/stable approach. Open to changes only when clearly superior alternatives exist.
 
 9. **Gate frequency**: How many confirmation gates per strategy generation? 3-4 recommended, but user may want faster autonomous runs for subsequent strategies.
 
+> **Decision:** Adaptive halt gates -- frequency determined by context AND user preference. Some users want tight control (more halts), others prefer autonomy (fewer halts). Make this configurable per user/namespace.
+
 10. **Decision persistence**: Should user decisions at gates be remembered for future strategies? (e.g., "always focus on primary product only")
+
+> **Decision:** Smart defaults with user override. Agent proposes default halt points but user can override. Context-aware -- if user's actions suggest different intent, adapt accordingly.
 
 11. **LangSmith cost**: At scale (1000 conversations/month), LangSmith costs ~$100-300/mo. Worth it for observability, or build lightweight tracing?
 
+> **Decision:** No paid observability tools until revenue. Use LangSmith only if free tier is sufficient, otherwise build lightweight tracing. Revisit when revenue justifies the cost.
+
 12. **Migration timing**: Adopt LangGraph now (before halt gates) or after implementing halt gates custom (then migrate)?
 
+> **Decision:** Adopt LangGraph now, before building custom halt gates. Better to migrate early than accumulate custom code that needs rewriting later.
+
 13. **Self-hosted vs cloud LangSmith**: LangSmith OSS can be self-hosted but lacks some features. Start with cloud, consider self-hosting later?
+
+> **Decision:** Evaluate self-hosted LangSmith for cost savings. If self-hosting eliminates the subscription cost and our VPS can handle it, prefer self-hosted. Otherwise defer until revenue (see Q11).
+
+14. **File size limits and chunking**: What's the max file size we accept? Large PDFs (100+ pages) and videos (1hr+) need chunking strategies. Process in full, or cap at N pages / N minutes and warn the user?
+
+> **Decision:** Warn users about large file processing costs (in tokens) before processing. Cap at reasonable limits, show estimated token cost, let user decide whether to proceed. Transparency over silent processing.
+
+15. **Self-hosted vs cloud for A/V processing**: Whisper API (OpenAI) is easy but sends audio to external servers. Self-hosted `whisper.cpp` keeps data local but needs GPU. For sensitive prospect data, which matters more — convenience or data residency?
+
+> **Decision:** Flexible — either self-hosted (whisper.cpp) or managed service (AssemblyAI). Choose based on cost and data sensitivity per customer. AssemblyAI is acceptable for non-sensitive content.
+
+16. **Confidential document handling**: Uploaded files may contain sensitive business data (financials, contracts, internal decks). Do we need encryption at rest for S3 uploads? Per-tenant isolation? Automatic TTL/expiry for extracted content? GDPR implications of storing processed content?
+
+> **Decision:** Defer encryption and data residency features. Acknowledge the need (DB-level encryption, per-tenant isolation, TTL) but deprioritize — debugging complexity outweighs security concerns at current stage. Revisit before handling enterprise/sensitive data.
+
+17. **Multi-agent cost**: Running multiple LLM calls per user request (orchestrator + specialist agents) multiplies token costs. What's the acceptable cost ceiling per interaction? Should simpler requests bypass orchestration and go directly to a single agent?
+
+> **Decision:** Open — not yet discussed.
+
+18. **AG-UI adoption timing**: Adopt AG-UI protocol now (replacing custom SSE) or after LangGraph migration? AG-UI has a LangGraph adapter, so doing both together may be more efficient.
+
+> **Decision:** Open — not yet discussed.
