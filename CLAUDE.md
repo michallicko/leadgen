@@ -105,6 +105,7 @@ leadgen-pipeline/
   docs/
     vision/               # Product vision microsite (the north star)
     ARCHITECTURE.md       # System architecture and data flow
+    AGENTIC_ARCHITECTURE.md # Comprehensive agentic system reference
     adr/                  # Architecture Decision Records (append-only)
     specs/                # Feature specifications (created per feature)
   docs/backlog/           # DEPRECATED — migrated to backlog.visionvolve.com
