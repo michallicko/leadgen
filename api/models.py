@@ -1591,3 +1591,153 @@ class LinkedInSendQueue(db.Model):
             "retry_count": self.retry_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# ---------------------------------------------------------------------------
+# File uploads & multimodal content extraction (BL-265, BL-266)
+# ---------------------------------------------------------------------------
+
+
+class FileUpload(db.Model):
+    __tablename__ = "file_uploads"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(127), nullable=False)
+    size_bytes = db.Column(db.BigInteger, nullable=False)
+    storage_path = db.Column(db.Text, nullable=False)
+    processing_status = db.Column(db.String(20), nullable=False, default="pending")
+    error_message = db.Column(db.Text)
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+
+    contents = db.relationship(
+        "ExtractedContent",
+        back_populates="file_upload",
+        cascade="all, delete-orphan",
+    )
+
+    def to_dict(self, include_content=False):
+        d = {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "user_id": str(self.user_id),
+            "filename": self.filename,
+            "original_filename": self.original_filename,
+            "mime_type": self.mime_type,
+            "size_bytes": self.size_bytes,
+            "processing_status": self.processing_status,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_content and self.contents:
+            d["contents"] = [c.to_dict() for c in self.contents]
+        return d
+
+
+class ExtractedContent(db.Model):
+    __tablename__ = "extracted_content"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    file_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("file_uploads.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    content_type = db.Column(db.String(50), nullable=False, default="full_text")
+    content_text = db.Column(db.Text)
+    content_summary = db.Column(db.Text)
+    page_range = db.Column(db.String(50))
+    token_count = db.Column(db.Integer)
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+
+    file_upload = db.relationship("FileUpload", back_populates="contents")
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "file_id": str(self.file_id),
+            "content_type": self.content_type,
+            "content_text": self.content_text,
+            "content_summary": self.content_summary,
+            "page_range": self.page_range,
+            "token_count": self.token_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# RAG long-term memory (BL-262)
+# ---------------------------------------------------------------------------
+
+
+class MemoryEmbedding(db.Model):
+    __tablename__ = "memory_embeddings"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    content = db.Column(db.Text, nullable=False)
+    content_type = db.Column(db.String(50), nullable=False, default="decision")
+    # embedding stored as pgvector vector(1536) in PG; TEXT fallback in SQLite
+    embedding = db.Column(db.Text)
+    metadata_ = db.Column("metadata", JSONB, server_default=db.text("'{}'::jsonb"))
+    source_message_id = db.Column(UUID(as_uuid=False))
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "user_id": str(self.user_id) if self.user_id else None,
+            "content": self.content,
+            "content_type": self.content_type,
+            "metadata": self.metadata_ or {},
+            "source_message_id": str(self.source_message_id)
+            if self.source_message_id
+            else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

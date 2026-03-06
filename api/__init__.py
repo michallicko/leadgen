@@ -25,6 +25,8 @@ def create_app():
     from .services.search_tools import SEARCH_TOOLS
     from .services.strategy_tools import STRATEGY_TOOLS
     from .services.tool_registry import register_tool
+    from .tools.memory_tools import MEMORY_TOOLS
+    from .tools.multimodal_tools import MULTIMODAL_TOOLS
 
     for tool in (
         STRATEGY_TOOLS
@@ -34,6 +36,8 @@ def create_app():
         + ICP_FILTER_TOOLS
         + ENRICHMENT_TOOLS
         + ENRICHMENT_TRIGGER_TOOLS
+        + MEMORY_TOOLS
+        + MULTIMODAL_TOOLS
     ):
         try:
             register_tool(tool)
