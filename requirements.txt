@@ -9,6 +9,7 @@ langsmith
 pdfplumber
 Pillow
 trafilatura
+beautifulsoup4>=4.12
 python-docx
 openpyxl
 yt-dlp

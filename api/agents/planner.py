@@ -20,6 +20,7 @@ path activated when a plan is loaded.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Literal
 
 from langgraph.config import get_stream_writer
@@ -34,6 +35,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Interrupt classification
 # ---------------------------------------------------------------------------
+
+
+def _extract_domain_from_message(messages) -> str:
+    """Extract a domain from the user's messages (e.g., 'unitedarts.cz')."""
+    for msg in reversed(messages):
+        text = msg.content if hasattr(msg, "content") else str(msg)
+        # Match domain patterns like example.com, foo.co.uk
+        match = re.search(
+            r"\b([a-zA-Z0-9][-a-zA-Z0-9]*\.(?:[a-zA-Z]{2,}\.)?[a-zA-Z]{2,})\b", text
+        )
+        if match:
+            domain = match.group(1)
+            # Skip common non-domain patterns
+            if domain not in ("e.g", "i.e", "etc.com"):
+                return domain
+    return ""
 
 
 def classify_interrupt(message: str) -> str:
@@ -74,7 +91,12 @@ def _run_research_company(state: PlannerState, writer) -> dict:
     """
     plan = state["plan_config"]
     plan_name = plan.get("name", "unknown")
-    domain = plan.get("research_requirements", {}).get("primary_source", "")
+
+    # Try to extract domain from user message first (e.g., "strategy for unitedarts.cz")
+    domain = _extract_domain_from_message(state.get("messages", []))
+    if not domain:
+        # Fall back to plan config
+        domain = plan.get("research_requirements", {}).get("primary_source", "")
 
     writer(
         SSEEvent(
