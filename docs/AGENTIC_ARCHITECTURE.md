@@ -249,13 +249,13 @@ Different nodes use different models based on task complexity:
 | Research synthesis | Sonnet | Multi-source analysis |
 | Complex reasoning | Opus | When task warrants premium quality |
 
-### Feature Flag
+### Migration Complete
 
-The LangGraph migration runs behind the `USE_LANGGRAPH` environment variable. When disabled, the system falls back to the current `agent_executor.py` loop.
-
-```python
-USE_LANGGRAPH = os.getenv("USE_LANGGRAPH", "false").lower() == "true"
-```
+The LangGraph-based multi-agent architecture is now the only code path.
+The old monolithic `agent_executor.py` and its `USE_LANGGRAPH` feature flag
+have been removed. All chat turns flow through the pipeline orchestrator
+graph (`api/agents/pipeline.py`) via the `execute_graph_turn()` bridge
+in `api/agents/graph.py`.
 
 ---
 

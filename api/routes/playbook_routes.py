@@ -35,7 +35,7 @@ from ..models import (
     ToolExecution,
     db,
 )
-from ..services.agent_executor import execute_agent_turn
+from ..agents.graph import execute_graph_turn
 from ..services.anthropic_client import AnthropicClient
 from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
@@ -45,7 +45,7 @@ from ..services.playbook_service import (
     build_system_prompt,
     compute_chat_placeholder,
 )
-from ..services.tool_registry import ToolContext, get_tools_for_api
+from ..services.tool_registry import get_tools_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -1767,14 +1767,13 @@ def _stream_response(
 
     app = current_app._get_current_object()
 
-    # Check if any tools are registered
+    # Check if any tools are registered (determines agent vs simple path)
     tools = get_tools_for_api()
 
     if tools:
         return _stream_agent_response(
             client,
             messages,
-            tools,
             tenant_id,
             doc_id,
             enrichment_company_id,
@@ -1901,7 +1900,6 @@ def _stream_simple_response(
 def _stream_agent_response(
     client,
     messages,
-    tools,
     tenant_id,
     doc_id,
     enrichment_company_id,
@@ -1925,13 +1923,6 @@ def _stream_agent_response(
     import uuid as _uuid
 
     turn_id = str(_uuid.uuid4())
-
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=turn_id,
-    )
 
     def generate():
         # --- Research polling (yields research_status SSE events) ---
@@ -2021,12 +2012,16 @@ def _stream_agent_response(
         done_data = None
 
         try:
-            for sse_event in execute_agent_turn(
-                client=client,
+            for sse_event in execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tools=tools,
-                tool_context=tool_context,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": turn_id,
+                },
+                page_context=page_context or "",
                 app=app,
             ):
                 if sse_event.type == "chunk":
@@ -2337,7 +2332,6 @@ def _sync_response(
             client,
             system_prompt,
             messages,
-            tools,
             tenant_id,
             doc_id,
             user_msg,
@@ -2419,7 +2413,6 @@ def _sync_agent_response(
     client,
     system_prompt,
     messages,
-    tools,
     tenant_id,
     doc_id,
     user_msg,
@@ -2427,26 +2420,22 @@ def _sync_agent_response(
 ):
     """Sync (non-streaming) response with agent tool-use loop.
 
-    Collects all SSE events from execute_agent_turn(), persists the
+    Collects all SSE events from execute_graph_turn(), persists the
     assistant message and tool execution records, and returns JSON.
     """
     import uuid as _uuid
 
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=str(_uuid.uuid4()),
-    )
-
     try:
         events = list(
-            execute_agent_turn(
-                client=client,
+            execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tools=tools,
-                tool_context=tool_context,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": str(_uuid.uuid4()),
+                },
             )
         )
     except Exception as e:
