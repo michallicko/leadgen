@@ -45,3 +45,4 @@ transcript_*
 
 # Git worktrees for parallel feature work
 .worktrees/
+.claude/worktrees/
