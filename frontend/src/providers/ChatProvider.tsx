@@ -62,6 +62,9 @@ interface ChatContextValue {
   /** Dynamic suggestion chips extracted from proactive analysis. */
   analysisSuggestions: string[]
 
+  /** The H2 section name currently being written by an AI strategy tool, or null. */
+  streamingSection: string | null
+
   // Actions
   toggleChat: () => void
   openChat: () => void
@@ -130,6 +133,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [toolCalls, setToolCalls] = useState<ToolCallEvent[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const [activeToolName, setActiveToolName] = useState<string | null>(null)
+
+  // Section-level soft lock (BL-1019): track which section AI is writing to
+  const [streamingSection, setStreamingSection] = useState<string | null>(null)
 
   // Proactive analysis state (BL-119)
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
@@ -207,6 +213,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setToolCalls([])
       setIsThinking(true)
       setActiveToolName(null)
+      setStreamingSection(null)
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
@@ -233,6 +240,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setStreamingSection(null)
             chatQuery.refetch()
 
             // Detect document changes from strategy tool calls
@@ -271,6 +279,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setStreamingSection(null)
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
           },
@@ -286,6 +295,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 status: 'running',
               },
             ])
+
+            // BL-1019: Track which section the AI is writing to
+            const SECTION_TOOLS = new Set(['update_strategy_section', 'append_to_section'])
+            if (SECTION_TOOLS.has(event.toolName)) {
+              const section = (event.input?.section as string) ?? null
+              setStreamingSection(section)
+            }
           },
           onToolResult: (result) => {
             setToolCalls((prev) =>
@@ -303,6 +319,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             )
             // Clear active tool name when result arrives
             setActiveToolName(null)
+            // BL-1019: Clear section indicator when the tool finishes
+            setStreamingSection(null)
           },
           onThinking: () => {
             setIsThinking(false)
@@ -398,6 +416,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      streamingSection,
       toggleChat,
       openChat,
       closeChat,
@@ -418,6 +437,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      streamingSection,
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,

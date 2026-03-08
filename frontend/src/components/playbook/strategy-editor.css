@@ -179,6 +179,38 @@
   height: auto;
 }
 
+/* ---- AI writing indicator ---- */
+
+.strategy-editor .ProseMirror h2.ai-writing {
+  position: relative;
+}
+
+.strategy-editor .ProseMirror h2.ai-writing::after {
+  content: 'AI writing';
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: rgba(110, 44, 139, 0.08);
+  border: 1px solid rgba(110, 44, 139, 0.15);
+  border-radius: 9999px;
+  vertical-align: middle;
+  white-space: nowrap;
+  animation: ai-writing-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes ai-writing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ---- Selection ---- */
 
 .strategy-editor .ProseMirror ::selection {

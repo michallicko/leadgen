@@ -20,6 +20,10 @@ interface PhasePanelProps {
   playbookSelections?: Record<string, unknown>
   playbookId?: string
   onPhaseAdvance?: (phase: string) => void
+  /** H2 section name being written by AI (BL-1019 soft lock). */
+  streamingSection?: string | null
+  /** Called when user edits inside the AI-streaming section (BL-1019). */
+  onUserEditDuringAIWrite?: (sectionName: string) => void
 }
 
 export function PhasePanel({
@@ -31,12 +35,14 @@ export function PhasePanel({
   playbookSelections,
   playbookId,
   onPhaseAdvance,
+  streamingSection,
+  onUserEditDuringAIWrite,
 }: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
       return (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
+          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} streamingSection={streamingSection} onUserEditDuringAIWrite={onUserEditDuringAIWrite} />
         </div>
       )
     case 'contacts': {
@@ -64,7 +70,7 @@ export function PhasePanel({
     default:
       return (
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} />
+          <StrategyEditor content={content} onUpdate={onEditorUpdate} editable={editable} streamingSection={streamingSection} onUserEditDuringAIWrite={onUserEditDuringAIWrite} />
         </div>
       )
   }
