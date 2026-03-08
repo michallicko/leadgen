@@ -311,7 +311,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onError: () => {
             setStreamingText('')
-            setOptimisticMessages([])
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
@@ -321,6 +320,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setIsSectionStreaming(false)
             setSectionStreamingText('')
             setStreamingSection(null)
+            // Refetch server messages to show the persisted user message,
+            // then clear optimistic copies to avoid duplicates
+            chatQuery.refetch().then(() => {
+              setOptimisticMessages([])
+            })
           },
           onToolStart: (event) => {
             setIsThinking(false)

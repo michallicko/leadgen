@@ -535,7 +535,7 @@ export function PlaybookPage() {
   // ---------------------------------------------------------------------------
 
   const docContent = docQuery.data?.content || ''
-  const needsOnboarding = !!(docQuery.data && !docContent.trim() && !skipped)
+  const needsOnboarding = !!(docQuery.data && !docContent.trim() && !docQuery.data?.objective && !skipped)
 
   // ---------------------------------------------------------------------------
   // Render
