@@ -401,42 +401,80 @@ def execute_phase_node(state: PlannerState) -> dict:
 
 
 def check_interrupt_node(state: PlannerState) -> dict:
-    """Check if the user interrupted mid-plan and classify the interrupt."""
+    """Check if the user interrupted mid-plan and classify the interrupt.
+
+    Delegates to the full interrupt processing pipeline (BL-1018)
+    which handles classification (keyword + Haiku) and type-specific
+    handling (correction, stop, question, redirect).
+    """
     if not state.get("is_interrupted"):
         return {"is_interrupted": False, "interrupt_type": ""}
 
-    message = state.get("interrupt_message", "")
-    itype = classify_interrupt(message)
+    from .interrupt_handlers import process_interrupt
 
-    logger.info(
-        "Planner interrupt classified: type=%s, message='%s'", itype, message[:80]
+    message = state.get("interrupt_message", "")
+    logger.info("Planner interrupt detected, delegating to handler: '%s'", message[:80])
+
+    writer = get_stream_writer()
+    writer(
+        SSEEvent(
+            type="interrupt_received",
+            data={"message": message[:200]},
+        )
     )
 
-    if itype == "correction":
-        corrections = list(state.get("user_corrections") or [])
-        corrections.append(message)
-        return {
-            "user_corrections": corrections,
-            "is_interrupted": False,
-            "interrupt_type": "correction",
-            "interrupt_message": "",
-        }
-    elif itype == "stop":
-        return {"interrupt_type": "stop"}
-    elif itype == "question":
-        return {
-            "interrupt_type": "question",
-            "is_interrupted": False,
-            "interrupt_message": "",
-        }
-    elif itype == "redirect":
-        return {
-            "interrupt_type": "redirect",
-            "is_interrupted": False,
-            "interrupt_message": "",
-        }
+    result = process_interrupt(state)
 
-    return {"is_interrupted": False, "interrupt_type": ""}
+    # Emit acknowledgment based on interrupt type
+    itype = result.get("interrupt_type", "")
+    if itype == "stop":
+        completed = [
+            phase
+            for phase, res in (state.get("phase_results") or {}).items()
+            if isinstance(res, dict) and res.get("status") == "complete"
+        ]
+        writer(
+            SSEEvent(
+                type="interrupt_handled",
+                data={
+                    "action": "stop",
+                    "completed_phases": completed,
+                    "message": "Plan execution stopped.",
+                },
+            )
+        )
+    elif itype == "question":
+        writer(
+            SSEEvent(
+                type="interrupt_handled",
+                data={
+                    "action": "question",
+                    "message": "Noted your question. Resuming plan.",
+                },
+            )
+        )
+    elif itype == "correction":
+        writer(
+            SSEEvent(
+                type="interrupt_handled",
+                data={
+                    "action": "correction",
+                    "message": "Correction noted. Continuing with updated context.",
+                },
+            )
+        )
+    elif itype == "redirect":
+        writer(
+            SSEEvent(
+                type="interrupt_handled",
+                data={
+                    "action": "redirect",
+                    "message": "Redirecting plan focus.",
+                },
+            )
+        )
+
+    return result
 
 
 def advance_phase_node(state: PlannerState) -> dict:
