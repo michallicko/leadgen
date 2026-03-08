@@ -20,6 +20,7 @@ from .strategy_template_routes import strategy_templates_bp
 from .tenant_routes import tenants_bp
 from .token_routes import token_bp
 from .user_routes import users_bp
+from .version_routes import version_bp
 
 
 def register_blueprints(app):
@@ -45,3 +46,4 @@ def register_blueprints(app):
     app.register_blueprint(playbook_bp)
     app.register_blueprint(token_bp)
     app.register_blueprint(strategy_templates_bp)
+    app.register_blueprint(version_bp)

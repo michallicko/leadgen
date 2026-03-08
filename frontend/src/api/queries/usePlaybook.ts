@@ -158,3 +158,63 @@ export function useUndoAIEdit() {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// Version history (BL-1014)
+// ---------------------------------------------------------------------------
+
+export interface PlaybookVersion {
+  id: string
+  document_id: string
+  version_number: number
+  author_type: 'user' | 'ai'
+  description: string
+  created_at: string
+  metadata: Record<string, unknown>
+  content?: string
+  extracted_data?: Record<string, unknown>
+}
+
+export function usePlaybookVersions(documentId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['playbook', 'versions', documentId],
+    queryFn: () => apiFetch<PlaybookVersion[]>(`/playbook/${documentId}/versions`),
+    enabled: enabled && !!documentId,
+  })
+}
+
+export function usePlaybookVersionDetail(documentId: string, versionId: string | null) {
+  return useQuery({
+    queryKey: ['playbook', 'versions', documentId, versionId],
+    queryFn: () => apiFetch<PlaybookVersion>(`/playbook/${documentId}/versions/${versionId}`),
+    enabled: !!versionId,
+  })
+}
+
+export function useRestoreVersion(documentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (versionId: string) =>
+      apiFetch<UndoResponse>(`/playbook/${documentId}/versions/${versionId}/restore`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+export function useCreateVersion(documentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { content: string; description?: string }) =>
+      apiFetch<PlaybookVersion>(`/playbook/${documentId}/versions`, {
+        method: 'POST',
+        body: data,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'versions'] })
+    },
+  })
+}
