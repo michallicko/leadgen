@@ -3107,3 +3107,138 @@ def request_quality_score():
         return jsonify({"error": "Scoring failed"}), 500
 
     return jsonify(strategy_score_to_dict(score)), 200
+
+
+# ---------------------------------------------------------------------------
+# V2 Chat endpoint — 3-tier router → chat / planner / planner_interrupt
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/v2/chat", methods=["POST"])
+@require_auth
+def chat_v2():
+    """Routed chat endpoint using the 3-tier agent architecture.
+
+    Routes messages to:
+    - chat tier (Haiku) for simple queries
+    - planner tier (deterministic state machine + Opus) for strategy work
+    - planner interrupt for messages during active plan execution
+
+    SSE streaming response with the same event format as the existing
+    /api/playbook/chat endpoint.
+    """
+    from flask import current_app, stream_with_context
+
+    from ..agents.chat_tier import execute_chat_turn
+    from ..agents.planner_bridge import execute_planner_turn, get_active_plan
+    from ..agents.plans.loader import load_plan
+    from ..agents.router import route_message
+
+    data = request.get_json(silent=True) or {}
+    message_text = data.get("message", "")
+    if not message_text:
+        return jsonify({"error": "message is required"}), 400
+
+    page_context = data.get("page_context", "playbook")
+    if page_context not in _ALLOWED_PAGE_CONTEXTS:
+        page_context = "playbook"
+
+    thread_id = data.get("thread_id", "")
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user_id = getattr(request, "user_id", None)
+    tenant = db.session.get(Tenant, tenant_id)
+    app = current_app._get_current_object()
+
+    # Build context dicts for routing
+    tenant_context = {
+        "company_name": tenant.name if tenant else "",
+        "domain": tenant.domain if tenant and hasattr(tenant, "domain") else "",
+        "namespace": tenant.namespace
+        if tenant and hasattr(tenant, "namespace")
+        else "",
+    }
+    state = {
+        "has_strategy": False,
+        "onboarding_completed": False,
+    }
+    # Check if a strategy doc exists to determine state
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if doc and doc.content and len(doc.content.strip()) > 50:
+        state["has_strategy"] = True
+    if doc and doc.phase and doc.phase != "strategy":
+        state["onboarding_completed"] = True
+
+    tool_context = {
+        "tenant_id": str(tenant_id),
+        "user_id": str(user_id) if user_id else None,
+        "page_context": page_context,
+    }
+
+    # Route the message
+    decision = route_message(
+        message_text, page_context, thread_id, tenant_context, state
+    )
+    logger.info(
+        "V2 chat route: '%s' -> %s (%s)",
+        message_text[:60],
+        decision.target,
+        decision.reason,
+    )
+
+    def generate():
+        with app.app_context():
+            try:
+                if decision.target == "chat":
+                    for sse_event in execute_chat_turn(
+                        message_text, page_context, tool_context
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+                elif decision.target in ("planner", "planner_interrupt"):
+                    existing_state = None
+                    if decision.target == "planner_interrupt":
+                        existing_state = get_active_plan(thread_id)
+
+                    if existing_state:
+                        plan_config = existing_state.get("plan_config", {})
+                    else:
+                        from dataclasses import asdict
+
+                        plan = load_plan(page_context, tenant_context, state)
+                        plan_config = asdict(plan)
+
+                    for sse_event in execute_planner_turn(
+                        message=message_text,
+                        plan_config=plan_config,
+                        tool_context=tool_context,
+                        existing_state=existing_state,
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+                else:
+                    # Unknown target — fall back to chat
+                    for sse_event in execute_chat_turn(
+                        message_text, page_context, tool_context
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+            except Exception as exc:
+                logger.exception("V2 chat error: %s", exc)
+                yield "data: {}\n\n".format(
+                    json.dumps({"type": "error", "message": str(exc)[:500]})
+                )
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

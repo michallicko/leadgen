@@ -4,6 +4,8 @@ Tests the planner state machine: initialization, phase execution order,
 interrupt handling, phase advancement, state persistence, and SSE events.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from api.agents.planner import (
@@ -25,6 +27,77 @@ from api.agents.planner_bridge import (
     list_active_plans,
     save_active_plan,
 )
+from api.agents.tools.research_pipeline import ResearchFindings
+
+
+def _mock_research_pipeline(domain="", goal="", plan_config=None, emit_finding=None):
+    """Mock research pipeline that returns minimal valid data without network calls."""
+    if emit_finding:
+        emit_finding("Mock research", "Using mock data for testing")
+    return ResearchFindings(
+        website={
+            "url": "https://{}".format(domain),
+            "title": "Mock Co",
+            "extracted": {},
+        },
+        market={
+            "competitors": [{"name": "MockRival"}],
+            "market_data": [],
+            "sources": [],
+        },
+        cross_checks=[],
+        halt_gates_needed=[],
+        confirmed_facts={"company_name": "mock co"},
+        all_sources=["https://{}".format(domain)],
+        errors=[],
+    )
+
+
+def _mock_invoke_specialist(context, stream_callback=None, client=None):
+    """Mock specialist that returns minimal valid data without API calls."""
+    from api.agents.specialist import SpecialistResult
+
+    if stream_callback:
+        stream_callback("Mock section content for testing.")
+    return SpecialistResult(
+        content="Mock section content for testing.",
+        score=4.0,
+        score_reasoning="Mock scoring",
+        improvement_suggestions=["Add more detail"],
+        sources_used=["mock source"],
+    )
+
+
+def _mock_invoke_specialist_scoring(sections=None, rubric=None, goal="", client=None):
+    """Mock specialist scoring."""
+    return {
+        "sections": {
+            name: {"score": 4, "reasoning": "Good"} for name in (sections or {})
+        },
+        "overall_score": 4,
+        "overall_assessment": "Good strategy overall.",
+        "top_improvements": ["More specificity"],
+    }
+
+
+@pytest.fixture(autouse=True)
+def _patch_external_deps():
+    """Auto-mock research pipeline and specialist for all planner tests (no network calls)."""
+    with (
+        patch(
+            "api.agents.tools.research_pipeline.run_research_pipeline",
+            side_effect=_mock_research_pipeline,
+        ),
+        patch(
+            "api.agents.specialist.invoke_specialist",
+            side_effect=_mock_invoke_specialist,
+        ),
+        patch(
+            "api.agents.specialist.invoke_specialist_scoring",
+            side_effect=_mock_invoke_specialist_scoring,
+        ),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -155,18 +228,21 @@ class TestInitializeNode:
 
 class TestExecutePhaseNode:
     def test_known_phase(self, base_state, monkeypatch):
+        """Test that research_company phase calls the research pipeline and stores results."""
         writer = MockWriter()
         monkeypatch.setattr("api.agents.planner.get_stream_writer", lambda: writer)
         base_state["current_phase"] = "research_company"
         result = execute_phase_node(base_state)
 
         assert "research_data" in result
-        assert result["research_data"]["company"]["status"] == "stub_complete"
-        # Should emit phase_start + 2 findings
+        assert result["research_data"]["website"]["title"] == "Mock Co"
+        assert result["research_data"]["confirmed_facts"]["company_name"] == "mock co"
+        assert result["phase_results"]["research_company"]["status"] == "complete"
+        # Should emit phase_start + at least 2 findings
         phase_starts = [e for e in writer.events if e.type == "phase_start"]
         findings = [e for e in writer.events if e.type == "research_finding"]
         assert len(phase_starts) == 1
-        assert len(findings) == 2
+        assert len(findings) >= 2
 
     def test_unknown_phase_skipped(self, base_state, monkeypatch):
         writer = MockWriter()
@@ -455,7 +531,12 @@ class TestPlannerGraphE2E:
 
     def test_single_phase_plan(self):
         """Plan with one phase should execute it and complete."""
-        plan = {"id": "single", "name": "Single", "phases": ["research_company"]}
+        plan = {
+            "id": "single",
+            "name": "Single",
+            "phases": ["research_company"],
+            "research_requirements": {"primary_source": "example.com"},
+        }
         events = list(
             execute_planner_turn(
                 message="Research",
@@ -474,6 +555,7 @@ class TestPlannerGraphE2E:
             "id": "with-unknown",
             "name": "Unknown Phase",
             "phases": ["research_company", "future_phase", "review_and_score"],
+            "research_requirements": {"primary_source": "example.com"},
         }
         events = list(
             execute_planner_turn(
