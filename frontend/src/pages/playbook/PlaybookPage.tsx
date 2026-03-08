@@ -30,7 +30,11 @@ import {
   useUndoAIEdit,
   useTriggerResearch,
   useResearchStatus,
+  useStrategyCompleteness,
+  useRequestQualityScore,
 } from '../../api/queries/usePlaybook'
+import { CompletenessBar } from '../../components/playbook/CompletenessBar'
+import { QualityScore } from '../../components/playbook/QualityScore'
 import { useCreateStrategyTemplate, useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
@@ -138,6 +142,28 @@ export function PlaybookPage() {
   const undoMutation = useUndoAIEdit()
   const createTemplateMutation = useCreateStrategyTemplate()
   const triggerResearch = useTriggerResearch()
+
+  // Quality scoring (BL-1016)
+  const completenessQuery = useStrategyCompleteness()
+  const qualityScoreMutation = useRequestQualityScore()
+  const [qualityScoreData, setQualityScoreData] = useState<{
+    section_scores: Array<{ section_name: string; completeness: number; quality_score: number | null; quality_reasoning: string; improvement_suggestions: string[] ; scored_at: string | null }>
+    overall_quality: number | null
+    overall_assessment: string
+  } | null>(null)
+
+  const handleRequestScore = useCallback(async () => {
+    try {
+      const result = await qualityScoreMutation.mutateAsync()
+      setQualityScoreData({
+        section_scores: result.section_scores,
+        overall_quality: result.overall_quality,
+        overall_assessment: result.overall_assessment,
+      })
+    } catch {
+      toast('Quality scoring failed', 'error')
+    }
+  }, [qualityScoreMutation, toast])
 
   // Template application (BL-138)
   const applyTemplateMutation = useApplyStrategyTemplate({
@@ -856,6 +882,24 @@ export function PlaybookPage() {
         unlocked={docPhase}
         onNavigate={handlePhaseNavigate}
       />
+
+      {/* Completeness & Quality scoring bar (BL-1016) */}
+      {viewPhase === 'strategy' && completenessQuery.data && (
+        <div className="flex items-center justify-between flex-shrink-0 border-b border-border-solid relative">
+          <CompletenessBar
+            filled={completenessQuery.data.filled}
+            total={completenessQuery.data.total}
+            sections={completenessQuery.data.sections}
+          />
+          <QualityScore
+            scores={qualityScoreData?.section_scores ?? []}
+            overallQuality={qualityScoreData?.overall_quality ?? null}
+            overallAssessment={qualityScoreData?.overall_assessment ?? ''}
+            isLoading={qualityScoreMutation.isPending}
+            onRequestScore={handleRequestScore}
+          />
+        </div>
+      )}
 
       {/* Split layout */}
       <div className="flex gap-4 flex-1 min-h-0">
