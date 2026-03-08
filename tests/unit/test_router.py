@@ -82,6 +82,21 @@ class TestKeywordRoute:
             assert decision.target == "chat"
             assert decision.reason == "help_request"
 
+    def test_help_with_planner_verb_routes_to_planner(self):
+        """'Help me create...' should NOT be caught by the help keyword — it's planner work."""
+        planner_help_messages = [
+            "Help me create a go-to-market strategy for unitedarts.cz",
+            "help me build an ICP for SaaS companies",
+            "can you help me draft a value proposition",
+            "help me analyze my competitors",
+            "how do i generate a messaging framework",
+        ]
+        for msg in planner_help_messages:
+            decision = _keyword_route(msg, "playbook")
+            assert decision is None or decision.target == "planner", (
+                "Should NOT route to chat: {}".format(msg)
+            )
+
     def test_short_question_routes_to_chat(self):
         decision = _keyword_route("what is ICP?", "playbook")
         assert decision is not None

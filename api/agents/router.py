@@ -178,9 +178,10 @@ def _keyword_route(message: str, page_context: str) -> RouteDecision | None:
         if re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", message.strip()):
             return RouteDecision(target="planner", reason="domain_input")
 
-    # Help requests -> chat tier
+    # Help requests -> chat tier (but NOT "help me create/build/..." which is planner work)
     if "help" in lower or "how do i" in lower or lower.startswith("what can"):
-        return RouteDecision(target="chat", reason="help_request")
+        if not any(verb in lower for verb in _PLANNER_PREFIXES):
+            return RouteDecision(target="chat", reason="help_request")
 
     # Question marks on short messages -> chat tier
     if lower.endswith("?") and len(lower.split()) <= 10:
