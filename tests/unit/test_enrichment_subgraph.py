@@ -46,7 +46,10 @@ class TestEnrichmentShouldContinue:
     def test_returns_tools_when_tool_calls_present(self):
         from api.agents.subgraphs.enrichment import enrichment_should_continue
 
-        ai_msg = AIMessage(content="", tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {}}])
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {}}],
+        )
         state = {"messages": [ai_msg], "iteration": 0}
         assert enrichment_should_continue(state) == "tools"
 
@@ -63,7 +66,10 @@ class TestEnrichmentShouldContinue:
             enrichment_should_continue,
         )
 
-        ai_msg = AIMessage(content="", tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {}}])
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {}}],
+        )
         state = {"messages": [ai_msg], "iteration": MAX_ENRICHMENT_ITERATIONS}
         assert enrichment_should_continue(state) == "end"
 
@@ -121,7 +127,13 @@ class TestEnrichmentToolsNode:
 
         ai_msg = AIMessage(
             content="",
-            tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {"company_id": "c001"}}],
+            tool_calls=[
+                {
+                    "name": "enrich_company_news",
+                    "id": "tc1",
+                    "args": {"company_id": "c001"},
+                }
+            ],
         )
         state = {
             "messages": [ai_msg],
@@ -131,8 +143,10 @@ class TestEnrichmentToolsNode:
         mock_tool = MagicMock()
         mock_tool.handler.return_value = {"enrichment_cost_usd": 0.04}
 
-        with patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer, \
-             patch("api.agents.subgraphs.enrichment.get_tool", return_value=mock_tool):
+        with (
+            patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer,
+            patch("api.agents.subgraphs.enrichment.get_tool", return_value=mock_tool),
+        ):
             mock_writer.return_value = MagicMock()
             result = enrichment_tools_node(state)
 
@@ -144,7 +158,13 @@ class TestEnrichmentToolsNode:
 
         ai_msg = AIMessage(
             content="",
-            tool_calls=[{"name": "enrich_company_news", "id": "tc1", "args": {"company_id": "c001"}}],
+            tool_calls=[
+                {
+                    "name": "enrich_company_news",
+                    "id": "tc1",
+                    "args": {"company_id": "c001"},
+                }
+            ],
         )
         state = {
             "messages": [ai_msg],
@@ -154,8 +174,10 @@ class TestEnrichmentToolsNode:
         mock_tool = MagicMock()
         mock_tool.handler.side_effect = RuntimeError("API timeout")
 
-        with patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer, \
-             patch("api.agents.subgraphs.enrichment.get_tool", return_value=mock_tool):
+        with (
+            patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer,
+            patch("api.agents.subgraphs.enrichment.get_tool", return_value=mock_tool),
+        ):
             mock_writer.return_value = MagicMock()
             result = enrichment_tools_node(state)
 
@@ -177,9 +199,14 @@ class TestEnrichmentAgentNode:
         mock_response = AIMessage(content="I'll enrich that company.")
         mock_response.usage_metadata = {"input_tokens": 100, "output_tokens": 50}
 
-        with patch("api.agents.subgraphs.enrichment.ChatAnthropic") as MockModel, \
-             patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer, \
-             patch("api.agents.subgraphs.enrichment._get_enrichment_tool_defs", return_value=[]):
+        with (
+            patch("api.agents.subgraphs.enrichment.ChatAnthropic") as MockModel,
+            patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer,
+            patch(
+                "api.agents.subgraphs.enrichment._get_enrichment_tool_defs",
+                return_value=[],
+            ),
+        ):
             mock_writer.return_value = MagicMock()
             mock_instance = MagicMock()
             mock_instance.invoke.return_value = mock_response
@@ -207,9 +234,14 @@ class TestEnrichmentAgentNode:
         mock_response = AIMessage(content="Done.")
         mock_response.usage_metadata = {"input_tokens": 200, "output_tokens": 100}
 
-        with patch("api.agents.subgraphs.enrichment.ChatAnthropic") as MockModel, \
-             patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer, \
-             patch("api.agents.subgraphs.enrichment._get_enrichment_tool_defs", return_value=[]):
+        with (
+            patch("api.agents.subgraphs.enrichment.ChatAnthropic") as MockModel,
+            patch("api.agents.subgraphs.enrichment.get_stream_writer") as mock_writer,
+            patch(
+                "api.agents.subgraphs.enrichment._get_enrichment_tool_defs",
+                return_value=[],
+            ),
+        ):
             mock_writer.return_value = MagicMock()
             mock_instance = MagicMock()
             mock_instance.invoke.return_value = mock_response

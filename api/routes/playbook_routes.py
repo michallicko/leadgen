@@ -35,7 +35,7 @@ from ..models import (
     ToolExecution,
     db,
 )
-from ..services.agent_executor import execute_agent_turn
+from ..agents.graph import build_system_messages, execute_graph_turn
 from ..services.anthropic_client import AnthropicClient
 from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
@@ -46,11 +46,6 @@ from ..services.playbook_service import (
     compute_chat_placeholder,
 )
 from ..services.tool_registry import ToolContext, get_tools_for_api
-
-# LangGraph agent (Sprint 11) — toggled via USE_LANGGRAPH env var
-_USE_LANGGRAPH = os.environ.get("USE_LANGGRAPH", "0") == "1"
-if _USE_LANGGRAPH:
-    from ..agents.graph import build_system_messages, execute_graph_turn
 
 logger = logging.getLogger(__name__)
 
@@ -1923,7 +1918,7 @@ def _stream_agent_response(
     research resolves (or times out), builds the system prompt with
     enrichment data and proceeds with the agent turn.
 
-    Uses execute_agent_turn() generator to handle tool calls. Yields SSE
+    Uses execute_graph_turn() generator to handle tool calls. Yields SSE
     events for tool_start, tool_result, chunk, and done. Saves assistant
     message and tool execution records to the database.
     """
@@ -2020,18 +2015,16 @@ def _stream_agent_response(
                 page_context=page_context,
             )
 
-            # Build layered system messages for LangGraph path
-            system_msgs = None
-            if _USE_LANGGRAPH:
-                company_name = tenant.company_name if tenant else "Your Company"
-                system_msgs = build_system_messages(
-                    company_name=company_name,
-                    document=doc,
-                    enrichment_data=enrichment_data,
-                    phase=phase,
-                    page_context=page_context,
-                    tenant=tenant,
-                )
+            # Build layered system messages for LangGraph
+            company_name = tenant.company_name if tenant else "Your Company"
+            system_msgs = build_system_messages(
+                company_name=company_name,
+                document=doc,
+                enrichment_data=enrichment_data,
+                phase=phase,
+                page_context=page_context,
+                tenant=tenant,
+            )
 
         # --- Agent turn (yields chunk / tool_start / tool_result events) ---
         full_text = []
@@ -2039,24 +2032,14 @@ def _stream_agent_response(
         done_data = None
 
         try:
-            if _USE_LANGGRAPH:
-                agent_gen = execute_graph_turn(
-                    system_prompt=system_prompt,
-                    messages=messages,
-                    tool_context=tool_context,
-                    model=client.default_model,
-                    app=app,
-                    system_messages=system_msgs,
-                )
-            else:
-                agent_gen = execute_agent_turn(
-                    client=client,
-                    system_prompt=system_prompt,
-                    messages=messages,
-                    tools=tools,
-                    tool_context=tool_context,
-                    app=app,
-                )
+            agent_gen = execute_graph_turn(
+                system_prompt=system_prompt,
+                messages=messages,
+                tool_context=tool_context,
+                model=client.default_model,
+                app=app,
+                system_messages=system_msgs,
+            )
 
             for sse_event in agent_gen:
                 if sse_event.type == "chunk":
@@ -2466,7 +2449,7 @@ def _sync_agent_response(
 ):
     """Sync (non-streaming) response with agent tool-use loop.
 
-    Collects all SSE events from execute_agent_turn(), persists the
+    Collects all SSE events from execute_graph_turn(), persists the
     assistant message and tool execution records, and returns JSON.
     """
     import uuid as _uuid
@@ -2480,12 +2463,11 @@ def _sync_agent_response(
 
     try:
         events = list(
-            execute_agent_turn(
-                client=client,
+            execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tools=tools,
                 tool_context=tool_context,
+                model=client.default_model,
             )
         )
     except Exception as e:

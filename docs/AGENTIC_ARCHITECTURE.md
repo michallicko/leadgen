@@ -764,22 +764,13 @@ Quality over cost -- use the best model for the job:
 
 ## 15. Feature Flags
 
-### USE_LANGGRAPH Toggle
+### USE_LANGGRAPH Toggle (Removed)
 
-The migration from monolithic executor to LangGraph uses a feature flag for safe rollout:
+The `USE_LANGGRAPH` feature flag and the legacy `agent_executor.py` module were removed in Sprint 21. LangGraph (`execute_graph_turn` in `api/agents/graph.py`) is now the only code path. The rollout completed all three phases:
 
-| Flag | Effect |
-|------|--------|
-| `USE_LANGGRAPH=true` | Routes to `execute_graph_turn()` (LangGraph) |
-| `USE_LANGGRAPH=false` | Routes to legacy `execute_agent_turn()` |
-
-The integration layer (`api/agents/integration.py`) provides a drop-in replacement that checks the flag and delegates to the appropriate executor. Both paths produce identical SSE event streams, ensuring zero frontend changes during migration.
-
-### Rollout Strategy
-
-1. **Phase 1**: LangGraph behind flag, opt-in per tenant
-2. **Phase 2**: Default on, legacy available as fallback
-3. **Phase 3**: Legacy code removed
+1. ~~Phase 1: LangGraph behind flag, opt-in per tenant~~
+2. ~~Phase 2: Default on, legacy available as fallback~~
+3. **Phase 3: Legacy code removed** (current)
 
 ---
 
