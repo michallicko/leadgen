@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
@@ -15,6 +16,8 @@ from api.agents.plans.schema import (
     ScoringCriterion,
     ScoringRubric,
 )
+
+logger = logging.getLogger(__name__)
 
 CONFIGS_DIR = Path(__file__).parent / "configs"
 
@@ -138,14 +141,32 @@ def load_plan(page_context: str, tenant_context: dict, state: dict) -> Plan:
         Resolved Plan with Jinja2 templates filled in.
     """
     all_plans = _load_all_plans()
+    logger.info(
+        "Plan loader: page=%s, state=%s, plans_loaded=%d",
+        page_context,
+        state,
+        len(all_plans),
+    )
 
     # Filter candidates: page must match exactly or be wildcard
     candidates: list[Plan] = []
     for plan in all_plans:
         page_matches = plan.trigger.page == page_context or plan.trigger.page == "*"
         if not page_matches:
+            logger.debug(
+                "Plan %s skipped: page mismatch (trigger=%s, context=%s)",
+                plan.id,
+                plan.trigger.page,
+                page_context,
+            )
             continue
-        if not _evaluate_conditions(plan.trigger.conditions, state):
+        conditions_met = _evaluate_conditions(plan.trigger.conditions, state)
+        if not conditions_met:
+            logger.debug(
+                "Plan %s skipped: conditions not met (conditions=%s)",
+                plan.id,
+                plan.trigger.conditions,
+            )
             continue
         candidates.append(plan)
 
@@ -153,6 +174,9 @@ def load_plan(page_context: str, tenant_context: dict, state: dict) -> Plan:
         # Fall back to copilot if nothing matches at all
         # (copilot has page="*" and no conditions, so it should always match,
         # but handle the edge case where configs are missing)
+        logger.warning(
+            "Plan loader: no candidates matched — falling back to hardcoded copilot"
+        )
         return _resolve_templates(
             Plan(
                 id="copilot",
@@ -175,6 +199,11 @@ def load_plan(page_context: str, tenant_context: dict, state: dict) -> Plan:
 
     candidates.sort(key=_specificity, reverse=True)
     best = candidates[0]
+    logger.info(
+        "Plan loader: resolved plan=%s (candidates=%s)",
+        best.id,
+        [c.id for c in candidates],
+    )
 
     return _resolve_templates(best, tenant_context)
 
