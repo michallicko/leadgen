@@ -125,6 +125,15 @@ export function PlaybookPage() {
     sectionStreamingText,
     isSectionStreaming,
     streamingSection,
+    isThinking,
+    activeToolName,
+    analysisStreamingText,
+    isAnalysisStreaming,
+    analysisSuggestions,
+    currentFinding,
+    messageFindings,
+    messageQuickActions,
+    handleQuickAction,
   } = useChatContext()
 
   // Server state

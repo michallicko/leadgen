@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leadgen Pipeline — Agentic Architecture</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-hover: #263548;
+    --border: #334155;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --purple: #6E2C8B;
+    --purple-light: #9333ea;
+    --cyan: #00BCD4;
+    --cyan-dim: #0891b2;
+    --green: #4ade80;
+    --green-dim: #22c55e;
+    --orange: #f59e0b;
+    --orange-dim: #d97706;
+    --blue: #3b82f6;
+    --blue-dim: #2563eb;
+    --gray: #475569;
+    --red: #ef4444;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--purple-light), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .legend-title {
+    width: 100%;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .legend-line {
+    width: 32px;
+    height: 2px;
+    flex-shrink: 0;
+  }
+
+  .legend-line.dashed {
+    background: repeating-linear-gradient(90deg, var(--text-dim) 0, var(--text-dim) 4px, transparent 4px, transparent 8px);
+  }
+
+  .legend-line.solid {
+    background: var(--text-dim);
+  }
+
+  .legend-line.animated {
+    background: linear-gradient(90deg, var(--cyan), var(--purple-light), var(--cyan));
+    background-size: 200% 100%;
+    animation: flow 2s linear infinite;
+  }
+
+  .sprint-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--border);
+    color: var(--text-dim);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .sprint-badge.done { background: #14532d; color: var(--green); }
+  .sprint-badge.active { background: #422006; color: var(--orange); }
+  .sprint-badge.planned { background: #1e1b4b; color: var(--purple-light); }
+
+  /* Flow sections */
+  .flow-section {
+    position: relative;
+    margin-bottom: 24px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    padding-left: 4px;
+  }
+
+  /* Connector lines */
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+  }
+
+  .connector-line {
+    width: 2px;
+    height: 28px;
+    position: relative;
+  }
+
+  .connector-line.purple { background: var(--purple); }
+  .connector-line.cyan { background: var(--cyan-dim); }
+  .connector-line.green { background: var(--green-dim); }
+
+  .connector-line::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: -3px;
+    width: 8px;
+    height: 8px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+  }
+
+  .connector-line.purple::after { color: var(--purple); }
+  .connector-line.cyan::after { color: var(--cyan-dim); }
+  .connector-line.green::after { color: var(--green-dim); }
+
+  /* Nodes */
+  .node {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    transition: all 0.2s;
+    overflow: hidden;
+  }
+
+  .node:hover {
+    background: var(--card-hover);
+    border-color: var(--text-muted);
+  }
+
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .node-header .icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .node-header .title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .node-header .model-tag {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+  }
+
+  .node-header .toggle {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+
+  .node.expanded .toggle {
+    transform: rotate(90deg);
+  }
+
+  .node-body {
+    display: none;
+    padding: 0 16px 12px 46px;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .node.expanded .node-body {
+    display: block;
+  }
+
+  /* Color variants */
+  .node.purple { border-left: 3px solid var(--purple); }
+  .node.cyan { border-left: 3px solid var(--cyan); }
+  .node.green { border-left: 3px solid var(--green); }
+  .node.orange { border-left: 3px solid var(--orange); }
+  .node.blue { border-left: 3px solid var(--blue); }
+  .node.gray { border-left: 3px solid var(--gray); }
+  .node.red { border-left: 3px solid var(--red); }
+
+  .node.purple .title { color: var(--purple-light); }
+  .node.cyan .title { color: var(--cyan); }
+  .node.green .title { color: var(--green); }
+  .node.orange .title { color: var(--orange); }
+  .node.blue .title { color: var(--blue); }
+  .node.gray .title { color: var(--text-dim); }
+
+  /* Tool list */
+  .tool-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .tool-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  /* Agent grid */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  /* Sub-agent grid */
+  .sub-agents {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 6px;
+  }
+
+  .sub-agent {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    font-size: 12px;
+  }
+
+  .sub-agent .sa-name {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .sub-agent .sa-tools {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  /* Cross-cutting grid */
+  .cross-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+  }
+
+  /* Protocol stack */
+  .protocol-stack {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+
+  .proto-box {
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    background: var(--card);
+  }
+
+  .proto-arrow {
+    padding: 0 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+
+  .proto-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  /* Enrichment pipeline */
+  .pipeline-stages {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding: 8px 0;
+  }
+
+  .pipe-stage {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    text-align: center;
+    font-size: 12px;
+    position: relative;
+  }
+
+  .pipe-stage:first-child { border-radius: 6px 0 0 6px; }
+  .pipe-stage:last-child { border-radius: 0 6px 6px 0; }
+
+  .pipe-stage .stage-name {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .pipe-stage .stage-desc {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .pipe-stage.done { border-color: var(--green-dim); }
+  .pipe-stage.done .stage-name { color: var(--green); }
+  .pipe-stage.active { border-color: var(--orange-dim); }
+  .pipe-stage.active .stage-name { color: var(--orange); }
+  .pipe-stage.planned { border-color: var(--purple); }
+  .pipe-stage.planned .stage-name { color: var(--purple-light); }
+
+  .pipe-connector {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+
+  /* Prompt layers */
+  .prompt-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .prompt-layer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .prompt-layer .pl-tag {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 11px;
+    width: 24px;
+    text-align: center;
+  }
+
+  .prompt-layer .pl-name { font-weight: 600; min-width: 100px; }
+  .prompt-layer .pl-cache { font-family: var(--mono); font-size: 11px; }
+
+  .pl-cached { background: rgba(74, 222, 128, 0.06); }
+  .pl-dynamic { background: rgba(245, 158, 11, 0.06); }
+
+  /* Halt gates */
+  .halt-gates {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .halt-gate {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--red);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--red);
+    background: rgba(239, 68, 68, 0.06);
+  }
+
+  .halt-gate::before {
+    content: '\u23F8';
+    font-size: 10px;
+  }
+
+  /* Multimodal */
+  .mm-formats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .mm-fmt {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  /* Fan-out visual */
+  .fanout {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0;
+    padding: 12px 0;
+    position: relative;
+  }
+
+  .fanout-line {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 12px;
+    background: var(--purple);
+  }
+
+  .fanout-bar {
+    position: absolute;
+    top: 12px;
+    height: 2px;
+    background: var(--purple);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .agent-grid { grid-template-columns: 1fr; }
+    .sub-agents { grid-template-columns: 1fr; }
+    .cross-grid { grid-template-columns: 1fr; }
+    .protocol-stack { flex-direction: column; }
+    .proto-arrow { transform: rotate(90deg); }
+    .pipeline-stages { flex-direction: column; }
+    .pipe-stage { border-radius: 0; }
+    .pipe-stage:first-child { border-radius: 6px 6px 0 0; }
+    .pipe-stage:last-child { border-radius: 0 0 6px 6px; }
+    .pipe-connector { justify-content: center; transform: rotate(90deg); }
+  }
+
+  /* Print */
+  @media print {
+    body { background: white; color: #1a1a1a; }
+    .node { break-inside: avoid; background: #f8f8f8; border-color: #ddd; }
+    .node-body { display: block !important; }
+    .node-header .toggle { display: none; }
+    h1 { -webkit-text-fill-color: #333; background: none; color: #333; }
+    .legend { background: #f5f5f5; border-color: #ddd; }
+  }
+
+  @keyframes flow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* Expand/collapse all */
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .controls button {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .controls button:hover {
+    background: var(--card-hover);
+    color: var(--text);
+    border-color: var(--text-muted);
+  }
+
+  /* Description text */
+  .desc { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+  .note { color: var(--text-muted); font-size: 11px; font-style: italic; margin-top: 6px; }
+
+  .responsibility-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 6px;
+  }
+
+  .responsibility-list li {
+    padding: 2px 0;
+    position: relative;
+    padding-left: 14px;
+  }
+
+  .responsibility-list li::before {
+    content: '\2022';
+    position: absolute;
+    left: 0;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1>Leadgen Pipeline — Agentic Architecture</h1>
+  <p class="subtitle">Multi-agent orchestration for GTM strategy, research, outreach, and data management. LangGraph + AG-UI + A2A.</p>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button onclick="expandAll()">Expand All</button>
+    <button onclick="collapseAll()">Collapse All</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-title">Color Key</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span> Orchestrator / Routing</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--cyan)"></span> Strategy Agent</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span> Research Agent + Sub-agents</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--orange)"></span> Outreach Agent</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span> Data Agent</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--gray)"></span> Cross-Cutting Services</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Halt Gates (interrupt)</div>
+
+    <div class="legend-title" style="margin-top:8px">Connection Types</div>
+    <div class="legend-item"><span class="legend-line solid" style="background:var(--cyan)"></span> AG-UI (SSE events)</div>
+    <div class="legend-item"><span class="legend-line solid" style="background:var(--purple)"></span> A2A Protocol</div>
+    <div class="legend-item"><span class="legend-line dashed"></span> Tool Calls</div>
+    <div class="legend-item"><span class="legend-line animated"></span> Streaming Data</div>
+
+    <div class="legend-title" style="margin-top:8px">Sprint Status</div>
+    <div class="legend-item"><span class="sprint-badge done">S10</span> Done</div>
+    <div class="legend-item"><span class="sprint-badge active">S12</span> Current / In Progress</div>
+    <div class="legend-item"><span class="sprint-badge planned">S15</span> Planned</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- LAYER 1: User + Protocol -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">User Interface Layer</div>
+
+    <div class="node purple" onclick="toggleNode(this)">
+      <div class="node-header">
+        <span class="icon">&#x1F464;</span>
+        <span class="title">User (React 19 + TypeScript + Vite)</span>
+        <span class="sprint-badge done">S7-S10</span>
+        <span class="toggle">&#x25B6;</span>
+      </div>
+      <div class="node-body">
+        <p>React SPA with Tailwind v4. Chat sidebar (ChatProvider + ChatSidebar), Strategy Editor (Tiptap), Playbook 8-phase workflow, Contact management, Campaign builder.</p>
+        <p class="desc">Consumes AG-UI SSE events for real-time agent communication. STATE_DELTA patches update UI components without refetch.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Protocol Stack -->
+  <div class="flow-section">
+    <div class="section-label">Protocol Stack</div>
+    <div class="protocol-stack">
+      <div class="proto-box" style="border-color:var(--cyan)">
+        <div class="proto-label" style="color:var(--cyan)">Frontend</div>
+        React Hooks
+      </div>
+      <div class="proto-arrow" style="color:var(--cyan)">-- AG-UI --&gt;</div>
+      <div class="proto-box" style="border-color:var(--purple)">
+        <div class="proto-label" style="color:var(--purple-light)">Orchestrator</div>
+        LangGraph
+      </div>
+      <div class="proto-arrow" style="color:var(--purple-light)">-- A2A --&gt;</div>
+      <div class="proto-box" style="border-color:var(--green)">
+        <div class="proto-label" style="color:var(--green)">Specialists</div>
+        Subgraphs
+      </div>
+      <div class="proto-arrow">-- calls --&gt;</div>
+      <div class="proto-box" style="border-color:var(--gray)">
+        <div class="proto-label" style="color:var(--text-dim)">Tools</div>
+        Python Fns
+      </div>
+    </div>
+    <p style="text-align:center;font-size:11px;color:var(--text-muted)">
+      AG-UI: TEXT_MESSAGE_*, TOOL_CALL_*, STATE_DELTA, STATE_SNAPSHOT, RUN_* &nbsp;|&nbsp;
+      A2A: Agent-to-Agent protocol for multi-agent coordination
+    </p>
+  </div>
+
+  <div class="connector"><div class="connector-line purple"></div></div>
+
+  <!-- ============================================ -->
+  <!-- LAYER 2: Orchestrator -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Orchestration Layer</div>
+
+    <div class="node purple expanded" onclick="toggleNode(this)">
+      <div class="node-header">
+        <span class="icon">&#x1F3AF;</span>
+        <span class="title">Orchestrator Agent (Chat Agent / Parent LangGraph Graph)</span>
+        <span class="model-tag">Haiku &mdash; intent (&lt;500ms)</span>
+        <span class="sprint-badge planned">S13</span>
+        <span class="toggle">&#x25B6;</span>
+      </div>
+      <div class="node-body">
+        <ul class="responsibility-list">
+          <li><strong>Intent Detection</strong> &mdash; Haiku classifies user message into agent domain (&lt;500ms)</li>
+          <li><strong>Agent Selection</strong> &mdash; Routes to specialist via conditional edges</li>
+          <li><strong>Context Routing</strong> &mdash; Passes only relevant context to sub-agent (smart section extraction)</li>
+          <li><strong>Result Synthesis</strong> &mdash; Combines specialist outputs for user-facing response</li>
+          <li><strong>Halt Gates</strong> &mdash; interrupt() at critical decision points</li>
+          <li><strong>Multi-Model Routing</strong> &mdash; Haiku for Q&A, Sonnet for generation, Opus for complex reasoning</li>
+        </ul>
+        <div class="halt-gates">
+          <span class="halt-gate">Scope Selection</span>
+          <span class="halt-gate">ICP Direction</span>
+          <span class="halt-gate">Draft Review</span>
+          <span class="halt-gate">Cost Confirmation</span>
+        </div>
+        <p class="note">LangGraph StateGraph with typed state schema. interrupt() for halt gates. Conditional edges for routing. Replaces monolithic agent_executor.py.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><div class="connector-line purple"></div></div>
+
+  <!-- ============================================ -->
+  <!-- LAYER 3: Specialist Agents -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Specialist Agent Layer (LangGraph Subgraphs)</div>
+
+    <div class="agent-grid">
+
+      <!-- Strategy Agent -->
+      <div class="node cyan" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4DD;</span>
+          <span class="title">Strategy Agent</span>
+          <span class="model-tag">Sonnet</span>
+          <span class="sprint-badge planned">S14</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Playbook writing, section generation, framework application. Manages the 7-section strategy document with ICP tiers and buyer personas.</p>
+          <div class="tool-list">
+            <span class="tool-tag">update_strategy_section</span>
+            <span class="tool-tag">append_to_section</span>
+            <span class="tool-tag">set_extracted_field</span>
+            <span class="tool-tag">track_assumption</span>
+            <span class="tool-tag">check_readiness</span>
+            <span class="tool-tag">set_icp_tiers</span>
+            <span class="tool-tag">set_buyer_personas</span>
+            <span class="tool-tag">get_strategy_document</span>
+          </div>
+          <div class="halt-gates" style="margin-top:8px">
+            <span class="halt-gate">Scope Selection</span>
+            <span class="halt-gate">ICP Direction</span>
+            <span class="halt-gate">Draft Review</span>
+          </div>
+          <p class="note">~200 token focused prompt (vs ~2000 monolithic). Domain-specific conversation memory. Tiptap AI Toolkit integration for inline suggestions and accept/reject edits.</p>
+        </div>
+      </div>
+
+      <!-- Research Agent -->
+      <div class="node green expanded" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="title">Research Agent (Coordination Layer)</span>
+          <span class="model-tag">Sonnet</span>
+          <span class="sprint-badge planned">S15</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Orchestrates sub-agents for company profiling, contact enrichment, market analysis, and document processing. Parallel fan-out via LangGraph Send().</p>
+
+          <div class="sub-agents">
+            <div class="sub-agent" style="border-color:var(--green-dim)">
+              <div class="sa-name" style="color:var(--green)">Company Profiler</div>
+              <div class="sa-tools">search_web, scrape_website, enrich_company_api</div>
+            </div>
+            <div class="sub-agent" style="border-color:var(--green-dim)">
+              <div class="sa-name" style="color:var(--green)">Contact Enricher</div>
+              <div class="sa-tools">enrich_contact_api, search_linkedin, verify_email</div>
+            </div>
+            <div class="sub-agent" style="border-color:var(--green-dim)">
+              <div class="sa-name" style="color:var(--green)">Market Analyst</div>
+              <div class="sa-tools">search_web, analyze_document, search_news</div>
+            </div>
+            <div class="sub-agent" style="border-color:var(--green-dim)">
+              <div class="sa-name" style="color:var(--green)">Document Processor</div>
+              <div class="sa-tools">extract_pdf, extract_excel, analyze_image</div>
+            </div>
+          </div>
+
+          <p class="note">Hierarchical delegation: Research Agent itself orchestrates sub-agents. Company Profiler + Contact Enricher can run in parallel. Key insight: enrichment tools are dumb (API calls), enrichment agents are smart (decide what, when, and what to do with results).</p>
+        </div>
+      </div>
+
+      <!-- Outreach Agent -->
+      <div class="node orange" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4E8;</span>
+          <span class="title">Outreach Agent</span>
+          <span class="model-tag">Sonnet</span>
+          <span class="sprint-badge planned">S19</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Message generation, personalization, and campaign planning. Uses strategy context + enrichment data for grounded, persona-aware messaging.</p>
+          <div class="tool-list">
+            <span class="tool-tag">generate_message</span>
+            <span class="tool-tag">personalize_message</span>
+            <span class="tool-tag">create_campaign</span>
+            <span class="tool-tag">assign_to_campaign</span>
+          </div>
+          <p class="note">Consumes strategy document sections and enrichment data as context. Supports per-message regeneration overrides: language, formality (Ty/Vy), tone, custom instruction. Cost estimation before generation.</p>
+        </div>
+      </div>
+
+      <!-- Data Agent -->
+      <div class="node blue" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4CA;</span>
+          <span class="title">Data Agent</span>
+          <span class="model-tag">Haiku / Sonnet</span>
+          <span class="sprint-badge planned">S20</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Contact enrichment management, CRM queries, Excel/CSV processing. Manages the enrichment pipeline and data filtering.</p>
+          <div class="tool-list">
+            <span class="tool-tag">filter_contacts</span>
+            <span class="tool-tag">count_contacts</span>
+            <span class="tool-tag">apply_icp_filters</span>
+            <span class="tool-tag">get_enrichment_gaps</span>
+            <span class="tool-tag">estimate_enrichment_cost</span>
+            <span class="tool-tag">start_enrichment</span>
+          </div>
+          <p class="note">Haiku for simple queries (contact counts, filter results). Sonnet for complex analysis (enrichment gap analysis, cost estimation). Manages the Python-native DAG executor for enrichment pipeline.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- ENRICHMENT PIPELINE -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Enrichment Pipeline (under Research Agent / Data Agent)</div>
+
+    <div class="pipeline-stages">
+      <div class="pipe-stage done">
+        <div class="stage-name">L1: Company Profile</div>
+        <div class="stage-desc">Domain &rarr; company data<br><span class="sprint-badge done" style="font-size:9px">S5</span> Python-native</div>
+      </div>
+      <div class="pipe-connector">&rarr;</div>
+      <div class="pipe-stage done">
+        <div class="stage-name">Triage: ICP Scoring</div>
+        <div class="stage-desc">Pass / Review / Disqualify<br><span class="sprint-badge done" style="font-size:9px">S6</span></div>
+      </div>
+      <div class="pipe-connector">&rarr;</div>
+      <div class="pipe-stage active">
+        <div class="stage-name">L2: Deep Research</div>
+        <div class="stage-desc">Market, competitive, tech stack<br><span class="sprint-badge active" style="font-size:9px">S10</span> Migrating</div>
+      </div>
+      <div class="pipe-connector">&rarr;</div>
+      <div class="pipe-stage active">
+        <div class="stage-name">Person Enrichment</div>
+        <div class="stage-desc">Role &amp; employment data<br><span class="sprint-badge active" style="font-size:9px">S10</span> Migrating</div>
+      </div>
+      <div class="pipe-connector">&rarr;</div>
+      <div class="pipe-stage planned">
+        <div class="stage-name">Generate Messages</div>
+        <div class="stage-desc">Persona-aware outreach<br><span class="sprint-badge planned" style="font-size:9px">S19</span></div>
+      </div>
+      <div class="pipe-connector">&rarr;</div>
+      <div class="pipe-stage planned">
+        <div class="stage-name">Review &amp; Approve</div>
+        <div class="stage-desc">Quality gate before export<br><span class="sprint-badge planned" style="font-size:9px">S19</span></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="node green" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F9E9;</span>
+          <span class="title">L2 Enrichment Modules (Planned Expansion)</span>
+          <span class="sprint-badge planned">S16-18</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Missing L2 modules being built to replace n8n sub-workflows with Python-native enrichers:</p>
+          <div class="tool-list">
+            <span class="tool-tag" style="border-color:var(--green-dim)">News &amp; PR</span>
+            <span class="tool-tag" style="border-color:var(--green-dim)">Social &amp; Online</span>
+            <span class="tool-tag" style="border-color:var(--green-dim)">Contact Details</span>
+            <span class="tool-tag" style="border-color:var(--green-dim)">Strategic Signals</span>
+            <span class="tool-tag" style="border-color:var(--green-dim)">Career History</span>
+            <span class="tool-tag" style="border-color:var(--orange-dim)">Email Verification</span>
+            <span class="tool-tag" style="border-color:var(--orange-dim)">Tech Stack Detection</span>
+            <span class="tool-tag" style="border-color:var(--orange-dim)">Competitive Landscape</span>
+          </div>
+          <p class="note">Each module is a Python class registered in the DAG executor. DB-backed queue with completion-record eligibility tracking. Built-in cost tracking per stage.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- CROSS-CUTTING SERVICES -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Cross-Cutting Services</div>
+
+    <div class="cross-grid">
+
+      <!-- Memory Layer -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F9E0;</span>
+          <span class="title">Memory Layer</span>
+          <span class="sprint-badge planned">S15</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p><strong>Cross-session (RAG):</strong> pgvector embeddings of key decisions, preferences, outcomes. Retrieved via semantic search at session start.</p>
+          <p><strong>Within-session:</strong> Floating context window. When history exceeds 15 messages, summarize oldest 10 into ~200 tokens preserving decisions + tool outcomes. Keep last 8 verbatim.</p>
+          <p><strong>Auto-save:</strong> Decisions at halt gates automatically persisted. Agent remembers ICP selections, messaging angles, strategy preferences across sessions.</p>
+        </div>
+      </div>
+
+      <!-- Tool Router -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F527;</span>
+          <span class="title">Tool Router</span>
+          <span class="sprint-badge planned">S13</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p><strong>Phase-filtered tools:</strong> Only register tools relevant to current phase. Strategy phase gets strategy tools, not campaign tools.</p>
+          <p><strong>Reduction:</strong> ~2.5K tokens (all 24 tools) &rarr; ~600-1K tokens (6-10 phase-relevant tools) per call.</p>
+          <p><strong>Pattern:</strong> Orchestrator determines intent &rarr; selects specialist &rarr; specialist has only its 5-8 tools registered.</p>
+        </div>
+      </div>
+
+      <!-- Prompt Layers -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4DC;</span>
+          <span class="title">Prompt Layers</span>
+          <span class="sprint-badge planned">S12</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <div class="prompt-layers">
+            <div class="prompt-layer pl-cached">
+              <span class="pl-tag" style="color:var(--green)">L0</span>
+              <span class="pl-name">Identity</span>
+              <span>Role, rules, style, language (~800 tok)</span>
+              <span class="pl-cache" style="color:var(--green)">CACHED</span>
+            </div>
+            <div class="prompt-layer pl-cached">
+              <span class="pl-tag" style="color:var(--green)">L1</span>
+              <span class="pl-name">Capabilities</span>
+              <span>Phase-filtered tool descriptions (~1-2K tok)</span>
+              <span class="pl-cache" style="color:var(--green)">CACHED</span>
+            </div>
+            <div class="prompt-layer pl-dynamic">
+              <span class="pl-tag" style="color:var(--orange)">L2</span>
+              <span class="pl-name">Context</span>
+              <span>Phase instructions, section completeness, enrichment (~1-5K tok)</span>
+              <span class="pl-cache" style="color:var(--orange)">DYNAMIC</span>
+            </div>
+            <div class="prompt-layer pl-dynamic">
+              <span class="pl-tag" style="color:var(--orange)">L3</span>
+              <span class="pl-name">Conversation</span>
+              <span>Summarized history + recent messages + tool results (~1-4K tok)</span>
+              <span class="pl-cache" style="color:var(--orange)">DYNAMIC</span>
+            </div>
+          </div>
+          <p class="note">Expected savings: 50-70% input token reduction. From 8-20K per call down to 3-7K with cached static layers. Uses Anthropic cache_control: ephemeral.</p>
+        </div>
+      </div>
+
+      <!-- Multimodal Pipeline -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4CE;</span>
+          <span class="title">Multimodal Pipeline</span>
+          <span class="sprint-badge planned">S17</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>File ingestion pipeline: Upload &rarr; S3 &rarr; Format-specific extractor &rarr; Summarize &rarr; Cache in PG &rarr; Inject into agent context on demand.</p>
+          <div class="mm-formats">
+            <span class="mm-fmt" style="border-color:var(--green-dim);color:var(--green)">PDF (Phase 1)</span>
+            <span class="mm-fmt" style="border-color:var(--green-dim);color:var(--green)">Images (Phase 1)</span>
+            <span class="mm-fmt" style="border-color:var(--cyan-dim);color:var(--cyan)">HTML (Phase 2)</span>
+            <span class="mm-fmt" style="border-color:var(--cyan-dim);color:var(--cyan)">Word (Phase 2)</span>
+            <span class="mm-fmt" style="border-color:var(--orange-dim);color:var(--orange)">Excel (Phase 3)</span>
+            <span class="mm-fmt" style="border-color:var(--purple);color:var(--purple-light)">Video (Phase 4)</span>
+          </div>
+          <p class="desc" style="margin-top:6px">Progressive detail: L0 mention (~20 tok) &rarr; L1 summary (~300-700 tok) &rarr; L2 deep dive (up to 4K tok, on demand via tool).</p>
+        </div>
+      </div>
+
+      <!-- Shared State -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F504;</span>
+          <span class="title">Shared State (AG-UI)</span>
+          <span class="sprint-badge planned">S13</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p><strong>STATE_DELTA:</strong> Incremental state patches from agent to frontend. Agent updates company data &rarr; frontend table updates in real-time without refetch.</p>
+          <p><strong>STATE_SNAPSHOT:</strong> Full state sync on reconnection or page refresh.</p>
+          <p><strong>Generative UI:</strong> Agent sends state patches, frontend renders rich components (tables, charts, approval forms) inline in chat.</p>
+        </div>
+      </div>
+
+      <!-- Observability -->
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F50E;</span>
+          <span class="title">Observability (LangSmith)</span>
+          <span class="sprint-badge planned">S13</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Per-node execution traces: duration, tokens, cost. Prompt playground for A/B testing. Evaluation datasets for regression testing. Replay failed conversations.</p>
+          <p class="note">No paid observability until revenue. Self-hosted LangSmith if feasible, otherwise lightweight custom tracing.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- INFRASTRUCTURE -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Infrastructure &amp; Data Layer</div>
+
+    <div class="cross-grid">
+
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F5C4;</span>
+          <span class="title">PostgreSQL (RDS)</span>
+          <span class="sprint-badge done">S3</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Multi-tenant shared schema with tenant_id. Companies, contacts, enrichments, messages, campaigns, strategy documents, chat history, LLM usage logs, token balances.</p>
+          <p class="desc">pgvector extension planned for RAG memory embeddings. 42+ migrations applied.</p>
+        </div>
+      </div>
+
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x2699;</span>
+          <span class="title">Flask API (25 Route Modules)</span>
+          <span class="sprint-badge done">S3-S10</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Auth, tenants, users, companies, contacts, messages, campaigns, pipeline, imports, playbook, strategy templates, tokens, custom fields, enrichment configs, health, OAuth, Gmail, bulk ops, extension, LLM usage.</p>
+          <p class="desc">JWT auth + bcrypt. Gunicorn behind Caddy. Pydantic v2 for validation.</p>
+        </div>
+      </div>
+
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F310;</span>
+          <span class="title">External APIs</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <div class="tool-list">
+            <span class="tool-tag">Claude API (Haiku/Sonnet/Opus)</span>
+            <span class="tool-tag">Perplexity API (research)</span>
+            <span class="tool-tag">Google OAuth (Gmail)</span>
+            <span class="tool-tag">EU Registries (ARES, BRREG, PRH)</span>
+            <span class="tool-tag">Lemlist (campaigns)</span>
+            <span class="tool-tag">LinkedIn (planned)</span>
+            <span class="tool-tag">Whisper/AssemblyAI (planned)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="node gray" onclick="toggleNode(this)">
+        <div class="node-header">
+          <span class="icon">&#x1F4B0;</span>
+          <span class="title">Token / Credit System</span>
+          <span class="sprint-badge done">S8</span>
+          <span class="toggle">&#x25B6;</span>
+        </div>
+        <div class="node-body">
+          <p>Per-operation cost tracking. Every Claude API call logged: input/output tokens, model, cost, operation type. Per-tenant credit balance. Budget controls with thresholds.</p>
+          <p class="desc">1 credit = $0.001 USD. Users see tokens, admins see raw USD. Cost estimation shown before expensive operations.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- ORCHESTRATION PATTERNS -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Orchestration Patterns</div>
+
+    <div class="agent-grid" style="grid-template-columns: repeat(3, 1fr)">
+
+      <div class="node purple" style="border-left-color:var(--purple-light)">
+        <div class="node-header">
+          <span class="icon">&#x27A1;</span>
+          <span class="title" style="font-size:13px">Sequential Handoff</span>
+        </div>
+        <div class="node-body" style="display:block;padding-left:16px">
+          <p style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8">
+            Research Agent completes<br>
+            &nbsp;&nbsp;&darr; results<br>
+            Strategy Agent uses context
+          </p>
+        </div>
+      </div>
+
+      <div class="node purple" style="border-left-color:var(--green)">
+        <div class="node-header">
+          <span class="icon">&#x21C9;</span>
+          <span class="title" style="font-size:13px">Parallel Fan-Out</span>
+        </div>
+        <div class="node-body" style="display:block;padding-left:16px">
+          <p style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8">
+            LangGraph Send() API<br>
+            &nbsp;&nbsp;|-- Company Profiler<br>
+            &nbsp;&nbsp;|-- Contact Enricher<br>
+            &nbsp;&nbsp;&#x2514;-- Market Analyst<br>
+            &nbsp;&nbsp;&darr; merge results
+          </p>
+        </div>
+      </div>
+
+      <div class="node purple" style="border-left-color:var(--orange)">
+        <div class="node-header">
+          <span class="icon">&#x1F3D7;</span>
+          <span class="title" style="font-size:13px">Hierarchical Delegation</span>
+        </div>
+        <div class="node-body" style="display:block;padding-left:16px">
+          <p style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8">
+            Research Agent (coordinator)<br>
+            &nbsp;&nbsp;|-- sub-agent: Company Profiler<br>
+            &nbsp;&nbsp;|-- sub-agent: Contact Enricher<br>
+            &nbsp;&nbsp;&#x2514;-- synthesizes for Orchestrator
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- AGENT FLOW EXAMPLE -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">LangGraph Agent Flow (Strategy Generation)</div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 0">
+
+      <div style="padding:8px 24px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--card)">
+        START
+      </div>
+      <div style="width:2px;height:16px;background:var(--purple)"></div>
+
+      <div style="padding:8px 20px;border:2px solid var(--green-dim);border-radius:8px;font-size:12px;background:rgba(74,222,128,0.05);text-align:center">
+        <strong style="color:var(--green)">research</strong> <span style="color:var(--text-muted)">(Haiku 4.5)</span><br>
+        <span style="font-size:11px;color:var(--text-muted)">web_search, research_own_company</span>
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:6px 16px;border:2px solid var(--red);border-radius:20px;font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);text-align:center">
+        INTERRUPT: scope_gate &mdash; user picks product focus
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:8px 20px;border:2px solid var(--cyan-dim);border-radius:8px;font-size:12px;background:rgba(0,188,212,0.05);text-align:center">
+        <strong style="color:var(--cyan)">position</strong> <span style="color:var(--text-muted)">(Sonnet 4.6)</span><br>
+        <span style="font-size:11px;color:var(--text-muted)">analyze competitors, draft VP</span>
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:6px 16px;border:2px solid var(--red);border-radius:20px;font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);text-align:center">
+        INTERRUPT: direction_gate &mdash; user picks ICP segment
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:8px 20px;border:2px solid var(--cyan-dim);border-radius:8px;font-size:12px;background:rgba(0,188,212,0.05);text-align:center">
+        <strong style="color:var(--cyan)">draft</strong> <span style="color:var(--text-muted)">(Sonnet 4.6)</span><br>
+        <span style="font-size:11px;color:var(--text-muted)">update_strategy_section x7, set_icp_tiers, set_personas</span>
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:6px 16px;border:2px solid var(--red);border-radius:20px;font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);text-align:center">
+        INTERRUPT: review_gate &mdash; user reviews draft
+      </div>
+      <div style="width:2px;height:12px;background:var(--purple)"></div>
+
+      <div style="padding:8px 20px;border:2px solid var(--green-dim);border-radius:8px;font-size:12px;background:rgba(74,222,128,0.05);text-align:center">
+        <strong style="color:var(--green)">finalize</strong> <span style="color:var(--text-muted)">(Haiku 4.5)</span><br>
+        <span style="font-size:11px;color:var(--text-muted)">check_readiness, messaging framework</span>
+      </div>
+      <div style="width:2px;height:16px;background:var(--purple)"></div>
+
+      <div style="padding:8px 24px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--card)">
+        DONE
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- SPRINT ROADMAP -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Sprint Roadmap — Agent Architecture Build-Out</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card);border-top:3px solid var(--green)">
+        <div style="font-weight:700;font-size:13px;color:var(--green);margin-bottom:4px">Sprint 11-12</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Prompt caching (L0-L3)<br>
+          Intent-aware tool routing<br>
+          Smart document context<br>
+          LangGraph migration start
+        </div>
+      </div>
+
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card);border-top:3px solid var(--orange)">
+        <div style="font-weight:700;font-size:13px;color:var(--orange);margin-bottom:4px">Sprint 13-14</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          LangGraph StateGraph<br>
+          Orchestrator agent<br>
+          Strategy agent subgraph<br>
+          Halt gates (interrupt)<br>
+          AG-UI protocol adoption
+        </div>
+      </div>
+
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card);border-top:3px solid var(--purple)">
+        <div style="font-weight:700;font-size:13px;color:var(--purple-light);margin-bottom:4px">Sprint 15-16</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Research agent + sub-agents<br>
+          RAG memory (pgvector)<br>
+          A2A protocol<br>
+          L2 enrichment modules
+        </div>
+      </div>
+
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card);border-top:3px solid var(--purple)">
+        <div style="font-weight:700;font-size:13px;color:var(--purple-light);margin-bottom:4px">Sprint 17-18</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Multimodal pipeline (PDF, Images)<br>
+          HTML + Word processing<br>
+          Remaining L2 modules<br>
+          LangSmith observability
+        </div>
+      </div>
+
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card);border-top:3px solid var(--purple)">
+        <div style="font-weight:700;font-size:13px;color:var(--purple-light);margin-bottom:4px">Sprint 19-20</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Outreach agent<br>
+          Data agent<br>
+          Excel processing<br>
+          Video ingestion<br>
+          Tiptap AI Toolkit
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- MODEL SELECTION -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">Model Selection Strategy</div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="padding:12px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">&#x26A1;</div>
+        <div style="font-weight:700;font-size:14px;color:var(--green);margin-bottom:4px">Haiku</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Intent routing<br>
+          Simple Q&A<br>
+          Classification<br>
+          Finalization
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">&lt;500ms latency</div>
+      </div>
+
+      <div style="padding:12px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">&#x1F4A1;</div>
+        <div style="font-weight:700;font-size:14px;color:var(--cyan);margin-bottom:4px">Sonnet</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Strategy generation<br>
+          Research synthesis<br>
+          Message drafting<br>
+          Analysis
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Best value for generation</div>
+      </div>
+
+      <div style="padding:12px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">&#x1F3C6;</div>
+        <div style="font-weight:700;font-size:14px;color:var(--purple-light);margin-bottom:4px">Opus</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Complex multi-step reasoning<br>
+          Cross-document analysis<br>
+          High-stakes decisions
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">When quality warrants cost</div>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:8px">Quality over cost. Users pay per token. Best model for the job. Warn before expensive operations, never silently degrade.</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================ -->
+  <!-- AG-UI EVENTS -->
+  <!-- ============================================ -->
+  <div class="flow-section">
+    <div class="section-label">AG-UI Event Flow</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+
+      <div style="padding:8px 12px;border:1px solid var(--cyan-dim);border-radius:6px;background:rgba(0,188,212,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);font-weight:700">RUN_STARTED</div>
+        <div style="font-size:11px;color:var(--text-muted)">Agent begins processing</div>
+      </div>
+
+      <div style="padding:8px 12px;border:1px solid var(--cyan-dim);border-radius:6px;background:rgba(0,188,212,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);font-weight:700">TEXT_MESSAGE_*</div>
+        <div style="font-size:11px;color:var(--text-muted)">START / CONTENT / END streaming</div>
+      </div>
+
+      <div style="padding:8px 12px;border:1px solid var(--orange-dim);border-radius:6px;background:rgba(245,158,11,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--orange);font-weight:700">TOOL_CALL_*</div>
+        <div style="font-size:11px;color:var(--text-muted)">START / ARGS / END with approval</div>
+      </div>
+
+      <div style="padding:8px 12px;border:1px solid var(--purple);border-radius:6px;background:rgba(110,44,139,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--purple-light);font-weight:700">STATE_DELTA</div>
+        <div style="font-size:11px;color:var(--text-muted)">Incremental state patches</div>
+      </div>
+
+      <div style="padding:8px 12px;border:1px solid var(--purple);border-radius:6px;background:rgba(110,44,139,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--purple-light);font-weight:700">STATE_SNAPSHOT</div>
+        <div style="font-size:11px;color:var(--text-muted)">Full state sync on reconnect</div>
+      </div>
+
+      <div style="padding:8px 12px;border:1px solid var(--cyan-dim);border-radius:6px;background:rgba(0,188,212,0.04)">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);font-weight:700">RUN_FINISHED</div>
+        <div style="font-size:11px;color:var(--text-muted)">Agent completes processing</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:12px">
+    Leadgen Pipeline &mdash; Agentic Architecture &mdash; March 2026<br>
+    Source: docs/plans/2026-03-06-agent-prompt-architecture.md + docs/TECHNICAL_STRATEGY.md
+  </div>
+
+</div>
+
+<script>
+function toggleNode(node) {
+  node.classList.toggle('expanded');
+}
+
+function expandAll() {
+  document.querySelectorAll('.node').forEach(n => n.classList.add('expanded'));
+}
+
+function collapseAll() {
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('expanded'));
+}
+</script>
+
+</body>
+</html>

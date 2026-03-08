@@ -18,6 +18,9 @@ import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
 // ThinkingIndicator replaced by inline unified working state block
 import { ChatMermaidBlock } from './ChatMermaidBlock'
 import { WorkflowSuggestions } from './WorkflowSuggestions'
+import { ThinkingStatus, type ThinkingFinding } from './ThinkingStatus'
+import { ThinkingHistory } from './ThinkingHistory'
+import { QuickActions, type QuickAction } from './QuickActions'
 
 // ---------------------------------------------------------------------------
 // Markdown components (mermaid code block rendering)
@@ -81,6 +84,14 @@ interface ChatMessagesProps {
   isThinking?: boolean
   /** Dynamic status text for the thinking indicator */
   thinkingStatus?: string
+  /** BL-1015: Current research finding during agent work */
+  currentFinding?: ThinkingFinding | null
+  /** BL-1015: Per-message thinking history, keyed by message ID */
+  messageFindings?: Record<string, ThinkingFinding[]>
+  /** BL-1017: Per-message quick actions, keyed by message ID */
+  messageQuickActions?: Record<string, QuickAction[]>
+  /** BL-1017: Handler for quick action button clicks */
+  onQuickAction?: (action: QuickAction) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +215,14 @@ function isResearchProgressMessage(message: ChatMessage): boolean {
 // Message bubble
 // ---------------------------------------------------------------------------
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+interface MessageBubbleProps {
+  message: ChatMessage
+  findings?: ThinkingFinding[]
+  quickActions?: QuickAction[]
+  onQuickAction?: (action: QuickAction) => void
+}
+
+function MessageBubble({ message, findings, quickActions, onQuickAction }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
   // Don't render system messages (thread boundaries)
@@ -253,53 +271,65 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      {/* Avatar */}
-      <div
-        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
-          isUser
-            ? 'bg-accent/20 text-accent-hover'
-            : 'bg-accent-cyan/15 text-accent-cyan'
-        }`}
-      >
-        {isUser ? <UserIcon /> : <AssistantIcon />}
-      </div>
-
-      {/* Content */}
-      <div className="max-w-[80%] flex flex-col gap-1.5">
-        {/* Tool call cards (above the text, for assistant messages) */}
-        {persistedToolCalls && (
-          <div className="mb-1">
-            <ToolCallCardList toolCalls={persistedToolCalls} />
-          </div>
-        )}
-
-        {/* Text bubble */}
+    <div>
+      <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Avatar */}
         <div
-          className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
+          className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
             isUser
-              ? 'bg-accent/15 text-text border border-accent/20'
-              : 'bg-surface-alt text-text border border-border-solid'
+              ? 'bg-accent/20 text-accent-hover'
+              : 'bg-accent-cyan/15 text-accent-cyan'
           }`}
         >
-          {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{message.content}</div>
-          ) : (
-            <div className="chat-markdown break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content}
-              </ReactMarkdown>
+          {isUser ? <UserIcon /> : <AssistantIcon />}
+        </div>
+
+        {/* Content */}
+        <div className="max-w-[80%] flex flex-col gap-1.5">
+          {/* Tool call cards (above the text, for assistant messages) */}
+          {persistedToolCalls && (
+            <div className="mb-1">
+              <ToolCallCardList toolCalls={persistedToolCalls} />
             </div>
           )}
+
+          {/* Text bubble */}
           <div
-            className={`text-[11px] mt-1.5 ${
-              isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+            className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
+              isUser
+                ? 'bg-accent/15 text-text border border-accent/20'
+                : 'bg-surface-alt text-text border border-border-solid'
             }`}
           >
-            {formatTime(message.created_at)}
+            {isUser ? (
+              <div className="whitespace-pre-wrap break-words">{message.content}</div>
+            ) : (
+              <div className="chat-markdown break-words">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
+            <div
+              className={`text-[11px] mt-1.5 ${
+                isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+              }`}
+            >
+              {formatTime(message.created_at)}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* BL-1015: Thinking history toggle (below assistant messages) */}
+      {!isUser && findings && findings.length > 0 && (
+        <ThinkingHistory findings={findings} />
+      )}
+
+      {/* BL-1017: Quick action buttons (below assistant messages) */}
+      {!isUser && quickActions && quickActions.length > 0 && onQuickAction && (
+        <QuickActions actions={quickActions} onAction={onQuickAction} />
+      )}
     </div>
   )
 }
@@ -393,6 +423,10 @@ export function ChatMessages({
   toolCalls = [],
   isThinking = false,
   thinkingStatus = 'Thinking...',
+  currentFinding = null,
+  messageFindings = {},
+  messageQuickActions = {},
+  onQuickAction,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -402,7 +436,7 @@ export function ChatMessages({
     if (el) {
       el.scrollTop = el.scrollHeight
     }
-  }, [messages, streamingText, toolCalls, isThinking])
+  }, [messages, streamingText, toolCalls, isThinking, currentFinding])
 
   if (isLoading) {
     return (
@@ -429,7 +463,8 @@ export function ChatMessages({
       (prev.role === 'user' && prev.content.startsWith('Generate a complete GTM strategy'))
     return !prevHidden
   })
-  const hasContent = displayMessages.length > 0 || isStreaming || isThinking || toolCalls.length > 0
+  const isAgentWorking = isStreaming || isThinking || toolCalls.length > 0 || currentFinding !== null
+  const hasContent = displayMessages.length > 0 || isAgentWorking
 
   return (
     <div
@@ -439,7 +474,13 @@ export function ChatMessages({
       {!hasContent && <EmptyState />}
 
       {displayMessages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          findings={messageFindings[msg.id]}
+          quickActions={messageQuickActions[msg.id]}
+          onQuickAction={onQuickAction}
+        />
       ))}
 
       {/* Unified working state: thinking + tool progress in one block */}
@@ -470,6 +511,16 @@ export function ChatMessages({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* BL-1015: Live thinking status with latest finding */}
+      <ThinkingStatus currentFinding={currentFinding} isActive={isAgentWorking && !isStreaming} />
+
+      {/* THINK: In-flight tool call cards (AC-2, AC-4) */}
+      {toolCalls.length > 0 && (
+        <div className="ml-10">
+          <ToolCallCardList toolCalls={toolCalls} />
         </div>
       )}
 

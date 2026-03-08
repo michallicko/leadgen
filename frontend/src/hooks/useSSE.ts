@@ -31,12 +31,28 @@ export interface ToolResultEvent {
   durationMs: number
 }
 
+/** Payload from a `research_finding` SSE event. */
+export interface ResearchFindingEvent {
+  action: string
+  finding: string
+  step?: number
+}
+
+/** Quick action from the `done` event. */
+export interface QuickActionEvent {
+  label: string
+  action: string
+  type: 'chat_action' | 'navigate'
+  target?: string
+}
+
 /** Payload from the enhanced `done` event. */
 export interface DoneEventData {
   messageId: string
   toolCalls?: ToolCallSummary[]
   documentChanged?: boolean
   changesSummary?: string | null
+  quickActions?: QuickActionEvent[]
 }
 
 /** Payload from the `analysis_done` event. */
@@ -133,6 +149,8 @@ export interface UseSSECallbacks {
   onStateSnapshot?: (event: StateSnapshotEvent) => void
   /** Fired when a state delta with JSON Patch operations arrives. */
   onStateDelta?: (event: StateDeltaEvent) => void
+  /** Fired when the agent emits a research finding (BL-1015). */
+  onResearchFinding?: (event: ResearchFindingEvent) => void
 }
 
 interface UseSSEReturn {
@@ -212,6 +230,7 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
       toolCalls: event.tool_calls as ToolCallSummary[] | undefined,
       documentChanged: event.document_changed as boolean | undefined,
       changesSummary: event.changes_summary as string | null | undefined,
+      quickActions: event.quick_actions as QuickActionEvent[] | undefined,
     })
   } else if (eventType === 'error') {
     callbacks.onError(new Error((event.message as string) ?? 'Stream error'))
@@ -259,6 +278,12 @@ function dispatchEvent(event: Record<string, unknown>, callbacks: UseSSECallback
     callbacks.onSectionContentChunk?.(event.text as string)
   } else if (eventType === 'section_content_done') {
     callbacks.onSectionContentDone?.(event.section as string)
+  } else if (eventType === 'research_finding') {
+    callbacks.onResearchFinding?.({
+      action: event.action as string,
+      finding: event.finding as string,
+      step: event.step as number | undefined,
+    })
 
   // --- AG-UI protocol events ---
   } else if (eventType === 'RUN_STARTED') {
