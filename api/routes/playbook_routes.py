@@ -35,7 +35,7 @@ from ..models import (
     ToolExecution,
     db,
 )
-from ..agents.graph import build_system_messages, execute_graph_turn
+from ..agents.graph import execute_graph_turn
 from ..services.anthropic_client import AnthropicClient
 from ..services.llm_logger import log_llm_usage
 from ..services.playbook_service import (
@@ -45,7 +45,7 @@ from ..services.playbook_service import (
     build_system_prompt,
     compute_chat_placeholder,
 )
-from ..services.tool_registry import ToolContext, get_tools_for_api
+from ..services.tool_registry import get_tools_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -1767,14 +1767,13 @@ def _stream_response(
 
     app = current_app._get_current_object()
 
-    # Check if any tools are registered
+    # Check if any tools are registered (determines agent vs simple path)
     tools = get_tools_for_api()
 
     if tools:
         return _stream_agent_response(
             client,
             messages,
-            tools,
             tenant_id,
             doc_id,
             enrichment_company_id,
@@ -1901,7 +1900,6 @@ def _stream_simple_response(
 def _stream_agent_response(
     client,
     messages,
-    tools,
     tenant_id,
     doc_id,
     enrichment_company_id,
@@ -1918,20 +1916,13 @@ def _stream_agent_response(
     research resolves (or times out), builds the system prompt with
     enrichment data and proceeds with the agent turn.
 
-    Uses execute_graph_turn() generator to handle tool calls. Yields SSE
+    Uses execute_agent_turn() generator to handle tool calls. Yields SSE
     events for tool_start, tool_result, chunk, and done. Saves assistant
     message and tool execution records to the database.
     """
     import uuid as _uuid
 
     turn_id = str(_uuid.uuid4())
-
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=turn_id,
-    )
 
     def generate():
         # --- Research polling (yields research_status SSE events) ---
@@ -2015,33 +2006,24 @@ def _stream_agent_response(
                 page_context=page_context,
             )
 
-            # Build layered system messages for LangGraph
-            company_name = tenant.company_name if tenant else "Your Company"
-            system_msgs = build_system_messages(
-                company_name=company_name,
-                document=doc,
-                enrichment_data=enrichment_data,
-                phase=phase,
-                page_context=page_context,
-                tenant=tenant,
-            )
-
         # --- Agent turn (yields chunk / tool_start / tool_result events) ---
         full_text = []
         msg_id = None
         done_data = None
 
         try:
-            agent_gen = execute_graph_turn(
+            for sse_event in execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tool_context=tool_context,
-                model=client.default_model,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": turn_id,
+                },
+                page_context=page_context or "",
                 app=app,
-                system_messages=system_msgs,
-            )
-
-            for sse_event in agent_gen:
+            ):
                 if sse_event.type == "chunk":
                     full_text.append(sse_event.data.get("text", ""))
                     yield "data: {}\n\n".format(
@@ -2061,15 +2043,6 @@ def _stream_agent_response(
                 elif sse_event.type == "section_update":
                     yield "data: {}\n\n".format(
                         json.dumps(sse_event.data | {"type": "section_update"})
-                    )
-
-                elif sse_event.type in (
-                    "section_content_start",
-                    "section_content_chunk",
-                    "section_content_done",
-                ):
-                    yield "data: {}\n\n".format(
-                        json.dumps(sse_event.data | {"type": sse_event.type})
                     )
 
                 elif sse_event.type == "done":
@@ -2359,7 +2332,6 @@ def _sync_response(
             client,
             system_prompt,
             messages,
-            tools,
             tenant_id,
             doc_id,
             user_msg,
@@ -2441,7 +2413,6 @@ def _sync_agent_response(
     client,
     system_prompt,
     messages,
-    tools,
     tenant_id,
     doc_id,
     user_msg,
@@ -2454,20 +2425,17 @@ def _sync_agent_response(
     """
     import uuid as _uuid
 
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=str(_uuid.uuid4()),
-    )
-
     try:
         events = list(
             execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tool_context=tool_context,
-                model=client.default_model,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": str(_uuid.uuid4()),
+                },
             )
         )
     except Exception as e:
