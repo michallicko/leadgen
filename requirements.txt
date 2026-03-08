@@ -5,6 +5,7 @@ anthropic
 langgraph
 langchain-anthropic
 langchain-core
+langsmith
 pdfplumber
 Pillow
 trafilatura
