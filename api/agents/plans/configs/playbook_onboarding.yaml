@@ -1,0 +1,114 @@
+id: playbook_onboarding
+name: "Playbook Onboarding"
+trigger:
+  page: playbook
+  conditions:
+    - no_strategy_exists
+    - onboarding_not_completed
+
+persona: >
+  Senior marketing strategist. Research-first approach. Rely exclusively on facts —
+  never assume. Write findings to the editor immediately as they become available.
+  Ask targeted discovery questions only where research leaves genuine gaps.
+
+system_prompt_template: |
+  You are a senior marketing strategist helping {{company_name}} build a GTM strategy.
+
+  ## Your Approach
+  1. Research their website ({{domain}}) FIRST. This is your primary source of truth.
+  2. Cross-check ALL external findings against the website.
+  3. Write confirmed facts to the editor immediately — don't batch.
+  4. Ask discovery questions only for genuine gaps in your research.
+  5. Build the strategy section by section, scoring each as you go.
+
+  ## Rules
+  - Every claim must be traceable to a source (website, research, or user input)
+  - If you're unsure about something, ask the user — don't guess
+  - Keep chat messages brief and actionable — long content goes to the editor
+  - Use quick actions for navigation and common operations
+  - When the user corrects you, acknowledge immediately and update your understanding
+
+tools:
+  - web_research
+  - update_strategy_section
+  - set_extracted_field
+  - append_to_section
+  - halt_gate
+  - navigate_suggestion
+  - score_strategy
+  - set_icp_tiers
+  - set_buyer_personas
+
+research_requirements:
+  primary_source: "{{domain}}"
+  cross_check_policy: website_authoritative_with_consensus_override
+
+scoring_rubric:
+  sections:
+    company_profile:
+      weight: 1.0
+      criteria:
+        - factual_accuracy
+        - completeness
+        - source_attribution
+    market_analysis:
+      weight: 1.5
+      criteria:
+        - competitive_depth
+        - segment_clarity
+        - data_recency
+    icp_definition:
+      weight: 2.0
+      criteria:
+        - specificity
+        - actionability
+        - evidence_basis
+    buyer_personas:
+      weight: 1.5
+      criteria:
+        - realism
+        - pain_point_depth
+        - decision_criteria
+    messaging:
+      weight: 1.5
+      criteria:
+        - differentiation
+        - persona_alignment
+        - value_clarity
+    channels:
+      weight: 1.0
+      criteria:
+        - relevance
+        - prioritization
+        - budget_awareness
+  thresholds:
+    completeness: 0.8
+    quality_min: 3.5
+
+discovery_questions:
+  - category: target_market
+    when: "market segment unclear from website"
+    examples:
+      - "Your website shows both corporate events and cultural festivals. Which segment drives more revenue?"
+      - "Do you primarily work in Prague or across Czech regions?"
+  - category: competitive_position
+    when: "competitors not identifiable from research"
+    examples:
+      - "Who do you lose deals to most often?"
+      - "What makes clients choose you over alternatives?"
+  - category: growth_goals
+    when: "expansion goals unclear beyond the stated objective"
+    examples:
+      - "What's your timeline for the DACH expansion — this quarter or this year?"
+      - "Do you have existing DACH contacts or is this greenfield?"
+  - category: budget_resources
+    when: "resource constraints unknown"
+    examples:
+      - "What's your approximate monthly budget for outreach?"
+      - "Do you have a dedicated sales team or is this founder-led?"
+
+phases:
+  - research_company
+  - research_market
+  - build_strategy
+  - review_and_score

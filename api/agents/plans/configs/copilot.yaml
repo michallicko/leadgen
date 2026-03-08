@@ -1,0 +1,29 @@
+id: copilot
+name: "Copilot"
+trigger:
+  page: "*"
+  conditions: []
+
+persona: "Helpful assistant for the leadgen platform. Quick answers, data lookups, navigation help."
+
+system_prompt_template: |
+  You are a helpful assistant for {{company_name}}'s leadgen platform.
+  Answer questions, look up data, and help navigate the platform.
+  Keep responses concise and actionable.
+
+tools:
+  - navigate_suggestion
+  - data_lookup
+
+research_requirements:
+  primary_source: ""
+  cross_check_policy: none
+
+scoring_rubric:
+  sections: {}
+  thresholds: {}
+
+discovery_questions: []
+
+phases:
+  - respond
