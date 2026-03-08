@@ -161,6 +161,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [activeToolName, setActiveToolName] = useState<string | null>(null)
   const [thinkingStatus, setThinkingStatus] = useState('Thinking...')
 
+  // Section-level soft lock (BL-1019): track which section AI is writing to
+  const [streamingSection, setStreamingSection] = useState<string | null>(null)
+
   // Proactive analysis state (BL-119)
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
   const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
@@ -406,6 +409,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 status: 'running',
               },
             ])
+
+            // BL-1019: Track which section the AI is writing to
+            const SECTION_TOOLS = new Set(['update_strategy_section', 'append_to_section'])
+            if (SECTION_TOOLS.has(event.toolName)) {
+              const section = (event.input?.section as string) ?? null
+              setStreamingSection(section)
+            }
           },
           onToolResult: (result) => {
             setToolCalls((prev) =>

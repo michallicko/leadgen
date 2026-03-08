@@ -26,6 +26,8 @@ interface PhasePanelProps {
   isSectionStreaming?: boolean
   /** Which section is currently being streamed. */
   streamingSection?: string | null
+  /** Called when user edits inside the AI-streaming section (BL-1019). */
+  onUserEditDuringAIWrite?: (sectionName: string) => void
 }
 
 export function PhasePanel({
@@ -40,6 +42,7 @@ export function PhasePanel({
   sectionStreamingText,
   isSectionStreaming,
   streamingSection,
+  onUserEditDuringAIWrite,
 }: PhasePanelProps) {
   switch (phase) {
     case 'strategy':
@@ -52,6 +55,7 @@ export function PhasePanel({
             sectionStreamingText={sectionStreamingText}
             isSectionStreaming={isSectionStreaming}
             streamingSection={streamingSection}
+            onUserEditDuringAIWrite={onUserEditDuringAIWrite}
           />
         </div>
       )
@@ -87,6 +91,7 @@ export function PhasePanel({
             sectionStreamingText={sectionStreamingText}
             isSectionStreaming={isSectionStreaming}
             streamingSection={streamingSection}
+            onUserEditDuringAIWrite={onUserEditDuringAIWrite}
           />
         </div>
       )

@@ -400,6 +400,30 @@ export function PlaybookPage() {
   // Editor handlers
   // ---------------------------------------------------------------------------
 
+  // BL-1019: When user edits a section the AI is actively writing,
+  // send a chat message asking the agent to pause and defer to the user.
+  const userEditConflictSentRef = useRef(false)
+  useEffect(() => {
+    // Reset the guard when AI finishes writing
+    if (!streamingSection) {
+      userEditConflictSentRef.current = false
+    }
+  }, [streamingSection])
+
+  const handleUserEditDuringAIWrite = useCallback(
+    (sectionName: string) => {
+      // Only send once per streaming section to avoid spamming
+      if (userEditConflictSentRef.current) return
+      userEditConflictSentRef.current = true
+
+      sendMessage(
+        `[system] User edited the "${sectionName}" section while AI was writing to it. ` +
+          'Please pause and ask the user whether to continue from their version or discard their changes.',
+      )
+    },
+    [sendMessage],
+  )
+
   const handleEditorUpdate = useCallback((content: string) => {
     // Skip if content matches what's already saved (e.g. Tiptap init firing onUpdate)
     if (content === lastSavedContentRef.current) return
@@ -758,6 +782,7 @@ export function PlaybookPage() {
             sectionStreamingText={sectionStreamingText}
             isSectionStreaming={isSectionStreaming}
             streamingSection={streamingSection}
+            onUserEditDuringAIWrite={handleUserEditDuringAIWrite}
           />
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -67,6 +67,8 @@ interface StrategyEditorProps {
   isSectionStreaming?: boolean
   /** Which section is currently being streamed. */
   streamingSection?: string | null
+  /** Called when the user edits inside the section the AI is currently writing. */
+  onUserEditDuringAIWrite?: (sectionName: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +210,7 @@ export function StrategyEditor({
   sectionStreamingText = '',
   isSectionStreaming = false,
   streamingSection = null,
+  onUserEditDuringAIWrite,
 }: StrategyEditorProps) {
   // Typewriter effect for streaming text
   const displayedText = useTypewriter(sectionStreamingText, 30)
@@ -305,6 +308,83 @@ export function StrategyEditor({
       }
     }
   }, [editor, content])
+
+  // ---------------------------------------------------------------------------
+  // AI writing indicator: add/remove CSS class on the H2 heading being written
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!editor) return
+
+    const CSS_CLASS = 'ai-writing'
+
+    // Remove any previously-applied ai-writing class
+    const view = editor.view
+    const dom = view.dom
+
+    dom.querySelectorAll(`.${CSS_CLASS}`).forEach((el) => el.classList.remove(CSS_CLASS))
+
+    if (!streamingSection) return
+
+    // Find the H2 heading whose text content matches streamingSection
+    const headings = dom.querySelectorAll('h2')
+    for (const h of headings) {
+      if (h.textContent?.trim() === streamingSection.trim()) {
+        h.classList.add(CSS_CLASS)
+        break
+      }
+    }
+  }, [editor, streamingSection])
+
+  // ---------------------------------------------------------------------------
+  // Detect user edits within the AI-streaming section
+  // ---------------------------------------------------------------------------
+
+  const streamingSectionRef = useRef<string | null>(null)
+  streamingSectionRef.current = streamingSection ?? null
+
+  const onUserEditDuringAIWriteRef = useRef(onUserEditDuringAIWrite)
+  onUserEditDuringAIWriteRef.current = onUserEditDuringAIWrite
+
+  // Determine which H2 section contains a given document position
+  const getSectionAtPos = useCallback(
+    (pos: number): string | null => {
+      if (!editor) return null
+      const doc = editor.state.doc
+      let lastHeading: string | null = null
+      doc.nodesBetween(0, pos, (node) => {
+        if (node.type.name === 'heading' && node.attrs.level === 2) {
+          lastHeading = node.textContent.trim()
+        }
+      })
+      return lastHeading
+    },
+    [editor],
+  )
+
+  // Listen for editor transactions to detect user-initiated edits in the AI section
+  useEffect(() => {
+    if (!editor) return
+
+    const handler = () => {
+      const section = streamingSectionRef.current
+      if (!section) return
+
+      // Only care about user-initiated edits (not programmatic setContent)
+      if (skipNextUpdateRef.current) return
+
+      const { from } = editor.state.selection
+      const editedSection = getSectionAtPos(from)
+      if (editedSection && editedSection === section) {
+        onUserEditDuringAIWriteRef.current?.(section)
+      }
+    }
+
+    editor.on('update', handler)
+    return () => {
+      editor.off('update', handler)
+    }
+  }, [editor, getSectionAtPos])
 
   return (
     <div className="strategy-editor rounded-lg border border-border-solid bg-surface">
