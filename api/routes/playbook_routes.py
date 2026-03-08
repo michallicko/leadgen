@@ -3164,12 +3164,36 @@ def chat_v2():
         "has_strategy": False,
         "onboarding_completed": False,
     }
-    # Check if a strategy doc exists to determine state
+    # Check if a strategy doc exists to determine state.
+    # has_strategy: True only when extracted_data contains structured output
+    # from a completed onboarding (tiers, personas, or populated sections).
+    # Raw content length is unreliable — leftover drafts, templates, or
+    # partial generations can have >50 chars without a real strategy.
     doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-    if doc and doc.content and len(doc.content.strip()) > 50:
-        state["has_strategy"] = True
-    if doc and doc.phase and doc.phase != "strategy":
-        state["onboarding_completed"] = True
+    if doc:
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            try:
+                extracted = json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        has_structured_data = bool(
+            extracted.get("tiers")
+            or extracted.get("personas")
+            or extracted.get("sections")
+        )
+        if has_structured_data:
+            state["has_strategy"] = True
+        if doc.phase and doc.phase != "strategy":
+            state["onboarding_completed"] = True
+    logger.info(
+        "V2 chat state: has_strategy=%s, onboarding_completed=%s, "
+        "doc_exists=%s, doc_phase=%s",
+        state["has_strategy"],
+        state["onboarding_completed"],
+        doc is not None,
+        doc.phase if doc else None,
+    )
 
     tool_context = {
         "tenant_id": str(tenant_id),
