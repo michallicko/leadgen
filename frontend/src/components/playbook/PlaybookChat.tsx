@@ -11,6 +11,8 @@
 import { ChatMessages, type ChatMessage } from '../chat/ChatMessages'
 import { ChatInput } from '../chat/ChatInput'
 import type { ToolCallEvent } from './ToolCallCard'
+import type { ThinkingFinding } from '../chat/ThinkingStatus'
+import type { QuickAction } from '../chat/QuickActions'
 
 // Re-export ChatMessage type for consumers
 export type { ChatMessage }
@@ -34,6 +36,14 @@ interface PlaybookChatProps {
   isThinking?: boolean
   /** Clickable suggestion chips shown above the input */
   suggestions?: string[]
+  /** BL-1015: Current research finding during agent work */
+  currentFinding?: ThinkingFinding | null
+  /** BL-1015: Per-message thinking history */
+  messageFindings?: Record<string, ThinkingFinding[]>
+  /** BL-1017: Per-message quick actions */
+  messageQuickActions?: Record<string, QuickAction[]>
+  /** BL-1017: Handler for quick action clicks */
+  onQuickAction?: (action: QuickAction) => void
 }
 
 export function PlaybookChat({
@@ -48,6 +58,10 @@ export function PlaybookChat({
   toolCalls = [],
   isThinking = false,
   suggestions = [],
+  currentFinding = null,
+  messageFindings = {},
+  messageQuickActions = {},
+  onQuickAction,
 }: PlaybookChatProps) {
   return (
     <div className="flex flex-col h-full bg-surface rounded-lg border border-border-solid overflow-hidden">
@@ -77,6 +91,10 @@ export function PlaybookChat({
         isLoading={isLoading}
         toolCalls={toolCalls}
         isThinking={isThinking}
+        currentFinding={currentFinding}
+        messageFindings={messageFindings}
+        messageQuickActions={messageQuickActions}
+        onQuickAction={onQuickAction}
       />
 
       {/* Suggestion chips */}

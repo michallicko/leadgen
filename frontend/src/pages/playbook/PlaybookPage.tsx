@@ -128,6 +128,10 @@ export function PlaybookPage() {
     analysisStreamingText,
     isAnalysisStreaming,
     analysisSuggestions,
+    currentFinding,
+    messageFindings,
+    messageQuickActions,
+    handleQuickAction,
   } = useChatContext()
 
   // Server state
@@ -887,6 +891,10 @@ export function PlaybookPage() {
             toolCalls={toolCalls}
             isThinking={isThinking}
             suggestions={activeSuggestions}
+            currentFinding={currentFinding}
+            messageFindings={messageFindings}
+            messageQuickActions={messageQuickActions}
+            onQuickAction={handleQuickAction}
           />
         </div>
       </div>

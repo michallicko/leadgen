@@ -74,6 +74,10 @@ export function ChatPanel() {
     chatInputRef,
     toolCalls,
     isThinking,
+    currentFinding,
+    messageFindings,
+    messageQuickActions,
+    handleQuickAction,
   } = useChatContext()
 
   // Don't render on Playbook page — inline chat is used there
@@ -141,6 +145,10 @@ export function ChatPanel() {
           isLoading={isLoading}
           toolCalls={toolCalls}
           isThinking={isThinking}
+          currentFinding={currentFinding}
+          messageFindings={messageFindings}
+          messageQuickActions={messageQuickActions}
+          onQuickAction={handleQuickAction}
         />
 
         {/* Workflow progress strip */}

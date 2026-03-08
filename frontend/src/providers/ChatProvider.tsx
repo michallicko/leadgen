@@ -19,7 +19,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { usePlaybookChat, useNewThread } from '../api/queries/usePlaybook'
@@ -28,6 +28,8 @@ import { resolveApiBase, buildHeaders } from '../api/client'
 import { getAccessToken } from '../lib/auth'
 import type { ChatMessage } from '../components/chat/ChatMessages'
 import type { ToolCallEvent } from '../components/playbook/ToolCallCard'
+import type { ThinkingFinding } from '../components/chat/ThinkingStatus'
+import type { QuickAction } from '../components/chat/QuickActions'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +63,22 @@ interface ChatContextValue {
   isAnalysisStreaming: boolean
   /** Dynamic suggestion chips extracted from proactive analysis. */
   analysisSuggestions: string[]
+
+  // Transparent thinking state (BL-1015)
+  /** Current research finding being displayed during agent work. */
+  currentFinding: ThinkingFinding | null
+  /** History of all findings from the current agent turn. */
+  thinkingHistory: ThinkingFinding[]
+  /** Per-message thinking history, keyed by message ID. */
+  messageFindings: Record<string, ThinkingFinding[]>
+
+  // Quick actions (BL-1017)
+  /** Quick actions from the last completed agent response. */
+  quickActions: QuickAction[]
+  /** Per-message quick actions, keyed by message ID. */
+  messageQuickActions: Record<string, QuickAction[]>
+  /** Handler for quick action button clicks. */
+  handleQuickAction: (action: QuickAction) => void
 
   // Actions
   toggleChat: () => void
@@ -108,6 +126,7 @@ function setStoredOpen(open: boolean) {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
 
@@ -136,14 +155,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
   const [analysisSuggestions, setAnalysisSuggestions] = useState<string[]>([])
 
+  // Transparent thinking state (BL-1015)
+  const [currentFinding, setCurrentFinding] = useState<ThinkingFinding | null>(null)
+  const [thinkingHistory, setThinkingHistory] = useState<ThinkingFinding[]>([])
+  const [messageFindings, setMessageFindings] = useState<Record<string, ThinkingFinding[]>>({})
+
+  // Quick actions state (BL-1017)
+  const [quickActions, setQuickActions] = useState<QuickAction[]>([])
+  const [messageQuickActions, setMessageQuickActions] = useState<Record<string, QuickAction[]>>({})
+
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Derive current page from router location
+  // Derive current page and namespace from router location
   const currentPage = useMemo(() => {
     const segments = location.pathname.split('/').filter(Boolean)
     // URL: /:namespace/:page/...
     return segments[1] || 'unknown'
+  }, [location.pathname])
+
+  const currentNamespace = useMemo(() => {
+    const segments = location.pathname.split('/').filter(Boolean)
+    return segments[0] || ''
   }, [location.pathname])
 
   const isOnPlaybookPage = currentPage === 'playbook'
@@ -210,6 +243,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
+      setCurrentFinding(null)
+      setThinkingHistory([])
+      setQuickActions([])
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -233,6 +269,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+
+            // BL-1015: Save thinking history per message
+            setCurrentFinding(null)
+            setThinkingHistory((prev) => {
+              if (prev.length > 0 && doneData.messageId) {
+                setMessageFindings((mf) => ({
+                  ...mf,
+                  [doneData.messageId]: prev,
+                }))
+              }
+              return []
+            })
+
+            // BL-1017: Save quick actions per message
+            const doneQuickActions = doneData.quickActions
+            if (doneQuickActions && doneQuickActions.length > 0) {
+              setQuickActions(doneQuickActions)
+              if (doneData.messageId) {
+                setMessageQuickActions((mqa) => ({
+                  ...mqa,
+                  [doneData.messageId]: doneQuickActions,
+                }))
+              }
+            } else {
+              setQuickActions([])
+            }
+
             chatQuery.refetch()
 
             // Detect document changes from strategy tool calls
@@ -273,6 +336,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setActiveToolName(null)
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
+            setCurrentFinding(null)
+            setThinkingHistory([])
+            setQuickActions([])
           },
           onToolStart: (event) => {
             setIsThinking(false)
@@ -321,6 +387,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Refetch to pick up the new analysis message
             chatQuery.refetch()
           },
+          onResearchFinding: (event) => {
+            const finding: ThinkingFinding = {
+              action: event.action,
+              finding: event.finding,
+              timestamp: Date.now(),
+              step: event.step,
+            }
+            setCurrentFinding(finding)
+            setThinkingHistory((prev) => [...prev, finding])
+            // Also clear the initial thinking state (like tool_start does)
+            setIsThinking(false)
+          },
         },
       )
     },
@@ -334,6 +412,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const startNewThread = useCallback(() => {
     newThreadMutation.mutate(undefined)
   }, [newThreadMutation])
+
+  // BL-1017: Quick action handler
+  const handleQuickAction = useCallback(
+    (action: QuickAction) => {
+      if (action.type === 'navigate' && action.target) {
+        const path = currentNamespace ? `/${currentNamespace}${action.target}` : action.target
+        navigate(path)
+      } else if (action.type === 'chat_action') {
+        sendMessage(action.label)
+      }
+    },
+    [currentNamespace, navigate, sendMessage],
+  )
 
   // ---------------------------------------------------------------------------
   // Cmd+K shortcut
@@ -398,6 +489,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      currentFinding,
+      thinkingHistory,
+      messageFindings,
+      quickActions,
+      messageQuickActions,
+      handleQuickAction,
       toggleChat,
       openChat,
       closeChat,
@@ -421,6 +518,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      currentFinding,
+      thinkingHistory,
+      messageFindings,
+      quickActions,
+      messageQuickActions,
+      handleQuickAction,
       toggleChat,
       openChat,
       closeChat,
