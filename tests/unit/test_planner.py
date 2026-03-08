@@ -190,30 +190,72 @@ class TestCheckInterruptNode:
         result = check_interrupt_node(base_state)
         assert result["is_interrupted"] is False
 
-    def test_correction_interrupt(self, base_state):
+    def test_correction_interrupt(self, base_state, monkeypatch):
         base_state["is_interrupted"] = True
         base_state["interrupt_message"] = "Revenue is 50M not 30M"
+        monkeypatch.setattr(
+            "api.agents.planner.get_stream_writer", lambda: MockWriter()
+        )
+        monkeypatch.setattr(
+            "api.agents.interrupt_handlers.process_interrupt",
+            lambda state: {
+                "user_corrections": list(state.get("user_corrections") or [])
+                + [state["interrupt_message"]],
+                "is_interrupted": False,
+                "interrupt_type": "correction",
+                "interrupt_message": "",
+            },
+        )
         result = check_interrupt_node(base_state)
         assert result["interrupt_type"] == "correction"
         assert result["is_interrupted"] is False
         assert "Revenue is 50M not 30M" in result["user_corrections"]
 
-    def test_stop_interrupt(self, base_state):
+    def test_stop_interrupt(self, base_state, monkeypatch):
         base_state["is_interrupted"] = True
         base_state["interrupt_message"] = "stop"
+        monkeypatch.setattr(
+            "api.agents.planner.get_stream_writer", lambda: MockWriter()
+        )
+        monkeypatch.setattr(
+            "api.agents.interrupt_handlers.process_interrupt",
+            lambda state: {"interrupt_type": "stop"},
+        )
         result = check_interrupt_node(base_state)
         assert result["interrupt_type"] == "stop"
 
-    def test_question_interrupt(self, base_state):
+    def test_question_interrupt(self, base_state, monkeypatch):
         base_state["is_interrupted"] = True
         base_state["interrupt_message"] = "What is the market size?"
+        monkeypatch.setattr(
+            "api.agents.planner.get_stream_writer", lambda: MockWriter()
+        )
+        monkeypatch.setattr(
+            "api.agents.interrupt_handlers.process_interrupt",
+            lambda state: {
+                "interrupt_type": "question",
+                "is_interrupted": False,
+                "interrupt_message": "",
+            },
+        )
         result = check_interrupt_node(base_state)
         assert result["interrupt_type"] == "question"
         assert result["is_interrupted"] is False
 
-    def test_redirect_interrupt(self, base_state):
+    def test_redirect_interrupt(self, base_state, monkeypatch):
         base_state["is_interrupted"] = True
         base_state["interrupt_message"] = "Actually focus on competitors"
+        monkeypatch.setattr(
+            "api.agents.planner.get_stream_writer", lambda: MockWriter()
+        )
+        monkeypatch.setattr(
+            "api.agents.interrupt_handlers.process_interrupt",
+            lambda state: {
+                "interrupt_type": "redirect",
+                "is_interrupted": False,
+                "interrupt_message": "",
+            },
+        )
         result = check_interrupt_node(base_state)
         assert result["interrupt_type"] == "redirect"
         assert result["is_interrupted"] is False
