@@ -1470,7 +1470,20 @@ class StrategyVersion(db.Model):
     extracted_data = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     edit_source = db.Column(db.String(20), nullable=False, default="ai_tool")
     turn_id = db.Column(UUID(as_uuid=False), nullable=True)
+    description = db.Column(db.String(255), nullable=True)
+    metadata_ = db.Column("metadata", JSONB, server_default=db.text("'{}'::jsonb"))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "document_id": self.document_id,
+            "version_number": self.version,
+            "author_type": "ai" if self.edit_source in ("ai_tool",) else "user",
+            "description": self.description or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "metadata": self.metadata_ if isinstance(self.metadata_, dict) else {},
+        }
 
 
 class StrategyTemplate(db.Model):

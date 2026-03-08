@@ -247,6 +247,18 @@ def update_strategy_section(args: dict, ctx: ToolContext) -> dict:
     doc.updated_by = ctx.user_id
     db.session.commit()
 
+    # Auto-snapshot after AI section edit (BL-1014)
+    try:
+        from .version_service import auto_snapshot_if_needed
+
+        auto_snapshot_if_needed(
+            doc.id,
+            trigger="ai_section_complete",
+            description="AI updated section: {}".format(section),
+        )
+    except Exception:
+        logger.debug("Auto-snapshot failed (non-critical)", exc_info=True)
+
     return {
         "success": True,
         "section": section,
@@ -548,6 +560,18 @@ def append_to_section(args: dict, ctx: ToolContext) -> dict:
     doc.version += 1
     doc.updated_by = ctx.user_id
     db.session.commit()
+
+    # Auto-snapshot after AI section append (BL-1014)
+    try:
+        from .version_service import auto_snapshot_if_needed
+
+        auto_snapshot_if_needed(
+            doc.id,
+            trigger="ai_section_complete",
+            description="AI appended to section: {}".format(section),
+        )
+    except Exception:
+        logger.debug("Auto-snapshot failed (non-critical)", exc_info=True)
 
     return {
         "success": True,

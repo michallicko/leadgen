@@ -23,6 +23,7 @@ import { PlaybookOnboarding, type OnboardingPayload } from '../../components/pla
 import { TemplateSelector } from '../../components/playbook/TemplateSelector'
 import { IcpTiersTab } from '../../components/playbook/IcpTiersTab'
 import { BuyerPersonasTab } from '../../components/playbook/BuyerPersonasTab'
+import { VersionBrowser } from '../../components/playbook/VersionBrowser'
 import {
   usePlaybookDocument,
   useSavePlaybook,
@@ -63,6 +64,46 @@ function UndoIcon() {
   )
 }
 
+function SaveTemplateIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.67 14H3.33A1.33 1.33 0 0 1 2 12.67V3.33A1.33 1.33 0 0 1 3.33 2h7.34L14 5.33v7.34A1.33 1.33 0 0 1 12.67 14Z" />
+      <path d="M11.33 14V9.33H4.67V14M4.67 2v3.33h5.33" />
+    </svg>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 8a6.5 6.5 0 1 1 1.28 3.88" />
+      <path d="M1 4.5v4h4" />
+      <path d="M8 4.5V8l2.5 1.5" />
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Phase-specific placeholder text for chat input
+// ---------------------------------------------------------------------------
+
+const PHASE_PLACEHOLDERS: Record<string, string> = {
+  strategy: 'Ask about your ICP strategy...',
+  contacts: 'Which contacts should we target?',
+  messages: "Let's craft your outreach messages...",
+  campaign: 'Configure your campaign...',
+}
+
+// ---------------------------------------------------------------------------
+// Phase-specific action button labels
+// ---------------------------------------------------------------------------
+
+const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
+  strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
+  contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
+  messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
+  campaign: { label: 'Launch Campaign', pendingLabel: 'Launching...' },
+}
 
 // ---------------------------------------------------------------------------
 // PlaybookPage
@@ -116,6 +157,12 @@ export function PlaybookPage() {
   const researchQuery = useResearchStatus(researchTriggered)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   // BL-201: extractionResult state removed — extraction is now continuous
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showVersionBrowser, setShowVersionBrowser] = useState(false)
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDescription, setTemplateDescription] = useState('')
+  const [triageSynced, setTriageSynced] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -573,6 +620,31 @@ export function PlaybookPage() {
         {/* Research progress is now shown via tool cards in chat (BL-194) */}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Version History */}
+          {viewPhase === 'strategy' && docQuery.data?.id && (
+            <button
+              onClick={() => setShowVersionBrowser(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              title="View version history"
+            >
+              <HistoryIcon />
+              History
+            </button>
+          )}
+
+          {/* Save as Template */}
+          {viewPhase === 'strategy' && docContent.trim() && (
+            <button
+              onClick={() => setShowSaveTemplate(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
+              title="Save current strategy as a reusable template"
+            >
+              <SaveTemplateIcon />
+              Save as Template
+            </button>
+          )}
+
+
           {/* Undo AI edit button */}
           {hasUndoableEdits && (
             <button
@@ -680,6 +752,15 @@ export function PlaybookPage() {
           />
         )}
       </div>
+
+      {/* Version History panel (BL-1014) */}
+      {docQuery.data?.id && (
+        <VersionBrowser
+          documentId={docQuery.data.id}
+          open={showVersionBrowser}
+          onClose={() => setShowVersionBrowser(false)}
+        />
+      )}
     </div>
   )
 }
