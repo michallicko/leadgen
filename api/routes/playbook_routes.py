@@ -38,6 +38,11 @@ from ..models import (
 from ..agents.graph import execute_graph_turn
 from ..services.anthropic_client import AnthropicClient
 from ..services.llm_logger import log_llm_usage
+from ..services.scoring_service import (
+    calculate_completeness,
+    score_strategy_quality,
+    strategy_score_to_dict,
+)
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
@@ -3049,3 +3054,56 @@ def confirm_messages(playbook_id):
             "campaign_id": str(campaign.id),
         }
     ), 200
+
+
+# ---------------------------------------------------------------------------
+# Quality Scoring endpoints (BL-1016)
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/score", methods=["GET"])
+@require_auth
+def get_strategy_score():
+    """Get current completeness score (cheap, no LLM call)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    completeness = calculate_completeness(doc.content or "")
+    return jsonify(completeness), 200
+
+
+@playbook_bp.route("/api/playbook/score", methods=["POST"])
+@require_auth
+def request_quality_score():
+    """Trigger full AI quality scoring (calls Anthropic)."""
+    import asyncio
+
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    content = doc.content or ""
+    if not content.strip():
+        return jsonify({"error": "Strategy document is empty"}), 422
+
+    goal = doc.objective or ""
+
+    # Run the async scoring function synchronously
+    try:
+        loop = asyncio.new_event_loop()
+        score = loop.run_until_complete(score_strategy_quality(content, goal))
+        loop.close()
+    except Exception:
+        logger.exception("Quality scoring failed")
+        return jsonify({"error": "Scoring failed"}), 500
+
+    return jsonify(strategy_score_to_dict(score)), 200

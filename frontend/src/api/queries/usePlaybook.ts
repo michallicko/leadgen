@@ -143,6 +143,59 @@ export function useAdvancePhase() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Quality Scoring (BL-1016)
+// ---------------------------------------------------------------------------
+
+export interface CompletenessResult {
+  ratio: number
+  filled: number
+  total: number
+  sections: Record<string, boolean>
+}
+
+export interface SectionScoreResult {
+  section_name: string
+  completeness: number
+  quality_score: number | null
+  quality_reasoning: string
+  improvement_suggestions: string[]
+  scored_at: string | null
+}
+
+export interface StrategyScoreResult {
+  completeness_ratio: number
+  sections_filled: number
+  sections_total: number
+  section_scores: SectionScoreResult[]
+  overall_quality: number | null
+  overall_assessment: string
+}
+
+export function useStrategyCompleteness() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'score', ns],
+    queryFn: () => apiFetch<CompletenessResult>('/playbook/score'),
+    refetchInterval: 30_000, // refresh every 30s
+  })
+}
+
+export function useRequestQualityScore() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<StrategyScoreResult>('/playbook/score', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'score'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Undo
+// ---------------------------------------------------------------------------
+
 interface UndoResponse {
   success: boolean
   restored_version: number
