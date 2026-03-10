@@ -21,11 +21,10 @@ from api.agents.events import (
     tool_call_end,
     tool_call_start,
 )
-from api.agents.graph import (
-    SSEEvent,
-    build_strategy_graph,
-    build_system_messages,
-    should_continue,
+from api.agents.graph import SSEEvent
+from api.agents.subgraphs.strategy import (
+    build_strategy_subgraph,
+    strategy_should_continue,
 )
 from api.agents.prompts.context import (
     STRATEGY_SECTIONS,
@@ -44,16 +43,16 @@ from api.agents.prompts.identity import (
 
 class TestGraphConstruction:
     def test_graph_compiles(self):
-        graph = build_strategy_graph()
+        graph = build_strategy_subgraph()
         assert graph is not None
 
     def test_graph_has_agent_and_tools_nodes(self):
         """The compiled graph should have agent and tools nodes."""
-        graph = build_strategy_graph()
+        graph = build_strategy_subgraph()
         # CompiledStateGraph exposes nodes
         node_names = set(graph.nodes.keys())
-        assert "agent" in node_names
-        assert "tools" in node_names
+        assert "strategy_agent" in node_names
+        assert "strategy_tools" in node_names
 
 
 # ---------------------------------------------------------------
@@ -64,14 +63,14 @@ class TestGraphConstruction:
 class TestShouldContinue:
     def test_empty_messages_returns_end(self):
         state = {"messages": [], "iteration": 0}
-        assert should_continue(state) == "end"
+        assert strategy_should_continue(state) == "end"
 
     def test_no_tool_calls_returns_end(self):
         from langchain_core.messages import AIMessage
 
         msg = AIMessage(content="Hello")
         state = {"messages": [msg], "iteration": 0}
-        assert should_continue(state) == "end"
+        assert strategy_should_continue(state) == "end"
 
     def test_with_tool_calls_returns_tools(self):
         from langchain_core.messages import AIMessage
@@ -81,7 +80,7 @@ class TestShouldContinue:
             tool_calls=[{"name": "test_tool", "args": {}, "id": "tc_1"}],
         )
         state = {"messages": [msg], "iteration": 0}
-        assert should_continue(state) == "tools"
+        assert strategy_should_continue(state) == "tools"
 
     def test_max_iterations_returns_end(self):
         from langchain_core.messages import AIMessage
@@ -91,7 +90,7 @@ class TestShouldContinue:
             tool_calls=[{"name": "test_tool", "args": {}, "id": "tc_1"}],
         )
         state = {"messages": [msg], "iteration": 25}
-        assert should_continue(state) == "end"
+        assert strategy_should_continue(state) == "end"
 
 
 # ---------------------------------------------------------------
@@ -137,18 +136,6 @@ class TestPromptLayering:
         block = build_context_block(doc)
         assert "Grow revenue 50%" in block["text"]
 
-    def test_build_system_messages_returns_system_message(self):
-        from langchain_core.messages import SystemMessage
-
-        doc = MagicMock()
-        doc.content = ""
-        doc.objective = "Test"
-        doc.extracted_data = {}
-        doc.phase = "strategy"
-
-        msgs = build_system_messages(company_name="TestCorp", document=doc)
-        assert len(msgs) == 1
-        assert isinstance(msgs[0], SystemMessage)
 
 
 # ---------------------------------------------------------------

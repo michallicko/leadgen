@@ -55,9 +55,7 @@ def login():
     if iam_resp.status_code != 200:
         if iam_resp.status_code == 401:
             return jsonify({"error": "Invalid email or password"}), 401
-        logger.warning(
-            "IAM login returned %s for %s", iam_resp.status_code, email
-        )
+        logger.warning("IAM login returned %s for %s", iam_resp.status_code, email)
         return jsonify({"error": "Authentication failed"}), iam_resp.status_code
 
     iam_data = iam_resp.json()
