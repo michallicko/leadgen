@@ -31,11 +31,10 @@ import {
   useTriggerResearch,
   useResearchStatus,
   useStrategyCompleteness,
-  useRequestQualityScore,
 } from '../../api/queries/usePlaybook'
 import { CompletenessBar } from '../../components/playbook/CompletenessBar'
-import { QualityScore } from '../../components/playbook/QualityScore'
-import { useCreateStrategyTemplate, useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
+import { PhaseTransitionBanner } from '../../components/chat/PhaseTransitionBanner'
+import { useApplyStrategyTemplate } from '../../api/queries/useStrategyTemplates'
 import { useChatContext } from '../../providers/ChatProvider'
 import { useToast } from '../../components/ui/Toast'
 
@@ -68,15 +67,6 @@ function UndoIcon() {
   )
 }
 
-function SaveTemplateIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12.67 14H3.33A1.33 1.33 0 0 1 2 12.67V3.33A1.33 1.33 0 0 1 3.33 2h7.34L14 5.33v7.34A1.33 1.33 0 0 1 12.67 14Z" />
-      <path d="M11.33 14V9.33H4.67V14M4.67 2v3.33h5.33" />
-    </svg>
-  )
-}
-
 function HistoryIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -91,7 +81,8 @@ function HistoryIcon() {
 // Phase-specific placeholder text for chat input
 // ---------------------------------------------------------------------------
 
-const PHASE_PLACEHOLDERS: Record<string, string> = {
+// Phase-specific placeholder text (reserved for future use)
+export const PHASE_PLACEHOLDERS: Record<string, string> = {
   strategy: 'Ask about your ICP strategy...',
   contacts: 'Which contacts should we target?',
   messages: "Let's craft your outreach messages...",
@@ -99,10 +90,10 @@ const PHASE_PLACEHOLDERS: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// Phase-specific action button labels
+// Phase-specific action button labels (reserved for future use)
 // ---------------------------------------------------------------------------
 
-const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
+export const PHASE_ACTIONS: Record<string, { label: string; pendingLabel: string }> = {
   strategy: { label: 'Extract ICP', pendingLabel: 'Extracting...' },
   contacts: { label: 'Select Contacts', pendingLabel: 'Selecting...' },
   messages: { label: 'Generate Messages', pendingLabel: 'Generating...' },
@@ -129,15 +120,15 @@ export function PlaybookPage() {
     sectionStreamingText,
     isSectionStreaming,
     streamingSection,
-    isThinking,
-    activeToolName,
-    analysisStreamingText,
-    isAnalysisStreaming,
-    analysisSuggestions,
-    currentFinding,
-    messageFindings,
-    messageQuickActions,
-    handleQuickAction,
+    isThinking: _isThinking,
+    activeToolName: _activeToolName,
+    analysisStreamingText: _analysisStreamingText,
+    isAnalysisStreaming: _isAnalysisStreaming,
+    analysisSuggestions: _analysisSuggestions,
+    currentFinding: _currentFinding,
+    messageFindings: _messageFindings,
+    messageQuickActions: _messageQuickActions,
+    handleQuickAction: _handleQuickAction,
   } = useChatContext()
 
   // Server state
@@ -148,27 +139,8 @@ export function PlaybookPage() {
   const undoMutation = useUndoAIEdit()
   const triggerResearch = useTriggerResearch()
 
-  // Quality scoring (BL-1016)
+  // Completeness tracking (BL-1016)
   const completenessQuery = useStrategyCompleteness()
-  const qualityScoreMutation = useRequestQualityScore()
-  const [qualityScoreData, setQualityScoreData] = useState<{
-    section_scores: Array<{ section_name: string; completeness: number; quality_score: number | null; quality_reasoning: string; improvement_suggestions: string[] ; scored_at: string | null }>
-    overall_quality: number | null
-    overall_assessment: string
-  } | null>(null)
-
-  const handleRequestScore = useCallback(async () => {
-    try {
-      const result = await qualityScoreMutation.mutateAsync()
-      setQualityScoreData({
-        section_scores: result.section_scores,
-        overall_quality: result.overall_quality,
-        overall_assessment: result.overall_assessment,
-      })
-    } catch {
-      toast('Quality scoring failed', 'error')
-    }
-  }, [qualityScoreMutation, toast])
 
   // Template application (BL-138)
   const applyTemplateMutation = useApplyStrategyTemplate({
@@ -192,12 +164,11 @@ export function PlaybookPage() {
   const researchQuery = useResearchStatus(researchTriggered)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   // BL-201: extractionResult state removed — extraction is now continuous
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [_showSuggestions, _setShowSuggestions] = useState(false)
   const [showVersionBrowser, setShowVersionBrowser] = useState(false)
-  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
-  const [templateName, setTemplateName] = useState('')
-  const [templateDescription, setTemplateDescription] = useState('')
-  const [triageSynced, setTriageSynced] = useState(false)
+  const [_templateName, _setTemplateName] = useState('')
+  const [_templateDescription, _setTemplateDescription] = useState('')
+  const [_triageSynced, _setTriageSynced] = useState(false)
 
   // Refs for debounced auto-save
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -691,18 +662,6 @@ export function PlaybookPage() {
             </button>
           )}
 
-          {/* Save as Template */}
-          {viewPhase === 'strategy' && docContent.trim() && (
-            <button
-              onClick={() => setShowSaveTemplate(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent cursor-pointer"
-              title="Save current strategy as a reusable template"
-            >
-              <SaveTemplateIcon />
-              Save as Template
-            </button>
-          )}
-
 
           {/* Undo AI edit button */}
           {hasUndoableEdits && (
@@ -805,15 +764,9 @@ export function PlaybookPage() {
                 total={completenessQuery.data.total}
                 sections={completenessQuery.data.sections}
               />
-              <QualityScore
-                scores={qualityScoreData?.section_scores ?? []}
-                overallQuality={qualityScoreData?.overall_quality ?? null}
-                overallAssessment={qualityScoreData?.overall_assessment ?? ''}
-                isLoading={qualityScoreMutation.isPending}
-                onRequestScore={handleRequestScore}
-              />
             </div>
           )}
+          <PhaseTransitionBanner />
           <PhasePanel
             phase={viewPhase}
             content={localContent}

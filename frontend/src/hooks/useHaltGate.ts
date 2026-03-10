@@ -47,16 +47,15 @@ export function useHaltGate(): UseHaltGateReturn {
         const response = await fetch(`${base}/api/agents/halt-gate/respond`, {
           method: 'POST',
           headers: {
-            ...buildHeaders(),
-            Authorization: `Bearer ${token}`,
+            ...buildHeaders(token),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            thread_id: threadId,
-            run_id: runId,
-            gate_id: gateId,
+            threadId,
+            runId,
+            gateId,
             choice,
-            custom_input: customInput ?? null,
+            customInput: customInput ?? null,
           } satisfies HaltGateResponsePayload),
         })
 

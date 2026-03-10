@@ -116,164 +116,6 @@ function ChatIcon() {
 }
 
 // ---------------------------------------------------------------------------
-// DemoChatSidebar — self-contained sidebar that reads from MockChatProvider
-// without using hooks that call real APIs (WorkflowSuggestions, etc.)
-// ---------------------------------------------------------------------------
-
-function DemoChatSidebar({
-  transitionReady,
-  suggestionChips,
-  onChipClick,
-}: {
-  transitionReady: boolean
-  suggestionChips: string[]
-  onChipClick?: (chip: string) => void
-}) {
-  const ctx = useMockChat()
-
-  return (
-    <div
-      className={`flex-shrink-0 border-l border-border bg-surface transition-all duration-300 ease-in-out ${
-        ctx.isOpen ? 'w-[320px] xl:w-[400px]' : 'w-[40px]'
-      }`}
-      role="complementary"
-      aria-label="AI Chat Sidebar"
-    >
-      {/* Collapsed state */}
-      {!ctx.isOpen && (
-        <div className="flex flex-col items-center h-full pt-3">
-          <button
-            onClick={ctx.toggleChat}
-            className="relative p-2 rounded-md text-text-muted hover:text-accent-cyan hover:bg-surface-alt transition-colors bg-transparent border-none cursor-pointer"
-            aria-label="Open AI Chat"
-          >
-            <ChatIcon />
-          </button>
-        </div>
-      )}
-
-      {/* Expanded state */}
-      {ctx.isOpen && (
-        <div className="flex flex-col h-full overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border-solid bg-surface flex-shrink-0">
-            <div className="w-2 h-2 rounded-full bg-accent-cyan" />
-            <h3 className="text-sm font-semibold font-title text-text">
-              AI Strategist
-            </h3>
-            {ctx.isStreaming && (
-              <span className="text-[11px] text-accent-cyan animate-pulse truncate max-w-[140px]">
-                {ctx.thinkingStatus}
-              </span>
-            )}
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                onClick={ctx.toggleChat}
-                className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-surface-alt transition-colors bg-transparent border-none cursor-pointer"
-                title="Collapse chat"
-                aria-label="Collapse chat sidebar"
-              >
-                <CollapseIcon />
-              </button>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <ChatMessages
-            messages={ctx.messages}
-            isStreaming={ctx.isStreaming}
-            streamingText={ctx.streamingText}
-            isLoading={false}
-            toolCalls={ctx.toolCalls}
-            isThinking={ctx.isThinking}
-            thinkingStatus={ctx.thinkingStatus}
-          />
-
-          {/* Phase transition banner (demo-controlled) */}
-          {transitionReady && (
-            <div className="mx-3 my-1.5 flex-shrink-0">
-              <div className="bg-accent-cyan/10 border border-accent-cyan/30 rounded-lg px-3 py-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-accent-cyan flex-shrink-0 mt-0.5">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="8" cy="8" r="6.5" />
-                      <path d="M5.5 8l2 2 3.5-3.5" />
-                    </svg>
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-text leading-snug">
-                      Strategy phase complete!
-                    </p>
-                    <p className="text-[11px] text-text-muted mt-0.5">
-                      Ready to move to: Contacts
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Suggestion chips (demo-controlled) */}
-          {suggestionChips.length > 0 && (
-            <div className="px-3 py-2 border-t border-border flex-shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                <span className="text-[10px] text-text-dim whitespace-nowrap flex-shrink-0">Next:</span>
-                {suggestionChips.map((chip) => (
-                  <button
-                    key={chip}
-                    onClick={() => onChipClick?.(chip)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full border border-border-solid bg-surface-alt text-text-muted hover:text-text hover:border-accent/40 hover:bg-accent/5 transition-colors whitespace-nowrap cursor-pointer flex-shrink-0"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Input */}
-          <ChatInput
-            onSend={() => {}}
-            isStreaming={ctx.isStreaming}
-            placeholder="Ask about your GTM strategy..."
-            inputRef={ctx.chatInputRef}
-          />
-
-          <div className="px-3 pb-2 flex-shrink-0">
-            <p className="text-[10px] text-text-dim text-center">
-              Cmd+K to toggle
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// useMockChat — convenience hook for demo sidebar to read from context
-// ---------------------------------------------------------------------------
-
-function useMockChat() {
-  const ctx = useRef<ChatContextValue | null>(null)
-  // We use ChatContext directly since we provide it
-  const [, forceUpdate] = useState(0)
-
-  // This is a bit hacky but lets us read from the context directly
-  // We'll call this from within the provider
-  return {
-    get messages() { return ctx.current?.messages ?? [] },
-    get isOpen() { return ctx.current?.isOpen ?? true },
-    get isStreaming() { return ctx.current?.isStreaming ?? false },
-    get streamingText() { return ctx.current?.streamingText ?? '' },
-    get toolCalls() { return ctx.current?.toolCalls ?? [] },
-    get isThinking() { return ctx.current?.isThinking ?? false },
-    get thinkingStatus() { return ctx.current?.thinkingStatus ?? 'Thinking...' },
-    get chatInputRef() { return ctx.current?.chatInputRef ?? { current: null } },
-    toggleChat: () => ctx.current?.toggleChat(),
-    _setCtx: (c: ChatContextValue) => { ctx.current = c; forceUpdate((n) => n + 1) },
-  }
-}
 
 // ---------------------------------------------------------------------------
 // DemoChatSidebarInner — reads from ChatContext
@@ -480,6 +322,12 @@ export function PlaybookDemo() {
     sectionStreamingText,
     isSectionStreaming,
     streamingSection,
+    currentFinding: null,
+    thinkingHistory: [],
+    messageFindings: {},
+    quickActions: [],
+    messageQuickActions: {},
+    handleQuickAction: () => {},
     toggleChat: () => setIsOpen((p) => !p),
     openChat: () => setIsOpen(true),
     closeChat: () => setIsOpen(false),

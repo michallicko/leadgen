@@ -507,7 +507,7 @@ export function ChatMessages({
               <div className="text-[11px] text-text-muted/70 pl-[18px]">
                 {toolCalls.filter((t) => t.status === 'running').length > 0
                   ? `Running ${toolCalls.filter((t) => t.status === 'running').length} tool${toolCalls.filter((t) => t.status === 'running').length > 1 ? 's' : ''}...`
-                  : `${toolCalls.filter((t) => t.status === 'done' || t.status === 'success').length} tool${toolCalls.filter((t) => t.status === 'done' || t.status === 'success').length > 1 ? 's' : ''} completed`}
+                  : `${toolCalls.filter((t) => t.status === 'success').length} tool${toolCalls.filter((t) => t.status === 'success').length > 1 ? 's' : ''} completed`}
               </div>
             )}
           </div>
