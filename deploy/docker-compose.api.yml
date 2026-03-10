@@ -20,6 +20,9 @@ services:
       - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-leadgen-pipeline}
+      - IAM_BASE_URL=${IAM_BASE_URL:-https://iam.visionvolve.com}
+      - IAM_JWKS_URL=${IAM_JWKS_URL:-https://iam.visionvolve.com/.well-known/jwks.json}
+      - IAM_AUDIENCE=${IAM_AUDIENCE:-leadgen}
     ports:
       - "127.0.0.1:5000:5000"
     restart: unless-stopped

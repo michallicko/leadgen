@@ -25,3 +25,12 @@ class Config:
     PERPLEXITY_BASE_URL = os.environ.get(
         "PERPLEXITY_BASE_URL", "https://api.perplexity.ai"
     )
+
+    # IAM integration
+    IAM_BASE_URL = os.environ.get("IAM_BASE_URL", "https://iam.visionvolve.com")
+    IAM_JWKS_URL = os.environ.get(
+        "IAM_JWKS_URL",
+        os.environ.get("IAM_BASE_URL", "https://iam.visionvolve.com")
+        + "/.well-known/jwks.json",
+    )
+    IAM_AUDIENCE = os.environ.get("IAM_AUDIENCE", "leadgen")
