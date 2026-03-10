@@ -171,8 +171,7 @@ export function StrategyTemplatesSection() {
               </h3>
               {userTemplates.length === 0 ? (
                 <p className="text-xs text-text-dim py-3 text-center border border-dashed border-border rounded-lg">
-                  No saved templates yet. Use &quot;Save as Template&quot; from your strategy
-                  page to create one.
+                  No saved templates yet. Templates are managed internally.
                 </p>
               ) : (
                 <div className="space-y-2">

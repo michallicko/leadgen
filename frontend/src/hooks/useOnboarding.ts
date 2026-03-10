@@ -12,6 +12,7 @@ export interface OnboardingStatus {
   has_strategy: boolean
   onboarding_path: string | null
   checklist_dismissed: boolean
+  workflow_phase?: string
 }
 
 interface OnboardingSettingsPayload {

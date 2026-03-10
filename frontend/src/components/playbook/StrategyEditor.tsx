@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
 import { Table } from '@tiptap/extension-table'
@@ -10,7 +11,39 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from 'tiptap-markdown'
 import { MermaidExtension } from './MermaidExtension'
 import { STRATEGY_TEMPLATE } from './strategy-template'
+import { useTypewriter } from '../../hooks/useTypewriter'
 import './strategy-editor.css'
+
+// ---------------------------------------------------------------------------
+// BlockDelete — keyboard shortcut extension for deleting block-level nodes
+// ---------------------------------------------------------------------------
+
+const BlockDelete = Extension.create({
+  name: 'blockDelete',
+  addKeyboardShortcuts() {
+    return {
+      Backspace: ({ editor }) => {
+        const { selection } = editor.state
+        // If a NodeSelection or entire block is selected, delete it
+        if (selection.empty) return false
+        const { $from } = selection
+        if ($from.parent.type.name === 'table' || $from.parent.type.name === 'codeBlock') {
+          return editor.commands.deleteSelection()
+        }
+        return false
+      },
+      Delete: ({ editor }) => {
+        const { selection } = editor.state
+        if (selection.empty) return false
+        const { $from } = selection
+        if ($from.parent.type.name === 'table' || $from.parent.type.name === 'codeBlock') {
+          return editor.commands.deleteSelection()
+        }
+        return false
+      },
+    }
+  },
+})
 
 // Default mermaid template inserted by the toolbar Diagram button
 const MERMAID_TEMPLATE = `graph TD
@@ -28,6 +61,14 @@ interface StrategyEditorProps {
   content: string | null
   onUpdate: (content: string) => void
   editable?: boolean
+  /** Accumulated streaming text for typewriter effect. */
+  sectionStreamingText?: string
+  /** True while section content is streaming in. */
+  isSectionStreaming?: boolean
+  /** Which section is currently being streamed. */
+  streamingSection?: string | null
+  /** Called when the user edits inside the section the AI is currently writing. */
+  onUserEditDuringAIWrite?: (sectionName: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +207,26 @@ export function StrategyEditor({
   content,
   onUpdate,
   editable = true,
+  sectionStreamingText = '',
+  isSectionStreaming = false,
+  streamingSection = null,
+  onUserEditDuringAIWrite,
 }: StrategyEditorProps) {
+  // Typewriter effect for streaming text
+  const displayedText = useTypewriter(sectionStreamingText, 30)
+
+  // Track overlay visibility for fade transitions
+  const [overlayVisible, setOverlayVisible] = useState(false)
+  useEffect(() => {
+    if (isSectionStreaming && sectionStreamingText) {
+      setOverlayVisible(true)
+    } else if (!isSectionStreaming) {
+      // Delay hiding to allow fade-out
+      const timer = setTimeout(() => setOverlayVisible(false), 300)
+      return () => clearTimeout(timer)
+    }
+  }, [isSectionStreaming, sectionStreamingText])
+
   // Track the last content we set from props to avoid cyclic updates.
   // When server pushes new content (e.g. after AI edit), we compare
   // against this ref to decide whether to force-update the editor.
@@ -187,14 +247,16 @@ export function StrategyEditor({
       }),
       Table.configure({
         resizable: false,
+        allowTableNodeSelection: true,
       }),
       TableRow,
       TableCell,
       TableHeader,
       Placeholder.configure({
-        placeholder: 'Start writing your strategy...',
+        placeholder: 'Strategy will appear here as the AI generates it...',
       }),
       Markdown,
+      BlockDelete,
     ],
     content: content ?? STRATEGY_TEMPLATE,
     editable,
@@ -215,8 +277,8 @@ export function StrategyEditor({
     }
   }, [editor, editable])
 
-  // Sync content prop when it changes (e.g. after research seeds template
-  // or after AI tool edits refetch the document from the server).
+  // Sync content prop when it changes (e.g. after AI tool edits refetch
+  // the document from the server via section_update SSE events).
   // Tiptap only uses `content` during initialization, so we must push updates manually.
   useEffect(() => {
     if (!editor || !content || content.length === 0) return
@@ -229,20 +291,133 @@ export function StrategyEditor({
 
     // Update if editor is empty/placeholder OR if server content differs
     // from what the editor currently has (AI edit case)
-    const isEmpty = !currentMd || currentMd.trim() === '' || currentMd.includes('Start writing your strategy')
+    const isEmpty = !currentMd || currentMd.trim() === ''
     const serverDiffers = currentMd !== content
 
     if (isEmpty || serverDiffers) {
       skipNextUpdateRef.current = true
       lastServerContentRef.current = content
       editor.commands.setContent(content)
+      // Notify parent of new content so autosave can track it.
+      // The skipNextUpdateRef blocks Tiptap's built-in onUpdate from firing,
+      // so we emit manually here to ensure PlaybookPage sees AI-generated content.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markdown = (editor.storage as any).markdown?.getMarkdown()
+      if (markdown) {
+        onUpdate(markdown)
+      }
     }
   }, [editor, content])
+
+  // ---------------------------------------------------------------------------
+  // AI writing indicator: add/remove CSS class on the H2 heading being written
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!editor) return
+
+    const CSS_CLASS = 'ai-writing'
+
+    // Remove any previously-applied ai-writing class
+    const view = editor.view
+    const dom = view.dom
+
+    dom.querySelectorAll(`.${CSS_CLASS}`).forEach((el) => el.classList.remove(CSS_CLASS))
+
+    if (!streamingSection) return
+
+    // Find the H2 heading whose text content matches streamingSection
+    const headings = dom.querySelectorAll('h2')
+    for (const h of headings) {
+      if (h.textContent?.trim() === streamingSection.trim()) {
+        h.classList.add(CSS_CLASS)
+        break
+      }
+    }
+  }, [editor, streamingSection])
+
+  // ---------------------------------------------------------------------------
+  // Detect user edits within the AI-streaming section
+  // ---------------------------------------------------------------------------
+
+  const streamingSectionRef = useRef<string | null>(null)
+  streamingSectionRef.current = streamingSection ?? null
+
+  const onUserEditDuringAIWriteRef = useRef(onUserEditDuringAIWrite)
+  onUserEditDuringAIWriteRef.current = onUserEditDuringAIWrite
+
+  // Determine which H2 section contains a given document position
+  const getSectionAtPos = useCallback(
+    (pos: number): string | null => {
+      if (!editor) return null
+      const doc = editor.state.doc
+      let lastHeading: string | null = null
+      doc.nodesBetween(0, pos, (node) => {
+        if (node.type.name === 'heading' && node.attrs.level === 2) {
+          lastHeading = node.textContent.trim()
+        }
+      })
+      return lastHeading
+    },
+    [editor],
+  )
+
+  // Listen for editor transactions to detect user-initiated edits in the AI section
+  useEffect(() => {
+    if (!editor) return
+
+    const handler = () => {
+      const section = streamingSectionRef.current
+      if (!section) return
+
+      // Only care about user-initiated edits (not programmatic setContent)
+      if (skipNextUpdateRef.current) return
+
+      const { from } = editor.state.selection
+      const editedSection = getSectionAtPos(from)
+      if (editedSection && editedSection === section) {
+        onUserEditDuringAIWriteRef.current?.(section)
+      }
+    }
+
+    editor.on('update', handler)
+    return () => {
+      editor.off('update', handler)
+    }
+  }, [editor, getSectionAtPos])
 
   return (
     <div className="strategy-editor rounded-lg border border-border-solid bg-surface">
       {editable && <Toolbar editor={editor} />}
       <EditorContent editor={editor} />
+      {overlayVisible && (
+        <div
+          className="border-t border-border transition-opacity duration-300"
+          style={{ opacity: isSectionStreaming ? 1 : 0 }}
+        >
+          {streamingSection && (
+            <div className="px-8 pt-3 pb-0">
+              <span className="text-xs font-medium text-accent tracking-wide uppercase">
+                Writing: {streamingSection}
+              </span>
+            </div>
+          )}
+          <div
+            className="whitespace-pre-wrap"
+            style={{
+              /* Match ProseMirror editor typography exactly */
+              padding: '0.75rem 2rem 1.5rem',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              lineHeight: '1.75',
+              color: 'var(--color-text)',
+            }}
+          >
+            {displayedText}
+            <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

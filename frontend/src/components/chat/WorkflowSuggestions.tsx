@@ -1,11 +1,13 @@
 /**
- * WorkflowSuggestions — proactive next-step cards shown in the chat panel.
+ * WorkflowSuggestions -- proactive next-step cards shown in the chat panel.
  *
  * Displays contextual suggestions based on the namespace's workflow state.
  * Each suggestion has an icon, summary, detail text, and an action button
  * that navigates to the relevant page.
  *
  * BL-135: Proactive Next-Step Suggestions
+ * BL-169: Event-Driven Chat Nudges (nudge_type=event gets highlight style)
+ * BL-170: Auto-Phase Transitions (action buttons auto-navigate on click)
  */
 
 import { useNavigate, useParams } from 'react-router'
@@ -66,6 +68,15 @@ function ArrowRightIcon() {
   )
 }
 
+function BellIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 1.5C4.5 1.5 3 3.5 3 5.5v3l-1 1.5h10L11 8.5v-3C11 3.5 9.5 1.5 7 1.5z" />
+      <path d="M5.5 11.5a1.5 1.5 0 0 0 3 0" />
+    </svg>
+  )
+}
+
 const ICON_MAP: Record<string, React.FC> = {
   strategy: StrategyIcon,
   contacts: ContactsIcon,
@@ -91,6 +102,7 @@ interface SuggestionCardProps {
   summary: string
   detail: string
   actionLabel: string
+  nudgeType?: 'step' | 'event'
   onAction: () => void
   onDismiss: () => void
 }
@@ -100,14 +112,22 @@ function SuggestionCard({
   summary,
   detail,
   actionLabel,
+  nudgeType,
   onAction,
   onDismiss,
 }: SuggestionCardProps) {
   const IconComponent = ICON_MAP[icon] || StrategyIcon
   const iconColor = ICON_COLORS[icon] || ICON_COLORS.strategy
+  const isEvent = nudgeType === 'event'
 
   return (
-    <div className="bg-surface-alt border border-border-solid rounded-lg p-3 space-y-2">
+    <div
+      className={`border rounded-lg p-3 space-y-2 ${
+        isEvent
+          ? 'bg-accent-cyan/5 border-accent-cyan/30'
+          : 'bg-surface-alt border-border-solid'
+      }`}
+    >
       <div className="flex items-start gap-2.5">
         <div
           className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${iconColor}`}
@@ -115,7 +135,14 @@ function SuggestionCard({
           <IconComponent />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-text leading-snug">{summary}</p>
+          <div className="flex items-center gap-1.5">
+            {isEvent && (
+              <span className="text-accent-cyan opacity-75">
+                <BellIcon />
+              </span>
+            )}
+            <p className="text-sm font-medium text-text leading-snug">{summary}</p>
+          </div>
           <p className="text-xs text-text-muted mt-0.5 leading-relaxed">{detail}</p>
         </div>
         <button
@@ -131,7 +158,11 @@ function SuggestionCard({
       </div>
       <button
         onClick={onAction}
-        className="flex items-center gap-1.5 text-xs font-medium text-accent-hover hover:text-accent transition-colors bg-transparent border-none cursor-pointer px-0"
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors bg-transparent border-none cursor-pointer px-0 ${
+          isEvent
+            ? 'text-accent-cyan hover:text-accent-cyan/80'
+            : 'text-accent-hover hover:text-accent'
+        }`}
       >
         {actionLabel}
         <ArrowRightIcon />
@@ -141,37 +172,43 @@ function SuggestionCard({
 }
 
 // ---------------------------------------------------------------------------
-// WorkflowSuggestions
+// WorkflowSuggestions -- full card layout for empty chat state
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+const DISMISSED_KEY = 'workflow_suggestions_dismissed'
+
+function getDismissed(): string[] {
+  try {
+    const stored = sessionStorage.getItem(DISMISSED_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function dismissSuggestion(id: string) {
+  try {
+    const current = getDismissed()
+    current.push(id)
+    sessionStorage.setItem(DISMISSED_KEY, JSON.stringify(current))
+  } catch {
+    // sessionStorage unavailable
+  }
+  window.dispatchEvent(new Event('storage'))
+}
+
+// ---------------------------------------------------------------------------
+// WorkflowSuggestions -- full card layout for empty chat state
 // ---------------------------------------------------------------------------
 
 export function WorkflowSuggestions() {
   const { namespace } = useParams<{ namespace: string }>()
   const navigate = useNavigate()
   const { data: suggestions, isLoading } = useWorkflowSuggestions()
-
-  // Track dismissed suggestions per session
-  const dismissedKey = 'workflow_suggestions_dismissed'
-  const getDismissed = (): string[] => {
-    try {
-      const stored = sessionStorage.getItem(dismissedKey)
-      return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
-  }
-
-  const dismiss = (id: string) => {
-    try {
-      const current = getDismissed()
-      current.push(id)
-      sessionStorage.setItem(dismissedKey, JSON.stringify(current))
-    } catch {
-      // sessionStorage unavailable
-    }
-    // Force re-render by using a state-like approach (hack with DOM)
-    // Actually, since we read from sessionStorage every render, just trigger one
-    window.dispatchEvent(new Event('storage'))
-  }
 
   if (isLoading || !suggestions || suggestions.length === 0) return null
 
@@ -180,13 +217,15 @@ export function WorkflowSuggestions() {
 
   if (visible.length === 0) return null
 
-  // Show at most 2 suggestions to avoid overwhelming
-  const shown = visible.slice(0, 2)
+  // Show event nudges first, then regular suggestions, max 3 total
+  const events = visible.filter((s) => s.nudge_type === 'event')
+  const steps = visible.filter((s) => s.nudge_type !== 'event')
+  const shown = [...events, ...steps].slice(0, 3)
 
   return (
     <div className="space-y-2 mb-3">
       <p className="text-[11px] font-medium text-text-dim uppercase tracking-wide px-0.5">
-        Suggested next steps
+        {events.length > 0 ? 'Updates & next steps' : 'Suggested next steps'}
       </p>
       {shown.map((suggestion) => (
         <SuggestionCard
@@ -195,14 +234,76 @@ export function WorkflowSuggestions() {
           summary={suggestion.summary}
           detail={suggestion.detail}
           actionLabel={suggestion.action_label}
+          nudgeType={suggestion.nudge_type}
           onAction={() => {
             if (namespace) {
               navigate(`/${namespace}${suggestion.action_path}`)
             }
           }}
-          onDismiss={() => dismiss(suggestion.id)}
+          onDismiss={() => dismissSuggestion(suggestion.id)}
         />
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// WorkflowSuggestionChips -- compact chip row for above chat input
+// ---------------------------------------------------------------------------
+
+function ChipIcon({ icon }: { icon: string }) {
+  const IconComponent = ICON_MAP[icon] || StrategyIcon
+  return <IconComponent />
+}
+
+export function WorkflowSuggestionChips() {
+  const { namespace } = useParams<{ namespace: string }>()
+  const navigate = useNavigate()
+  const { data: suggestions, isLoading } = useWorkflowSuggestions()
+
+  if (isLoading || !suggestions || suggestions.length === 0) return null
+
+  const dismissed = getDismissed()
+  const visible = suggestions.filter((s) => !dismissed.includes(s.id))
+
+  if (visible.length === 0) return null
+
+  // Show event nudges first, then regular, max 3 chips
+  const events = visible.filter((s) => s.nudge_type === 'event')
+  const steps = visible.filter((s) => s.nudge_type !== 'event')
+  const shown = [...events, ...steps].slice(0, 3)
+
+  return (
+    <div className="px-3 py-2 border-t border-border flex-shrink-0">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        <span className="text-[10px] text-text-dim whitespace-nowrap flex-shrink-0">
+          {events.length > 0 ? 'New:' : 'Next:'}
+        </span>
+        {shown.map((suggestion) => {
+          const isEvent = suggestion.nudge_type === 'event'
+          return (
+            <button
+              key={suggestion.id}
+              onClick={() => {
+                if (namespace) {
+                  navigate(`/${namespace}${suggestion.action_path}`)
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 ${
+                isEvent
+                  ? 'border-accent-cyan/40 bg-accent-cyan/5 text-accent-cyan hover:bg-accent-cyan/10'
+                  : 'border-border-solid bg-surface-alt text-text-muted hover:text-text hover:border-accent/40 hover:bg-accent/5'
+              }`}
+              title={suggestion.detail}
+            >
+              <span className="w-3.5 h-3.5 flex items-center justify-center opacity-70">
+                <ChipIcon icon={suggestion.icon} />
+              </span>
+              {suggestion.action_label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

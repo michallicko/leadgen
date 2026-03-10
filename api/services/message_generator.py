@@ -10,6 +10,7 @@ import json
 import logging
 import threading
 import time
+import uuid
 from decimal import Decimal
 
 from ..models import Message, db
@@ -30,14 +31,44 @@ GENERATION_PROVIDER = "anthropic"
 EST_INPUT_TOKENS = 800
 EST_OUTPUT_TOKENS = 200
 
+# BL-181: A/B variant angles for multi-variant generation
+VARIANT_ANGLES = [
+    {
+        "key": "pain",
+        "label": "Pain-focused",
+        "instruction": "Focus on a specific pain point or challenge the prospect likely faces. "
+        "Lead with the problem, then position the solution.",
+    },
+    {
+        "key": "opportunity",
+        "label": "Opportunity-focused",
+        "instruction": "Focus on a growth opportunity or competitive advantage the prospect could gain. "
+        "Lead with the upside potential, not the problem.",
+    },
+    {
+        "key": "social_proof",
+        "label": "Social proof",
+        "instruction": "Lead with credibility — mention relevant case studies, industry recognition, "
+        "or similar companies that benefited. Focus on trust and validation.",
+    },
+]
 
-def estimate_generation_cost(template_config: list, total_contacts: int) -> dict:
+VARIANT_LETTERS = ["A", "B", "C"]
+
+
+def estimate_generation_cost(
+    template_config: list, total_contacts: int, variant_count: int = 1
+) -> dict:
     """Estimate the cost of generating messages for a campaign.
 
     Returns dict with total_cost, per_contact_cost, total_messages, and breakdown.
+
+    Args:
+        variant_count: Number of A/B variants per message (1-3). Default 1.
     """
+    variant_count = max(1, min(int(variant_count), 3))
     enabled_steps = [s for s in template_config if s.get("enabled")]
-    total_messages = len(enabled_steps) * total_contacts
+    total_messages = len(enabled_steps) * total_contacts * variant_count
 
     per_message_cost = compute_cost(
         GENERATION_PROVIDER,
@@ -46,15 +77,15 @@ def estimate_generation_cost(template_config: list, total_contacts: int) -> dict
         EST_OUTPUT_TOKENS,
     )
     total_cost = per_message_cost * total_messages
-    per_contact_cost = per_message_cost * len(enabled_steps)
+    per_contact_cost = per_message_cost * len(enabled_steps) * variant_count
 
     step_breakdown = [
         {
             "step": s.get("step"),
             "label": s.get("label"),
             "channel": s.get("channel"),
-            "count": total_contacts,
-            "cost": float(per_message_cost * total_contacts),
+            "count": total_contacts * variant_count,
+            "cost": float(per_message_cost * total_contacts * variant_count),
         }
         for s in enabled_steps
     ]
@@ -66,6 +97,7 @@ def estimate_generation_cost(template_config: list, total_contacts: int) -> dict
         "total_messages": total_messages,
         "enabled_steps": len(enabled_steps),
         "total_contacts": total_contacts,
+        "variant_count": variant_count,
         "model": GENERATION_MODEL,
         "breakdown": step_breakdown,
         "by_step": step_breakdown,
@@ -322,9 +354,14 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
                 contact_id, company_id
             )
 
+            # BL-181: variant_count from generation_config (default 1, max 3)
+            variant_count = min(int(generation_config.get("variant_count", 1)), 3)
+
             # Generate each enabled step
             contact_cost = Decimal("0")
             for step in enabled_steps:
+                # Generate variant A (always — default/no angle)
+                vg_id = str(uuid.uuid4()) if variant_count > 1 else None
                 msg_cost = _generate_single_message(
                     campaign_id=campaign_id,
                     tenant_id=tenant_id,
@@ -339,8 +376,40 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
                     total_steps=total_steps,
                     user_id=user_id,
                     strategy_data=strategy_data,
+                    variant_letter="a",
+                    variant_group_id=vg_id,
                 )
                 contact_cost += msg_cost
+
+                # Generate additional variants B, C with different angles
+                for vi in range(1, variant_count):
+                    angle = (
+                        VARIANT_ANGLES[vi - 1] if vi - 1 < len(VARIANT_ANGLES) else None
+                    )
+                    letter = (
+                        VARIANT_LETTERS[vi].lower()
+                        if vi < len(VARIANT_LETTERS)
+                        else chr(ord("a") + vi)
+                    )
+                    msg_cost = _generate_single_message(
+                        campaign_id=campaign_id,
+                        tenant_id=tenant_id,
+                        cc_id=cc_id,
+                        contact_id=contact_id,
+                        owner_id=owner_id,
+                        contact_data=contact_data,
+                        company_data=company_data,
+                        enrichment_data=enrichment_data,
+                        generation_config=generation_config,
+                        step=step,
+                        total_steps=total_steps,
+                        user_id=user_id,
+                        strategy_data=strategy_data,
+                        variant_letter=letter,
+                        variant_group_id=vg_id,
+                        variant_angle=angle,
+                    )
+                    contact_cost += msg_cost
 
             # Mark contact as generated
             db.session.execute(
@@ -406,14 +475,21 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
 
 
 def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, dict]:
-    """Load company and enrichment data for a contact."""
+    """Load company and enrichment data for a contact.
+
+    BL-173: Enhanced to include company_size, verified_employees,
+    verified_revenue, and richer L2/person fields for grounded
+    message personalization.
+    """
     company_data = {}
     enrichment_data = {"l2": {}, "person": {}}
 
     if company_id:
         row = db.session.execute(
             db.text("""
-                SELECT name, domain, industry, hq_country, summary
+                SELECT name, domain, industry, hq_country, summary,
+                       company_size, verified_employees, verified_revenue_eur_m,
+                       tier, business_model
                 FROM companies WHERE id = :id
             """),
             {"id": company_id},
@@ -425,11 +501,21 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
                 "industry": row[2],
                 "hq_country": row[3],
                 "summary": row[4],
+                "company_size": row[5],
+                "employee_count": str(int(row[6])) if row[6] else None,
+                "revenue_eur_m": str(round(float(row[7]), 1)) if row[7] else None,
+                "tier": row[8],
+                "business_model": row[9],
             }
 
+        # BL-173: Load full L2 enrichment for grounded personalization
         l2_row = db.session.execute(
             db.text("""
-                SELECT company_intel, recent_news, ai_opportunities
+                SELECT company_intel, recent_news, ai_opportunities,
+                       pain_hypothesis, key_products, customer_segments,
+                       competitors, tech_stack, hiring_signals,
+                       digital_initiatives, pitch_framing, growth_signals,
+                       expansion, ma_activity
                 FROM company_enrichment_l2 WHERE company_id = :id
             """),
             {"id": company_id},
@@ -439,11 +525,25 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
                 "company_intel": l2_row[0],
                 "recent_news": l2_row[1],
                 "ai_opportunities": l2_row[2],
+                "pain_hypothesis": l2_row[3],
+                "key_products": l2_row[4],
+                "customer_segments": l2_row[5],
+                "competitors": l2_row[6],
+                "tech_stack": l2_row[7],
+                "hiring_signals": l2_row[8],
+                "digital_initiatives": l2_row[9],
+                "pitch_framing": l2_row[10],
+                "growth_signals": l2_row[11],
+                "expansion": l2_row[12],
+                "ma_activity": l2_row[13],
             }
 
+    # BL-173: Load richer person enrichment for grounded personalization
     person_row = db.session.execute(
         db.text("""
-            SELECT person_summary, relationship_synthesis
+            SELECT person_summary, relationship_synthesis,
+                   career_trajectory, speaking_engagements, publications,
+                   ai_champion_score, authority_score
             FROM contact_enrichment WHERE contact_id = :id
         """),
         {"id": contact_id},
@@ -452,6 +552,11 @@ def _load_enrichment_context(contact_id: str, company_id: str) -> tuple[dict, di
         enrichment_data["person"] = {
             "person_summary": person_row[0],
             "relationship_synthesis": person_row[1],
+            "career_trajectory": person_row[2],
+            "speaking_engagements": person_row[3],
+            "publications": person_row[4],
+            "ai_champion_score": person_row[5],
+            "authority_score": person_row[6],
         }
 
     return company_data, enrichment_data
@@ -472,12 +577,23 @@ def _generate_single_message(
     total_steps: int,
     user_id: str,
     strategy_data: dict | None = None,
+    variant_letter: str = "a",
+    variant_group_id: str | None = None,
+    variant_angle: dict | None = None,
 ) -> Decimal:
-    """Generate a single message for one contact × one step.
+    """Generate a single message for one contact x one step.
 
     Calls Claude API, parses response, saves Message, logs cost.
     Returns the cost of this generation call.
+
+    Args:
+        variant_letter: The variant label (a, b, c).
+        variant_group_id: UUID linking variants of the same step/contact.
+        variant_angle: Optional angle dict with 'key', 'label', 'instruction'.
     """
+    # Build per-message instruction from variant angle
+    angle_instruction = variant_angle["instruction"] if variant_angle else None
+
     prompt = build_generation_prompt(
         channel=step["channel"],
         step_label=step.get("label", f"Step {step['step']}"),
@@ -488,6 +604,7 @@ def _generate_single_message(
         step_number=step["step"],
         total_steps=total_steps,
         strategy_data=strategy_data,
+        per_message_instruction=angle_instruction,
     )
 
     start_time = time.time()
@@ -549,6 +666,8 @@ def _generate_single_message(
             "contact_id": contact_id,
             "channel": step["channel"],
             "step": step["step"],
+            "variant": variant_letter,
+            "variant_angle": variant_angle["key"] if variant_angle else None,
         },
     )
 
@@ -559,7 +678,7 @@ def _generate_single_message(
         owner_id=owner_id,
         channel=step["channel"],
         sequence_step=step["step"],
-        variant="a",
+        variant=variant_letter,
         label=step.get("label"),
         subject=subject,
         body=body,
@@ -568,6 +687,8 @@ def _generate_single_message(
         language=generation_config.get("language", "en"),
         generation_cost_usd=float(cost),
         campaign_contact_id=cc_id,
+        variant_group=variant_group_id,
+        variant_angle=variant_angle["key"] if variant_angle else None,
     )
     db.session.add(msg)
     db.session.flush()

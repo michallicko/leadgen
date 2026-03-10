@@ -48,6 +48,14 @@ function ConfidenceDot({ level }: { level: 'high' | 'medium' | 'low' }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${colors[level]} mr-1.5`} />
 }
 
+/** Extract the bare field_key from a potentially dotted custom target like "contact.custom.X" → "X" */
+function normalizeCustomTarget(target: string | null): string | null {
+  if (!target) return null
+  const parts = target.split('.')
+  if (parts.length === 3 && parts[1] === 'custom') return parts[2]
+  return target
+}
+
 export function MappingStep({
   uploadResponse,
   mapping: initialMapping,
@@ -56,7 +64,15 @@ export function MappingStep({
   onPreviewComplete,
   onRemapped,
 }: MappingStepProps) {
-  const [mapping, setMapping] = useState<ColumnMapping[]>(initialMapping)
+  // Filter out rows with empty/whitespace source column names (ghost rows from XLSX)
+  // and normalize custom field target values to bare field_key format
+  const cleanedInitial = initialMapping
+    .filter((col) => col.source_column?.trim())
+    .map((col) => ({
+      ...col,
+      target_field: normalizeCustomTarget(col.target_field),
+    }))
+  const [mapping, setMapping] = useState<ColumnMapping[]>(cleanedInitial)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRemapping, setIsRemapping] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,16 +81,39 @@ export function MappingStep({
   const [customLabels, setCustomLabels] = useState<Record<string, string>>({})
   const [openPopover, setOpenPopover] = useState<string | null>(null)
 
+  // Build set of known custom field keys for detecting is_custom in dropdown changes
+  const customFieldKeys = new Set(uploadResponse.custom_field_defs.map((cf) => cf.field_key))
+  const standardFieldKeys = new Set(TARGET_OPTIONS.map((o) => o.value))
+
   const handleTargetChange = useCallback((index: number, value: string) => {
     setMapping((prev) => {
       const updated = [...prev]
-      updated[index] = {
-        ...updated[index],
-        target_field: value || null,
+      const col = updated[index]
+      if (value === '__new_custom__') {
+        // Generate a field_key from source column name (snake_case)
+        const fieldKey = col.source_column
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
+        updated[index] = {
+          ...col,
+          target_field: fieldKey,
+          is_custom: true,
+          custom_display_name: col.source_column,
+        }
+      } else {
+        updated[index] = {
+          ...col,
+          target_field: value || null,
+          is_custom: value ? (customFieldKeys.has(value) || !standardFieldKeys.has(value)) : false,
+          custom_display_name: customFieldKeys.has(value)
+            ? uploadResponse.custom_field_defs.find((cf) => cf.field_key === value)?.display_name
+            : undefined,
+        }
       }
       return updated
     })
-  }, [])
+  }, [standardFieldKeys, customFieldKeys, uploadResponse.custom_field_defs])
 
   const handleCustomLabelChange = useCallback((sourceColumn: string, label: string) => {
     setCustomLabels((prev) => ({ ...prev, [sourceColumn]: label }))
@@ -84,21 +123,36 @@ export function MappingStep({
     setError(null)
     setIsSubmitting(true)
     try {
-      const preview = await submitPreview(jobId, mapping)
-      onPreviewComplete(mapping, preview)
+      // Merge any custom label edits into the mapping before sending
+      const finalMapping = mapping.map((col) => {
+        const editedLabel = customLabels[col.source_column]
+        if (editedLabel && col.is_custom) {
+          return { ...col, custom_display_name: editedLabel }
+        }
+        return col
+      })
+      const preview = await submitPreview(jobId, finalMapping)
+      onPreviewComplete(finalMapping, preview)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Preview failed')
     } finally {
       setIsSubmitting(false)
     }
-  }, [jobId, mapping, onPreviewComplete])
+  }, [jobId, mapping, customLabels, onPreviewComplete])
 
   const handleRemap = useCallback(async () => {
     setError(null)
     setIsRemapping(true)
     try {
       const response = await remapWithAI(jobId)
-      setMapping(response.columns)
+      // Clean and normalize the remapped columns the same way as initial mapping
+      const cleaned = response.columns
+        .filter((col) => col.source_column?.trim())
+        .map((col) => ({
+          ...col,
+          target_field: normalizeCustomTarget(col.target_field),
+        }))
+      setMapping(cleaned)
       onRemapped(response)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Re-analysis failed')
@@ -170,6 +224,12 @@ export function MappingStep({
                       className="bg-surface-alt border border-border rounded-md px-2 py-1.5 text-xs text-text focus:outline-none focus:border-accent-cyan"
                     >
                       <option value="">-- Skip --</option>
+                      {/* If this row has a custom target_field that isn't in standard or custom_field_defs, render it */}
+                      {col.is_custom && col.target_field && !customFieldKeys.has(col.target_field) && !standardFieldKeys.has(col.target_field) && (
+                        <option value={col.target_field}>
+                          {customLabels[col.source_column] || col.custom_display_name || col.target_field}
+                        </option>
+                      )}
                       {/* Contact fields */}
                       <optgroup label="Contact">
                         {TARGET_OPTIONS.filter((o) => o.group === 'Contact').map((o) => (
@@ -187,11 +247,15 @@ export function MappingStep({
                         <optgroup label="Custom Fields">
                           {uploadResponse.custom_field_defs.map((cf) => (
                             <option key={cf.field_key} value={cf.field_key}>
-                              {customLabels[cf.source_column] || cf.display_name}
+                              {customLabels[cf.source_column] || cf.display_name || cf.field_key}
                             </option>
                           ))}
                         </optgroup>
                       )}
+                      {/* Option to create a new custom field from this column */}
+                      <optgroup label="Other">
+                        <option value="__new_custom__">+ Create Custom Field</option>
+                      </optgroup>
                     </select>
 
                     {/* Custom field badge + rename */}
@@ -223,7 +287,11 @@ export function MappingStep({
                                 value={customLabels[col.source_column] ?? col.custom_display_name ?? ''}
                                 onChange={(e) => handleCustomLabelChange(col.source_column, e.target.value)}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') setOpenPopover(null)
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setOpenPopover(null)
+                                  }
                                 }}
                                 className="w-full bg-surface-alt border border-border-solid rounded px-2 py-1 text-sm text-text focus:outline-none focus:border-accent-cyan"
                                 placeholder="Field label"

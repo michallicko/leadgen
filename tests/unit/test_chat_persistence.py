@@ -272,6 +272,7 @@ class TestPageContextHints:
             content = "Test content"
             objective = "Test objective"
             phase = "strategy"
+            extracted_data = {}
 
         prompt = build_system_prompt(
             MockTenant(), MockDoc(), page_context="contacts"
@@ -291,6 +292,7 @@ class TestPageContextHints:
             content = "Test content"
             objective = "Test objective"
             phase = "strategy"
+            extracted_data = {}
 
         prompt = build_system_prompt(
             MockTenant(), MockDoc(), page_context="playbook"
@@ -309,6 +311,7 @@ class TestPageContextHints:
             content = "Test content"
             objective = "Test objective"
             phase = "strategy"
+            extracted_data = {}
 
         prompt = build_system_prompt(MockTenant(), MockDoc(), page_context=None)
         assert "Current Page Context" not in prompt

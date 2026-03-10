@@ -283,3 +283,56 @@ export function useUpdateCompany() {
     },
   })
 }
+
+// ── Triage Review (BL-176) ────────────────────────────────
+
+export interface TriageQueueItem {
+  id: string
+  name: string
+  domain: string | null
+  tier: string | null
+  status: string | null
+  triage_score: number | null
+  triage_notes: string | null
+  industry: string | null
+  hq_country: string | null
+  company_size: string | null
+  revenue_range: string | null
+  owner_name: string | null
+  pre_score: number | null
+  confidence: number | null
+}
+
+interface TriageQueuePage {
+  companies: TriageQueueItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export function useTriageQueue(page = 1, pageSize = 25, tagName?: string) {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  if (tagName) params.set('tag_name', tagName)
+  return useQuery({
+    queryKey: ['triage-queue', page, pageSize, tagName],
+    queryFn: () => apiFetch<TriageQueuePage>(`/companies/triage-queue?${params}`),
+  })
+}
+
+export type TriageAction = 'pass' | 'review' | 'disqualify'
+
+export function useTriageCompany() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, action, reason }: { id: string; action: TriageAction; reason?: string }) =>
+      apiFetch(`/companies/${id}/triage`, {
+        method: 'PATCH',
+        body: { action, reason },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['triage-queue'] })
+      qc.invalidateQueries({ queryKey: ['companies'] })
+    },
+  })
+}

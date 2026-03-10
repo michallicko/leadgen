@@ -1,3 +1,11 @@
+/* ---- Strategy editor wrapper ---- */
+
+/* Ensure overflow is visible so position:sticky toolbar works within the
+   PhasePanel scroll container.  Do NOT add overflow:hidden here. */
+.strategy-editor {
+  overflow: visible;
+}
+
 /* ---- Tiptap / ProseMirror editor styles ---- */
 
 .strategy-editor .ProseMirror {
@@ -179,6 +187,47 @@
   height: auto;
 }
 
+/* Ensure mermaid text uses dark theme colors */
+.strategy-editor .mermaid-svg-container svg text {
+  fill: var(--color-text) !important;
+}
+
+.strategy-editor .mermaid-svg-container svg .edgeLabel {
+  color: var(--color-text-muted);
+}
+
+/* ---- AI writing indicator ---- */
+
+.strategy-editor .ProseMirror h2.ai-writing {
+  position: relative;
+}
+
+.strategy-editor .ProseMirror h2.ai-writing::after {
+  content: 'AI writing';
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: rgba(110, 44, 139, 0.08);
+  border: 1px solid rgba(110, 44, 139, 0.15);
+  border-radius: 9999px;
+  vertical-align: middle;
+  white-space: nowrap;
+  animation: ai-writing-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes ai-writing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ---- Selection ---- */
 
 .strategy-editor .ProseMirror ::selection {
@@ -198,4 +247,19 @@
 
 .strategy-editor .ProseMirror .selectedCell {
   position: relative;
+}
+
+/* ---- Table node selection (whole-table select) ---- */
+
+.strategy-editor .ProseMirror table.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Code block node selection ---- */
+
+.strategy-editor .mermaid-block.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

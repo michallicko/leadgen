@@ -40,7 +40,14 @@ value propositions, and tone guidelines into the message. The strategy represent
 the sender's GTM positioning — your message should feel like it comes from someone \
 who deeply understands their own product's value and the prospect's pain points. \
 Never contradict the strategy's positioning or use messaging angles not aligned \
-with it."""
+with it.
+
+CRITICAL: When ENRICHMENT data is provided (company intel, recent news, pain \
+points, tech stack, hiring signals, growth signals, etc.), you MUST reference \
+at least one specific fact from the enrichment in your message. Generic messages \
+that ignore available enrichment data are unacceptable. Use concrete details like \
+company size, recent initiatives, technology choices, or hiring patterns to show \
+the sender has done genuine research. Avoid vague references — cite specifics."""
 
 
 FORMALITY_INSTRUCTIONS = {
@@ -198,8 +205,8 @@ def _build_strategy_section(strategy_data: dict) -> str:
 def _build_enrichment_section(enrichment_data: dict) -> str:
     """Format enrichment data (L1/L2/Person) as a comprehensive section.
 
-    Extends beyond the basic company_section by including tech stack,
-    pain points, and other deep research fields from L2 enrichment.
+    BL-173: Enhanced to include growth signals, M&A activity, and
+    AI champion indicators for enrichment-grounded personalization.
     """
     if not enrichment_data:
         return ""
@@ -222,6 +229,11 @@ def _build_enrichment_section(enrichment_data: dict) -> str:
         lines.append(f"Digital Initiatives: {l2['digital_initiatives']}")
     if l2.get("hiring_signals"):
         lines.append(f"Hiring Signals: {l2['hiring_signals']}")
+    # BL-173: Additional L2 fields for richer personalization
+    if l2.get("growth_signals"):
+        lines.append(f"Growth Signals: {l2['growth_signals']}")
+    if l2.get("ma_activity"):
+        lines.append(f"M&A Activity: {l2['ma_activity']}")
 
     # Person enrichment extras (beyond what _build_contact_section covers)
     person = enrichment_data.get("person", {})
@@ -231,6 +243,15 @@ def _build_enrichment_section(enrichment_data: dict) -> str:
         lines.append(f"Speaking: {person['speaking_engagements']}")
     if person.get("publications"):
         lines.append(f"Publications: {person['publications']}")
+    # BL-173: AI champion / authority signals for personalization
+    if person.get("ai_champion_score") and int(person["ai_champion_score"] or 0) >= 7:
+        lines.append(
+            "AI Champion: High likelihood — this person actively promotes AI/tech adoption."
+        )
+    if person.get("authority_score") and int(person["authority_score"] or 0) >= 8:
+        lines.append(
+            "Authority: Senior decision-maker with high organizational influence."
+        )
 
     return "\n".join(lines) if lines else ""
 
@@ -389,6 +410,7 @@ def _build_contact_section(contact_data: dict, enrichment_data: dict) -> str:
 
 
 def _build_company_section(company_data: dict, enrichment_data: dict) -> str:
+    """BL-173: Enhanced with enrichment-grounded fields (size, revenue, business model)."""
     lines = []
     if company_data.get("name"):
         lines.append(f"Company: {company_data['name']}")
@@ -398,6 +420,15 @@ def _build_company_section(company_data: dict, enrichment_data: dict) -> str:
         lines.append(f"Industry: {company_data['industry']}")
     if company_data.get("hq_country"):
         lines.append(f"Country: {company_data['hq_country']}")
+    # BL-173: Add company size and employee/revenue data for grounded personalization
+    if company_data.get("company_size"):
+        lines.append(f"Company Size: {company_data['company_size']}")
+    if company_data.get("employee_count"):
+        lines.append(f"Employees: ~{company_data['employee_count']}")
+    if company_data.get("revenue_eur_m"):
+        lines.append(f"Revenue: ~{company_data['revenue_eur_m']}M EUR")
+    if company_data.get("business_model"):
+        lines.append(f"Business Model: {company_data['business_model']}")
     if company_data.get("summary"):
         lines.append(f"Summary: {company_data['summary']}")
 
@@ -409,5 +440,10 @@ def _build_company_section(company_data: dict, enrichment_data: dict) -> str:
         lines.append(f"Recent News: {l2['recent_news']}")
     if l2.get("ai_opportunities"):
         lines.append(f"AI Opportunities: {l2['ai_opportunities']}")
+    # BL-173: Add pitch framing from L2 for message grounding
+    if l2.get("pitch_framing"):
+        lines.append(f"Recommended Approach: {l2['pitch_framing']}")
+    if l2.get("expansion"):
+        lines.append(f"Growth/Expansion: {l2['expansion']}")
 
     return "\n".join(lines) if lines else "No company details available."

@@ -19,21 +19,27 @@ def create_app():
     # Register agent tools with the tool registry
     from .services.analyze_tools import ANALYZE_TOOLS
     from .services.campaign_tools import CAMPAIGN_TOOLS
+    from .services.company_research_tool import COMPANY_RESEARCH_TOOLS
     from .services.enrichment_gap_tools import ENRICHMENT_TOOLS
     from .services.enrichment_trigger_tools import ENRICHMENT_TRIGGER_TOOLS
     from .services.icp_filter_tools import ICP_FILTER_TOOLS
     from .services.search_tools import SEARCH_TOOLS
+    from .services.strategy_refinement_tools import STRATEGY_REFINEMENT_TOOLS
     from .services.strategy_tools import STRATEGY_TOOLS
     from .services.tool_registry import register_tool
+    from .tools.enrichment_tools import ENRICHMENT_AGENT_TOOLS
 
     for tool in (
         STRATEGY_TOOLS
         + ANALYZE_TOOLS
         + SEARCH_TOOLS
+        + COMPANY_RESEARCH_TOOLS
         + CAMPAIGN_TOOLS
         + ICP_FILTER_TOOLS
         + ENRICHMENT_TOOLS
         + ENRICHMENT_TRIGGER_TOOLS
+        + STRATEGY_REFINEMENT_TOOLS
+        + ENRICHMENT_AGENT_TOOLS
     ):
         try:
             register_tool(tool)

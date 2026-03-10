@@ -28,8 +28,6 @@ MAX_HISTORY_MESSAGES = 20
 
 STRATEGY_SECTIONS = [
     "Executive Summary",
-    "Ideal Customer Profile (ICP)",
-    "Buyer Personas",
     "Value Proposition & Messaging",
     "Competitive Positioning",
     "Channel Strategy",
@@ -37,6 +35,79 @@ STRATEGY_SECTIONS = [
     "Metrics & KPIs",
     "90-Day Action Plan",
 ]
+
+# Priority order for gap-based placeholder suggestions
+_SECTION_PRIORITY = [
+    "Value Proposition & Messaging",
+    "Channel Strategy",
+    "Executive Summary",
+    "Competitive Positioning",
+    "Messaging Framework",
+    "Metrics & KPIs",
+    "90-Day Action Plan",
+]
+
+
+def compute_chat_placeholder(document, phase="strategy", page_context=None):
+    """Compute a context-aware chat input placeholder.
+
+    Returns a string based on the current phase, page context, and
+    strategy document completeness.
+
+    Args:
+        document: StrategyDocument model instance (or None).
+        phase: Current playbook phase (strategy, contacts, messages, campaign).
+        page_context: Current page the user is viewing.
+
+    Returns:
+        str: Placeholder text for the chat input.
+    """
+    # Page-context overrides take priority (non-playbook pages)
+    page_placeholders = {
+        "contacts": "Ask about your contacts or targeting criteria...",
+        "companies": "Ask about companies in your pipeline...",
+        "messages": "Help me craft outreach messages...",
+        "campaigns": "Ask about your campaign settings...",
+        "enrich": "Ask about enrichment or data quality...",
+        "import": "Ask about importing contacts or companies...",
+    }
+    if page_context and page_context in page_placeholders:
+        return page_placeholders[page_context]
+
+    # Phase-based placeholders for playbook page
+    if phase == "contacts":
+        return "Which contacts should we target?"
+    if phase == "messages":
+        return "Let's craft your outreach messages..."
+    if phase == "campaign":
+        return "Configure your campaign..."
+
+    # Strategy phase — check document completeness
+    if not document or not document.content or not document.content.strip():
+        return "Tell me about your company and I'll help build your GTM strategy..."
+
+    content = document.content
+    if isinstance(content, dict):
+        content = json.dumps(content, default=str)
+
+    # Find the highest-priority empty or sparse section
+    for section_name in _SECTION_PRIORITY:
+        heading = "## {}".format(section_name)
+        if heading not in content:
+            return "Let's work on your {}...".format(section_name)
+        idx = content.index(heading)
+        next_heading = content.find("\n## ", idx + len(heading))
+        if next_heading == -1:
+            section_body = content[idx + len(heading) :]
+        else:
+            section_body = content[idx + len(heading) : next_heading]
+        lines = [ln.strip() for ln in section_body.strip().split("\n") if ln.strip()]
+        word_count = sum(len(ln.split()) for ln in lines)
+        if word_count < 20:
+            return "Let's flesh out your {}...".format(section_name)
+
+    # All sections are reasonably complete
+    return "Ask me to refine any section or move to Contacts..."
 
 
 def _format_enrichment_for_prompt(enrichment_data):
@@ -231,87 +302,88 @@ def _format_enrichment_for_prompt(enrichment_data):
 PHASE_INSTRUCTIONS = {
     "strategy": (
         "You are in the STRATEGY phase. You are a proactive fractional CMO who "
-        "takes initiative — NOT a passive question-asker.\n\n"
-        "MANDATORY WEB RESEARCH (non-negotiable):\n"
-        "Before writing ANY strategy content, you MUST call `web_search` to "
-        "research the company. This is required every time — not optional.\n"
-        "- Search for: company website overview, products/services, target market, "
-        "recent news, competitors, industry trends\n"
-        "- Make 2-3 separate web_search calls to gather comprehensive data\n"
-        "- NEVER use placeholder text like '[X]', '[Y]', '[Company]', or "
-        "'[number] agencies'. If you cannot find specific data, write "
-        "'based on similar companies in this sector' and provide a concrete example.\n"
-        "- NEVER generate strategy content from training data alone. Always ground "
-        "your output in fresh web research.\n\n"
-        "FIRST MESSAGE BEHAVIOR (critical — when chat history is empty or this is "
-        "the very first assistant turn):\n"
-        "1. Use `web_search` to research the company based on the domain and "
-        "description from the objective. Search for: company overview, products, "
-        "competitors, recent news, industry trends.\n"
-        "2. Use `get_strategy_document` to check what's already in the document.\n"
-        "3. Produce a **Strategic Brief** as your first message using this exact "
-        "format:\n\n"
-        "```\n"
-        "# {Company Name} — Strategic Brief (Draft v0.1)\n\n"
-        "> **What this is:** A first-pass GTM framework based on public research. "
-        "Several assumptions need validation before this becomes actionable. Key "
-        "decision points are flagged for your input.\n\n"
-        "---\n\n"
-        "## What We're Working With\n"
-        "{Company overview from research — name, industry, products, current GTM, "
-        "notable clients}\n\n"
-        "## Strategic Bets\n"
-        "### Bet 1: {Hypothesis}\n"
-        "{2-3 sentences grounded in research data}\n"
-        "*Assumption: {core assumption that must hold true}*\n\n"
-        "### Bet 2: {Hypothesis}\n"
-        "{2-3 sentences grounded in research data}\n"
-        "*Assumption: {core assumption}*\n\n"
-        "## Proposed Sequence\n"
-        "{Phased approach with rationale for ordering}\n\n"
-        "## Foundation Phase — What Needs to Exist\n"
-        "| Asset | Why It's Blocking | Estimated Effort |\n"
-        "|-------|-------------------|------------------|\n"
-        "| ... | ... | ... |\n\n"
-        "## Open Questions & Flags\n"
-        "{Concrete gaps that would change the strategy}\n"
-        "```\n\n"
-        "Adapt sections based on the challenge type:\n"
-        "- **New market entry + B2B SaaS**: Add ICP matrix, channel prioritization, "
-        "ARR targets\n"
-        "- **New market entry + Services**: Add partnership model, referral strategy\n"
-        "- **New market entry + E-commerce**: Add funnel analysis, seasonal calendar\n"
-        "- **Scaling pipeline**: Add pipeline velocity analysis, conversion optimization\n"
-        "- **Re-engaging cold leads**: Add re-engagement sequences, segment analysis\n"
-        "- **Launching new product**: Add launch playbook, positioning matrix\n\n"
+        "builds strategy section by section — transparent, sequential, and "
+        "grounded in data.\n\n"
+        "IMPORTANT CONSTRAINTS:\n"
+        "- NEVER dump all sections at once. Write ONE section at a time using "
+        "`update_strategy_section`, then move to the next.\n"
+        "- EVERY question you ask must offer 3-4 concrete options (never "
+        "open-ended 'what do you think?').\n"
+        "- Do NOT call `web_search` or `research_own_company` unless the user "
+        "explicitly asks for additional research. The enrichment/research data "
+        "is already loaded into your context above.\n"
+        "- NEVER use placeholder text like '[X]', '[Y]', '[Company]'. If data "
+        "is missing, write 'based on similar companies in this sector' with a "
+        "concrete example.\n"
+        "- Keep chat messages concise — the substance goes into strategy "
+        "sections via `update_strategy_section`, not into chat text.\n"
+        "- If the user answers a question, incorporate their answer and "
+        "immediately write the relevant section.\n\n"
+        "SEQUENTIAL FLOW (follow these steps IN ORDER):\n\n"
+        "STEP 1 — OPENING (1 message):\n"
+        'Write a warm one-liner: "Building your [industry] strategy for '
+        '[domain]..."\n'
+        'Example: "Building your event production strategy for unitedarts.cz '
+        'to support your expansion into the German market..."\n'
+        "NEVER start with internal reasoning like 'I'll execute this now' or "
+        "'Starting with research'.\n\n"
+        "STEP 2 — RESEARCH VALIDATION (1 message):\n"
+        "Write ONE paragraph summarizing the research/enrichment data:\n"
+        "- What's strong (clear data points about the company)\n"
+        "- What's missing or ambiguous\n"
+        "If there are ambiguities or critical gaps: ask ONE question with 3-4 "
+        'concrete options. Example: "Which best describes your primary market? '
+        "A) Enterprise SaaS B) SMB services C) Mid-market manufacturing "
+        'D) Other"\n'
+        "If data is clear and sufficient: say so briefly and proceed to "
+        "section writing.\n\n"
+        "STEP 3 — SECTION-BY-SECTION WRITING (7 sections, one at a time):\n"
+        "For EACH of the 7 sections below, in order:\n"
+        "1. Briefly assess data sufficiency for THIS section (1 sentence)\n"
+        "2. If sufficient: call `update_strategy_section` immediately with "
+        "the content\n"
+        "3. If insufficient: ask ONE focused question with 3-4 concrete "
+        "options, wait for the answer, THEN call `update_strategy_section`\n"
+        "4. After writing each section, move to the next\n\n"
+        "The 7 sections (in this order):\n"
+        "  1. Executive Summary\n"
+        "  2. Value Proposition & Messaging\n"
+        "  3. Competitive Positioning\n"
+        "  4. Channel Strategy\n"
+        "  5. Messaging Framework\n"
+        "  6. Metrics & KPIs\n"
+        "  7. 90-Day Action Plan\n\n"
+        "Each `update_strategy_section` call triggers a live update in the "
+        "user's editor — they see sections appearing in real-time.\n\n"
+        "STEP 4 — ICP & PERSONAS:\n"
+        "After all 7 sections are written:\n"
+        "- Call `set_icp_tiers` with 3 tiers derived from your strategy\n"
+        "- Call `set_buyer_personas` with 3-5 personas\n"
+        "- Briefly mention what was set in chat\n"
+        "- Do NOT write ICP or persona content into the document using "
+        "`update_strategy_section`. Use the dedicated tools.\n\n"
+        "STEP 5 — STRATEGIC BRIEF:\n"
+        "Write a 3-5 sentence summary in chat of the complete strategy. "
+        "Mention key themes and any areas that should be revisited as more "
+        "data comes in.\n\n"
         "CONVERGENCE TRACKING:\n"
         "- Track assumptions as open, validated, or invalidated using "
         "`track_assumption` tool\n"
-        "- Each conversation round is a discovery round — aim to validate or "
-        "invalidate at least one assumption per round\n"
-        "- When the user confirms or denies an assumption, immediately update it "
-        "with `track_assumption`\n"
-        "- Monitor overall readiness with `check_readiness` when several assumptions "
-        "are validated\n\n"
+        "- When the user confirms or denies an assumption, immediately update "
+        "it with `track_assumption`\n"
+        "- Monitor overall readiness with `check_readiness` when several "
+        "assumptions are validated\n\n"
         "READINESS DETECTION:\n"
-        "When the strategy has converged enough, check these criteria:\n"
-        "- ICP has specific disqualifiers (not just 'tech companies')\n"
-        "- At least 2 buyer personas with real title patterns\n"
-        "- Messaging angles grounded in research (not generic)\n"
-        "- Channel strategy has rationale tied to the ICP\n"
-        'Use `check_readiness` to evaluate, and if ready, suggest: "Your strategy '
-        'has solid foundations. Ready to move to the Contacts phase?"\n\n'
+        "When strategy has converged enough (ICP has specific disqualifiers, "
+        "2+ buyer personas with real title patterns, messaging grounded in "
+        "research, channel strategy tied to ICP), use `check_readiness` to "
+        "evaluate. If ready, suggest moving to the Contacts phase.\n\n"
         "SUBSEQUENT MESSAGES:\n"
-        "- Reference the Strategic Brief and update it based on user feedback\n"
         "- Use `update_strategy_section` to write validated findings into the "
         "document\n"
-        "- Always ground recommendations in research, not generic advice\n"
-        "- If the user asks you to generate or draft strategy sections, ALWAYS "
-        "call `web_search` first to get fresh data, then use "
-        "`update_strategy_section` for EACH section. Do not stop after a few "
-        "sections — complete all requested sections in one turn.\n"
-        "- For the FIRST follow-up message, lift the 150-word limit to 400 words "
-        "so you can deliver a comprehensive brief"
+        "- Always ground recommendations in research data, not generic advice\n"
+        "- If the user asks to regenerate strategy, follow the same sequential "
+        "flow (Steps 1-5) again"
     ),
     "contacts": (
         "You are in the CONTACTS phase. The user's ICP and personas have been "
@@ -412,8 +484,8 @@ def build_system_prompt(
         "1. NEVER use negative or dismissive language about ANY company or person. "
         "NEVER say: disqualify, not viable, remove from list, red flag, poor fit, "
         "low-quality, not worth pursuing, questionable, problematic, concerning.",
-        "2. MAXIMUM 150 words per response unless the user explicitly asks for "
-        "more detail. Use bullet points, not paragraphs.",
+        "2. Write comprehensive, well-structured content. Use markdown formatting "
+        "with headers, bullet points, and tables where appropriate. Be thorough.",
         '3. NEVER start with filler: "Great question", "Absolutely", '
         '"That\'s a great point", "I\'d be happy to". Start with the answer.',
         '4. When data is sparse, say "[TODO: Research needed]" and suggest how '
@@ -425,13 +497,27 @@ def build_system_prompt(
         "grounded in this company's data. No generic platitudes. Every response "
         "should be something the founder can act on today.".format(company=tenant.name),
         "",
-        "The playbook follows this 8-section structure:",
+        "The playbook follows this 7-section structure:",
         sections_list,
         "",
         "When the user asks about strategy, always ground your answers in this "
         "structure. Reference specific sections when relevant. If the user asks "
         "you to draft or revise a section, produce clear, concise markdown content "
         "that can be directly pasted into the playbook.",
+        "",
+        "RESEARCH WORKFLOW -- When asked to generate or update strategy sections:",
+        "1. RESEARCH PHASE: Call `research_own_company` to get deep structured "
+        "company intelligence (website content, Perplexity search, AI synthesis). "
+        "If cached data is returned, use it directly — no need to re-run. "
+        "Then use `web_search` ONLY for specific follow-up queries not covered "
+        "by the research: competitor deep-dives, market trends, recent news.",
+        "2. WRITING PHASE: After research, proceed to write/update sections "
+        "using update_strategy_section. Reference specific findings.",
+        "3. VALIDATION: After writing, briefly summarize what you wrote and "
+        "ask if any sections need adjustment.",
+        "",
+        "When researching, form hypotheses first: 'Based on {domain}, I expect "
+        "to find...' then validate with research_own_company. This shows your reasoning.",
     ]
 
     # Include the user's stated objective
@@ -462,10 +548,64 @@ def build_system_prompt(
         parts.extend(
             [
                 "",
-                "The strategy document is currently empty. Help the user build it "
-                "from scratch, starting with whatever section they want to tackle first.",
+                "The strategy document is currently empty. Immediately start "
+                "writing sections using `update_strategy_section` — do not wait "
+                "for permission. The user sees live updates in the editor as you "
+                "write. You should proactively guide the process by researching and filling "
+                "all sections in one turn.",
             ]
         )
+
+    # Compute strategy section completeness for gap tracking (BL-202)
+    if content and content.strip():
+        section_status = []
+        for section_name in STRATEGY_SECTIONS:
+            heading_pattern = "## {}".format(section_name)
+            if heading_pattern in content:
+                idx = content.index(heading_pattern)
+                next_heading = content.find("\n## ", idx + len(heading_pattern))
+                if next_heading == -1:
+                    section_content = content[idx + len(heading_pattern) :]
+                else:
+                    section_content = content[idx + len(heading_pattern) : next_heading]
+                lines = [
+                    ln.strip()
+                    for ln in section_content.strip().split("\n")
+                    if ln.strip()
+                ]
+                word_count = sum(len(ln.split()) for ln in lines)
+                if word_count < 20:
+                    section_status.append(
+                        "- {} [NEEDS WORK -- only {} words]".format(
+                            section_name, word_count
+                        )
+                    )
+                elif word_count < 80:
+                    section_status.append(
+                        "- {} [PARTIAL -- {} words]".format(section_name, word_count)
+                    )
+                else:
+                    section_status.append(
+                        "- {} [COMPLETE -- {} words]".format(section_name, word_count)
+                    )
+            else:
+                section_status.append(
+                    "- {} [EMPTY -- not yet written]".format(section_name)
+                )
+
+        if section_status:
+            parts.extend(
+                [
+                    "",
+                    "STRATEGY COMPLETENESS STATUS:",
+                    "\n".join(section_status),
+                    "",
+                    "Prioritize helping the user fill EMPTY and NEEDS WORK "
+                    "sections. When appropriate, proactively suggest: 'Your "
+                    "[section] section needs attention. Shall I draft it based "
+                    "on our research?'",
+                ]
+            )
 
     # Instruct the AI to treat the document as the single source of truth
     parts.extend(
@@ -480,10 +620,85 @@ def build_system_prompt(
             "or value proposition in the document, reference it directly.",
             "- When the user asks to improve or revise a section, quote or "
             "reference the existing content before suggesting changes.",
-            "- If the document is empty, proactively guide the user to start "
-            "filling in sections rather than asking what they want to do.",
+            "- If the document is empty, immediately start writing sections "
+            "using `update_strategy_section` — do not ask what they want to do. "
+            "Each tool call triggers a live update in the editor so the user "
+            "sees sections appearing in real-time.",
+            "",
+            "TOOL USE FOR DOCUMENT EDITING (mandatory — never skip):",
+            "- To write or update the strategy document, you MUST call the "
+            "`update_strategy_section` tool. NEVER describe document changes "
+            "in text without actually calling the tool. The user cannot see "
+            "your text in the document editor — only tool calls modify it.",
+            "- When you decide to populate or update sections, call "
+            "`update_strategy_section` for EACH section immediately. Do not "
+            "announce what you will do — just do it by calling the tools.",
+            "- WRONG: 'I will now update the Executive Summary section with...' "
+            "(text only, no tool call — document stays empty)",
+            "- RIGHT: Call `update_strategy_section` with section='Executive "
+            "Summary' and content='...' (document actually gets updated)",
+            "- If you need to update multiple sections, call the tool for each "
+            "one in the same turn. Do not split across multiple messages.",
         ]
     )
+
+    # BL-240: ICP Tiers and Buyer Personas live exclusively in their
+    # dedicated tabs (structured data in extracted_data.tiers / .personas).
+    # They are NOT document sections. The AI must always populate them via
+    # set_icp_tiers / set_buyer_personas tools.
+    extracted = document.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    has_tiers = bool(extracted.get("tiers"))
+    has_personas = bool(extracted.get("personas"))
+
+    parts.extend(
+        [
+            "",
+            "ICP TIERS & BUYER PERSONAS (mandatory — critical rules):",
+            "ICP Tiers and Buyer Personas are NOT document sections. They live "
+            "in dedicated structured tabs. NEVER write ICP tier or buyer persona "
+            "content into the strategy document using `update_strategy_section`.",
+            "",
+            "Instead, you MUST use these tools:",
+            "- `set_icp_tiers` — call this to define structured ICP tiers with: "
+            "name, description, priority (1=highest), and criteria (industries, "
+            "company_size_min, company_size_max, revenue_min, revenue_max, "
+            "geographies, tech_signals, qualifying_signals).",
+            "- `set_buyer_personas` — call this to define structured buyer personas "
+            "with: name, role, seniority, pain_points, goals, preferred_channels, "
+            "messaging_hooks, objections, linked_tiers.",
+            "",
+            "WHEN to call these tools:",
+            "- During initial strategy generation (first message): after web "
+            "research and writing strategy sections, ALWAYS call both "
+            "`set_icp_tiers` and `set_buyer_personas` in the same turn.",
+            "- When the user discusses ICP, target markets, or personas: update "
+            "the structured data via these tools.",
+            "- When refining strategy: if ICP or persona changes are implied, "
+            "update the structured data.",
+            "- Do NOT ask for permission — just call the tools proactively.",
+        ]
+    )
+
+    if not has_tiers or not has_personas:
+        missing = []
+        if not has_tiers:
+            missing.append("ICP tiers are currently EMPTY")
+        if not has_personas:
+            missing.append("Buyer personas are currently EMPTY")
+        parts.extend(
+            [
+                "",
+                "URGENT: {} — populate them immediately in your next "
+                "response by calling the appropriate tool(s).".format(
+                    " and ".join(missing)
+                ),
+            ]
+        )
 
     # Include enrichment/research data as structured sections (BL-054)
     if enrichment_data:
@@ -556,6 +771,15 @@ def build_system_prompt(
             "",
             "RESPONSE STYLE — strict rules:",
             "- You are a fractional CMO. Talk like one: brief, direct, no fluff.",
+            "- Be ACTION-ORIENTED: lead with what you did or what to do next. "
+            "Never explain what you are about to do — just do it and report.",
+            "- GOOD: 'Updated positioning section. Ready to work on messaging "
+            "— want me to draft it?'",
+            "- BAD: 'I have carefully analyzed your strategy and made several "
+            "thoughtful updates to the positioning section. The changes include "
+            "a refined value proposition. Would you like me to continue?'",
+            "- After tool calls, summarize the ACTION in one sentence, then "
+            "ask about the next step. No recaps of what the tool did.",
             "- NEVER start a response with filler phrases. Absolutely forbidden "
             'openers: "Great question", "That\'s a great point", '
             '"Absolutely", "I\'d be happy to", "That\'s interesting", '
@@ -569,6 +793,48 @@ def build_system_prompt(
             "- When suggesting playbook changes, name the section and give the "
             "exact content — no meta-commentary about what you would write.",
             "- End with a clear next step or question, not a summary.",
+            "",
+            "NO INTERNAL REASONING IN CHAT (mandatory):",
+            "- NEVER expose internal reasoning, deliberation, or search narration "
+            "to the user. The user should see results, not your thought process.",
+            "- WRONG: 'The web search for unitedarts.cz didn't return direct "
+            "results. Let me search more specifically:'",
+            "- WRONG: 'I'll execute this now. Starting with research, then "
+            "building your complete strategy.'",
+            "- RIGHT: 'Researching your market...' (one short status line)",
+            "- RIGHT: Show results directly without narrating the search process.",
+            "- Status updates while working: ONE short line max (e.g., "
+            "'Researching your competitive landscape...', 'Analyzing your "
+            "market position...'). Never multi-sentence reasoning.",
+            "- If a search fails, silently try another approach. Do NOT tell "
+            "the user about failed searches or internal retries.",
+            "",
+            "ASKING QUESTIONS (mandatory — never batch):",
+            "- Ask ONE question at a time. Never dump multiple questions.",
+            "- Offer 3-4 quick-select options where possible, with a free-text "
+            "option at the end. Format:\n"
+            "  \"What's your primary service?\n"
+            "  -> Event production\n"
+            "  -> Artist management\n"
+            "  -> Cultural consulting\n"
+            '  -> [Tell me in your own words]"\n',
+            "- After the user answers, ask the next question. Never say "
+            "'I have 5 questions for you' or list them all at once.",
+            "- Keep questions focused and specific, not open-ended essays.",
+            "",
+            "NEVER REFUSE TO GENERATE (mandatory):",
+            "- You MUST always produce a strategy, even with limited data.",
+            "- Make reasonable assumptions based on the domain, objectives, and "
+            "any available context. Clearly note your assumptions so the user "
+            "can correct them.",
+            "- NEVER say: 'I cannot proceed', 'I need more information before', "
+            "'any strategy I write will be fiction', 'placeholder content', "
+            "'I cannot generate without'.",
+            "- Instead: Generate the best strategy you can, mark assumptions "
+            "with '*Assumption:*' tags, and offer to refine: 'I made some "
+            "assumptions here — let me know what to adjust.'",
+            "- Sparse data is normal for early-stage companies. Work with what "
+            "you have and suggest how to fill gaps incrementally.",
         ]
     )
 
@@ -1180,29 +1446,25 @@ def _build_challenge_section(challenge_type, industry_raw=None):
 
 
 def build_seeded_template(objective=None, enrichment_data=None, challenge_type=None):
-    """Generate a markdown template for a new strategy document.
+    """Return an empty string — no pre-filled template.
 
-    Produces a professional strategy document with structured formatting:
-    - Complex enrichment fields (ai_opportunities, quick_wins) are parsed
-      from JSON and formatted as subsections with badges
-    - Industry names are cleaned from snake_case to Title Case
-    - Each section uses distinct enrichment fields (no duplication)
-    - Placeholder instructions are replaced with actionable content
-    - Adaptive section based on challenge_type and industry
+    The strategy document starts blank. The AI writes sections
+    incrementally via ``update_strategy_section`` tool calls, and each
+    section appears in the editor in real-time via SSE ``section_update``
+    events.
+
+    The function signature is preserved so existing callers don't break,
+    but the template content has been removed.
 
     Args:
-        objective: Optional user-stated objective to embed in the summary.
-        enrichment_data: Optional dict from _load_enrichment_data with
-            company profile, signals, and market data.
-        challenge_type: Optional string indicating the user's primary
-            challenge (e.g., 'new_market_entry', 'scaling_pipeline').
+        objective: Unused (kept for backward compat).
+        enrichment_data: Unused (kept for backward compat).
+        challenge_type: Unused (kept for backward compat).
 
     Returns:
-        str: Markdown string with 9+ sections pre-populated with company-
-        specific content from enrichment data.
+        str: Empty string.
     """
-    if not enrichment_data:
-        return _build_empty_template(objective, challenge_type)
+    return ""
 
     co = enrichment_data.get("company") or {}
     company_name = _get(co, "name")
@@ -1310,7 +1572,7 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
             "Define your target customer segments based on industry, "
             "company size, and buying signals."
         )
-    icp_content = "\n".join(icp_parts)
+    _icp_content = "\n".join(icp_parts)  # noqa: F841
 
     # --- Buyer Personas ---
     persona_parts = []
@@ -1339,7 +1601,7 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
         persona_parts.append("**Pain Points:** _Fill based on discovery calls_")
         persona_parts.append("**Goals:** _Fill based on discovery calls_")
         persona_parts.append("")
-    persona_content = "\n".join(persona_parts).rstrip()
+    _persona_content = "\n".join(persona_parts).rstrip()  # noqa: F841
 
     # --- Value Proposition ---
     value_parts = []
@@ -1519,14 +1781,6 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
 
 {exec_summary}
 
-## Ideal Customer Profile (ICP)
-
-{icp_content}
-
-## Buyer Personas
-
-{persona_content}
-
 ## Value Proposition & Messaging
 
 {value_content}
@@ -1552,8 +1806,6 @@ def build_seeded_template(objective=None, enrichment_data=None, challenge_type=N
 {action_content}""".format(
         header=header,
         exec_summary=exec_summary,
-        icp_content=icp_content,
-        persona_content=persona_content,
         value_content=value_content,
         comp_content=comp_content,
         channel_content=channel_content,
@@ -1580,14 +1832,6 @@ def _build_empty_template(objective=None, challenge_type=None):
 ## Executive Summary
 
 **Objective:** {objective}
-
-## Ideal Customer Profile (ICP)
-
-Define your target customer segments based on industry, company size, and buying signals.
-
-## Buyer Personas
-
-Identify 2-3 key buyer personas with their titles, pain points, and goals.
 
 ## Value Proposition & Messaging
 

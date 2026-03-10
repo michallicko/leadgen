@@ -20,6 +20,7 @@ enrich_bp = Blueprint("enrich", __name__)
 
 ENRICHMENT_STAGES = [
     "l1",
+    "triage",
     "l2",
     "signals",
     "registry",
@@ -34,6 +35,7 @@ ENRICHMENT_STAGES = [
 # Static cost defaults (USD per item) — used when no historical data exists
 STATIC_COST_DEFAULTS = {
     "l1": 0.02,
+    "triage": 0.00,
     "l2": 0.08,
     "signals": 0.05,
     "registry": 0.00,
@@ -436,3 +438,80 @@ def enrich_resolve():
         )
         db.session.commit()
         return jsonify({"success": True, "new_status": "triage_disqualified"})
+
+
+# ---------------------------------------------------------------------------
+# BL-158: Data Quality endpoints
+# ---------------------------------------------------------------------------
+
+
+@enrich_bp.route("/api/enrich/data-quality/<company_id>", methods=["GET"])
+@require_auth
+def enrich_data_quality_company(company_id):
+    """BL-158: Analyze data quality for a single company."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    from ..services.data_quality import analyze_company_data_quality
+
+    result = analyze_company_data_quality(str(company_id), str(tenant_id))
+    if result.get("error"):
+        return jsonify(result), 404
+
+    return jsonify(result)
+
+
+@enrich_bp.route("/api/enrich/data-quality", methods=["GET"])
+@require_auth
+def enrich_data_quality_batch():
+    """BL-158: Analyze data quality across a batch (tag)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    tag_name = request.args.get("tag_name", "")
+    if not tag_name:
+        return jsonify({"error": "tag_name query param required"}), 400
+
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
+    if err:
+        return err
+
+    limit = request.args.get("limit", "50")
+    try:
+        limit = min(int(limit), 200)
+    except (ValueError, TypeError):
+        limit = 50
+
+    from ..services.data_quality import analyze_batch_data_quality
+
+    result = analyze_batch_data_quality(str(tenant_id), str(tag_id), limit=limit)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# BL-172: Anomaly Detection endpoints
+# ---------------------------------------------------------------------------
+
+
+@enrich_bp.route("/api/enrich/anomalies", methods=["GET"])
+@require_auth
+def enrich_anomalies():
+    """BL-172: Detect anomalies in enrichment data for a batch."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    tag_name = request.args.get("tag_name", "")
+    if not tag_name:
+        return jsonify({"error": "tag_name query param required"}), 400
+
+    tag_id, err = _resolve_tag(tenant_id, tag_name)
+    if err:
+        return err
+
+    from ..services.anomaly_detector import detect_anomalies
+
+    result = detect_anomalies(str(tenant_id), str(tag_id))
+    return jsonify(result)

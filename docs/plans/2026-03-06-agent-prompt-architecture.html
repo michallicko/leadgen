@@ -1,0 +1,2493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent &amp; Prompt Architecture Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #6E2C8B;
+    --purple-dark: #4A1D5E;
+    --purple-light: #9B59B6;
+    --cyan: #00B8CF;
+    --cyan-dark: #008B9A;
+    --cyan-light: #67E8F9;
+    --deep-slate: #404B5C;
+    --slate-light: #6B7280;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --warning: #D97706;
+    --warning-light: #FEF3C7;
+    --danger: #DC2626;
+
+    --bg-body: #0F111A;
+    --bg-surface: #1A1D2E;
+    --bg-surface-alt: #222640;
+    --bg-code: #161929;
+    --bg-pre: #12142280;
+    --border: #2A2E45;
+    --border-light: #353A55;
+    --text-primary: #E2E8F0;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+
+    --font-title: 'Lexend Deca', -apple-system, sans-serif;
+    --font-body: 'Work Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    --sidebar-w: 280px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    background: var(--bg-body);
+  }
+
+  /* ─── Sidebar TOC ─── */
+  nav.toc {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    z-index: 100;
+  }
+  nav.toc .toc-title {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--cyan);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  nav.toc ol {
+    list-style: none;
+    padding: 0;
+  }
+  nav.toc > ol > li {
+    margin-bottom: 4px;
+  }
+  nav.toc a {
+    display: block;
+    padding: 5px 10px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  nav.toc a:hover {
+    color: var(--cyan-light);
+    background: rgba(0,184,207,0.08);
+  }
+  nav.toc a.active {
+    color: var(--cyan);
+    background: rgba(0,184,207,0.12);
+    font-weight: 500;
+  }
+  nav.toc .toc-h3 {
+    padding-left: 24px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ─── Main Content ─── */
+  main {
+    margin-left: var(--sidebar-w);
+    max-width: 900px;
+    padding: 48px 56px 120px;
+  }
+
+  /* ─── Hero Header ─── */
+  .hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-family: var(--font-title);
+    font-size: 2.4rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--purple-light) 0%, var(--cyan) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .hero .subtitle {
+    font-size: 15px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  /* ─── Headings ─── */
+  h2 {
+    font-family: var(--font-title);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 56px 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+  }
+  h2 .num {
+    color: var(--cyan);
+    margin-right: 8px;
+  }
+  h3 {
+    font-family: var(--font-title);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--purple-light);
+    margin: 36px 0 14px;
+  }
+
+  /* ─── Paragraphs ─── */
+  p { margin-bottom: 16px; color: var(--text-secondary); }
+  strong { color: var(--text-primary); font-weight: 600; }
+
+  /* ─── Pre / Code Blocks ─── */
+  pre {
+    background: var(--bg-pre);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 16px 0 24px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    tab-size: 4;
+  }
+  pre .box { color: var(--text-muted); }
+  pre .hl { color: var(--cyan-light); }
+  pre .hl2 { color: var(--purple-light); }
+  pre .num { color: var(--warning); }
+  pre .kw { color: var(--cyan); }
+  pre .str { color: var(--success); }
+  pre .cmt { color: var(--text-muted); font-style: italic; }
+  pre .label { color: var(--warning); font-weight: 500; }
+  pre .arrow { color: var(--purple-light); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-surface-alt);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--cyan-light);
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  /* ─── Tables ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+  thead th {
+    background: var(--bg-surface-alt);
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--purple);
+    font-family: var(--font-title);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+  }
+  tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  tbody tr:nth-child(even) { background: rgba(26,29,46,0.5); }
+  tbody tr:hover { background: rgba(0,184,207,0.04); }
+
+  /* ─── Callouts ─── */
+  .callout {
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-left: 4px solid;
+  }
+  .callout-recommended {
+    background: rgba(0,184,207,0.08);
+    border-left-color: var(--cyan);
+  }
+  .callout-recommended .callout-label { color: var(--cyan); }
+  .callout-problem {
+    background: rgba(217,119,6,0.08);
+    border-left-color: var(--warning);
+  }
+  .callout-problem .callout-label { color: var(--warning); }
+  .callout-label {
+    font-family: var(--font-title);
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .callout p { margin-bottom: 0; }
+
+  /* ─── Details / Collapsible ─── */
+  details {
+    margin: 16px 0 24px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  details summary {
+    padding: 14px 20px;
+    background: var(--bg-surface);
+    cursor: pointer;
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  details summary:hover { background: var(--bg-surface-alt); }
+  details summary::before {
+    content: '\25B6';
+    font-size: 10px;
+    color: var(--cyan);
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  details > pre { margin: 0; border: none; border-radius: 0; border-top: 1px solid var(--border); }
+  details > div { padding: 0; }
+
+  /* ─── Open Question Cards ─── */
+  .questions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .q-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.25s;
+    cursor: default;
+  }
+  .q-card:hover {
+    border-color: var(--cyan-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,184,207,0.1);
+  }
+  .q-card .q-num {
+    font-family: var(--font-title);
+    font-weight: 800;
+    font-size: 28px;
+    color: var(--purple);
+    opacity: 0.4;
+    float: right;
+    line-height: 1;
+  }
+  .q-card .q-title {
+    font-family: var(--font-title);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--cyan);
+    margin-bottom: 8px;
+  }
+  .q-card .q-body {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ─── Decision Boxes ─── */
+  .decision-box {
+    border-left: 3px solid #4ade80;
+    background: rgba(74, 222, 128, 0.08);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .decision-box strong {
+    color: #4ade80;
+  }
+  .decision-box em {
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  /* ─── JSON code highlighting ─── */
+  .json-key { color: var(--cyan-light); }
+  .json-str { color: var(--success); }
+  .json-type { color: var(--warning); }
+  .json-bool { color: var(--purple-light); }
+
+  /* ─── Mobile Toggle ─── */
+  .toc-toggle {
+    display: none;
+    position: fixed;
+    top: 12px; left: 12px;
+    z-index: 200;
+    width: 40px; height: 40px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--cyan);
+    font-size: 20px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 960px) {
+    nav.toc { transform: translateX(-100%); transition: transform 0.3s; }
+    nav.toc.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,0.5); }
+    main { margin-left: 0; padding: 48px 24px 80px; }
+    .toc-toggle { display: flex; }
+    .questions-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ─── Print ─── */
+  @media print {
+    nav.toc, .toc-toggle { display: none; }
+    main { margin-left: 0; max-width: 100%; padding: 20px; }
+    body { background: #fff; color: #222; font-size: 11pt; }
+    h2 { border-bottom-color: #999; }
+    pre { background: #f5f5f5; border-color: #ccc; color: #333; }
+    .callout-recommended { background: #e8f8fa; }
+    .callout-problem { background: #fff8e8; }
+    .q-card { break-inside: avoid; border-color: #ccc; background: #fafafa; }
+    .q-card .q-title { color: #333; }
+    .q-card .q-body { color: #555; }
+    details { break-inside: avoid; }
+    details[open] > pre { border-color: #ccc; }
+    a { color: inherit; text-decoration: none; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--slate-light); }
+</style>
+</head>
+<body>
+
+<button class="toc-toggle" onclick="document.querySelector('nav.toc').classList.toggle('open')" aria-label="Toggle navigation">&#9776;</button>
+
+<nav class="toc" id="toc">
+  <div class="toc-title">Contents</div>
+  <ol id="toc-list"></ol>
+</nav>
+
+<main id="content">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="hero">
+  <h1>Agent &amp; Prompt Architecture Design</h1>
+  <p class="subtitle">Discussion document &mdash; March 2026</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s1"><span class="num">1.</span> Current Architecture</h2>
+
+<h3 id="s1-system-prompt">System Prompt Assembly</h3>
+<p>Every API call rebuilds the full system prompt from scratch:</p>
+
+<details>
+  <summary>System prompt composition diagram</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;              <span class="hl">SYSTEM PROMPT</span>                   &#9474;
+&#9474;  (~3,000 - 10,000+ tokens per call)         &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; A. Critical Rules <span class="cmt">(static)</span>         <span class="num">~300</span> tok &#9474;
+&#9474; B. Role Definition <span class="cmt">(static)</span>        <span class="num">~100</span> tok &#9474;
+&#9474; C. 7-Section Structure <span class="cmt">(static)</span>    <span class="num">~100</span> tok &#9474;
+&#9474; D. Research Workflow <span class="cmt">(static)</span>      <span class="num">~200</span> tok &#9474;
+&#9474; E. User Objective <span class="hl2">(dynamic)</span>         <span class="num">~50</span> tok &#9474;
+&#9474; F. Full Strategy Document <span class="hl2">(dyn)</span> <span class="num">~500-5K</span> &#9474;
+&#9474; G. Section Completeness <span class="hl2">(dyn)</span>    <span class="num">~100</span> tok &#9474;
+&#9474; H. Document Awareness <span class="cmt">(static)</span>     <span class="num">~400</span> tok &#9474;
+&#9474; I. ICP/Personas Rules <span class="cmt">(static)</span>     <span class="num">~400</span> tok &#9474;
+&#9474; J. Enrichment Data <span class="hl2">(dynamic)</span>       <span class="num">~200-2K</span> &#9474;
+&#9474; K. Tone/Style/Length <span class="cmt">(static)</span>     <span class="num">~1000</span> tok&#9474;
+&#9474; L. Phase Instructions <span class="hl2">(dynamic)</span>    <span class="num">~800</span> tok &#9474;
+&#9474; M. Page Context Hint <span class="hl2">(dynamic)</span>      <span class="num">~50</span> tok &#9474;
+&#9474; N. Language Override <span class="hl2">(dynamic)</span>      <span class="num">~50</span> tok &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; TOTAL STATIC:  <span class="num">~2,500</span> tokens                 &#9474;
+&#9474; TOTAL DYNAMIC: <span class="num">~1,000 - 8,000+</span> tokens       &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s1-cost">Per-Call Cost</h3>
+
+<details>
+  <summary>Per-call token breakdown</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;           <span class="hl">EVERY query_with_tools() CALL</span>          &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; System Prompt          <span class="num">3K - 10K</span> tokens           &#9474;
+&#9474; 24 Tool Schemas        <span class="num">~2.5K</span> tokens              &#9474;
+&#9474; Conversation History   up to 20 msgs <span class="num">(~2-4K)</span>     &#9474;
+&#9474; Current Turn Tools     accumulates per iteration  &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; INPUT TOTAL:           <span class="num">8K - 20K+</span> tokens per call &#9474;
+&#9474;                                                  &#9474;
+&#9474; Agent loop: up to <span class="num">25</span> iterations per turn         &#9474;
+&#9474; WORST CASE: <span class="num">25 x 20K = 500K</span> input tokens/turn   &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s1-flow">Agent Execution Flow</h3>
+
+<details>
+  <summary>Agent execution flow diagram</summary>
+<pre>
+User Message
+    <span class="arrow">&#9474;</span>
+    <span class="arrow">&#9660;</span>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;     &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474; <span class="hl2">Build System</span> &#9474;&#9472;&#9472;&#9472;&#9472;&#9658;&#9474;   <span class="hl">query_with_tools</span>  &#9474;&#9668;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;   Prompt     &#9474;     &#9474;   (Claude Haiku)    &#9474;               &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;     &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;               &#9474;
+                             <span class="arrow">&#9474;</span>                             &#9474;
+                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;                    &#9474;
+                    &#9474;  stop_reason?   &#9474;                    &#9474;
+                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;                    &#9474;
+                   &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;                   &#9474;
+                   <span class="arrow">&#9660;</span>                   <span class="arrow">&#9660;</span>                   &#9474;
+            <span class="hl">tool_use</span>              <span class="hl2">end_turn</span>                 &#9474;
+                   <span class="arrow">&#9474;</span>                   <span class="arrow">&#9474;</span>                   &#9474;
+                   <span class="arrow">&#9660;</span>                   <span class="arrow">&#9660;</span>                   &#9474;
+           &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;           &#9474;
+           &#9474; Execute Tool &#9474;    &#9474; Nudge Check  &#9474;           &#9474;
+           &#9474; (1..N tools) &#9474;    &#9474; (sections?)  &#9474;           &#9474;
+           &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;           &#9474;
+                  <span class="arrow">&#9474;</span>                   <span class="arrow">&#9474;</span>                    &#9474;
+                  <span class="arrow">&#9474;</span>            &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;            &#9474;
+                  <span class="arrow">&#9474;</span>            &#9474; Incomplete?  &#9474;            &#9474;
+                  <span class="arrow">&#9474;</span>            &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;            &#9474;
+                  <span class="arrow">&#9474;</span>           yes     &#9474;     no            &#9474;
+                  <span class="arrow">&#9474;</span>            &#9474;      &#9474;      &#9474;            &#9474;
+                  <span class="arrow">&#9660;</span>            <span class="arrow">&#9660;</span>      &#9474;      <span class="arrow">&#9660;</span>            &#9474;
+           Append Results   Inject    &#9474;   Yield Done      &#9474;
+           to Messages      Nudge     &#9474;   Event           &#9474;
+                  <span class="arrow">&#9474;</span>            &#9474;      &#9474;                   &#9474;
+                  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;                   &#9474;
+                           <span class="arrow">&#9474;</span>                              &#9474;
+                           &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                                  <span class="cmt">(loop)</span>
+</pre>
+</details>
+
+<h3 id="s1-frontend">Frontend &harr; Agent Interaction</h3>
+
+<details>
+  <summary>Frontend-to-agent interaction diagram</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;         &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;        &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;   <span class="hl">ChatSidebar</span>   &#9474;         &#9474;   <span class="hl">ChatProvider</span>   &#9474;        &#9474;  <span class="hl">Flask API</span>   &#9474;
+&#9474;   (UI Layer)    &#9474;         &#9474;   (State Mgmt)   &#9474;        &#9474;  (Backend)   &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;         &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;        &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;                 &#9474;         &#9474;                 &#9474;        &#9474;              &#9474;
+&#9474; User types msg <span class="arrow">&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9658;</span>&#9474; sendMessage() <span class="arrow">&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9658;</span>&#9474; POST /chat   &#9474;
+&#9474;                 &#9474;         &#9474;                 &#9474;        &#9474;              &#9474;
+&#9474;                 &#9474;         &#9474; SSE callbacks:  &#9474;<span class="arrow">&#9668;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>&#9508; SSE stream:  &#9474;
+&#9474; ChatMessages   <span class="arrow">&#9668;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>&#9508;  onChunk       &#9474;        &#9474;  chunk       &#9474;
+&#9474; (renders msgs)  &#9474;         &#9474;  onToolStart   &#9474;        &#9474;  tool_start  &#9474;
+&#9474;                 &#9474;         &#9474;  onToolResult  &#9474;        &#9474;  tool_result &#9474;
+&#9474; WorkingState   <span class="arrow">&#9668;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>&#9508;  isThinking    &#9474;        &#9474;  thinking    &#9474;
+&#9474; (thinking UI)   &#9474;         &#9474;  thinkingStatus&#9474;        &#9474;  research_st &#9474;
+&#9474;                 &#9474;         &#9474;                 &#9474;        &#9474;              &#9474;
+&#9474; StrategyEditor <span class="arrow">&#9668;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>&#9508;  onSectionStart&#9474;        &#9474;  sec_content &#9474;
+&#9474; (typewriter)    &#9474;         &#9474;  onSectionChunk&#9474;        &#9474;  _start/chunk&#9474;
+&#9474;                 &#9474;         &#9474;  onSectionDone &#9474;        &#9474;  _done       &#9474;
+&#9474;                 &#9474;         &#9474;                 &#9474;        &#9474;              &#9474;
+&#9474; PhaseTransition<span class="arrow">&#9668;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>&#9508;  documentChange&#9474;        &#9474;  done (with  &#9474;
+&#9474; (banner)        &#9474;         &#9474;  (invalidate   &#9474;        &#9474;   tool_calls)&#9474;
+&#9474;                 &#9474;         &#9474;   react-query)  &#9474;        &#9474;              &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;         &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;        &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s2"><span class="num">2.</span> Problems Identified</h2>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P1: No Prompt Caching</div>
+  <p>The system prompt is re-sent verbatim on EVERY iteration of the tool loop. Anthropic API supports <code>cache_control</code> breakpoints that would cache the static portion across calls. With up to 25 iterations per turn, this wastes <strong>~2,500 static tokens x 25 = 62,500 input tokens</strong> that could be cached.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P2: All 24 Tools Always Sent</div>
+  <p>Every call includes all 24 tool definitions regardless of context. On the Playbook strategy phase, campaign tools are irrelevant. On the contacts phase, strategy tools are irrelevant. Sending unnecessary tools wastes <strong>~1,000+ tokens</strong> and confuses the model.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P3: Full Document in System Prompt</div>
+  <p>The entire strategy document is embedded in every system prompt. As the document grows (5,000+ tokens), this dominates the prompt cost. The document is already available via <code>get_strategy_document</code> tool -- the AI could fetch it on demand instead.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P4: No Conversation Summarization</div>
+  <p>Hard window of 20 messages with no summarization. Early context (decisions, preferences) is lost after 20 messages. No distinction between important context and filler.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P5: Tool History Lost Between Turns</div>
+  <p>Previous turn's tool calls are NOT included in conversation history -- only the text response. The AI loses awareness of what tools it already used and what data it already has.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P6: Static Phase Instructions for All Phases</div>
+  <p>All 4 phase instruction blocks are included regardless of which phase is active. Only the active phase's instructions are relevant.</p>
+</div>
+
+<div class="callout callout-problem">
+  <div class="callout-label">P7: Enrichment Data Always Included</div>
+  <p>Full enrichment data (~200-2,000 tokens) is included even when the conversation topic doesn't need it (e.g., user asks "make this section shorter").</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s3"><span class="num">3.</span> Proposed: Layered Prompt Architecture</h2>
+
+<h3 id="s3-core">Core Idea: Separate static identity from dynamic context</h3>
+
+<details>
+  <summary>Layered prompt architecture diagram</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">LAYER 0: IDENTITY</span> (cacheable, ~800 tok)    &#9474;
+&#9474;  - Role definition                          &#9474;
+&#9474;  - Critical rules                           &#9474;
+&#9474;  - Response style/tone                      &#9474;
+&#9474;  - Question format rules                    &#9474;
+&#9474;  - Language override                        &#9474;
+&#9474;  <span class="kw">[cache_control: ephemeral]</span>                 &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  <span class="hl">LAYER 1: CAPABILITIES</span> (cacheable, ~1-2K)   &#9474;
+&#9474;  - Tool descriptions (phase-filtered)       &#9474;
+&#9474;  - Tool usage rules                         &#9474;
+&#9474;  - Document editing rules                   &#9474;
+&#9474;  <span class="kw">[cache_control: ephemeral]</span>                 &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  <span class="hl2">LAYER 2: CONTEXT</span> (dynamic, ~1-5K)          &#9474;
+&#9474;  - Current phase instructions (1 of 4)      &#9474;
+&#9474;  - Section completeness status              &#9474;
+&#9474;  - User objective                           &#9474;
+&#9474;  - Page context hint                        &#9474;
+&#9474;  - Enrichment summary (compressed)          &#9474;
+&#9474;  - Document excerpt (relevant sections)     &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  <span class="hl2">LAYER 3: CONVERSATION</span> (dynamic, ~1-4K)     &#9474;
+&#9474;  - Summarized older messages                &#9474;
+&#9474;  - Recent messages (last 6-10 verbatim)     &#9474;
+&#9474;  - Previous turn tool results (compressed)  &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s3-budget">Token Budget Comparison</h3>
+
+<pre>
+                    <span class="label">CURRENT</span>          <span class="label">PROPOSED</span>
+                    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;          &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+System prompt:      <span class="num">3K-10K</span>           <span class="str">800 (cached)</span> + 1-3K dynamic
+Tool schemas:       <span class="num">2.5K</span> (all 24)    <span class="str">600-1K</span> (phase-filtered 6-10)
+History:            <span class="num">2-4K</span> (raw 20)    <span class="str">1-2K</span> (summarized + recent)
+Turn context:       <span class="num">0-5K</span> (tools)     <span class="str">0-3K</span> (compressed)
+                    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;          &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+Per-call total:     <span class="num">8-20K</span>            <span class="str">3-7K</span>
+25-iteration turn:  <span class="num">200-500K</span>         <span class="str">~50K (cached) + 75-175K</span>
+<strong style="color:var(--cyan-light)">Savings:            --               50-70% input token reduction</strong>
+</pre>
+
+<h3 id="s3-routing">Tool Routing by Phase</h3>
+
+<table>
+  <thead>
+    <tr><th>Phase</th><th>Active Tools (sent to API)</th><th>Omitted</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>strategy</strong></td>
+      <td>update_strategy_section, append_to_section, set_extracted_field, track_assumption, check_readiness, set_icp_tiers, set_buyer_personas, web_search, research_own_company, get_strategy_document, count_contacts, count_companies</td>
+      <td>filter_contacts, create_campaign, assign_to_campaign, check_strategy_conflicts, get_campaign_summary, apply_icp_filters, get_enrichment_gaps, estimate_enrichment_cost, start_enrichment, analyze_enrichment_insights</td>
+    </tr>
+    <tr>
+      <td><strong>contacts</strong></td>
+      <td>list_contacts, count_contacts, filter_contacts, apply_icp_filters, get_enrichment_gaps, estimate_enrichment_cost, start_enrichment, get_strategy_document, analyze_enrichment_insights</td>
+      <td>update_strategy_section, append_to_section, set_extracted_field, track_assumption, set_icp_tiers, set_buyer_personas, web_search, research_own_company</td>
+    </tr>
+    <tr>
+      <td><strong>messages</strong></td>
+      <td>create_campaign, filter_contacts, get_strategy_document, list_contacts</td>
+      <td>update_strategy_section, set_extracted_field, web_search, research_own_company, set_icp_tiers/personas</td>
+    </tr>
+    <tr>
+      <td><strong>campaign</strong></td>
+      <td>create_campaign, assign_to_campaign, check_strategy_conflicts, get_campaign_summary, filter_contacts, get_strategy_document</td>
+      <td>update_strategy_section, set_extracted_field, web_search, research_own_company, set_icp_tiers/personas</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s4"><span class="num">4.</span> Conversation Context Strategy</h2>
+
+<h3 id="s4-current">Current: Hard Window</h3>
+
+<pre>
+Message 1  <span class="num">--+</span>
+Message 2    <span class="num">|</span>  <span style="color:var(--danger)">DROPPED (lost forever)</span>
+...          <span class="num">|</span>
+Message 15 <span class="num">--+</span>
+Message 16 <span class="str">--- kept (raw)</span>
+Message 17 <span class="str">--- kept (raw)</span>
+...
+Message 35 <span class="str">--- kept (raw, latest)</span>
+</pre>
+
+<h3 id="s4-proposed">Proposed: Summarize + Window</h3>
+
+<pre>
+Messages 1-20:  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                &#9474;  <span class="hl">SUMMARY</span> (~200 tok)  &#9474;
+                &#9474;  <span class="str">"User wants B2B</span>     &#9474;
+                &#9474;   <span class="str">SaaS strategy.</span>     &#9474;
+                &#9474;   <span class="str">Prefers aggressive</span> &#9474;
+                &#9474;   <span class="str">outbound. Approved</span> &#9474;
+                &#9474;   <span class="str">3-tier ICP."</span>       &#9474;
+                &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+Messages 21-28: <span class="kw">kept verbatim</span> (recent context)
+Message 29:     <span class="hl2">current user message</span>
+</pre>
+
+<p><strong>Summarization trigger:</strong> When history exceeds 15 messages, summarize oldest 10 into a ~200 token summary. Keep last 8 verbatim. Re-summarize as conversation grows.</p>
+
+<p><strong>What to preserve in summaries:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>User decisions and preferences</li>
+  <li>Approved strategies/content</li>
+  <li>Rejected suggestions</li>
+  <li>Key constraints mentioned</li>
+  <li>Tool results that inform future decisions</li>
+</ul>
+
+<p><strong>What to drop:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>Filler ("looks good", "thanks")</li>
+  <li>Intermediate drafts that were replaced</li>
+  <li>Tool execution details (keep outcomes only)</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s5"><span class="num">5.</span> Prompt Caching Strategy</h2>
+
+<h3 id="s5-cache">Anthropic Cache Control</h3>
+
+<pre>
+messages = [
+    {
+        <span class="json-key">"role"</span>: <span class="json-str">"user"</span>,
+        <span class="json-key">"content"</span>: [
+            {
+                <span class="json-key">"type"</span>: <span class="json-str">"text"</span>,
+                <span class="json-key">"text"</span>: STATIC_SYSTEM_PROMPT,  <span class="cmt"># ~800 tokens</span>
+                <span class="json-key">"cache_control"</span>: {<span class="json-key">"type"</span>: <span class="json-str">"ephemeral"</span>}
+            },
+            {
+                <span class="json-key">"type"</span>: <span class="json-str">"text"</span>,
+                <span class="json-key">"text"</span>: TOOL_RULES,  <span class="cmt"># ~500 tokens</span>
+                <span class="json-key">"cache_control"</span>: {<span class="json-key">"type"</span>: <span class="json-str">"ephemeral"</span>}
+            },
+            {
+                <span class="json-key">"type"</span>: <span class="json-str">"text"</span>,
+                <span class="json-key">"text"</span>: dynamic_context  <span class="cmt"># changes each call</span>
+            }
+        ]
+    }
+]
+</pre>
+
+<p><strong>Cache hit rate:</strong> Within a single turn's tool loop (up to 25 iterations), the static portion would be cached after the first call. Saves <strong>~1,300 tokens x 24 iterations = ~31,200 cached input tokens</strong> per turn.</p>
+
+<p><strong>Between turns:</strong> Cache lives for 5 minutes. If user sends another message within 5 min, static portion is still cached.</p>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s6"><span class="num">6.</span> Document Context Optimization</h2>
+
+<h3 id="s6-current">Current: Full Document Always Included</h3>
+
+<pre>
+System prompt contains:
+<span class="label">--- Current Strategy Document ---</span>
+<span class="hl2"># GTM Strategy Playbook</span>
+<span class="hl2">## Executive Summary</span>
+[500 words]
+<span class="hl2">## Value Proposition</span>
+[400 words]
+<span class="hl2">## Competitive Positioning</span>
+[300 words]
+... (all 7 sections, 2000-5000 words total)
+<span class="label">--- End ---</span>
+</pre>
+
+<h3 id="s6-optiona">Option A: Lazy Load via Tool</h3>
+<p>Remove document from system prompt entirely. AI calls <code>get_strategy_document</code> when it needs to read the document. Trade-off: adds 1 tool call per turn but saves 500-5000 tokens from system prompt.</p>
+<p><strong>Risk:</strong> AI might not call the tool when it should, leading to stale context. Mitigated by explicit instructions.</p>
+
+<h3 id="s6-optionb">Option B: Relevant Sections Only</h3>
+<pre>
+<span class="label">--- Strategy Context ---</span>
+<span class="hl">ACTIVE SECTION:</span> Competitive Positioning
+<span class="str">[full content of that section]</span>
+
+<span class="hl">OTHER SECTIONS STATUS:</span>
+- Executive Summary      <span class="str">[COMPLETE - 245 words]</span>
+- Value Proposition      <span class="str">[COMPLETE - 180 words]</span>
+- Channel Strategy       <span style="color:var(--danger)">[EMPTY]</span>
+- Messaging Framework    <span class="num">[PARTIAL - 45 words]</span>
+- Metrics &amp; KPIs         <span style="color:var(--danger)">[EMPTY]</span>
+- 90-Day Action Plan     <span style="color:var(--danger)">[EMPTY]</span>
+<span class="label">--- End ---</span>
+</pre>
+
+<h3 id="s6-optionc">Option C: Compressed Summary + Full on Demand</h3>
+<p>Include a 200-token summary of the document (key decisions, ICP, positioning) in the system prompt. Full document available via tool.</p>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Recommended: Option B</div>
+  <p>Relevant section + status gives the AI enough context to respond intelligently while keeping the prompt lean. Full sections available via tool call for cross-referencing.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s7"><span class="num">7.</span> UI &harr; Agent Interaction Patterns</h2>
+
+<h3 id="s7-current">Current: Monolithic Handler</h3>
+
+<pre>
+User clicks Send
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+ChatProvider.sendMessage()
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+POST /api/playbook/chat  <span class="cmt">---- one endpoint handles everything</span>
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+build_system_prompt()     <span class="cmt">---- one prompt for all scenarios</span>
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+agent_executor loop       <span class="cmt">---- one loop, all tools available</span>
+</pre>
+
+<h3 id="s7-proposed">Proposed: Intent-Aware Routing</h3>
+
+<details>
+  <summary>Intent-aware routing diagram</summary>
+<pre>
+User clicks Send
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+ChatProvider.sendMessage()
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+POST /api/playbook/chat
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
++&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;+
+&#9474; <span class="hl">Intent Check</span> &#9474;  <span class="cmt">&lt;-- lightweight classifier (or keyword rules)</span>
++&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;+
+       <span class="arrow">|</span>
+  +&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+  <span class="arrow">v</span>         <span class="arrow">v</span>          <span class="arrow">v</span>          <span class="arrow">v</span>
+<span class="str">Quick</span>     <span class="hl2">Strategy</span>   <span class="hl">Research</span>   <span class="kw">Campaign</span>
+<span class="str">Answer</span>    <span class="hl2">Edit</span>       <span class="hl">Task</span>       <span class="kw">Action</span>
+  <span class="arrow">|</span>         <span class="arrow">|</span>          <span class="arrow">|</span>          <span class="arrow">|</span>
+  <span class="arrow">v</span>         <span class="arrow">v</span>          <span class="arrow">v</span>          <span class="arrow">v</span>
+Simple    Edit        Research   Campaign
+streaming tools +     tools +    tools +
+(no tools) doc ctx    web ctx    contact ctx
+</pre>
+</details>
+
+<p><strong>Intent categories:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li><strong>Quick answer:</strong> "What's our ICP?" -- no tools, just reference doc, streaming response</li>
+  <li><strong>Strategy edit:</strong> "Rewrite the positioning section" -- edit tools + doc context</li>
+  <li><strong>Research task:</strong> "Find competitors for Acme" -- web_search + research tools</li>
+  <li><strong>Campaign action:</strong> "Create a campaign for Tier 1" -- campaign + contact tools</li>
+</ul>
+
+<p><strong>Benefits:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>Smaller tool sets per intent = cheaper calls + better tool selection</li>
+  <li>Targeted context = less noise in the prompt</li>
+  <li>Can use different models per intent (Haiku for quick answers, Sonnet for complex edits)</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s8"><span class="num">8.</span> Design Patterns Summary</h2>
+
+<table>
+  <thead>
+    <tr><th>Pattern</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>1. Prompt Layering</strong></td><td>Separate identity (cacheable) from context (dynamic). Static layers cached across tool iterations. Dynamic layers rebuilt per call with minimal content.</td></tr>
+    <tr><td><strong>2. Phase-Filtered Tools</strong></td><td>Only register tools relevant to the current phase. Reduces schema tokens and eliminates irrelevant tool selection.</td></tr>
+    <tr><td><strong>3. Lazy Document Loading</strong></td><td>Remove full document from system prompt. Include section status + active section only. Full content available via tool call.</td></tr>
+    <tr><td><strong>4. Conversation Summarization</strong></td><td>Summarize old messages, keep recent ones verbatim. Preserve decisions and preferences, drop filler.</td></tr>
+    <tr><td><strong>5. Intent-Aware Routing</strong></td><td>Classify user intent before building prompt. Route to specialized prompt+tool configurations per intent type.</td></tr>
+    <tr><td><strong>6. Model Selection by Complexity</strong></td><td>Use Haiku for quick answers and simple edits. Use Sonnet for complex strategy generation, research synthesis, and multi-tool orchestration.</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s9"><span class="num">9.</span> Agent Conversation Flow Control</h2>
+
+<h3 id="s9-problem">The Problem: Blind Execution</h3>
+
+<div class="callout callout-problem">
+  <div class="callout-label">Problem</div>
+  <p>Currently the agent receives a prompt like "Generate a GTM strategy for acme.com" and runs autonomously for up to 25 tool iterations, making every decision itself. It produces a complete 7-section strategy without ever checking if it's on the right track. This leads to:</p>
+</div>
+
+<ul style="margin:0 0 20px 24px;color:var(--text-secondary)">
+  <li>Strategy about the wrong product line (company has 5 products, AI picked one)</li>
+  <li>Wrong ICP scope (B2B + B2C company, AI assumed both)</li>
+  <li>Generic positioning because AI didn't confirm differentiators</li>
+  <li>Wasted tokens on sections that get thrown away after user review</li>
+</ul>
+
+<h3 id="s9-gates">Proposed: Progressive Confirmation Gates</h3>
+
+<p>The agent should decompose work into phases and <strong>HALT at critical decision points</strong> -- moments where a wrong assumption would invalidate everything downstream.</p>
+
+<details>
+  <summary>Progressive confirmation gates flow</summary>
+<pre>
+User: <span class="str">"Generate a strategy for acme-saas.com"</span>
+    <span class="arrow">&#9474;</span>
+    <span class="arrow">&#9660;</span>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">PHASE 1: RESEARCH</span> (autonomous)         &#9474;
+&#9474;  &#9472; web_search: company website          &#9474;
+&#9474;  &#9472; research_own_company: deep profile   &#9474;
+&#9474;  &#9472; Extract: products, markets, team     &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                 <span class="arrow">&#9474;</span>
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; <span class="label">HALT GATE 1: Company Scope</span> &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="str">"I found Acme has 3 products:</span>           &#9474;
+    &#9474;   <span class="str">1. DataFlow (analytics, $2M ARR)</span>       &#9474;
+    &#9474;   <span class="str">2. QuickSync (integration, $500K)</span>      &#9474;
+    &#9474;   <span class="str">3. CloudVault (storage, $800K)</span>         &#9474;
+    &#9474;                                          &#9474;
+    &#9474;   <span class="str">Strategy for all 3, or focus on one?"</span>  &#9474;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="kw">[All products]</span> <span class="kw">[DataFlow only]</span>          &#9474;
+    &#9474;  <span class="kw">[DataFlow + QuickSync]</span> <span class="kw">[Other]</span>          &#9474;
+    &#9474;                                          &#9474;
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+                 <span class="arrow">&#9474;</span>
+                 <span class="arrow">&#9660;</span> <span class="cmt">(user picks "DataFlow only")</span>
+                 <span class="arrow">&#9474;</span>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">PHASE 2: POSITIONING</span> (autonomous)      &#9474;
+&#9474;  &#9472; Analyze DataFlow competitors         &#9474;
+&#9474;  &#9472; Draft value proposition              &#9474;
+&#9474;  &#9472; Define target market segments        &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                 <span class="arrow">&#9474;</span>
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; <span class="label">HALT GATE 2: ICP Direction</span> &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="str">"Two strong ICP segments emerge:</span>        &#9474;
+    &#9474;   <span class="str">A. VP Ops at mid-market SaaS (200-2K)</span>  &#9474;
+    &#9474;   <span class="str">B. CFO at enterprise fintech (2K+)"</span>    &#9474;
+    &#9474;                                          &#9474;
+    &#9474;   <span class="str">"Go broad (both) or narrow (one)?"</span>     &#9474;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="kw">[Both segments]</span> <span class="kw">[Segment A]</span>             &#9474;
+    &#9474;  <span class="kw">[Segment B]</span> <span class="kw">[Other]</span>                     &#9474;
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+                 <span class="arrow">&#9474;</span>
+                 <span class="arrow">&#9660;</span> <span class="cmt">(user picks "Segment A")</span>
+                 <span class="arrow">&#9474;</span>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">PHASE 3: STRATEGY DRAFT</span> (autonomous)   &#9474;
+&#9474;  &#9472; Write Executive Summary              &#9474;
+&#9474;  &#9472; Write ICP tiers (based on Segment A) &#9474;
+&#9474;  &#9472; Write Positioning                    &#9474;
+&#9474;  &#9472; Write Channel Strategy               &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                 <span class="arrow">&#9474;</span>
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; <span class="label">HALT GATE 3: Draft Review</span> &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="str">"Strategy draft complete. Key choices:</span>  &#9474;
+    &#9474;   <span class="str">&#9472; Primary channel: LinkedIn outbound</span>   &#9474;
+    &#9474;   <span class="str">&#9472; Tone: consultative, not salesy</span>       &#9474;
+    &#9474;   <span class="str">&#9472; Metric target: 5% reply rate"</span>        &#9474;
+    &#9474;                                          &#9474;
+    &#9474;   <span class="str">"Looks right, or adjust?"</span>               &#9474;
+    &#9474;                                          &#9474;
+    &#9474;  <span class="kw">[Looks good, continue]</span> <span class="kw">[Adjust tone]</span>    &#9474;
+    &#9474;  <span class="kw">[Change channel]</span> <span class="kw">[Review full draft]</span>    &#9474;
+    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+                 <span class="arrow">&#9474;</span>
+                 <span class="arrow">&#9660;</span>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">PHASE 4: MESSAGING + ACTION PLAN</span>       &#9474;
+&#9474;  &#9472; Write Messaging Framework            &#9474;
+&#9474;  &#9472; Write 90-Day Action Plan             &#9474;
+&#9474;  &#9472; Set buyer personas                   &#9474;
+&#9474;  &#9472; Check readiness for Contacts phase   &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s9-taxonomy">Halt Gate Taxonomy</h3>
+
+<p>Not every pause is a halt gate. Define clear categories:</p>
+
+<table>
+  <thead>
+    <tr><th>Gate Type</th><th>Trigger</th><th>Example</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Scope Gate</strong></td><td>Multiple valid scopes found</td><td>"Which product line?"</td></tr>
+    <tr><td><strong>Direction Gate</strong></td><td>Mutually exclusive strategies</td><td>"Broad or narrow ICP?"</td></tr>
+    <tr><td><strong>Assumption Gate</strong></td><td>AI made a guess it's unsure about</td><td>"I assumed B2B only -- correct?"</td></tr>
+    <tr><td><strong>Review Gate</strong></td><td>Major deliverable complete</td><td>"Strategy draft ready -- review?"</td></tr>
+    <tr><td><strong>Resource Gate</strong></td><td>Expensive action about to happen</td><td>"Enrichment will cost 450 credits -- proceed?"</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s9-when">When to HALT vs Continue</h3>
+
+<table>
+  <thead>
+    <tr><th>HALT when</th><th>CONTINUE when</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Decision invalidates downstream work</td><td>Decision is easily reversible</td></tr>
+    <tr><td>Multiple valid options, no clear winner</td><td>Single obvious path forward</td></tr>
+    <tr><td>User preference matters (tone, scope)</td><td>Factual/technical choice</td></tr>
+    <tr><td>Expensive operation ahead</td><td>Low-cost operation</td></tr>
+    <tr><td>First time encountering this decision</td><td>Same decision was made before</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s9-impl">Implementation: Halt Gate Protocol</h3>
+
+<p>The agent needs a structured way to halt. Two approaches:</p>
+
+<p><strong>Option A: Tool-Based Halts</strong></p>
+<p>Add a <code>request_user_decision</code> tool:</p>
+
+<pre>
+{
+  <span class="json-key">"name"</span>: <span class="json-str">"request_user_decision"</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Pause execution and ask the user to choose
+    between options. Use at critical decision points where the
+    wrong choice would waste significant work."</span>,
+  <span class="json-key">"input_schema"</span>: {
+    <span class="json-key">"type"</span>: <span class="json-str">"object"</span>,
+    <span class="json-key">"properties"</span>: {
+      <span class="json-key">"question"</span>: {<span class="json-key">"type"</span>: <span class="json-str">"string"</span>},
+      <span class="json-key">"options"</span>: {
+        <span class="json-key">"type"</span>: <span class="json-str">"array"</span>,
+        <span class="json-key">"items"</span>: {<span class="json-key">"type"</span>: <span class="json-str">"string"</span>}
+      },
+      <span class="json-key">"context"</span>: {<span class="json-key">"type"</span>: <span class="json-str">"string"</span>},
+      <span class="json-key">"gate_type"</span>: {
+        <span class="json-key">"type"</span>: <span class="json-str">"string"</span>,
+        <span class="json-key">"enum"</span>: [<span class="json-str">"scope"</span>, <span class="json-str">"direction"</span>, <span class="json-str">"assumption"</span>,
+                <span class="json-str">"review"</span>, <span class="json-str">"resource"</span>]
+      }
+    },
+    <span class="json-key">"required"</span>: [<span class="json-str">"question"</span>, <span class="json-str">"options"</span>, <span class="json-str">"context"</span>, <span class="json-str">"gate_type"</span>]
+  }
+}
+</pre>
+
+<p>When the AI calls this tool, the executor:</p>
+<ol style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>Yields the question as a special SSE event (<code>decision_request</code>)</li>
+  <li>Stops the agent loop</li>
+  <li>Frontend shows the question with option buttons</li>
+  <li>User's choice is sent as the next message</li>
+  <li>Agent resumes with the decision as context</li>
+</ol>
+
+<p><strong>Option B: Prompt-Instructed Halts</strong></p>
+<p>No new tool -- instruct the AI in the system prompt to stop and ask. Format halt questions as one sentence context, the question, and 3-4 clickable options.</p>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Recommended: Option A (tool-based)</div>
+  <p>More reliable. Prompt-only halts are easy for the AI to skip, especially with Haiku. A tool call forces a real pause in the executor loop.</p>
+</div>
+
+<h3 id="s9-ui">Frontend: Decision Request UI</h3>
+
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">Research Complete</span>                    &#9474;
+&#9474;                                         &#9474;
+&#9474;  Acme has 3 product lines. Which        &#9474;
+&#9474;  should the strategy focus on?          &#9474;
+&#9474;                                         &#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; <span class="kw">DataFlow (analytics, $2M ARR)</span>  &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; <span class="kw">All products</span>                    &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; <span class="kw">DataFlow + QuickSync</span>           &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; <span class="kw">Other...</span>                        &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+
+<p>Render as interactive buttons in the chat. User clicks one, it is sent as the next message, and the agent resumes.</p>
+
+<h3 id="s9-vocab">Communication Framework</h3>
+
+<p>When designing agent interactions, use this shared vocabulary:</p>
+
+<table>
+  <thead>
+    <tr><th>Term</th><th>Meaning</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Turn</strong></td><td>One user message, then full agent response (may include tool loops)</td></tr>
+    <tr><td><strong>Gate</strong></td><td>A decision point where the agent pauses for user input</td></tr>
+    <tr><td><strong>Phase</strong></td><td>A block of autonomous work between gates</td></tr>
+    <tr><td><strong>Scope</strong></td><td>What the strategy covers (product, market, geography)</td></tr>
+    <tr><td><strong>Direction</strong></td><td>Strategic choice (broad/narrow, aggressive/conservative)</td></tr>
+    <tr><td><strong>Assumption</strong></td><td>Something the AI guessed -- needs verification</td></tr>
+    <tr><td><strong>Deliverable</strong></td><td>A concrete output (section draft, ICP definition, action plan)</td></tr>
+    <tr><td><strong>Confirmation</strong></td><td>User approves a deliverable or direction</td></tr>
+    <tr><td><strong>Rejection</strong></td><td>User sends back a deliverable for revision</td></tr>
+    <tr><td><strong>Pivot</strong></td><td>User changes scope or direction mid-flow</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s9-decomp">Task Decomposition Rules</h3>
+
+<table>
+  <thead>
+    <tr><th>User Request</th><th>Decomposition</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>"Generate strategy"</td><td>Research &rarr; <span style="color:var(--warning)">[Scope Gate]</span> &rarr; Position &rarr; <span style="color:var(--warning)">[Direction Gate]</span> &rarr; Draft &rarr; <span style="color:var(--warning)">[Review Gate]</span> &rarr; Finalize</td></tr>
+    <tr><td>"Find contacts"</td><td>Review ICP &rarr; <span style="color:var(--warning)">[Assumption Gate]</span> &rarr; Filter &rarr; <span style="color:var(--warning)">[Review Gate]</span> &rarr; Full list</td></tr>
+    <tr><td>"Create campaign"</td><td>Select contacts &rarr; <span style="color:var(--warning)">[Scope Gate]</span> &rarr; Draft messages &rarr; <span style="color:var(--warning)">[Review Gate]</span> &rarr; Schedule</td></tr>
+    <tr><td>"Improve positioning"</td><td>Read current &rarr; <span style="color:var(--warning)">[Assumption Gate]</span> &rarr; Revise &rarr; <span style="color:var(--warning)">[Review Gate]</span></td></tr>
+  </tbody>
+</table>
+
+<h3 id="s9-freq">Gate Frequency Guideline</h3>
+
+<pre>
+<span style="color:var(--danger)">Too few gates:</span>    AI runs for 3 minutes, produces wrong strategy <span class="arrow">&rarr;</span> waste
+<span style="color:var(--danger)">Too many gates:</span>   AI asks 10 questions before writing anything <span class="arrow">&rarr;</span> annoying
+<span class="str">Sweet spot:</span>       2-4 gates per major task, 0-1 for minor edits
+</pre>
+
+<table>
+  <thead>
+    <tr><th>Task Size</th><th>Gates</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Full strategy</td><td>3-4 (scope, direction, draft review, final review)</td></tr>
+    <tr><td>Section rewrite</td><td>1 (review gate after draft)</td></tr>
+    <tr><td>Quick edit</td><td>0 (just do it)</td></tr>
+    <tr><td>Research task</td><td>1 (scope gate: what to research)</td></tr>
+    <tr><td>Campaign create</td><td>2 (scope gate, message review)</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s10"><span class="num">10.</span> Framework Evaluation: Build vs Adopt</h2>
+
+<h3 id="s10-current">Current Custom Stack</h3>
+
+<details>
+  <summary>Current architecture overview</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;           <span class="hl">CURRENT ARCHITECTURE</span>           &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  Flask Route                             &#9474;
+&#9474;    &#9492;&#9472; playbook_service.build_system_prompt&#9474;
+&#9474;    &#9492;&#9472; agent_executor.execute_agent_turn  &#9474;
+&#9474;         &#9492;&#9472; requests.post(anthropic API)  &#9474;
+&#9474;         &#9492;&#9472; tool_registry.execute()       &#9474;
+&#9474;         &#9492;&#9472; SSE yield (custom generator)  &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  Lines of code:     <span class="num">~800</span> (executor+tools)&#9474;
+&#9474;  External deps:     requests, flask      &#9474;
+&#9474;  Observability:     <span style="color:var(--danger)">None</span>                 &#9474;
+&#9474;  Streaming:         Custom SSE generator &#9474;
+&#9474;  State machine:     Implicit (loop+nudge)&#9474;
+&#9474;  Halt gates:        <span style="color:var(--danger)">Not implemented</span>      &#9474;
+&#9474;  Multi-model:       <span style="color:var(--danger)">Not implemented</span>      &#9474;
+&#9474;  Prompt caching:    <span style="color:var(--danger)">Not implemented</span>      &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s10-optionA">Option A: Stay Custom + Incremental Improvements</h3>
+
+<p>Keep the current architecture, add features incrementally:</p>
+
+<table>
+  <thead>
+    <tr><th>What to Add</th><th>Effort</th><th>Benefit</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Prompt caching</td><td>2 hours</td><td>50% token savings</td></tr>
+    <tr><td>Phase-filtered tools</td><td>4 hours</td><td>Better tool selection</td></tr>
+    <tr><td>request_user_decision</td><td>1 day</td><td>Halt gates</td></tr>
+    <tr><td>Conversation summary</td><td>1 day</td><td>Better context mgmt</td></tr>
+    <tr><td>Intent classifier</td><td>2 days</td><td>Smarter routing</td></tr>
+    <tr><td>LangSmith-like tracing</td><td>3-5 days</td><td>Observability</td></tr>
+    <tr><td>Multi-model routing</td><td>1 day</td><td>Cost optimization</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Total: ~2 weeks to match framework features.</strong></p>
+
+<p><strong>Pros:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>Zero migration risk</li>
+  <li>Full control, no abstractions</li>
+  <li>SSE streaming already works</li>
+  <li>No new dependencies</li>
+  <li>You understand every line</li>
+</ul>
+
+<p><strong>Cons:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>You maintain everything yourself</li>
+  <li>No community patterns to follow</li>
+  <li>Observability is DIY (fragile, incomplete)</li>
+  <li>State machine logic stays implicit</li>
+  <li>Halt gates need custom protocol</li>
+  <li>Testing agent flows is manual</li>
+</ul>
+
+<h3 id="s10-optionB">Option B: LangGraph + LangSmith</h3>
+
+<p>LangGraph is LangChain's graph-based agent framework. It models agent flows as directed graphs with typed state, conditional edges, and built-in interrupts.</p>
+
+<details>
+  <summary>LangGraph architecture diagram</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;          <span class="hl">LANGGRAPH ARCHITECTURE</span>          &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;                                          &#9474;
+&#9474;  StateGraph                              &#9474;
+&#9474;    &#9500;&#9472; Node: <span class="hl2">research</span>                     &#9474;
+&#9474;    &#9474;   &#9492;&#9472; tools: [web_search,            &#9474;
+&#9474;    &#9474;              research_own_company]   &#9474;
+&#9474;    &#9474;   &#9492;&#9472; model: claude-haiku            &#9474;
+&#9474;    &#9474;                                     &#9474;
+&#9474;    &#9500;&#9472; Edge: research &#9472;&#9472; scope_gate        &#9474;
+&#9474;    &#9474;   &#9492;&#9472; interrupt(decision_request)    &#9474;
+&#9474;    &#9474;                                     &#9474;
+&#9474;    &#9500;&#9472; Node: <span class="hl2">draft_strategy</span>               &#9474;
+&#9474;    &#9474;   &#9492;&#9472; tools: [update_strategy_section&#9474;
+&#9474;    &#9474;              set_icp_tiers, ...]    &#9474;
+&#9474;    &#9474;   &#9492;&#9472; model: claude-sonnet           &#9474;
+&#9474;    &#9474;                                     &#9474;
+&#9474;    &#9500;&#9472; Edge: draft &#9472;&#9472; review_gate          &#9474;
+&#9474;    &#9474;   &#9492;&#9472; interrupt(review_request)      &#9474;
+&#9474;    &#9474;                                     &#9474;
+&#9474;    &#9500;&#9472; Node: <span class="hl2">finalize</span>                     &#9474;
+&#9474;    &#9474;   &#9492;&#9472; tools: [check_readiness]       &#9474;
+&#9474;    &#9474;   &#9492;&#9472; model: claude-haiku            &#9474;
+&#9474;    &#9474;                                     &#9474;
+&#9474;    &#9492;&#9472; Conditional Edge: phase_router     &#9474;
+&#9474;        &#9492;&#9472; strategy &#9472;&#9472; contacts &#9472;&#9472; msgs    &#9474;
+&#9474;                                          &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  <span class="hl">LangSmith</span> (cloud observability)         &#9474;
+&#9474;    &#9500;&#9472; Trace every node execution         &#9474;
+&#9474;    &#9500;&#9472; Token cost per step                &#9474;
+&#9474;    &#9500;&#9472; Latency heatmaps                   &#9474;
+&#9474;    &#9500;&#9472; Prompt versioning + A/B testing    &#9474;
+&#9474;    &#9500;&#9472; Replay + debug failed runs         &#9474;
+&#9474;    &#9492;&#9472; Evaluation datasets                &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s10-lg-flow">LangGraph Agent Flow</h3>
+<p>Replaces <code>agent_executor.py</code>:</p>
+
+<details>
+  <summary>LangGraph agent flow diagram</summary>
+<pre>
+                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474;  <span class="hl">START</span>   &#9474;
+                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>
+                         <span class="arrow">&#9660;</span>
+                 &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                 &#9474;   <span class="hl2">research</span>    &#9474;  &#9668; web_search, research_own_company
+                 &#9474;  (Haiku 4.5)  &#9474;
+                 &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>
+                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474; Found   &#9474;
+                    &#9474; multiple&#9474;&#9472;&#9472;&#9472;&#9472; yes &#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474; scopes? &#9474;             <span class="arrow">&#9474;</span>
+                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9496;             <span class="arrow">&#9660;</span>
+                     no  <span class="arrow">&#9474;</span>          &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                         <span class="arrow">&#9474;</span>          &#9474;  <span class="label">INTERRUPT:</span>  &#9474;
+                         <span class="arrow">&#9474;</span>          &#9474;  scope_gate  &#9474;
+                         <span class="arrow">&#9474;</span>          &#9474;  (user picks)&#9474;
+                         <span class="arrow">&#9474;</span>          &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>                 <span class="arrow">&#9474;</span>
+                         <span class="arrow">&#9660;</span>&#9668;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                 &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                 &#9474;   <span class="hl2">position</span>    &#9474;  &#9668; analyze competitors, draft VP
+                 &#9474; (Sonnet 4.6)  &#9474;
+                 &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>
+                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474; Multiple&#9474;
+                    &#9474;  ICP    &#9474;&#9472;&#9472;&#9472;&#9472; yes &#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474; options?&#9474;             <span class="arrow">&#9474;</span>
+                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9496;             <span class="arrow">&#9660;</span>
+                     no  <span class="arrow">&#9474;</span>          &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                         <span class="arrow">&#9474;</span>          &#9474;  <span class="label">INTERRUPT:</span>  &#9474;
+                         <span class="arrow">&#9474;</span>          &#9474;direction_gate&#9474;
+                         <span class="arrow">&#9474;</span>          &#9474;  (user picks)&#9474;
+                         <span class="arrow">&#9474;</span>          &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>                 <span class="arrow">&#9474;</span>
+                         <span class="arrow">&#9660;</span>&#9668;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                 &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                 &#9474;    <span class="hl2">draft</span>      &#9474;  &#9668; update_strategy_section x7
+                 &#9474; (Sonnet 4.6)  &#9474;    set_icp_tiers, set_personas
+                 &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>
+                         <span class="arrow">&#9660;</span>
+                 &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                 &#9474;  <span class="label">INTERRUPT:</span>  &#9474;
+                 &#9474; review_gate  &#9474;
+                 &#9474; (user reviews&#9474;
+                 &#9474;  draft)      &#9474;
+                 &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                        <span class="arrow">&#9474;</span>
+                        <span class="arrow">&#9660;</span>
+                 &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                 &#9474;   <span class="hl2">finalize</span>    &#9474;  &#9668; check_readiness, messaging
+                 &#9474;  (Haiku 4.5)  &#9474;
+                 &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                         <span class="arrow">&#9474;</span>
+                         <span class="arrow">&#9660;</span>
+                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+                    &#9474;  <span class="hl">DONE</span>   &#9474;
+                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s10-lg-halt">LangGraph Halt Gates (interrupt)</h3>
+
+<p>LangGraph has <strong>built-in interrupt support</strong>:</p>
+
+<pre>
+<span class="kw">from</span> langgraph.graph <span class="kw">import</span> StateGraph, interrupt
+
+<span class="kw">def</span> <span class="hl2">scope_gate</span>(state):
+    <span class="str">"""Pause and ask user which product to focus on."""</span>
+    products = state[<span class="str">"research_results"</span>][<span class="str">"products"</span>]
+    <span class="kw">if</span> len(products) &gt; <span class="num">1</span>:
+        <span class="cmt"># This pauses the graph and sends options to the user</span>
+        decision = interrupt({
+            <span class="str">"question"</span>: <span class="str">f"Found {len(products)} products. Focus on which?"</span>,
+            <span class="str">"options"</span>: [p[<span class="str">"name"</span>] <span class="kw">for</span> p <span class="kw">in</span> products],
+            <span class="str">"gate_type"</span>: <span class="str">"scope"</span>
+        })
+        state[<span class="str">"scope"</span>] = decision
+    <span class="kw">return</span> state
+</pre>
+
+<p>The graph pauses at <code>interrupt()</code>, serializes state, and resumes when the user responds. No custom protocol needed.</p>
+
+<h3 id="s10-langsmith">LangSmith Observability</h3>
+
+<p>What you get for free:</p>
+
+<details>
+  <summary>LangSmith trace view example</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  <span class="hl">LangSmith Trace View</span>                           &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;                                                 &#9474;
+&#9474;  Run: <span class="str">"Generate strategy for acme.com"</span>          &#9474;
+&#9474;  Duration: <span class="num">47.2s</span> | Tokens: <span class="num">28,450</span> | Cost: <span class="num">$0.08</span> &#9474;
+&#9474;                                                 &#9474;
+&#9474;  &#9484;&#9472; <span class="hl2">research</span> (Haiku)          <span class="num">8.2s</span>   <span class="num">4,200</span> tok  &#9474;
+&#9474;  &#9474;  &#9500;&#9472; web_search             <span class="num">2.1s</span>              &#9474;
+&#9474;  &#9474;  &#9492;&#9472; research_own_company   <span class="num">5.8s</span>              &#9474;
+&#9474;  &#9474;                                              &#9474;
+&#9474;  &#9500;&#9472; <span class="label">scope_gate</span> (interrupt)   <span class="num">12.0s</span>   (waiting)  &#9474;
+&#9474;  &#9474;  &#9492;&#9472; User chose: <span class="str">"DataFlow only"</span>              &#9474;
+&#9474;  &#9474;                                              &#9474;
+&#9474;  &#9500;&#9472; <span class="hl2">position</span> (Sonnet)        <span class="num">11.3s</span>   <span class="num">8,900</span> tok  &#9474;
+&#9474;  &#9474;  &#9492;&#9472; update_strategy_section x2               &#9474;
+&#9474;  &#9474;                                              &#9474;
+&#9474;  &#9500;&#9472; <span class="label">direction_gate</span> (interrupt) <span class="num">8.1s</span>  (waiting)  &#9474;
+&#9474;  &#9474;  &#9492;&#9472; User chose: <span class="str">"Segment A"</span>                  &#9474;
+&#9474;  &#9474;                                              &#9474;
+&#9474;  &#9492;&#9472; <span class="hl2">draft</span> (Sonnet)           <span class="num">15.6s</span>  <span class="num">15,350</span> tok  &#9474;
+&#9474;     &#9500;&#9472; update_strategy_section x5               &#9474;
+&#9474;     &#9500;&#9472; set_icp_tiers                            &#9474;
+&#9474;     &#9492;&#9472; set_buyer_personas                       &#9474;
+&#9474;                                                 &#9474;
+&#9474;  <span class="kw">[Replay]</span> <span class="kw">[Compare]</span> <span class="kw">[Export]</span> <span class="kw">[Evaluate]</span>         &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<p>Features: trace tree (every node, tool call, and LLM invocation), token costs (per-step and cumulative), latency identification, prompt playground, evaluation datasets, and A/B comparison of Haiku vs Sonnet on same inputs.</p>
+
+<h3 id="s10-migration">Migration Path: Custom to LangGraph</h3>
+
+<table>
+  <thead>
+    <tr><th>Phase</th><th>What</th><th>Effort</th><th>Risk</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Add langgraph + langsmith deps</td><td>1 hour</td><td>None</td></tr>
+    <tr><td>2</td><td>Wrap existing tools as LG tools</td><td>4 hours</td><td>Low</td></tr>
+    <tr><td>3</td><td>Model agent_executor as graph</td><td>2 days</td><td>Medium</td></tr>
+    <tr><td>4</td><td>Wire SSE streaming to LG events</td><td>1 day</td><td>Medium</td></tr>
+    <tr><td>5</td><td>Add interrupt nodes (halt gates)</td><td>1 day</td><td>Low</td></tr>
+    <tr><td>6</td><td>Connect LangSmith tracing</td><td>2 hours</td><td>None</td></tr>
+    <tr><td>7</td><td>Phase-filtered tool routing</td><td>4 hours</td><td>Low</td></tr>
+    <tr><td>8</td><td>Multi-model nodes</td><td>4 hours</td><td>Low</td></tr>
+    <tr><td>9</td><td>Remove old executor code</td><td>2 hours</td><td>None</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Total: ~1 week.</strong> Phases 1-2 are non-breaking. Phase 3 is the main migration. Phases 4-9 can be done incrementally.</p>
+
+<p><strong>Pros:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>Halt gates built in (<code>interrupt()</code>)</li>
+  <li>Observability out of the box (LangSmith)</li>
+  <li>Graph visualization of agent flow</li>
+  <li>State management with typed schemas</li>
+  <li>Multi-model routing per node</li>
+  <li>Community patterns for common agent architectures</li>
+  <li>Replay/debug failed conversations</li>
+  <li>Prompt versioning and A/B testing</li>
+</ul>
+
+<p><strong>Cons:</strong></p>
+<ul style="margin:0 0 16px 24px;color:var(--text-secondary)">
+  <li>New dependency (langchain-core, langgraph, langsmith)</li>
+  <li>Abstraction overhead -- LangChain has deep class hierarchies</li>
+  <li>SSE streaming needs rewiring (LangGraph uses async iterators, not generators)</li>
+  <li>Learning curve for graph concepts</li>
+  <li>LangSmith is a paid cloud service ($39/mo dev, usage-based for prod)</li>
+  <li>Framework updates can break things</li>
+  <li>Less control over exact API call format</li>
+</ul>
+
+<h3 id="s10-optionC">Option C: Anthropic Agent SDK</h3>
+
+<p>Anthropic's own lightweight agent framework. Thinner than LangGraph, Anthropic-native.</p>
+
+<details>
+  <summary>Anthropic Agent SDK overview</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;       <span class="hl">ANTHROPIC AGENT SDK</span>                &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  Agent(                                  &#9474;
+&#9474;    model=<span class="str">"claude-sonnet-4-6"</span>,            &#9474;
+&#9474;    tools=[tool1, tool2, ...],            &#9474;
+&#9474;    system_prompt=<span class="str">"..."</span>,                   &#9474;
+&#9474;    max_turns=<span class="num">25</span>,                          &#9474;
+&#9474;  )                                       &#9474;
+&#9474;                                          &#9474;
+&#9474;  result = agent.run(<span class="str">"Generate strategy"</span>) &#9474;
+&#9474;                                          &#9474;
+&#9474;  <span class="cmt"># Streaming via callbacks</span>               &#9474;
+&#9474;  <span class="kw">for</span> event <span class="kw">in</span> agent.stream(...):         &#9474;
+&#9474;    <span class="kw">if</span> event.type == <span class="str">"tool_use"</span>: ...      &#9474;
+&#9474;    <span class="kw">if</span> event.type == <span class="str">"text"</span>: ...          &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  Lines to replace executor:   <span class="num">~100</span>       &#9474;
+&#9474;  Halt gates:        <span style="color:var(--danger)">Not built in</span>         &#9474;
+&#9474;  Multi-model:       Manual               &#9474;
+&#9474;  Observability:     Basic callbacks      &#9474;
+&#9474;  State machine:     <span style="color:var(--danger)">No</span> (simple loop)     &#9474;
+&#9474;  Graph viz:         <span style="color:var(--danger)">No</span>                   &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<p><strong>Pros:</strong> Minimal abstraction, native Anthropic support (prompt caching, tool use, streaming), ~100 lines to replace executor, no LangChain dependency bloat, easy to understand and debug.</p>
+
+<p><strong>Cons:</strong> No halt gates, no observability platform, no graph-based flow control, no multi-model routing, simple loop (does not solve architectural needs), relatively new with less community patterns.</p>
+
+<h3 id="s10-recommendation">Recommendation</h3>
+
+<details>
+  <summary>Decision matrix</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;                    <span class="hl">DECISION MATRIX</span>                       &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; Criterion    &#9474; Custom   &#9474; LangGraph &#9474; Agent SDK         &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; Halt gates   &#9474; Build    &#9474; <span class="str">Built in</span> &#9474; Build             &#9474;
+&#9474; Observability&#9474; <span style="color:var(--danger)">DIY</span>      &#9474; <span class="str">LangSmith</span>&#9474; <span style="color:var(--danger)">DIY</span>               &#9474;
+&#9474; Multi-model  &#9474; Build    &#9474; <span class="str">Built in</span> &#9474; Manual            &#9474;
+&#9474; Migration    &#9474; <span class="str">None</span>     &#9474; ~1 week  &#9474; <span class="str">~2 days</span>           &#9474;
+&#9474; Complexity   &#9474; <span style="color:var(--danger)">Grows</span>    &#9474; <span class="str">Managed</span>  &#9474; <span style="color:var(--danger)">Grows</span>             &#9474;
+&#9474; Control      &#9474; <span class="str">Full</span>     &#9474; <span class="str">Good</span>     &#9474; <span class="str">Full</span>              &#9474;
+&#9474; Lock-in      &#9474; <span class="str">None</span>     &#9474; Medium   &#9474; Anthropic-only    &#9474;
+&#9474; Cost         &#9474; <span class="str">Free</span>     &#9474; LangSmith$&#9474; <span class="str">Free</span>              &#9474;
+&#9474; Future-proof &#9474; <span style="color:var(--danger)">Manual</span>   &#9474; <span class="str">Active</span>   &#9474; Early stage       &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; SCORE        &#9474; <span class="num">5/9</span>      &#9474; <span class="num">7/9</span>      &#9474; <span class="num">5/9</span>               &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Recommended: LangGraph + LangSmith</div>
+  <p>The deciding factors: (1) <strong>Halt gates</strong> are the #1 architectural need -- LangGraph has them built in, (2) <strong>Observability</strong> is critical as the agent grows -- LangSmith is the best-in-class tracing platform, (3) <strong>Multi-model routing</strong> (Haiku for Q&amp;A, Sonnet for generation) is trivial in LangGraph, (4) <strong>Migration is manageable</strong> -- ~1 week, can be done incrementally.</p>
+</div>
+
+<p>The lock-in risk is real but mitigable -- LangGraph tools are standard Python functions, easily portable. The main lock-in is LangSmith for tracing, but you can self-host LangSmith OSS or switch to OpenTelemetry later.</p>
+
+<h3 id="s10-hybrid">Hybrid Approach</h3>
+
+<p>If lock-in is a concern:</p>
+
+<table>
+  <thead>
+    <tr><th>Keep Custom</th><th>Adopt from LangGraph</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Flask routes</td><td>StateGraph for agent flow</td></tr>
+    <tr><td>SSE streaming adapter</td><td>interrupt() for halt gates</td></tr>
+    <tr><td>Tool implementations</td><td>LangSmith for tracing</td></tr>
+    <tr><td>Prompt templates</td><td>Conditional edges for routing</td></tr>
+    <tr><td></td><td>Typed state schemas</td></tr>
+  </tbody>
+</table>
+
+<p>Wrap LangGraph inside your existing Flask route. Your SSE generator yields events from LangGraph's async iterator. Tools stay as plain Python functions -- just registered with LangGraph's <code>@tool</code> decorator. The migration is internal -- no API changes, no frontend changes.</p>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s12"><span class="num">12.</span> Multimodal Content Processing</h2>
+
+<p>The agent currently operates on text only -- strategy documents, enrichment data, chat messages. But B2B research is full of non-text content: a prospect's pitch deck PDF, their annual report, product screenshots, demo videos. If the agent can consume these formats, it becomes dramatically more useful. Instead of the user manually summarizing "I looked at their pitch deck and they seem to focus on enterprise", the agent reads the deck itself and draws its own conclusions.</p>
+
+<h3 id="s12-usecases">Use Cases in Leadgen Context</h3>
+
+<p>Each format unlocks specific research and strategy capabilities:</p>
+
+<table>
+  <thead>
+    <tr><th>Format</th><th>Use Case</th><th>Example</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>PDF</strong></td><td>Pitch decks, annual reports, whitepapers, case studies</td><td>"Analyze this prospect's Series B deck -- what's their positioning?"</td></tr>
+    <tr><td><strong>Word</strong></td><td>Proposals, contracts, partnership docs</td><td>"Extract key terms from this draft partnership agreement"</td></tr>
+    <tr><td><strong>Excel</strong></td><td>Financial data, contact lists, market data</td><td>"Import this spreadsheet of conference attendees as contacts"</td></tr>
+    <tr><td><strong>HTML</strong></td><td>Competitor websites, landing pages, blog posts</td><td>"Analyze this competitor's pricing page -- how do we differentiate?"</td></tr>
+    <tr><td><strong>Images</strong></td><td>Screenshots, org charts, product photos, logos</td><td>"Look at this org chart -- who's the likely decision maker?"</td></tr>
+    <tr><td><strong>Videos</strong></td><td>Product demos, webinars, conference talks</td><td>"Watch this 5-min product demo -- summarize their core value prop"</td></tr>
+  </tbody>
+</table>
+
+<p>The common thread: the user has <em>artifacts</em> that contain strategic intelligence. Today they have to manually extract and type that intelligence into the chat. Multimodal processing lets the agent extract it directly.</p>
+
+<h3 id="s12-arch">Processing Architecture</h3>
+
+<p>Files flow through an ingestion pipeline before reaching the LLM:</p>
+
+<details>
+<summary>Multimodal Processing Pipeline</summary>
+<pre>
+<span class="hl">User Input</span>
+    &#9474;
+    &#9500;&#9472;&#9472; Drag-drop file in chat
+    &#9500;&#9472;&#9472; Paste URL (auto-detect type)
+    &#9492;&#9472;&#9472; File picker (explicit upload)
+    &#9474;
+    &#9660;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;                  <span class="hl">INGESTION LAYER</span>                     &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  1. Upload to S3 (or local /uploads in dev)         &#9474;
+&#9474;  2. Store metadata in PG (<span class="kw">file_uploads</span> table)       &#9474;
+&#9474;     - file_id, tenant_id, filename, mime_type       &#9474;
+&#9474;     - size_bytes, s3_key, upload_timestamp          &#9474;
+&#9474;     - processing_status: <span class="str">pending</span>|<span class="str">processing</span>|<span class="str">done</span>    &#9474;
+&#9474;  3. Dispatch to format-specific extractor           &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                     &#9474;
+    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+    &#9660;                &#9660;                    &#9660;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474; <span class="hl2">Text</span>     &#9474;  &#9474; <span class="hl2">Visual</span>       &#9474;  &#9474; <span class="hl2">A/V</span>           &#9474;
+&#9474; Extractor&#9474;  &#9474; Extractor    &#9474;  &#9474; Extractor     &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;  &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;  &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474; PDF text &#9474;  &#9474; PDF scanned  &#9474;  &#9474; Video frames  &#9474;
+&#9474; DOCX     &#9474;  &#9474; Images       &#9474;  &#9474; Audio <span class="arrow">&#8594;</span> text  &#9474;
+&#9474; XLSX     &#9474;  &#9474; Screenshots  &#9474;  &#9474; Scene desc.   &#9474;
+&#9474; HTML     &#9474;  &#9474; Charts       &#9474;  &#9474;               &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+     &#9474;               &#9474;                  &#9474;
+     &#9660;               &#9660;                  &#9660;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;               <span class="hl">CONTENT STORE</span> (PG)                     &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  <span class="kw">extracted_content</span> table:                            &#9474;
+&#9474;  - file_id, content_type (<span class="str">text</span>|<span class="str">summary</span>|<span class="str">transcript</span>)  &#9474;
+&#9474;  - content_text (extracted raw text)                 &#9474;
+&#9474;  - content_summary (LLM-generated summary)          &#9474;
+&#9474;  - token_count (for budget tracking)                 &#9474;
+&#9474;  - extracted_at, model_used                          &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                     &#9474;
+                     &#9660;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;          <span class="hl">CONTEXT INJECTION</span> (per agent turn)           &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;  When agent needs file content:                      &#9474;
+&#9474;  1. Check token budget                               &#9474;
+&#9474;  2. Inject <span class="str">summary</span> (default) or <span class="str">full text</span> (on drill) &#9474;
+&#9474;  3. For images: pass base64 to Claude vision API     &#9474;
+&#9474;  4. Cache -- don't re-extract on every message       &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<h3 id="s12-formats">Format-Specific Strategies</h3>
+
+<p><strong>PDF</strong> -- The most common format in B2B research.</p>
+<ul>
+  <li><strong>Text-heavy PDFs</strong> (reports, whitepapers): <code>pdfplumber</code> or <code>PyMuPDF</code> for text + table extraction. Both handle multi-column layouts and embedded tables well. PyMuPDF is faster; pdfplumber has better table detection.</li>
+  <li><strong>Image-heavy PDFs</strong> (pitch decks, brochures): Convert pages to images, send to Claude vision API. Claude handles slides, charts, and mixed layouts natively. Cost: ~1,600 tokens per page image.</li>
+  <li><strong>Hybrid approach</strong>: Try text extraction first. If extracted text is sparse (&lt; 100 chars/page), fall back to vision API on those pages.</li>
+  <li><strong>Large PDFs</strong>: Extract text from all pages, but only send vision on first 20 pages. Summarize the rest.</li>
+</ul>
+
+<p><strong>Word (.docx)</strong> -- Proposals, contracts, internal docs.</p>
+<ul>
+  <li><code>python-docx</code> extracts paragraphs, tables, headers, and basic formatting. No external API needed.</li>
+  <li>Preserve document structure: headings become markdown headers, tables become markdown tables.</li>
+  <li>Ignore images embedded in Word docs (or extract and process separately via vision).</li>
+  <li>Typical token cost: 1:1 with character count -- a 10-page doc is ~3-4K tokens.</li>
+</ul>
+
+<p><strong>Excel (.xlsx)</strong> -- Financial data, contact lists, market sizing.</p>
+<ul>
+  <li><code>openpyxl</code> reads cells, sheets, formulas (resolved values only).</li>
+  <li><strong>Strategy 1 -- Summary</strong>: For large sheets, generate a markdown summary: column headers, row count, sample rows, basic stats.</li>
+  <li><strong>Strategy 2 -- Full table</strong>: For small sheets (&lt; 50 rows), convert to markdown table and inject directly.</li>
+  <li><strong>Strategy 3 -- Structured extract</strong>: User provides a schema, agent maps columns and returns JSON.</li>
+  <li>Multi-sheet handling: summarize sheet names first, let agent pick relevant ones.</li>
+</ul>
+
+<p><strong>HTML</strong> -- Competitor websites, landing pages, prospect pages.</p>
+<ul>
+  <li><code>trafilatura</code> for content extraction (handles boilerplate removal). Falls back to <code>BeautifulSoup</code> for custom parsing.</li>
+  <li>For visual analysis: headless browser screenshot via Playwright, then Claude vision API.</li>
+  <li>Two-pass approach: (1) extract text for factual content, (2) screenshot for design/positioning analysis.</li>
+  <li>Respect robots.txt and rate limits. Cache fetched pages.</li>
+</ul>
+
+<p><strong>Images</strong> -- Screenshots, org charts, product photos.</p>
+<ul>
+  <li>Direct to Claude vision API. Supports PNG, JPEG, WebP, GIF.</li>
+  <li>Claude is strong at: reading text in images, describing charts, understanding org structures, analyzing UI screenshots.</li>
+  <li>Cost: ~1,600 tokens for a typical image. Resize large images to max 1568px on longest side.</li>
+  <li>For batch images: process individually, then summarize.</li>
+</ul>
+
+<p><strong>Videos</strong> -- Product demos, webinars, conference talks. Highest complexity.</p>
+<ul>
+  <li><strong>Audio track</strong>: Extract with <code>ffmpeg</code>, transcribe with Whisper API (OpenAI) or self-hosted <code>whisper.cpp</code>. A 10-min video produces ~1,500 words of transcript.</li>
+  <li><strong>Visual track</strong>: Extract keyframes with <code>ffmpeg</code> scene detection, typically 1-3 frames per minute. Send keyframes to Claude vision.</li>
+  <li><strong>Combined</strong>: Merge transcript + scene descriptions into a time-aligned summary.</li>
+  <li><strong>Cost reality</strong>: A 10-min video costs ~$0.10-0.30 to fully process. Expensive but valuable for high-priority prospects.</li>
+  <li><strong>YouTube/Vimeo</strong>: Use <code>yt-dlp</code> to download, then process locally.</li>
+</ul>
+
+<h3 id="s12-budget">Context Budget Management</h3>
+
+<p>Multimodal content is token-expensive. A single pitch deck can consume 20K+ tokens if injected raw. The agent's context window isn't infinite, and every token costs money.</p>
+
+<details>
+<summary>Token Budget Per Modality</summary>
+<pre>
+<span class="hl">TOKEN BUDGET PER MODALITY</span> (recommended limits)
+
+                    <span class="label">Injection Budget</span>    <span class="label">Typical Source</span>
+                    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;   &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+System prompt       <span class="num">3K - 10K</span> tokens     (existing)
+Conversation        <span class="num">2K - 4K</span> tokens      (existing)
+Tool schemas        <span class="num">~2.5K</span> tokens        (existing)
+                    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+<span class="hl2">Multimodal budget</span>   <span class="str">&le; 8K tokens total</span>  &#9668; NEW
+  Per-file summary  <span class="num">~500 - 1,500</span> tok    Summaries
+  Per-image         <span class="num">~1,600</span> tok          Vision API
+  Drill-down        <span class="num">up to 4K</span> tok        On-demand detail
+                    &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+TOTAL per call      <span class="str">&le; 25K input tokens</span>
+</pre>
+</details>
+
+<p><strong>Summarize-then-inject pattern</strong> -- The default strategy:</p>
+<ol>
+  <li>User uploads a file &#8594; extraction pipeline runs &#8594; raw content stored in PG</li>
+  <li>LLM generates a 200-500 word summary of the extracted content</li>
+  <li>Summary is cached alongside the raw content</li>
+  <li>On each agent turn, inject the <em>summary</em> (not raw content) into context</li>
+  <li>If the agent needs more detail, it calls <code>analyze_document(file_id, query)</code> which retrieves relevant sections</li>
+</ol>
+
+<p><strong>Progressive detail</strong> -- Three levels:</p>
+<ul>
+  <li><strong>L0 -- Mention</strong>: "User uploaded: pitch-deck-2026.pdf (12 pages, PDF)" -- ~20 tokens</li>
+  <li><strong>L1 -- Summary</strong>: 200-500 word summary of key findings -- ~300-700 tokens</li>
+  <li><strong>L2 -- Deep dive</strong>: Full extracted text or specific sections -- up to 4K tokens, on-demand via tool</li>
+</ul>
+
+<p>Default injection is L0 for all files, L1 for the most recently discussed file. L2 only when the agent explicitly requests it via a tool call.</p>
+
+<p><strong>Caching</strong>: Extracted content and summaries are stored in PG. Re-processing only happens if the user re-uploads or explicitly requests it. Vision API results are cached by file hash -- identical images aren't re-analyzed.</p>
+
+<h3 id="s12-tools">Tool Design</h3>
+
+<p>New tools the agent would need to work with uploaded files:</p>
+
+<details>
+<summary>Multimodal Tool Definitions</summary>
+<pre>
+<span class="kw">TOOL</span>: <span class="hl">analyze_document</span>
+Input:  { <span class="str">file_id</span>: str, <span class="str">query</span>: str }
+Output: { <span class="str">summary</span>: str, <span class="str">relevant_sections</span>: [...], <span class="str">confidence</span>: float }
+
+Retrieves extracted content for the file, runs query-focused analysis.
+If content isn't extracted yet, triggers extraction first (async).
+Uses the cached summary + targeted re-read of relevant sections.
+
+<span class="kw">TOOL</span>: <span class="hl">extract_data</span>
+Input:  { <span class="str">file_id</span>: str, <span class="str">schema</span>: { fields: [...] } }
+Output: { <span class="str">rows</span>: [...], <span class="str">unmapped_columns</span>: [...], <span class="str">warnings</span>: [...] }
+
+Structured extraction from tabular data (Excel, CSV, PDF tables).
+User or agent provides target schema, tool maps source columns.
+Returns clean JSON rows + any columns it couldn't map.
+
+<span class="kw">TOOL</span>: <span class="hl">analyze_image</span>
+Input:  { <span class="str">file_id</span>: str, <span class="str">query</span>: str }
+Output: { <span class="str">description</span>: str, <span class="str">extracted_text</span>: str, <span class="str">analysis</span>: str }
+
+Sends image to Claude vision API with the query as context.
+Returns structured description, any text found in the image,
+and query-specific analysis.
+
+<span class="kw">TOOL</span>: <span class="hl">analyze_video</span>
+Input:  { <span class="str">url</span>: str, <span class="str">query</span>: str, <span class="str">max_duration_minutes</span>: int = <span class="num">15</span> }
+Output: { <span class="str">transcript_summary</span>: str, <span class="str">visual_summary</span>: str,
+          <span class="str">key_moments</span>: [...], <span class="str">analysis</span>: str }
+
+Full video processing pipeline: download <span class="arrow">&#8594;</span> audio extract <span class="arrow">&#8594;</span>
+transcribe <span class="arrow">&#8594;</span> keyframe extract <span class="arrow">&#8594;</span> vision analysis <span class="arrow">&#8594;</span> merge.
+Async -- returns a job_id, agent polls for completion.
+Expensive: shows estimated cost before processing.
+
+<span class="kw">TOOL</span>: <span class="hl">fetch_and_analyze_url</span>
+Input:  { <span class="str">url</span>: str, <span class="str">query</span>: str, <span class="str">include_screenshot</span>: bool = <span class="num">false</span> }
+Output: { <span class="str">content_text</span>: str, <span class="str">summary</span>: str, <span class="str">screenshot_analysis</span>: str? }
+
+Fetches URL, extracts content with trafilatura, optionally takes
+screenshot for visual analysis. Caches by URL + fetch timestamp.
+</pre>
+</details>
+
+<p>These tools follow the existing pattern in <code>strategy_tools.py</code> -- each is a Python function that takes <code>(args: dict, ctx: ToolContext) -&gt; dict</code>. They get registered in the tools list alongside <code>update_strategy_section</code>, <code>set_extracted_field</code>, etc.</p>
+
+<h3 id="s12-langgraph">LangGraph Integration</h3>
+
+<p>If we adopt LangGraph (recommended in Section 10), multimodal processing maps naturally to subgraphs:</p>
+
+<details>
+<summary>Document Processing Subgraph</summary>
+<pre>
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;               <span class="hl">DOCUMENT PROCESSING SUBGRAPH</span>             &#9474;
+&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+&#9474;                                                        &#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9474;
+&#9474;  &#9474; <span class="hl2">Classify</span>  &#9474;<span class="arrow">&#9472;&#9472;&#9472;</span>&#9654;&#9474; <span class="hl2">Extract</span>       &#9474;<span class="arrow">&#9472;&#9472;&#9472;</span>&#9654;&#9474; <span class="hl2">Summarize</span>  &#9474;  &#9474;
+&#9474;  &#9474; Format    &#9474;    &#9474; (parallel)    &#9474;    &#9474; + Cache    &#9474;  &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;  &#9500;&#9472; Text      &#9474;    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9474;
+&#9474;                  &#9474;  &#9500;&#9472; Vision    &#9474;          &#9474;          &#9474;
+&#9474;                  &#9474;  &#9492;&#9472; Audio     &#9474;          &#9474;          &#9474;
+&#9474;                  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;          &#9474;          &#9474;
+&#9474;                                             &#9660;          &#9474;
+&#9474;                                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;   &#9474;
+&#9474;                                    &#9474; Return to     &#9474;   &#9474;
+&#9474;                                    &#9474; Main Agent    &#9474;   &#9474;
+&#9474;                                    &#9474; Graph         &#9474;   &#9474;
+&#9474;                                    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;   &#9474;
+&#9474;                                                        &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+</pre>
+</details>
+
+<ul>
+  <li><strong>Format classification node</strong>: Determines extraction strategy based on MIME type</li>
+  <li><strong>Parallel extraction</strong>: LangGraph's <code>Send()</code> API runs text, vision, and audio extraction concurrently -- critical for video where all three happen</li>
+  <li><strong>Summarize + cache</strong>: Generates the L1 summary, stores everything in PG</li>
+  <li><strong>LangSmith tracing</strong>: Each extraction step is a traced node -- you can see exactly how long PDF extraction took vs vision API calls, what tokens were consumed, and where failures occurred</li>
+</ul>
+
+<p>For the main agent graph, document analysis becomes just another tool node -- the agent calls <code>analyze_document</code>, the subgraph handles the complexity internally, and the agent gets back a clean summary.</p>
+
+<h3 id="s12-priority">Implementation Priority</h3>
+
+<p>Phased rollout based on value-to-effort ratio:</p>
+
+<details>
+<summary>Phased Rollout Plan</summary>
+<pre>
+<span class="hl">PHASE 1</span> &#9472; <span class="str">PDF + Images</span>                    EFFORT: <span class="num">~1 week</span>
+&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+Why first: Highest value in B2B research. Pitch decks,
+annual reports, screenshots of competitor products.
+Claude vision API handles both natively.
+
+Scope:
+  - File upload endpoint + S3 storage
+  - PDF text extraction (pdfplumber)
+  - PDF page-to-image fallback (PyMuPDF)
+  - Image <span class="arrow">&#8594;</span> Claude vision API
+  - analyze_document + analyze_image tools
+  - Summarize-then-inject pipeline
+  - file_uploads + extracted_content PG tables
+
+<span class="hl">PHASE 2</span> &#9472; <span class="str">HTML + Word</span>                     EFFORT: <span class="num">~3 days</span>
+&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+Why second: URL analysis is immediately useful for
+competitor research. Word docs are common but lower volume.
+
+Scope:
+  - fetch_and_analyze_url tool
+  - trafilatura + BeautifulSoup extraction
+  - Optional Playwright screenshot
+  - python-docx extraction
+  - Extend extraction pipeline for new formats
+
+<span class="hl">PHASE 3</span> &#9472; <span class="str">Excel</span>                            EFFORT: <span class="num">~3 days</span>
+&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+Why third: Structured data extraction needs schema mapping
+logic. Valuable for contact imports and financial analysis.
+
+Scope:
+  - openpyxl integration
+  - extract_data tool with schema mapping
+  - Multi-sheet handling
+  - Markdown table + JSON output modes
+
+<span class="hl">PHASE 4</span> &#9472; <span class="str">Video</span>                            EFFORT: <span class="num">~1-2 weeks</span>
+&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+Why last: Highest complexity, needs multiple external
+services (ffmpeg, Whisper, vision). Highest cost per
+analysis. But uniquely valuable for webinar/demo analysis.
+
+Scope:
+  - ffmpeg keyframe extraction
+  - Whisper API integration (or whisper.cpp self-hosted)
+  - Time-aligned transcript + visual summary
+  - analyze_video tool (async with job queue)
+  - Cost estimation + user confirmation before processing
+  - yt-dlp for YouTube/Vimeo URLs
+</pre>
+</details>
+
+<p>Total estimated effort: ~3-4 weeks for all four phases. Phase 1 alone delivers the highest-impact capability.</p>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s13"><span class="num">13.</span> Multi-Agent Orchestration Architecture</h2>
+
+<p>The current monolithic <code>agent_executor.py</code> handles everything &mdash; research, strategy, messaging, data analysis. This doesn't scale: prompt bloat, no specialization, no parallelism, context pollution.</p>
+
+<h3 id="s13-taxonomy">Agent Taxonomy</h3>
+
+<details>
+  <summary>Agent hierarchy diagram</summary>
+<pre>
+User <span class="arrow">&#8596;</span> <span class="hl">Orchestrator</span> (Chat Agent)
+         <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="hl2">Research Agent</span> (coordination + reasoning)
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="kw">Company Profiler Agent</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">search_web(query)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">scrape_website(url)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9492;&#9472;&#9472;</span> tool: <span class="str">enrich_company_api(domain)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="kw">Contact Enricher Agent</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">enrich_contact_api(email)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">search_linkedin(query)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9492;&#9472;&#9472;</span> tool: <span class="str">verify_email(email)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="kw">Market Analyst Agent</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">search_web(query)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">analyze_document(file)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9474;</span>     <span class="arrow">&#9492;&#9472;&#9472;</span> tool: <span class="str">search_news(query)</span>
+         <span class="arrow">&#9474;</span>     <span class="arrow">&#9492;&#9472;&#9472;</span> <span class="kw">Document Processor Agent</span>
+         <span class="arrow">&#9474;</span>           <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">extract_pdf(file)</span>
+         <span class="arrow">&#9474;</span>           <span class="arrow">&#9500;&#9472;&#9472;</span> tool: <span class="str">extract_excel(file)</span>
+         <span class="arrow">&#9474;</span>           <span class="arrow">&#9492;&#9472;&#9472;</span> tool: <span class="str">analyze_image(file)</span>
+         <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="hl2">Strategy Agent</span> (playbook writing, section generation, framework application)
+         <span class="arrow">&#9500;&#9472;&#9472;</span> <span class="hl2">Outreach Agent</span> (message generation, personalization, campaign planning)
+         <span class="arrow">&#9492;&#9472;&#9472;</span> <span class="hl2">Data Agent</span> (contact enrichment, Excel/CSV processing, CRM queries)
+</pre>
+</details>
+
+<p><strong>Orchestrator responsibilities:</strong></p>
+<ul>
+  <li>Intent detection (what does the user want?)</li>
+  <li>Agent selection (who handles this?)</li>
+  <li>Context routing (what context does the sub-agent need?)</li>
+  <li>Result synthesis (combine outputs for the user)</li>
+  <li>Halt gates (when to pause and confirm)</li>
+</ul>
+
+<p><strong>Each specialist agent has:</strong></p>
+<ul>
+  <li>Focused system prompt (~200 tokens vs ~2000 in monolithic)</li>
+  <li>Only its relevant tools (researcher gets search tools, not strategy tools)</li>
+  <li>Domain-specific reasoning patterns</li>
+  <li>Its own conversation memory (scoped to its domain)</li>
+</ul>
+
+<h3 id="s13-patterns">Orchestration Patterns</h3>
+
+<ol>
+  <li><strong>Sequential handoff</strong> &mdash; Research Agent completes &rarr; results passed to Strategy Agent</li>
+  <li><strong>Parallel fan-out</strong> &mdash; Company Profiler + Contact Enricher run simultaneously</li>
+  <li><strong>Hierarchical delegation</strong> &mdash; Research Agent itself orchestrates sub-agents (Company Profiler, Contact Enricher, Market Analyst)</li>
+</ol>
+
+<h3 id="s13-flow">Example Flow</h3>
+
+<details>
+  <summary>Multi-agent research flow example</summary>
+<pre>
+User: <span class="str">"Research Acme Corp and find me 5 decision makers"</span>
+
+<span class="hl">Orchestrator</span> <span class="arrow">&rarr;</span> <span class="hl2">Research Agent</span>
+  Research Agent: <span class="str">"I need company profile + contacts"</span>
+
+  <span class="cmt">&#9484;&#9472; parallel &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span>
+  <span class="cmt">&#9474;</span> <span class="kw">Company Profiler:</span>                       <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>   enrich_company_api(<span class="str">"acme.com"</span>)       <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>   scrape_website(<span class="str">"acme.com"</span>)           <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>   search_web(<span class="str">"Acme Corp products"</span>)     <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>                                         <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span> <span class="kw">Contact Enricher:</span>                       <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>   enrich_contact_api(domain=<span class="str">"acme.com"</span>) <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9474;</span>   search_linkedin(<span class="str">"Acme Corp VP"</span>)      <span class="cmt">&#9474;</span>
+  <span class="cmt">&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+
+  Research Agent synthesizes <span class="arrow">&rarr;</span> <span class="label">halt gate:</span>
+    <span class="str">"Found Acme Corp (SaaS, 200 employees, Series B).
+     5 contacts found. Confirm these are the right people?"</span>
+
+  User confirms <span class="arrow">&rarr;</span> results back to <span class="hl">Orchestrator</span>
+  <span class="hl">Orchestrator</span> <span class="arrow">&rarr;</span> <span class="hl2">Strategy Agent</span> (uses research as context)
+</pre>
+</details>
+
+<h3 id="s13-langgraph">LangGraph Mapping</h3>
+
+<ul>
+  <li>Each agent = a LangGraph subgraph</li>
+  <li>Orchestrator = parent graph with conditional edges</li>
+  <li><code>interrupt()</code> for halt gates at orchestrator and agent level</li>
+  <li>Parallel fan-out via LangGraph's <code>Send()</code> API</li>
+  <li>Agent-to-agent context via LangGraph's shared state</li>
+</ul>
+
+<h3 id="s13-migration">Migration from Monolithic</h3>
+
+<ol>
+  <li>Extract strategy tools &rarr; Strategy Agent subgraph</li>
+  <li>Extract research/enrichment tools &rarr; Research Agent subgraph</li>
+  <li>Build orchestrator graph with routing logic</li>
+  <li>Add sub-agents under Research Agent (Company Profiler, Contact Enricher, etc.)</li>
+  <li>Wire up A2A protocol between agents (see Section 14)</li>
+</ol>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Key Insight</div>
+  <p>Enrichment tools are dumb (API calls), enrichment agents are smart (decide what to call, in what order, and what to do with results). Separating them lets you swap APIs without changing reasoning.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s14"><span class="num">14.</span> Chat Experience Protocol &mdash; AG-UI</h2>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Decision</div>
+  <p>Adopt AG-UI (Agent-User Interaction Protocol) as the standard for agent&#8596;frontend communication.</p>
+</div>
+
+<p>AG-UI is an open, lightweight protocol that streams JSON events over HTTP/SSE between agent backends and frontends. Born from CopilotKit's partnership with LangGraph, it's now adopted by Microsoft, Oracle, LangChain, and CrewAI.</p>
+
+<h3 id="s14-comparison">Why AG-UI Over Alternatives</h3>
+
+<table>
+  <thead>
+    <tr><th>Protocol</th><th>Purpose</th><th>Our Fit</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>AG-UI</strong></td><td>Agent &#8596; Frontend</td><td>Primary &mdash; standardizes our SSE events</td></tr>
+    <tr><td><strong>A2A</strong></td><td>Agent &#8596; Agent</td><td>Complementary &mdash; for multi-agent orchestration</td></tr>
+    <tr><td><strong>Vercel AI SDK</strong></td><td>React chat hooks</td><td>Skip &mdash; TypeScript/Next.js native, we're Flask+Vite</td></tr>
+    <tr><td><strong>A2UI</strong></td><td>Generative UI format</td><td>Future &mdash; complement to AG-UI for rich components</td></tr>
+    <tr><td><strong>MCP</strong></td><td>Tool/context integration</td><td>Already using &mdash; continues as tool layer</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s14-stack">Protocol Stack</h3>
+
+<details>
+  <summary>Protocol stack diagram</summary>
+<pre>
+User <span class="arrow">&#8596;</span> [<span class="hl">AG-UI</span>] <span class="arrow">&#8596;</span> <span class="hl">Orchestrator</span> <span class="arrow">&#8596;</span> [<span class="hl2">A2A</span>] <span class="arrow">&#8596;</span> Research Agent
+                                  [<span class="hl2">A2A</span>] <span class="arrow">&#8596;</span> Strategy Agent
+                                  [<span class="hl2">A2A</span>] <span class="arrow">&#8596;</span> Outreach Agent
+
+<span class="label">Frontend</span>         <span class="label">Protocol</span>        <span class="label">Backend</span>
+<span class="cmt">&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span>    <span class="cmt">&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span>    <span class="cmt">&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span>
+<span class="cmt">&#9474;</span> <span class="kw">React</span>    <span class="cmt">&#9474;</span><span class="arrow">&#9668;&#9472;&#9472;&#9654;</span><span class="cmt">&#9474;</span>  <span class="hl">AG-UI</span>   <span class="cmt">&#9474;</span><span class="arrow">&#9668;&#9472;&#9472;&#9654;</span><span class="cmt">&#9474;</span> <span class="kw">LangGraph agents</span>    <span class="cmt">&#9474;</span>
+<span class="cmt">&#9474;</span> hooks    <span class="cmt">&#9474;</span> SSE<span class="cmt">&#9474;</span>  events  <span class="cmt">&#9474;</span>    <span class="cmt">&#9474;</span> (Flask/FastAPI)      <span class="cmt">&#9474;</span>
+<span class="cmt">&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>    <span class="cmt">&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>    <span class="cmt">&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+</pre>
+</details>
+
+<h3 id="s14-events">AG-UI Event Taxonomy</h3>
+
+<p>Replaces our custom SSE events:</p>
+
+<details>
+  <summary>Event mapping table</summary>
+<table>
+  <thead>
+    <tr><th>AG-UI Event</th><th>Replaces Our Current</th><th>Purpose</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>RUN_STARTED</code></td><td><em>(none &mdash; new)</em></td><td>Agent begins processing</td></tr>
+    <tr><td><code>RUN_FINISHED</code></td><td><em>(none &mdash; new)</em></td><td>Agent completes</td></tr>
+    <tr><td><code>TEXT_MESSAGE_START</code></td><td><code>analysis_start</code></td><td>Begin streaming text</td></tr>
+    <tr><td><code>TEXT_MESSAGE_CONTENT</code></td><td><code>analysis_chunk</code>, <code>section_content_chunk</code></td><td>Stream text tokens</td></tr>
+    <tr><td><code>TEXT_MESSAGE_END</code></td><td><code>analysis_done</code>, <code>section_content_done</code></td><td>End streaming text</td></tr>
+    <tr><td><code>TOOL_CALL_START</code></td><td><code>tool_start</code></td><td>Agent begins tool execution</td></tr>
+    <tr><td><code>TOOL_CALL_ARGS</code></td><td><em>(none &mdash; new)</em></td><td>Stream tool arguments</td></tr>
+    <tr><td><code>TOOL_CALL_END</code></td><td><code>tool_result</code></td><td>Tool execution complete</td></tr>
+    <tr><td><code>STATE_DELTA</code></td><td><em>(none &mdash; new)</em></td><td>Incremental state update (shared state patches)</td></tr>
+    <tr><td><code>STATE_SNAPSHOT</code></td><td><em>(none &mdash; new)</em></td><td>Full state sync</td></tr>
+  </tbody>
+</table>
+</details>
+
+<h3 id="s14-enables">What AG-UI Enables</h3>
+
+<p>Things we don't have today:</p>
+
+<ol>
+  <li><strong>Generative UI</strong> &mdash; agent sends <code>STATE_DELTA</code> patches, frontend renders rich components (tables, charts, approval forms) inline in chat instead of just text</li>
+  <li><strong>Inline approval gates</strong> &mdash; <code>TOOL_CALL_START</code> event pauses and shows approve/reject UI. Halt moments become first-class UI components, not text questions</li>
+  <li><strong>Shared state</strong> &mdash; agent and frontend share a synchronized state object. Agent updates company data &rarr; frontend table updates in real-time without refetch</li>
+  <li><strong>Tool approval UX</strong> &mdash; "Agent wants to enrich 50 contacts (est. 500 tokens). Approve?" with a real button, not a chat message</li>
+</ol>
+
+<h3 id="s14-lg-integration">LangGraph + AG-UI Integration</h3>
+
+<ul>
+  <li><code>ag-ui-langgraph</code> Python package (on PyPI) wraps LangGraph agents as AG-UI endpoints</li>
+  <li>Zero boilerplate &mdash; your LangGraph graph becomes an AG-UI-compatible endpoint</li>
+  <li>FastAPI adapter available, Flask adapter straightforward to build</li>
+  <li>Our current ChatProvider SSE consumption maps directly to AG-UI event handlers</li>
+</ul>
+
+<h3 id="s14-sse-migration">Migration from Current Custom SSE</h3>
+
+<ol>
+  <li>Install <code>ag-ui-langgraph</code> package</li>
+  <li>Define AG-UI event mappings for our current SSE events (see table above)</li>
+  <li>Update Flask endpoints to emit AG-UI events instead of custom ones</li>
+  <li>Update frontend ChatProvider to consume AG-UI events (useChat-style hooks or custom)</li>
+  <li>Add <code>STATE_DELTA</code> events for shared state (playbook content, research results)</li>
+  <li>Add <code>TOOL_CALL</code> approval flow for halt gates</li>
+  <li>Remove custom SSE event types</li>
+</ol>
+
+<h3 id="s14-copilotkit">CopilotKit vs Custom React Hooks</h3>
+
+<p>CopilotKit provides ready-made React components that consume AG-UI events. However, we already have a custom ChatProvider/ChatSidebar that works well. Recommendation: keep our custom React components but adopt AG-UI's event protocol on the transport layer. We can evaluate CopilotKit later if we need generative UI components out of the box.</p>
+
+<h3 id="s14-gaps">Key Gaps AG-UI Fills</h3>
+
+<details>
+  <summary>Feature comparison table</summary>
+<table>
+  <thead>
+    <tr><th>Feature</th><th>Current State</th><th>With AG-UI</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Streaming text</td><td>Custom SSE events</td><td>Standardized TEXT_MESSAGE events</td></tr>
+    <tr><td>Tool calls</td><td>Custom tool_start/result</td><td>TOOL_CALL lifecycle with approval</td></tr>
+    <tr><td>Halt gates</td><td>Not implemented</td><td>STATE_DELTA + tool approval flow</td></tr>
+    <tr><td>Generative UI</td><td>Not available</td><td>STATE_DELTA &rarr; render components</td></tr>
+    <tr><td>Citations</td><td>Not available</td><td>Metadata in TEXT_MESSAGE events</td></tr>
+    <tr><td>File attachments</td><td>Not available</td><td>Via STATE_DELTA + multimodal tools</td></tr>
+    <tr><td>Progress tracking</td><td>Basic ThinkingIndicator</td><td>RUN lifecycle + TOOL_CALL events</td></tr>
+  </tbody>
+</table>
+</details>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s15"><span class="num">15.</span> Editor Strategy &mdash; Tiptap AI Toolkit</h2>
+
+<p><strong>Decision: Stay on Tiptap. Adopt Tiptap AI Toolkit features for best-in-class editor + chat integration.</strong></p>
+
+<p>The current stack uses Tiptap (ProseMirror-based) in StrategyEditor. After evaluating alternatives:</p>
+
+<h3 id="s15-alternatives">Alternatives Considered</h3>
+
+<details>
+  <summary>Editor comparison table</summary>
+<table>
+  <thead>
+    <tr><th>Editor</th><th>Base</th><th>AI Features</th><th>Verdict</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Tiptap</strong> (current)</td><td>ProseMirror</td><td>AI Toolkit (copilot, streaming, agent edits)</td><td>Keep &mdash; headless, full control, best AI integration</td></tr>
+    <tr><td><strong>Plate</strong></td><td>Slate.js</td><td>AI SDK + MCP support, shadcn/ui</td><td>Strong contender but different doc model &mdash; migration = full rewrite</td></tr>
+    <tr><td><strong>Novel</strong></td><td>Tiptap wrapper</td><td>Vercel AI SDK autocompletion</td><td>Opinionated layer on what we already have</td></tr>
+    <tr><td><strong>BlockNote</strong></td><td>Tiptap wrapper</td><td>Notion-style blocks + AI</td><td>Block-based, less flexible for long-form strategy docs</td></tr>
+  </tbody>
+</table>
+</details>
+
+<h3 id="s15-why">Why Tiptap Wins</h3>
+
+<ol>
+  <li>Novel and BlockNote are BUILT ON Tiptap &mdash; switching to them adds abstraction on top of what we have</li>
+  <li>Tiptap AI Toolkit provides native Cursor-style editing (inline suggestions, streaming, agent edits)</li>
+  <li>Headless architecture means AG-UI events flow naturally: AG-UI &rarr; ChatProvider &rarr; Tiptap commands</li>
+  <li>Plate (Slate.js) would require full document model rewrite &mdash; different paradigm, not worth the migration cost</li>
+</ol>
+
+<h3 id="s15-features">Features to Adopt from Tiptap AI Toolkit</h3>
+
+<ol>
+  <li><strong>Inline AI suggestions (copilot-style autocompletion)</strong>
+    <ul>
+      <li>As user types in the strategy editor, AI suggests completions</li>
+      <li>Tab to accept, Esc to dismiss</li>
+      <li>Uses lightweight model (Haiku) for low-latency suggestions</li>
+      <li>Context: current section + playbook phase + company research</li>
+    </ul>
+  </li>
+  <li><strong>Agent document editing (in-place section updates)</strong>
+    <ul>
+      <li>Strategy agent edits sections directly in the editor, not via full replacement</li>
+      <li>User sees diffs: additions highlighted green, deletions struck through</li>
+      <li>Maps to AG-UI STATE_DELTA events &mdash; agent sends document patches, not full content</li>
+      <li>Current <code>setContent()</code> approach replaced with surgical <code>insertContentAt()</code> / <code>deleteRange()</code></li>
+    </ul>
+  </li>
+  <li><strong>Accept/reject changes (review mode)</strong>
+    <ul>
+      <li>After agent edits, user reviews changes inline (like Google Docs suggestions)</li>
+      <li>Accept individual changes or accept all</li>
+      <li>Reject reverts to previous content</li>
+      <li>Critical for halt gates: agent proposes strategy section &rarr; user reviews before it&rsquo;s committed</li>
+    </ul>
+  </li>
+  <li><strong>Streaming display (already implemented)</strong>
+    <ul>
+      <li>useTypewriter hook already provides character-by-character reveal</li>
+      <li>With AG-UI: TEXT_MESSAGE_CONTENT events &rarr; useTypewriter &rarr; Tiptap</li>
+      <li>Upgrade path: Tiptap&rsquo;s native streaming extension for tighter integration</li>
+    </ul>
+  </li>
+</ol>
+
+<h3 id="s15-arch">Architecture with AG-UI</h3>
+
+<details>
+  <summary>AG-UI to Tiptap architecture diagram</summary>
+<pre>
+AG-UI Events           ChatProvider          Tiptap Editor
+<span class="cmt">─────────────</span>         <span class="cmt">────────────</span>          <span class="cmt">──────────────</span>
+<span class="kw">TEXT_MESSAGE</span>    <span class="arrow">&rarr;</span>    streaming state   <span class="arrow">&rarr;</span>   useTypewriter overlay
+<span class="kw">STATE_DELTA</span>     <span class="arrow">&rarr;</span>    document patches  <span class="arrow">&rarr;</span>   editor.commands.insertContentAt()
+<span class="kw">TOOL_CALL</span>       <span class="arrow">&rarr;</span>    tool UI cards     <span class="arrow">&rarr;</span>   (shown in chat, not editor)
+<span class="kw">RUN_FINISHED</span>    <span class="arrow">&rarr;</span>    review mode       <span class="arrow">&rarr;</span>   show accept/reject UI
+</pre>
+</details>
+
+<h3 id="s15-priority">Implementation Priority</h3>
+
+<ol>
+  <li>Streaming display &mdash; already done (useTypewriter)</li>
+  <li>Agent document editing &mdash; switch from <code>setContent()</code> to surgical edits (~1 week)</li>
+  <li>Accept/reject changes &mdash; Tiptap collaboration extension + suggestion mode (~1 week)</li>
+  <li>Inline AI suggestions &mdash; copilot extension with Haiku backend (~2 weeks)</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s16"><span class="num">16.</span> Operational Concerns</h2>
+
+<h3 id="s16-testing">Agent Testing Strategy</h3>
+
+<p>How to test prompts, tools, and agent flows:</p>
+
+<p><strong>Prompt testing:</strong></p>
+<ul>
+  <li>Snapshot tests &mdash; save expected outputs for known inputs, flag regressions when prompt changes shift behavior</li>
+  <li>LangSmith (when adopted) has built-in prompt evaluation datasets</li>
+  <li>Golden conversation sets &mdash; curated input/output pairs per agent type</li>
+</ul>
+
+<p><strong>Tool testing:</strong></p>
+<ul>
+  <li>Unit tests per tool &mdash; mock external APIs, assert output shape and error handling</li>
+  <li>Already established pattern in <code>tests/unit/</code></li>
+  <li>Each new tool gets a corresponding test file</li>
+</ul>
+
+<p><strong>Integration testing:</strong></p>
+<ul>
+  <li>Record real agent conversations &rarr; replay as regression tests</li>
+  <li>LangGraph has a <code>replay</code> mode for deterministic re-execution</li>
+  <li>Test orchestrator routing: given intent X, does it pick agent Y?</li>
+</ul>
+
+<p><strong>Eval metrics:</strong></p>
+<ul>
+  <li>Task completion rate (did the agent achieve the user&rsquo;s goal?)</li>
+  <li>Hallucination rate (did it fabricate company/contact data?)</li>
+  <li>Halt gate accuracy (did it stop when it should have? Did it stop unnecessarily?)</li>
+  <li>Tool selection accuracy (did it pick the right tool for the task?)</li>
+</ul>
+
+<h3 id="s16-errors">Error Handling &amp; Retry Patterns</h3>
+
+<p><strong>LLM failures:</strong></p>
+<ul>
+  <li>Exponential backoff with fallback model chain: primary model fails &rarr; retry same model (1x) &rarr; fallback to next tier &rarr; surface error to user</li>
+  <li>Never silently swallow errors &mdash; always inform the user</li>
+</ul>
+
+<p><strong>Tool failures:</strong></p>
+<ul>
+  <li>AG-UI <code>TOOL_CALL_END</code> with error status &rarr; show error inline in chat</li>
+  <li>Agent decides whether to retry, try alternative approach, or ask user</li>
+  <li>Max 2 retries per tool call, then escalate</li>
+</ul>
+
+<p><strong>Sub-agent failures:</strong></p>
+<ul>
+  <li>Orchestrator catches failures from specialist agents</li>
+  <li>Can reassign to different agent or surface to user: &ldquo;Research failed &mdash; want me to try a different approach?&rdquo;</li>
+  <li>Partial results are preserved &mdash; don&rsquo;t discard successful sub-agent outputs when one fails</li>
+</ul>
+
+<p><strong>Timeout handling:</strong></p>
+<ul>
+  <li>Per-agent time budgets (e.g., research agent: 60s, strategy agent: 120s)</li>
+  <li>Orchestrator kills stuck sub-agents and reports partial results</li>
+  <li>User sees progress indicator throughout &mdash; never a silent hang</li>
+</ul>
+
+<h3 id="s16-analytics">Analytics &amp; Metrics</h3>
+
+<p>Key metrics to track (most available via LangSmith when adopted):</p>
+
+<details>
+  <summary>Analytics metrics table</summary>
+<table>
+  <thead>
+    <tr><th>Metric</th><th>Purpose</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Token cost per conversation</td><td>Billing, budget tracking</td><td>LLM API response</td></tr>
+    <tr><td>Token cost per agent</td><td>Identify expensive agents</td><td>LangSmith traces</td></tr>
+    <tr><td>Agent routing accuracy</td><td>Is orchestrator picking the right specialist?</td><td>Manual eval + user feedback</td></tr>
+    <tr><td>Halt gate effectiveness</td><td>How often do users override vs accept?</td><td>Frontend events</td></tr>
+    <tr><td>Time to completion</td><td>Per phase, per agent</td><td>LangSmith traces</td></tr>
+    <tr><td>Tool success rate</td><td>Which tools fail most?</td><td>Tool call results</td></tr>
+    <tr><td>User satisfaction signals</td><td>Implicit: edits after agent writes, explicit: thumbs up/down</td><td>Frontend events</td></tr>
+  </tbody>
+</table>
+</details>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Decision</div>
+  <p>LangSmith provides most of this for free. Build lightweight custom tracking only for frontend-specific metrics (halt gate overrides, user edits).</p>
+</div>
+
+<h3 id="s16-cost-controls">Cost Controls per Tenant</h3>
+
+<p><strong>Token budgets:</strong></p>
+<ul>
+  <li>Namespace admins set monthly token limits</li>
+  <li>Dashboard shows usage vs budget (already decided: credits display, not USD)</li>
+  <li>Soft warning at 80% usage, hard cap at 100% (configurable)</li>
+</ul>
+
+<p><strong>Per-request warnings:</strong></p>
+<ul>
+  <li>Before expensive operations, warn with estimated token cost: &ldquo;This research will use ~5,000 tokens. Proceed?&rdquo;</li>
+  <li>File processing (multimodal): show estimated cost before processing large files</li>
+  <li>Already decided in Q14: transparency over silent processing</li>
+</ul>
+
+<p><strong>Model access:</strong></p>
+<ul>
+  <li>All models available to all users &mdash; no tier restrictions</li>
+  <li>Users pay tokens regardless of model used</li>
+  <li>Warning before expensive model usage: &ldquo;Using Opus for this task (~3x cost vs Sonnet). This gives better results for complex strategy work. Proceed?&rdquo;</li>
+  <li>The user always decides &mdash; never silently use an expensive model without informing them</li>
+</ul>
+
+<div class="callout callout-recommended">
+  <div class="callout-label">Decision: No Model Gatekeeping</div>
+  <p>Every user gets access to the best models. Warnings + transparency replace restrictions. Users are adults &mdash; show them the cost, let them choose.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2 id="s17"><span class="num">17.</span> Open Questions for Discussion</h2>
+
+<div class="questions-grid">
+
+  <div class="q-card">
+    <div class="q-num">01</div>
+    <div class="q-title">Model Upgrade</div>
+    <div class="q-body">Should strategy generation use Sonnet instead of Haiku? Better reasoning but 10x cost. Could use Haiku for simple Q&amp;A and Sonnet for generation.</div>
+    <div class="decision-box"><strong>Decision:</strong> Use the best model for the job. Users pay per token, so quality matters more than cost optimization. Opus 4.6 is acceptable when the task warrants it.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">02</div>
+    <div class="q-title">Prompt Caching Priority</div>
+    <div class="q-body">Implement caching first (quick win, ~50% token savings) or restructure the prompt layers first (bigger change, better architecture)?</div>
+    <div class="decision-box"><strong>Decision:</strong> Implement prompt caching. Proceed with the proposed approach.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">03</div>
+    <div class="q-title">Tool Routing</div>
+    <div class="q-body">Rules-based (keyword matching) or LLM-based (lightweight classifier) for intent detection?</div>
+    <div class="decision-box"><strong>Decision:</strong> Implement document context optimization.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">04</div>
+    <div class="q-title">Document Context</div>
+    <div class="q-body">Option A (lazy load), B (relevant section + status), or C (compressed summary)? B is recommended but adds complexity.</div>
+    <div class="decision-box"><strong>Decision:</strong> Option B (smart section extraction) as default, with Option C (full document) available when the agent determines complete context is needed.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">05</div>
+    <div class="q-title">Conversation Memory</div>
+    <div class="q-body">Simple window + summary, or more sophisticated retrieval (embed messages, retrieve relevant ones)?</div>
+    <div class="decision-box"><strong>Decision:</strong> RAG for long-term memory (cross-session knowledge). Floating context window with compaction for short-term (within-session) memory.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">06</div>
+    <div class="q-title">Streaming Granularity</div>
+    <div class="q-body">Current 10-char chunks from backend. Switch to word-level or sentence-level streaming for more natural typewriter effect?</div>
+    <div class="decision-box"><strong>Decision:</strong> Implement intent-aware tool routing.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">07</div>
+    <div class="q-title">Multi-Model Orchestration</div>
+    <div class="q-body">Haiku for routing + Sonnet for generation? Or keep single model?</div>
+    <div class="decision-box"><strong>Decision:</strong> Implement model-specific prompt optimization to maximize each model's strengths.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">08</div>
+    <div class="q-title">Halt Gate Implementation</div>
+    <div class="q-body">Tool-based (<code>request_user_decision</code>) or prompt-instructed? Tool-based is more reliable but requires backend + frontend changes.</div>
+    <div class="decision-box"><strong>Decision:</strong> Prefer reliable/stable approach. Open to changes only when clearly superior alternatives exist.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">09</div>
+    <div class="q-title">Gate Frequency</div>
+    <div class="q-body">How many confirmation gates per strategy generation? 3-4 recommended, but user may want faster autonomous runs for subsequent strategies.</div>
+    <div class="decision-box"><strong>Decision:</strong> Adaptive halt gates -- frequency determined by context AND user preference. Some users want tight control (more halts), others prefer autonomy (fewer halts). Make this configurable per user/namespace.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">10</div>
+    <div class="q-title">Decision Persistence</div>
+    <div class="q-body">Should user decisions at gates be remembered for future strategies? (e.g., "always focus on primary product only")</div>
+    <div class="decision-box"><strong>Decision:</strong> Smart defaults with user override. Agent proposes default halt points but user can override. Context-aware -- if user's actions suggest different intent, adapt accordingly.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">11</div>
+    <div class="q-title">LangSmith Cost</div>
+    <div class="q-body">At scale (1000 conversations/month), LangSmith costs ~$100-300/mo. Worth it for observability, or build lightweight tracing?</div>
+    <div class="decision-box"><strong>Decision:</strong> No paid observability tools until revenue. Use LangSmith only if free tier is sufficient, otherwise build lightweight tracing. Revisit when revenue justifies the cost.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">12</div>
+    <div class="q-title">Migration Timing</div>
+    <div class="q-body">Adopt LangGraph now (before halt gates) or after implementing halt gates custom (then migrate)?</div>
+    <div class="decision-box"><strong>Decision:</strong> Adopt LangGraph now, before building custom halt gates. Better to migrate early than accumulate custom code that needs rewriting later.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">13</div>
+    <div class="q-title">Self-Hosted vs Cloud LangSmith</div>
+    <div class="q-body">LangSmith OSS can be self-hosted but lacks some features. Start with cloud, consider self-hosting later?</div>
+    <div class="decision-box"><strong>Decision:</strong> Evaluate self-hosted LangSmith for cost savings. If self-hosting eliminates the subscription cost and our VPS can handle it, prefer self-hosted. Otherwise defer until revenue (see Q11).</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">14</div>
+    <div class="q-title">File Size Limits &amp; Chunking</div>
+    <div class="q-body">What's the max file size we accept? Large PDFs (100+ pages) and videos (1hr+) need chunking strategies. Process in full, or cap at N pages / N minutes and warn the user?</div>
+    <div class="decision-box"><strong>Decision:</strong> Warn users about large file processing costs (in tokens) before processing. Cap at reasonable limits, show estimated token cost, let user decide whether to proceed. Transparency over silent processing.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">15</div>
+    <div class="q-title">Self-Hosted vs Cloud A/V Processing</div>
+    <div class="q-body">Whisper API (OpenAI) is easy but sends audio to external servers. Self-hosted <code>whisper.cpp</code> keeps data local but needs GPU. For sensitive prospect data, which matters more -- convenience or data residency?</div>
+    <div class="decision-box"><strong>Decision:</strong> Flexible — either self-hosted (whisper.cpp) or managed service (AssemblyAI). Choose based on cost and data sensitivity per customer. AssemblyAI is acceptable for non-sensitive content.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">16</div>
+    <div class="q-title">Confidential Document Handling</div>
+    <div class="q-body">Uploaded files may contain sensitive business data (financials, contracts, internal decks). Do we need encryption at rest for S3 uploads? Per-tenant isolation? Automatic TTL/expiry for extracted content? GDPR implications?</div>
+    <div class="decision-box"><strong>Decision:</strong> Defer encryption and data residency features. Acknowledge the need (DB-level encryption, per-tenant isolation, TTL) but deprioritize — debugging complexity outweighs security concerns at current stage. Revisit before handling enterprise/sensitive data.</div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">17</div>
+    <div class="q-title">Multi-Agent Cost</div>
+    <div class="q-body">Running multiple LLM calls per user request (orchestrator + specialist agents) multiplies token costs. What's the acceptable cost ceiling per interaction? Should simpler requests bypass orchestration and go directly to a single agent?</div>
+    <div class="decision-box"><strong>Decision:</strong> <em>Open &mdash; not yet discussed.</em></div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-num">18</div>
+    <div class="q-title">AG-UI Adoption Timing</div>
+    <div class="q-body">Adopt AG-UI protocol now (replacing custom SSE) or after LangGraph migration? AG-UI has a LangGraph adapter, so doing both together may be more efficient.</div>
+    <div class="decision-box"><strong>Decision:</strong> <em>Open &mdash; not yet discussed.</em></div>
+  </div>
+
+</div>
+
+</main>
+
+<script>
+// Build TOC from headings
+(function() {
+  const toc = document.getElementById('toc-list');
+  const headings = document.querySelectorAll('main h2[id], main h3[id]');
+  headings.forEach(h => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#' + h.id;
+    a.textContent = h.textContent;
+    a.dataset.target = h.id;
+    if (h.tagName === 'H3') a.classList.add('toc-h3');
+    li.appendChild(a);
+    toc.appendChild(li);
+  });
+
+  // Active highlight on scroll
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        document.querySelectorAll('nav.toc a.active').forEach(a => a.classList.remove('active'));
+        const link = document.querySelector(`nav.toc a[data-target="${entry.target.id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+
+  headings.forEach(h => observer.observe(h));
+
+  // Close mobile nav on link click
+  toc.addEventListener('click', () => {
+    document.querySelector('nav.toc').classList.remove('open');
+  });
+})();
+</script>
+
+</body>
+</html>

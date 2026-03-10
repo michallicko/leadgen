@@ -1,6 +1,6 @@
 # Technical Strategy
 
-**Last updated**: 2026-03-02
+**Last updated**: 2026-03-06
 
 ## Architecture Principles
 
@@ -10,102 +10,212 @@
 4. **Modularity & Reuse**: Before building anything new, audit existing code for reusable patterns. Extract shared logic into services/utilities. Keep modules loosely coupled with clear interfaces. Every component should be testable in isolation.
 5. **Lazy Loading**: Load data and resources on demand, not upfront. Paginate API responses, lazy-load dashboard sections, defer expensive operations. Users should never wait for data they haven't asked for.
 6. **User Experience First**: Technical decisions serve the user, not the other way around. Optimize for perceived performance (skeleton screens, optimistic updates), clear error messages, and intuitive flows. Run `/designer review` alongside `/em review` before shipping.
-7. **Zero External Lock-in**: Fully migrate away from n8n and Airtable. All pipeline logic, data storage, and orchestration must live in our codebase — versioned, tested, and deployable as code.
+7. **Zero External Lock-in**: All pipeline logic, data storage, and orchestration live in our codebase — versioned, tested, and deployable as code. n8n and Airtable dependencies are eliminated.
+8. **Quality Over Cost**: Users pay per token, so quality matters more than cost optimization. Use the best model for the job — Opus when warranted, Sonnet for complex generation, Haiku for routing and simple Q&A. Warn users about token costs before expensive operations; never silently degrade quality to save tokens.
 
 ## Technology Choices
 
-| Component | Current | Rationale | Pain Point | Revisit When |
-|-----------|---------|-----------|------------|--------------|
-| Backend | Flask + SQLAlchemy + **Pydantic v2** | Simple, fast iteration. Adding Pydantic for validation + OpenAPI generation. | Manual validation in routes (TD-004), no API docs, manual serialization | Adopting Pydantic incrementally alongside frontend migration |
-| Database | PostgreSQL (RDS) | Relational data, ACID, managed hosting | None | >10GB data or need read replicas |
-| Frontend | **React 19 + TypeScript + Vite + Tailwind v4** | Component reuse, type safety, SPA routing, TanStack Query. **Migration complete.** | None (vanilla JS eliminated 2026-02-19) | — |
-| Orchestration | n8n (existing) → **removing** | Visual workflows, quick prototyping | **Hard to version, test, extend. Full removal planned.** | Now — see Migration Path below |
-| Auth | JWT + bcrypt | Stateless, standard | No rate limiting, no session revocation | Adding billing or external API keys |
-| Infra | Single VPS (2GB) | Cheap, simple | Shared resources | >10 tenants or sustained background processing |
-| Reverse Proxy | Caddy | Auto TLS, simple config | None | Need load balancing |
-| AI Integration | Claude API (Haiku/Sonnet) + Anthropic SDK | Token-efficient, reliable, streaming | Cost tracking needed, no rate limiting | Scaling to multi-provider |
-| Agentic System | Custom agent executor + tool registry | Pluggable, full loop control, streaming SSE | No orchestration framework, no memory persistence | Need cross-conversation memory |
-| Orchestration (Pipeline) | n8n (existing) + Python DAG (new) | n8n for existing; Python for extensibility | Dual orchestration complexity | Phase 2 complete (remove n8n) |
+| Component | Current | Status | Rationale |
+|-----------|---------|--------|-----------|
+| Backend | Flask + SQLAlchemy + **Pydantic v2** | Active | Simple, fast iteration. Pydantic for validation + OpenAPI generation. |
+| Database | PostgreSQL (RDS) | Active | Relational data, ACID, managed hosting |
+| Frontend | **React 19 + TypeScript + Vite + Tailwind v4** | Active | Component reuse, type safety, SPA routing, TanStack Query |
+| Rich Text Editor | **Tiptap** (strategy editor) | Active | Block-based editing for strategy documents. **Planned: Tiptap AI Toolkit** for copilot suggestions, agent-driven document editing, accept/reject changes. |
+| Auth | JWT + bcrypt | Active | Stateless, standard |
+| Infra | Single VPS (2GB) | Active | Cheap, simple |
+| Reverse Proxy | Caddy | Active | Auto TLS, simple config |
+| AI Integration | Claude API (Haiku/Sonnet/Opus) + Anthropic SDK | Active | Token-efficient, reliable, streaming. Best model for the job. |
+| Agent Framework | Custom agent executor → **LangGraph** | **Migrating** | See Agent Architecture below |
+| Agent-Frontend Protocol | Custom SSE → **AG-UI** | **Planned** | See Communication Protocols below |
+| Agent-Agent Protocol | (none) → **A2A** | **Planned** | See Communication Protocols below |
+| Orchestration (Pipeline) | **Python-native DAG executor** | Active | n8n fully removed. L1 enrichment native; L2/Person migration in progress. |
+| Memory / Context | Hard 20-message window → **RAG + floating window** | **Planned** | Cross-session memory via retrieval; compacted window for within-session |
+| Observability | Basic logging | Active | No paid observability until revenue. Self-hosted LangSmith if feasible, otherwise lightweight tracing. |
 
-## Critical Architecture Decision: Pipeline Orchestration
+## Agent Architecture
 
-### Problem
+### Current State
 
-n8n is the current orchestration layer for enrichment pipelines (L1, L2, Person). This creates several issues:
+The agentic system powers the Playbook chat — a conversational AI interface for GTM strategy development. The current `agent_executor.py` is a monolithic loop that handles research, strategy writing, enrichment, and campaign planning in a single agent with all 24 tools available on every call.
 
-1. **Versioning**: Workflow JSON is not in git. Changes are made in a GUI and deployed via API PUT (full replacement, no diff).
-2. **Testing**: No way to unit test pipeline logic. Verification is manual execution.
-3. **Extensibility**: Adding new pipeline stages (e.g., email verification, LinkedIn enrichment) requires building complex n8n node chains instead of writing Python functions.
-4. **Multi-tenancy**: n8n has no native tenant isolation. Pipeline executions share a single n8n instance.
-5. **Debugging**: Execution logs are in n8n's internal DB, not queryable from the platform.
-6. **Cost tracking**: Credit consumption must be calculated after the fact from n8n execution data.
+### Decided: LangGraph Adoption
 
-### Migration Path
+**Status: Decided — adopt now, before building custom halt gates.**
 
-**Phase 1 (Q1 2026)**: Keep n8n for existing workflows but eliminate Airtable dependency (BL-002, BL-003). All n8n workflows write to PostgreSQL. This is prerequisite for everything else.
+LangGraph replaces the custom agent executor as the orchestration framework. The deciding factors:
 
-**Phase 1 Status (March 2026)**: L1 company enrichment runs natively in Python via Perplexity API (`l1_enricher.py`). EU government registry adapters (ARES, BRREG, PRH, recherche-entreprises, ISIR) also run natively in Python. L2 company, Person, and Generate workflows still use n8n orchestrator. The DAG executor (`dag_executor.py`) manages stage orchestration with completion-record eligibility tracking. Migration to full Python-native execution is in progress.
+1. **Halt gates** — LangGraph has `interrupt()` built in, which is our #1 architectural need. Users need confirmation points during strategy generation (company scope, ICP direction, draft review).
+2. **Multi-model routing** — Haiku for Q&A, Sonnet for generation, Opus for complex reasoning — trivial in LangGraph via conditional edges.
+3. **State machine** — The current simple loop doesn't model conversation flow. LangGraph's `StateGraph` gives typed state schemas with conditional routing.
+4. **Observability** — LangSmith tracing (free tier or self-hosted) provides per-node execution visibility.
 
-**Phase 2 (Q2 2026)**: Build Python-native pipeline engine in the Flask API. Port remaining pipeline logic to Python:
+**Migration approach**: Hybrid — keep Flask routes, SSE streaming adapter, tool implementations, and prompt templates. Adopt `StateGraph` for agent flow, `interrupt()` for halt gates, conditional edges for routing, and typed state schemas. The migration is internal — no API changes, no frontend changes initially.
+
+### Decided: Multi-Agent Orchestration
+
+**Status: Decided — implement after LangGraph migration.**
+
+Moving from monolithic agent to orchestrator + specialist agents:
+
+```
+User <-> Orchestrator (Chat Agent)
+           |-- Research Agent (web search, company profiling, market analysis)
+           |-- Strategy Agent (playbook writing, section generation, framework application)
+           |-- Outreach Agent (message generation, personalization, campaign planning)
+           |-- Data Agent (contact enrichment, document processing, CRM queries)
+```
+
+Each specialist agent has a focused system prompt (~200 tokens vs ~2000 in monolithic), only its relevant tools, and domain-specific reasoning patterns. The orchestrator handles intent detection, agent selection, context routing, result synthesis, and halt gates.
+
+**Orchestration patterns**: Sequential handoff (research completes, results pass to strategy), parallel fan-out (company profiler + contact enricher run simultaneously), hierarchical delegation (research agent orchestrates sub-agents).
+
+### Decided: Adaptive Halt Gates
+
+**Status: Decided — configurable per user preference.**
+
+The agent decomposes work into phases and halts at critical decision points — moments where a wrong assumption would invalidate everything downstream. Gate frequency is adaptive: some users want tight control (more halts), others prefer autonomy (fewer halts). Configurable per user/namespace.
+
+**Gate taxonomy**: Scope decisions (which product to focus on), direction decisions (which ICP segment), draft reviews (strategy looks right?), and cost confirmations (enrich 50 contacts for 500 tokens?).
+
+## Communication Protocols
+
+### Decided: AG-UI (Agent-User Interaction)
+
+**Status: Decided — adopt as agent-to-frontend standard.**
+
+AG-UI is an open protocol that streams JSON events over HTTP/SSE between agent backends and frontends. It replaces our custom SSE event types with standardized events: `TEXT_MESSAGE_*` for streaming text, `TOOL_CALL_*` for tool execution lifecycle, `STATE_DELTA` for incremental state updates, and `STATE_SNAPSHOT` for full state sync.
+
+**What it enables**: Generative UI (agent sends state patches, frontend renders rich components inline in chat), inline approval gates (tool calls pause and show approve/reject UI), shared synchronized state between agent and frontend, and standardized tool approval UX.
+
+**Migration**: Install `ag-ui-langgraph` package, map current SSE events to AG-UI events, update Flask endpoints and frontend ChatProvider. Our current ChatProvider SSE consumption maps directly to AG-UI event handlers.
+
+### Decided: A2A (Agent-to-Agent)
+
+**Status: Decided — for multi-agent orchestration.**
+
+A2A protocol handles communication between specialist agents in the multi-agent setup. The orchestrator communicates with research, strategy, outreach, and data agents via A2A, while the user-facing layer uses AG-UI.
+
+**Protocol stack**:
+```
+Frontend <-[AG-UI]-> Orchestrator <-[A2A]-> Research Agent
+                                   <-[A2A]-> Strategy Agent
+                                   <-[A2A]-> Outreach Agent
+                                   <-[A2A]-> Data Agent
+```
+
+## Prompt Architecture
+
+### Decided: Layered Prompt with Caching
+
+**Status: Decided — implement prompt caching and layering.**
+
+Split the system prompt into cacheable and dynamic layers:
+
+| Layer | Content | Tokens | Cacheable |
+|-------|---------|--------|-----------|
+| **L0: Identity** | Role definition, critical rules, response style, language | ~800 | Yes (`cache_control: ephemeral`) |
+| **L1: Capabilities** | Phase-filtered tool descriptions, tool usage rules, document editing rules | ~1-2K | Yes |
+| **L2: Context** | Current phase instructions, section completeness, user objective, enrichment summary, relevant document sections | ~1-5K | No |
+| **L3: Conversation** | Summarized older messages + recent messages verbatim + previous turn tool results | ~1-4K | No |
+
+**Expected savings**: 50-70% input token reduction. Current per-call total is 8-20K tokens; proposed is 3-7K tokens with cached static layers. Over a 25-iteration tool loop, this saves ~31K cached input tokens per turn.
+
+### Decided: Intent-Aware Tool Routing
+
+**Status: Decided — phase-filtered tools.**
+
+Only register tools relevant to the current phase. Strategy phase gets strategy tools (not campaign tools). Contacts phase gets enrichment tools (not strategy tools). Reduces schema tokens from ~2.5K (all 24 tools) to ~600-1K (6-10 phase-relevant tools) and eliminates irrelevant tool selection.
+
+### Decided: Smart Document Context
+
+**Status: Decided — relevant section + status (Option B).**
+
+Include only the section the user is working on plus completeness status for all sections. Full document available via tool call when the agent needs cross-referencing. The agent can also request the full document when it determines complete context is needed.
+
+### Decided: RAG for Long-Term Memory
+
+**Status: Decided — RAG for cross-session, floating window for within-session.**
+
+- **Cross-session memory**: Embed key decisions, preferences, and outcomes. Retrieve relevant context via RAG when a new session starts. The agent remembers what ICP the user approved, which messaging angles worked, and past strategy decisions.
+- **Within-session memory**: Floating context window with compaction. When history exceeds 15 messages, summarize the oldest 10 into ~200 tokens preserving decisions, preferences, and tool outcomes. Keep last 8 verbatim.
+
+## Multimodal Content Processing
+
+**Status: Decided — phased rollout.**
+
+The agent currently operates on text only. Multimodal processing lets the agent extract strategic intelligence directly from files users upload — pitch decks, annual reports, competitor websites, org charts, product demos.
+
+**Phased rollout**:
+
+| Phase | Formats | Effort | Value |
+|-------|---------|--------|-------|
+| 1 | PDF + Images | ~1 week | Highest — pitch decks, reports, screenshots |
+| 2 | HTML + Word | ~3 days | URL analysis for competitor research, proposals |
+| 3 | Excel | ~3 days | Structured data extraction, contact imports |
+| 4 | Video | ~1-2 weeks | Product demos, webinars (highest complexity + cost) |
+
+**Architecture**: Upload to S3 (or local `/uploads` in dev), store metadata in PG, dispatch to format-specific extractor, generate cached summaries, inject summaries into agent context on demand. Progressive detail levels: L0 (mention, ~20 tokens), L1 (summary, ~300-700 tokens), L2 (deep dive, up to 4K tokens via tool call).
+
+**File size handling**: Warn users about processing costs (in tokens) before processing. Cap at reasonable limits, show estimated token cost, let user decide whether to proceed.
+
+## Rich Text Editing — Tiptap AI Toolkit
+
+**Status: Decided — staying on Tiptap, adopting AI Toolkit.**
+
+The strategy editor already uses Tiptap for block-based document editing. The planned evolution adopts the Tiptap AI Toolkit for:
+
+- **Copilot suggestions**: Agent proposes edits inline as the user works on the strategy document
+- **Agent document editing**: The agent can directly modify strategy sections with tracked changes
+- **Accept/reject workflow**: User sees proposed changes with diff highlighting and can accept or reject each change
+
+This aligns with the halt gate architecture — instead of the agent rewriting sections autonomously, it proposes changes that the user reviews and approves.
+
+## Pipeline Orchestration
+
+### n8n Removal — Complete
+
+**Status: Done.**
+
+n8n has been fully removed from the pipeline architecture. All enrichment orchestration runs as Python code — versioned in git, tested in CI, deployed as part of the API container.
+
+### Python-Native Pipeline
+
+**Status: Active — L1 complete, L2/Person migration in progress.**
+
+- **L1 Company Enrichment**: Runs natively via Perplexity API (`l1_enricher.py`). EU government registry adapters (ARES, BRREG, PRH, recherche-entreprises, ISIR) also run natively.
+- **DAG Executor** (`dag_executor.py`): Manages stage orchestration with completion-record eligibility tracking.
+- **L2 Company + Person**: Migration to full Python-native execution in progress.
+
+**Architecture**:
 - Stage definitions as Python classes (L1Enrichment, L2Enrichment, PersonEnrichment, etc.)
-- Queue-based execution (start with simple DB-backed queue, graduate to Redis/Celery if needed)
+- DB-backed queue for execution (graduate to Redis/Celery if needed)
 - Built-in cost tracking (credit consumption calculated before/during execution)
 - Tenant-isolated execution contexts
 - Full test coverage (unit tests per stage, integration tests for pipeline flow)
 
-**Phase 3 (Q3 2026)**: Remove n8n entirely. All pipeline orchestration runs as Python code — versioned in git, tested in CI, deployed as part of the API container. n8n container is decommissioned. No "keep for ad-hoc" — clean break.
+## Cost Strategy
 
-**Phase 4 (alongside Phase 2-3)**: Remove Airtable completely. After BL-002/003 migrate workflow writes to PG, delete the Airtable migration script, remove Airtable MCP dependency, and close the Airtable account. Single source of truth = PostgreSQL.
+### Model Selection
 
-### Decision Criteria for Phase 2 Start
+**Decision: Best model for the job. Users pay tokens, so quality first.**
 
-Begin Phase 2 when ALL of:
-- BL-002 (L1 Postgres) is deployed and stable for 2+ weeks
-- BL-003 (Full Migration) is at least specced
-- A new pipeline stage is needed (e.g., email verification for Contact Intelligence theme)
+| Task Type | Model | Rationale |
+|-----------|-------|-----------|
+| Intent routing, simple Q&A | Haiku | Fast, cheap, sufficient for classification |
+| Strategy generation, research synthesis | Sonnet | Strong reasoning, good value |
+| Complex multi-step reasoning | Opus | When the task warrants it — users pay for quality |
 
-## Agent Executor Architecture
+### Observability
 
-The agentic tool-use system powers the Playbook chat — a conversational AI interface for GTM strategy development.
+**Decision: No paid observability until revenue.**
 
-### Core Loop (`agent_executor.py`)
+- Use LangSmith free tier if sufficient; evaluate self-hosted LangSmith for cost savings
+- Build lightweight tracing as fallback
+- Revisit when revenue justifies $100-300/mo for managed observability
 
-The agent executor implements the standard agentic loop as a Python generator that yields SSE events:
+### Token Transparency
 
-1. Send messages + system prompt to Claude API
-2. If response contains `tool_use` blocks, execute each tool via the registry
-3. Feed tool results back to Claude as `tool_result` messages
-4. Repeat until Claude produces a final text response (or max 10 iterations reached)
-
-**SSE event types**: `chunk` (streaming text), `tool_start` (tool invocation begin), `tool_result` (tool output), `done` (turn complete with metadata).
-
-**Rate limiting**: Per-turn limits by tool name (`TOOL_RATE_LIMITS` dict). Default 5 calls per tool per turn; `web_search` limited to 3. Prevents runaway loops and excessive API costs.
-
-### Tool Registry (`tool_registry.py`)
-
-Central registry with `ToolDefinition` dataclass:
-- `name`: Unique identifier (e.g., `icp_filter`, `search`, `analyze`)
-- `description`: Human-readable description passed to Claude's `tools` parameter
-- `input_schema`: JSON Schema for parameters
-- `handler`: `(args: dict, context: ToolContext) -> dict` — synchronous execution
-- `requires_confirmation`: Reserved for future frontend confirmation dialogs
-
-Tools register at app startup via `register_tool()`. Feature modules own their tool definitions (strategy tools in `strategy_tools.py`, search in `search_tools.py`, etc.).
-
-**Registered tools**: `icp_filter`, `search`, `enrichment_gaps`, `campaign`, `analyze`, `strategy_edit`, plus phase-contextual tools.
-
-### System Prompt Builder (`playbook_service.py`)
-
-Constructs the system prompt that positions the AI as a GTM strategy consultant:
-- Company context (profile, enrichment data, ICP, personas)
-- Current strategy document (9 sections: Executive Summary through 90-Day Action Plan)
-- Enrichment data formatted as structured sections (not raw JSON)
-- Phase-appropriate instructions and available tools
-- Chat history (last 20 messages) converted to Anthropic message format
-
-### Streaming Transport
-
-The Flask route consumes the generator and converts `SSEEvent` objects to wire-format Server-Sent Events. The React frontend reads the SSE stream via `EventSource` and renders chunks incrementally — tool invocations appear as collapsible cards in the chat UI.
+All operations show estimated token cost before execution. No surprise bills. Users always know what they're paying for. Budget controls per namespace with configurable thresholds and alerts.
 
 ## Playbook Phase System
 
@@ -130,7 +240,7 @@ Phases advance automatically when completion criteria are met (e.g., Contacts ph
 
 ### Phase-Contextual Tool Availability
 
-Each phase exposes only the tools relevant to the current workflow stage. For example, `icp_filter` is available in the Contacts phase, `strategy_edit` in the Strategy/Playbook phases, and `campaign` tools in the Campaigns phase.
+Each phase exposes only the tools relevant to the current workflow stage. This is now a core architectural pattern — see Intent-Aware Tool Routing above.
 
 ### PlaybookLog Table
 
@@ -163,7 +273,7 @@ Two modes: **campaign-only exclusion** (contact skipped for this campaign but re
 
 ### Approval Gate
 
-Campaign status transitions through `draft → ready → generating → review → approved → exported → archived`. All messages must be individually reviewed (approved or rejected) before the campaign can advance to `approved` status. This prevents unreviewed AI-generated content from reaching prospects.
+Campaign status transitions through `draft > ready > generating > review > approved > exported > archived`. All messages must be individually reviewed (approved or rejected) before the campaign can advance to `approved` status. This prevents unreviewed AI-generated content from reaching prospects.
 
 ## Token/Credit System
 
@@ -190,21 +300,24 @@ Per-operation cost tracking enables transparent AI usage billing for multi-tenan
 
 ## Tech Debt Register
 
-| ID | Description | Severity | Blocks | Backlog Ref |
-|----|-------------|----------|--------|-------------|
-| TD-001 | n8n workflows partially migrated — L1 native Python, L2/Person/Generate still n8n | High | Full pipeline extensibility | BL-002, BL-003 |
-| TD-002 | No API rate limiting | Medium | Multi-tenant launch (abuse risk) | — |
-| TD-003 | SQLite test compat layer masks PG-specific behavior | Medium | Confidence in test results | — |
-| TD-004 | No input validation on several API routes | Medium | Security for paying customers | — |
-| TD-005 | Pipeline logic locked in n8n GUI | High | Pipeline extensibility, testing, cost tracking | See Migration Path |
-| TD-006 | JWT tokens have no revocation mechanism | Low | Account security (logout doesn't invalidate) | — |
-| TD-007 | No background job processing (all work is synchronous or via n8n) | Medium | Long-running operations (bulk enrichment, PDF generation) | — |
-| TD-008 | ~~Frontend: 13K lines vanilla JS/CSS with massive duplication~~ | ~~High~~ | **RESOLVED** — vanilla JS fully eliminated (BL-045, 2026-02-19). All pages now React 19 + TypeScript + Tailwind v4. | `docs/specs/vanilla-js-migration/` |
-| TD-009 | No API input validation library (manual in every route) | Medium | Security, consistency, no OpenAPI docs | Phase 6 of frontend migration |
-| TD-010 | No auto-generated API types for frontend | Medium | API contract changes silently break UI | Phase 6 of frontend migration |
-| TD-011 | Agentic tool-use loop not documented. No ADR for agent architecture, tool registry, streaming transport, rate limits. | Medium | Onboarding new contributors, architectural consistency | — |
-| TD-012 | Database schema diagram in ARCHITECTURE.md incomplete. 14 new migrations (019-038) not reflected in full detail. | Low | Documentation accuracy, onboarding | — |
-| TD-013 | 30+ new API routes not listed in ARCHITECTURE.md. Route inventory outdated since Sprint 3. | Low | Documentation accuracy, API discoverability | — |
+| ID | Description | Severity | Blocks | Status |
+|----|-------------|----------|--------|--------|
+| TD-001 | ~~n8n workflows for enrichment~~ | ~~High~~ | — | **RESOLVED** — n8n fully removed. L1 native Python; L2/Person migration in progress. |
+| TD-002 | No API rate limiting | Medium | Multi-tenant launch (abuse risk) | Open |
+| TD-003 | SQLite test compat layer masks PG-specific behavior | Medium | Confidence in test results | Open |
+| TD-004 | No input validation on several API routes | Medium | Security for paying customers | Open |
+| TD-005 | ~~Pipeline logic locked in n8n GUI~~ | ~~High~~ | — | **RESOLVED** — all pipeline orchestration is Python-native. |
+| TD-006 | JWT tokens have no revocation mechanism | Low | Account security (logout doesn't invalidate) | Open |
+| TD-007 | No background job processing (all work is synchronous) | Medium | Long-running operations (bulk enrichment, PDF generation) | Open |
+| TD-008 | ~~Frontend: 13K lines vanilla JS/CSS with massive duplication~~ | ~~High~~ | — | **RESOLVED** — vanilla JS fully eliminated (BL-045, 2026-02-19). React 19 + TypeScript + Tailwind v4. |
+| TD-009 | No API input validation library (manual in every route) | Medium | Security, consistency, no OpenAPI docs | Open |
+| TD-010 | No auto-generated API types for frontend | Medium | API contract changes silently break UI | Open |
+| TD-011 | Monolithic agent executor with no halt gates or state machine | High | Agent quality, user control, multi-agent | **Addressing** — LangGraph migration decided |
+| TD-012 | Database schema diagram in ARCHITECTURE.md incomplete | Low | Documentation accuracy, onboarding | Open |
+| TD-013 | 30+ new API routes not listed in ARCHITECTURE.md | Low | Documentation accuracy, API discoverability | Open |
+| TD-014 | All 24 tools sent on every agent call regardless of context | Medium | Token waste, model confusion | **Addressing** — intent-aware tool routing decided |
+| TD-015 | No prompt caching — static tokens re-sent on every iteration | Medium | Token cost (50-70% savings available) | **Addressing** — layered prompt with caching decided |
+| TD-016 | No cross-session memory — agent forgets user preferences between sessions | Medium | User experience, strategy coherence | **Addressing** — RAG for long-term memory decided |
 
 **Policy**: Fix as we go. Address debt when it's in the path of a feature. No dedicated debt sprints. Run `/em audit` regularly (before each major feature) to surface new debt and refactoring opportunities.
 
@@ -252,7 +365,7 @@ Current route groups registered on the Flask API (24 route modules):
 ## Scalability Plan
 
 ### Current State (1 tenant, 2.6K contacts)
-- Single VPS (2GB RAM): runs n8n, Flask API, Caddy, 4 MCP servers
+- Single VPS (2GB RAM): runs Flask API, Caddy, 4 MCP servers
 - Single Gunicorn process, synchronous request handling
 - No caching layer
 - No background job queue (long-running ops use background threads)
@@ -265,7 +378,7 @@ Current route groups registered on the Flask API (24 route modules):
 ### Near-term (5-10 tenants, 10-30K contacts)
 - [ ] Add Redis for caching (company/contact list queries) and session management
 - [ ] Move to background job processing for: CSV imports, bulk enrichment, PDF generation
-- [ ] Upgrade VPS or split services (API on separate instance from n8n)
+- [ ] Upgrade VPS or split services (API on separate instance)
 - [ ] Add database connection pooling (PgBouncer or SQLAlchemy pool tuning)
 
 ### Medium-term (20-50 tenants, 100K+ contacts)
@@ -303,7 +416,7 @@ Current route groups registered on the Flask API (24 route modules):
 | ADR | Title | Summary |
 |-----|-------|---------|
 | [ADR-001](adr/001-virtual-scroll-for-tables.md) | Virtual Scroll for Tables | DOM windowing for large datasets — render ~60-80 rows regardless of data size |
-| [ADR-002](adr/002-ai-column-mapping.md) | AI Column Mapping | Claude Sonnet for CSV→schema mapping with confidence scores and manual override |
+| [ADR-002](adr/002-ai-column-mapping.md) | AI Column Mapping | Claude Sonnet for CSV-to-schema mapping with confidence scores and manual override |
 | [ADR-003](adr/003-native-l1-enrichment.md) | Native L1 Enrichment | Python-native L1 enrichment via Perplexity API, replacing n8n workflow |
 | [ADR-004](adr/004-eu-registry-adapters.md) | EU Registry Adapters | Unified registry orchestrator with country-specific adapters (ARES, BRREG, PRH, recherche, ISIR) |
 | [ADR-005](adr/005-enrichment-dag-model.md) | Enrichment DAG Model | DAG-based executor with completion-record eligibility and stage dependencies |
@@ -312,12 +425,43 @@ Current route groups registered on the Flask API (24 route modules):
 | [ADR-008](adr/008-browser-extension-architecture.md) | Browser Extension Architecture | Chrome MV3 extension for Sales Navigator lead capture and activity monitoring |
 | [ADR-009](adr/009-external-api-patterns.md) | External API Patterns | Patterns for integrating external APIs (OAuth, webhooks, polling) |
 
+**Pending ADRs** (decisions made, need formal write-up):
+- LangGraph adoption and migration plan
+- AG-UI + A2A protocol adoption
+- Multi-agent orchestration architecture
+- Prompt layering and caching strategy
+
 ## Product Strategy Alignment
 
 | Product Theme | Technical Enablers | Technical Blockers |
 |--------------|-------------------|-------------------|
-| Contact Intelligence | PostgreSQL data layer, CSV import pipeline, ICP filter system | Airtable dependency (TD-001), no background jobs (TD-007) |
-| Outreach Engine | API platform, multi-tenant auth, campaign lifecycle, message generation | No pipeline engine fully in Python (TD-005), no rate limiting (TD-002) |
-| Closed-Loop Analytics | PostgreSQL for analytics queries, LLM usage logging | No async event processing, no activity ingestion API |
+| Contact Intelligence | PostgreSQL data layer, CSV import pipeline, ICP filter system, Python-native enrichment | No background jobs (TD-007) |
+| Outreach Engine | API platform, multi-tenant auth, campaign lifecycle, message generation | No rate limiting (TD-002) |
+| Closed-Loop Analytics | PostgreSQL for analytics queries, LLM usage logging, browser extension activity capture | No async event processing, no activity ingestion API |
 | Platform Foundation | Multi-tenant schema, JWT auth, namespace routing, token/credit system | Input validation gaps (TD-004/TD-009), no billing infrastructure, no API docs (TD-010) |
-| GTM Strategy & Coaching | Playbook system, agent executor, tool registry, Claude API | None (MVP launched Sprint 4) |
+| Agent-Driven GTM | Playbook system, agent executor, tool registry, Claude API | Monolithic agent (TD-011), no halt gates, no cross-session memory (TD-016) |
+| Playbook-Driven Execution | Phase system, auto-advance, phase-contextual tools | No prompt caching (TD-015), all tools sent every call (TD-014) |
+
+## Decision Log (March 2026)
+
+Architectural decisions from `docs/plans/2026-03-06-agent-prompt-architecture.md`:
+
+| # | Decision | Summary | Status |
+|---|----------|---------|--------|
+| 1 | LangGraph adoption | Adopt now, before building custom halt gates. Migrate incrementally. | Decided |
+| 2 | AG-UI protocol | Replace custom SSE with standardized agent-frontend events. | Decided |
+| 3 | A2A protocol | Agent-to-agent communication for multi-agent orchestration. | Decided |
+| 4 | Multi-agent architecture | Orchestrator + Research/Strategy/Outreach/Data specialist agents. | Decided |
+| 5 | Prompt layering + caching | Static identity cached, dynamic context rebuilt per call. 50-70% token savings. | Decided |
+| 6 | Intent-aware tool routing | Phase-filtered tools instead of all 24 every call. | Decided |
+| 7 | Smart document context | Relevant section + status in prompt; full document via tool. | Decided |
+| 8 | RAG for long-term memory | Cross-session knowledge retrieval; floating window for short-term. | Decided |
+| 9 | Adaptive halt gates | Configurable per user preference — more control vs more autonomy. | Decided |
+| 10 | Model selection | Best model for the job. Opus when warranted. Quality over cost. | Decided |
+| 11 | Observability | No paid tools until revenue. Self-hosted LangSmith or lightweight tracing. | Decided |
+| 12 | Multimodal content | Phased rollout: PDF+Images, HTML+Word, Excel, Video. | Decided |
+| 13 | Tiptap AI Toolkit | Keep Tiptap, add copilot suggestions and agent document editing. | Decided |
+| 14 | n8n removal | Complete. All enrichment is Python-native. | Done |
+| 15 | File processing costs | Warn users, show estimated tokens, let them decide. | Decided |
+| 16 | Multi-agent cost ceiling | Not yet discussed — open question. | Open |
+| 17 | AG-UI adoption timing | Not yet discussed — likely concurrent with LangGraph migration. | Open |

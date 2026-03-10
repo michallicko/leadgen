@@ -1,0 +1,74 @@
+id: strategy_refinement
+name: "Strategy Refinement"
+trigger:
+  page: playbook
+  conditions:
+    - strategy_exists
+
+persona: >
+  Collaborative strategy editor. Help the user improve their existing strategy.
+  Focus on quality gaps, outdated information, and strategic coherence.
+
+system_prompt_template: |
+  You are helping {{company_name}} refine their existing GTM strategy.
+
+  ## Your Approach
+  1. Read the current strategy to understand what exists
+  2. Identify what the user wants to change
+  3. Research if needed (targeted, not full research)
+  4. Update sections, checking downstream impacts
+  5. Re-score affected sections
+
+  ## Rules
+  - Create a version snapshot before overwriting existing content
+  - If changing ICP, proactively suggest updating messaging too
+  - Keep improvements evidence-based
+
+tools:
+  - web_research
+  - update_strategy_section
+  - set_extracted_field
+  - append_to_section
+  - score_strategy
+  - set_icp_tiers
+  - set_buyer_personas
+  - navigate_suggestion
+
+research_requirements:
+  primary_source: "{{domain}}"
+  cross_check_policy: website_authoritative_with_consensus_override
+
+scoring_rubric:
+  sections:
+    company_profile:
+      weight: 1.0
+      criteria:
+        - factual_accuracy
+        - completeness
+    market_analysis:
+      weight: 1.5
+      criteria:
+        - competitive_depth
+        - segment_clarity
+    icp_definition:
+      weight: 2.0
+      criteria:
+        - specificity
+        - actionability
+    messaging:
+      weight: 1.5
+      criteria:
+        - differentiation
+        - persona_alignment
+  thresholds:
+    completeness: 0.8
+    quality_min: 3.5
+
+discovery_questions: []
+
+phases:
+  - understand_request
+  - research_if_needed
+  - edit_sections
+  - check_downstream
+  - rescore

@@ -10,7 +10,6 @@ import {
   getRefreshToken,
   isTokenExpired,
   storeTokens,
-  storeUser,
   clearTokens,
   getStoredUser,
   getUserRole,
@@ -18,7 +17,6 @@ import {
   type StoredUser,
   type Role,
 } from '../lib/auth'
-import { login as apiLogin } from '../api/client'
 
 interface AuthState {
   user: StoredUser | null
@@ -28,7 +26,6 @@ interface AuthState {
 }
 
 interface AuthActions {
-  login: (email: string, password: string) => Promise<void>
   logout: () => void
   hasRole: (minRole: Role) => boolean
 }
@@ -44,8 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
     role: 'viewer',
   })
-  const [loginError, setLoginError] = useState<string | null>(null)
-
   // Check existing tokens on mount
   useEffect(() => {
     const token = getAccessToken()
@@ -92,8 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // No valid tokens
+    // No valid tokens — attempt silent SSO check before showing login
     clearTokens()
+    if (!sessionStorage.getItem('sso_checked')) {
+      sessionStorage.setItem('sso_checked', '1')
+      const callbackUrl = window.location.origin + '/api/auth/iam/callback'
+      window.location.href = 'https://iam.visionvolve.com/token?redirect=' + encodeURIComponent(callbackUrl)
+      return // Don't update state — page is navigating away
+    }
     setState({ user: null, isAuthenticated: false, isLoading: false, role: 'viewer' })
   }, [])
 
@@ -128,21 +129,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [state.isAuthenticated])
 
-  const login = useCallback(async (email: string, password: string) => {
-    setLoginError(null)
-    const data = await apiLogin(email, password)
-    storeTokens(data.access_token, data.refresh_token)
-    storeUser(data.user)
-    setState({
-      user: data.user,
-      isAuthenticated: true,
-      isLoading: false,
-      role: getUserRole(data.user),
-    })
-  }, [])
-
   const logout = useCallback(() => {
+    // Notify IAM to revoke the refresh token (fire and forget)
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }).catch(() => {}) // fire and forget
+    }
     clearTokens()
+    // Clear SSO check flag so next login attempt will try silent SSO again
+    sessionStorage.removeItem('sso_checked')
     setState({ user: null, isAuthenticated: false, isLoading: false, role: 'viewer' })
     window.location.href = '/'
   }, [])
@@ -154,13 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     ...state,
-    login,
     logout,
     hasRole: hasRoleFn,
   }
-
-  // Expose loginError for the login page if needed
-  void loginError
 
   return createElement(AuthContext.Provider, { value }, children)
 }

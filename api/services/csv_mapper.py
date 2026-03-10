@@ -6,6 +6,7 @@ to Contact/Company fields with confidence scores and transforms.
 
 import json
 import os
+import re
 import time
 
 TARGET_FIELDS = {
@@ -34,89 +35,357 @@ TARGET_FIELDS = {
     ],
 }
 
-# Reverse maps for enum normalization (display value → DB value)
-ENUM_FIELDS = {
+# Reverse maps for enum normalization (display value → DB value).
+# These provide friendly aliases (e.g. "vice president" → "vp").
+ENUM_ALIASES = {
     "seniority_level": {
         "c-level": "c_level",
         "c level": "c_level",
-        "vp": "vp",
+        "c suite": "c_level",
+        "csuite": "c_level",
         "vice president": "vp",
-        "director": "director",
-        "manager": "manager",
         "individual contributor": "individual_contributor",
         "ic": "individual_contributor",
-        "founder": "founder",
-        "other": "other",
+        "contributor": "individual_contributor",
     },
     "department": {
-        "executive": "executive",
-        "engineering": "engineering",
-        "product": "product",
-        "sales": "sales",
-        "marketing": "marketing",
-        "customer success": "customer_success",
-        "finance": "finance",
-        "hr": "hr",
         "human resources": "hr",
-        "operations": "operations",
-        "other": "other",
+        "customer success": "customer_success",
+        "customer service": "customer_success",
+        "support": "customer_success",
+        "ops": "operations",
+        "management": "executive",
+        "it": "engineering",
+        "technology": "engineering",
+        "r&d": "engineering",
     },
-    "contact_source": {
-        "inbound": "inbound",
-        "outbound": "outbound",
-        "referral": "referral",
-        "event": "event",
-        "social": "social",
-        "other": "other",
-    },
+    "contact_source": {},
     "language": {
         "english": "en",
-        "en": "en",
         "german": "de",
-        "de": "de",
+        "deutsch": "de",
         "dutch": "nl",
-        "nl": "nl",
         "czech": "cs",
-        "cs": "cs",
+        "spanish": "es",
+        "italian": "it",
+        "polish": "pl",
+        "portuguese": "pt",
+        "swedish": "sv",
+        "norwegian": "no",
+        "finnish": "fi",
+        "danish": "da",
+        "french": "fr",
     },
     "industry": {
         "software": "software_saas",
         "saas": "software_saas",
         "software / saas": "software_saas",
-        "it": "it",
+        "tech": "it",
+        "technology": "it",
         "professional services": "professional_services",
+        "consulting": "professional_services",
         "financial services": "financial_services",
-        "healthcare": "healthcare",
-        "manufacturing": "manufacturing",
-        "retail": "retail",
-        "media": "media",
-        "energy": "energy",
-        "telecom": "telecom",
-        "transport": "transport",
-        "construction": "construction",
-        "education": "education",
+        "finance": "financial_services",
+        "banking": "financial_services",
+        "health": "healthcare",
+        "pharma": "pharma_biotech",
+        "biotech": "pharma_biotech",
+        "pharmaceutical": "pharma_biotech",
         "public sector": "public_sector",
-        "other": "other",
+        "government": "public_sector",
+        "real estate": "real_estate",
+        "logistics": "transport",
+        "design": "creative_services",
+        "advertising": "creative_services",
+        "hotel": "hospitality",
+        "tourism": "hospitality",
+        "defense": "aerospace_defense",
+        "aerospace": "aerospace_defense",
+        "farming": "agriculture",
     },
     "company_size": {
-        "micro": "micro",
-        "startup": "startup",
-        "smb": "smb",
         "mid-market": "mid_market",
         "mid market": "mid_market",
-        "enterprise": "enterprise",
+        "midmarket": "mid_market",
+        "large": "enterprise",
     },
     "business_model": {
-        "b2b": "b2b",
-        "b2c": "b2c",
-        "marketplace": "marketplace",
         "government": "gov",
-        "gov": "gov",
         "non-profit": "non_profit",
         "nonprofit": "non_profit",
-        "hybrid": "hybrid",
+        "ngo": "non_profit",
+    },
+    "icp_fit": {
+        "strong": "strong_fit",
+        "moderate": "moderate_fit",
+        "weak": "weak_fit",
+    },
+    "relationship_status": {},
+    "message_status": {
+        "not started": "not_started",
+        "pending review": "pending_review",
+        "pending": "pending_review",
+        "no channel": "no_channel",
+        "generation failed": "generation_failed",
+    },
+    "linkedin_activity_level": {},
+    # Company enum aliases
+    "ownership_type": {
+        "vc": "vc_backed",
+        "venture": "vc_backed",
+        "pe": "pe_backed",
+        "private equity": "pe_backed",
+        "family": "family_owned",
+        "state": "state_owned",
+    },
+    "geo_region": {
+        "dach": "dach",
+        "nordics": "nordics",
+        "uk": "uk_ireland",
+        "ireland": "uk_ireland",
+        "southern europe": "southern_europe",
+        "cee": "cee",
+        "benelux": "benelux",
+    },
+    "revenue_range": {
+        "mid-market": "mid_market",
+        "mid market": "mid_market",
+    },
+    "buying_stage": {
+        "problem aware": "problem_aware",
+        "exploring ai": "exploring_ai",
+        "looking for partners": "looking_for_partners",
+        "in discussion": "in_discussion",
+        "proposal sent": "proposal_sent",
+    },
+    "engagement_status": {},
+    "business_type": {
+        "service provider": "service_provider",
+        "product company": "product_company",
+        "service company": "service_company",
     },
 }
+
+# Valid PostgreSQL enum values per field.
+# Contacts table enums:
+ENUM_VALID_VALUES = {
+    "seniority_level": {
+        "c_level",
+        "vp",
+        "director",
+        "manager",
+        "individual_contributor",
+        "founder",
+        "other",
+    },
+    "department": {
+        "executive",
+        "engineering",
+        "product",
+        "sales",
+        "marketing",
+        "customer_success",
+        "finance",
+        "hr",
+        "operations",
+        "other",
+    },
+    "contact_source": {
+        "inbound",
+        "outbound",
+        "referral",
+        "event",
+        "social",
+        "other",
+    },
+    "language": {
+        "en",
+        "de",
+        "nl",
+        "cs",
+        "es",
+        "it",
+        "pl",
+        "pt",
+        "sv",
+        "no",
+        "fi",
+        "da",
+        "fr",
+    },
+    "icp_fit": {"strong_fit", "moderate_fit", "weak_fit", "unknown"},
+    "relationship_status": {
+        "prospect",
+        "active",
+        "dormant",
+        "former",
+        "partner",
+        "internal",
+    },
+    "message_status": {
+        "not_started",
+        "generating",
+        "pending_review",
+        "approved",
+        "sent",
+        "replied",
+        "no_channel",
+        "generation_failed",
+    },
+    "linkedin_activity_level": {"active", "moderate", "quiet", "unknown"},
+    # Companies table enums:
+    "industry": {
+        "software_saas",
+        "it",
+        "professional_services",
+        "financial_services",
+        "healthcare",
+        "manufacturing",
+        "retail",
+        "media",
+        "energy",
+        "telecom",
+        "transport",
+        "construction",
+        "education",
+        "public_sector",
+        "other",
+        "real_estate",
+        "automotive",
+        "pharma_biotech",
+        "agriculture",
+        "hospitality",
+        "aerospace_defense",
+        "creative_services",
+    },
+    "company_size": {
+        "micro",
+        "startup",
+        "smb",
+        "mid_market",
+        "enterprise",
+        "small",
+        "medium",
+    },
+    "business_model": {"b2b", "b2c", "marketplace", "gov", "non_profit", "hybrid"},
+    "ownership_type": {
+        "bootstrapped",
+        "vc_backed",
+        "pe_backed",
+        "public",
+        "family_owned",
+        "state_owned",
+        "other",
+    },
+    "geo_region": {
+        "dach",
+        "nordics",
+        "benelux",
+        "cee",
+        "uk_ireland",
+        "southern_europe",
+        "us",
+        "other",
+    },
+    "revenue_range": {"micro", "small", "medium", "mid_market", "enterprise"},
+    "buying_stage": {
+        "unaware",
+        "problem_aware",
+        "exploring_ai",
+        "looking_for_partners",
+        "in_discussion",
+        "proposal_sent",
+        "won",
+        "lost",
+    },
+    "engagement_status": {
+        "cold",
+        "approached",
+        "prospect",
+        "customer",
+        "churned",
+    },
+    "business_type": {
+        "manufacturer",
+        "distributor",
+        "service_provider",
+        "saas",
+        "platform",
+        "other",
+        "hybrid",
+        "product_company",
+        "service_company",
+    },
+}
+
+# Legacy compat: ENUM_FIELDS used by normalize_enum (alias map + valid values merged)
+ENUM_FIELDS = {}
+for _field, _valid in ENUM_VALID_VALUES.items():
+    merged = {v: v for v in _valid}  # identity map for valid values
+    merged.update(ENUM_ALIASES.get(_field, {}))
+    ENUM_FIELDS[_field] = merged
+
+
+def sanitize_enum_value(field, value, custom_fields=None):
+    """Validate and sanitize a value for a PostgreSQL enum column.
+
+    Strategy:
+    1. Exact match against valid enum values (case-insensitive, underscores normalized)
+    2. Alias lookup (e.g. "vice president" → "vp")
+    3. Substring match: check if any valid enum value appears in the input
+    4. Fallback: store original in custom_fields, return 'other' or None
+
+    Args:
+        field: the enum field name (e.g. 'contact_source')
+        value: the raw string value from the CSV
+        custom_fields: optional dict to store original values when they can't be mapped
+
+    Returns:
+        A valid enum value, or None if no match and no 'other' fallback exists.
+    """
+    if not value:
+        return None
+
+    valid = ENUM_VALID_VALUES.get(field)
+    if not valid:
+        return value  # not an enum field, pass through
+
+    aliases = ENUM_ALIASES.get(field, {})
+
+    # Normalize: strip, lowercase, replace hyphens/spaces with underscores
+    cleaned = value.strip().lower()
+    normalized = cleaned.replace("-", "_").replace(" ", "_")
+
+    # 1. Direct match against valid values
+    if normalized in valid:
+        return normalized
+    if cleaned in valid:
+        return cleaned
+
+    # 2. Alias lookup
+    alias_result = aliases.get(cleaned)
+    if alias_result and alias_result in valid:
+        return alias_result
+
+    # 3. Substring match: check if any valid value is contained in the input
+    for v in valid:
+        if v in normalized:
+            if custom_fields is not None:
+                custom_fields[f"original_{field}"] = value
+            return v
+
+    # 4. Reverse substring: check if the input is contained in any valid value
+    for v in valid:
+        if normalized in v:
+            if custom_fields is not None:
+                custom_fields[f"original_{field}"] = value
+            return v
+
+    # 5. No match found: preserve original, fall back to 'other' or None
+    if custom_fields is not None:
+        custom_fields[f"original_{field}"] = value
+    return "other" if "other" in valid else None
+
 
 SYSTEM_PROMPT = """You are a data mapping assistant. Given CSV headers and sample rows,
 map each CSV column to the most appropriate target field.
@@ -245,13 +514,12 @@ def call_claude_for_mapping(headers, sample_rows, custom_defs=None):
 def normalize_enum(field_name, value):
     """Normalize a free-text value to a DB enum value.
 
-    Returns the DB enum value or the original value if no match.
+    Returns the DB enum value or None if no match. Uses sanitize_enum_value
+    for smart matching (aliases, substring, fallback to 'other').
     """
-    if not value or field_name not in ENUM_FIELDS:
+    if not value or field_name not in ENUM_VALID_VALUES:
         return value
-    lookup = ENUM_FIELDS[field_name]
-    normalized = value.strip().lower()
-    return lookup.get(normalized, value)
+    return sanitize_enum_value(field_name, value)
 
 
 def extract_domain(url):
@@ -270,6 +538,54 @@ def extract_domain(url):
     # Strip trailing path/query
     url = url.split("/")[0].split("?")[0].split("#")[0]
     return url if url else None
+
+
+DATE_PATTERNS = [
+    re.compile(r"^\d{4}-\d{2}-\d{2}"),  # 2021-12-04 or 2021-12-04 00:00:00
+    re.compile(r"^\d{2}/\d{2}/\d{4}"),  # 12/04/2021
+    re.compile(r"^\d{2}\.\d{2}\.\d{4}"),  # 04.12.2021
+]
+
+
+def _extract_domain_from_email(email):
+    """Extract domain part from an email address."""
+    if not email or "@" not in email:
+        return None
+    return email.split("@")[1]
+
+
+def validate_and_fix_company(company_value, email=None):
+    """Validate company name and fix obviously bad values.
+
+    Detects dates, pure numbers, empty strings, and very short values.
+    Falls back to email domain extraction when the company value is invalid.
+
+    Args:
+        company_value: the raw company name string
+        email: optional email address for domain fallback
+
+    Returns:
+        cleaned company name, or email domain, or "Unknown"
+    """
+    if not company_value or not company_value.strip():
+        return _extract_domain_from_email(email) or "Unknown"
+
+    val = company_value.strip()
+
+    # Check for date patterns
+    for pattern in DATE_PATTERNS:
+        if pattern.match(val):
+            return _extract_domain_from_email(email) or "Unknown"
+
+    # Pure number (integer or decimal)
+    if re.match(r"^\d+\.?\d*$", val):
+        return _extract_domain_from_email(email) or "Unknown"
+
+    # Too short (1-2 chars, likely garbage)
+    if len(val) <= 2:
+        return _extract_domain_from_email(email) or "Unknown"
+
+    return val
 
 
 def apply_mapping(row, mapping_result):
@@ -316,8 +632,24 @@ def apply_mapping(row, mapping_result):
             bucket = contact if entity == "contact" else company
             bucket.setdefault("_custom_fields", {})[custom_key] = value
         elif entity == "contact":
-            contact[field] = value
+            # Sanitize enum fields before storing (catches values not handled
+            # by normalize_enum transform, e.g. free-text "Event Fest 2025")
+            if field in ENUM_VALID_VALUES:
+                custom_bucket = contact.setdefault("_custom_fields", {})
+                value = sanitize_enum_value(field, value, custom_bucket)
+            if value is not None:
+                contact[field] = value
         else:
-            company[field] = value
+            if field in ENUM_VALID_VALUES:
+                custom_bucket = company.setdefault("_custom_fields", {})
+                value = sanitize_enum_value(field, value, custom_bucket)
+            if value is not None:
+                company[field] = value
+
+    # Validate and fix company name (catch dates, numbers, garbage)
+    if "name" in company:
+        company["name"] = validate_and_fix_company(
+            company["name"], email=contact.get("email_address")
+        )
 
     return {"contact": contact, "company": company}

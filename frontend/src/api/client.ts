@@ -306,31 +306,3 @@ export async function apiDownload(
   URL.revokeObjectURL(a.href)
 }
 
-/**
- * Login — returns user data and stores tokens.
- */
-export async function login(
-  email: string,
-  password: string,
-): Promise<{
-  access_token: string
-  refresh_token: string
-  user: import('../lib/auth').StoredUser
-}> {
-  const resp = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-
-  if (!resp.ok) {
-    const body = (await resp.json().catch(() => ({}))) as { error?: string }
-    throw new ApiError(body.error ?? 'Login failed', resp.status)
-  }
-
-  return (await resp.json()) as {
-    access_token: string
-    refresh_token: string
-    user: import('../lib/auth').StoredUser
-  }
-}

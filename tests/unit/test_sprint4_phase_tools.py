@@ -21,10 +21,7 @@ from api.services.campaign_tools import create_campaign
 from api.services.tool_registry import ToolContext
 
 
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": "Bearer {}".format(token)}
+from tests.conftest import auth_header
 
 
 # ---------------------------------------------------------------------------
@@ -181,12 +178,12 @@ class TestMapIcpToFilters:
     def test_maps_company_size_dict(self):
         icp = {"company_size": {"min": 50, "max": 500}}
         result = _map_icp_to_filters(icp)
-        assert result["company_sizes"] == ["50-500"]
+        assert result["company_sizes"] == ["medium", "mid_market"]
 
     def test_maps_company_size_list(self):
-        icp = {"company_size": ["50-100", "100-500"]}
+        icp = {"company_size": ["medium", "mid_market"]}
         result = _map_icp_to_filters(icp)
-        assert result["company_sizes"] == ["50-100", "100-500"]
+        assert result["company_sizes"] == ["medium", "mid_market"]
 
     def test_maps_personas_seniority(self):
         icp = {

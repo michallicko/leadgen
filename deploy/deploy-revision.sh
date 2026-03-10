@@ -36,17 +36,13 @@ echo ""
 echo "==> Copying API source to staging..."
 API_REMOTE="${STAGING_DIR}/leadgen-api-rev-${COMMIT}"
 
-ssh -i "$STAGING_KEY" "$STAGING_HOST" "mkdir -p ${API_REMOTE}/api/routes ${API_REMOTE}/api/services ${API_REMOTE}/api/services/registries"
+ssh -i "$STAGING_KEY" "$STAGING_HOST" "mkdir -p ${API_REMOTE}"
 
 scp -i "$STAGING_KEY" "${PROJECT_DIR}/Dockerfile.api" "${STAGING_HOST}:${API_REMOTE}/"
-scp -i "$STAGING_KEY" "${PROJECT_DIR}/api/requirements.txt" "${STAGING_HOST}:${API_REMOTE}/api/"
-scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/*.py "${STAGING_HOST}:${API_REMOTE}/api/"
-scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/routes/*.py "${STAGING_HOST}:${API_REMOTE}/api/routes/"
-scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/services/*.py "${STAGING_HOST}:${API_REMOTE}/api/services/"
-# Copy registry adapters if they exist
-if ls ${PROJECT_DIR}/api/services/registries/*.py 1>/dev/null 2>&1; then
-  scp -i "$STAGING_KEY" ${PROJECT_DIR}/api/services/registries/*.py "${STAGING_HOST}:${API_REMOTE}/api/services/registries/"
-fi
+
+# Copy entire api/ directory tree (excluding __pycache__) via tar pipe
+tar -C "${PROJECT_DIR}" --exclude='__pycache__' --exclude='*.pyc' -cf - api/ | \
+  ssh -i "$STAGING_KEY" "$STAGING_HOST" "tar -C ${API_REMOTE} -xf -"
 echo "    API source copied"
 
 # ---- 3. Copy frontend build ----
@@ -60,7 +56,7 @@ echo "    Frontend build copied to /srv/dashboard-rev-${COMMIT}"
 if [ "$BRANCH" = "staging" ]; then
   echo ""
   echo "==> Updating dashboard-rev-latest symlink (staging branch)..."
-  ssh -i "$STAGING_KEY" "$STAGING_HOST" "ln -sfn /srv/dashboard-rev-${COMMIT} /srv/dashboard-rev-latest"
+  ssh -i "$STAGING_KEY" "$STAGING_HOST" "[ -d /srv/dashboard-rev-latest ] && [ ! -L /srv/dashboard-rev-latest ] && sudo rm -rf /srv/dashboard-rev-latest; sudo ln -sfn /srv/dashboard-rev-${COMMIT} /srv/dashboard-rev-latest"
   echo "    /srv/dashboard-rev-latest -> /srv/dashboard-rev-${COMMIT}"
 fi
 

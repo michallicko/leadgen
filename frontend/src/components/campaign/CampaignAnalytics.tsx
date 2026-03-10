@@ -4,7 +4,7 @@ import { useCampaignAnalytics, type CampaignAnalyticsData } from '../../api/quer
 
 function formatCost(usd: number): string {
   if (usd === 0) return '-'
-  return `$${usd.toFixed(2)}`
+  return `${Math.round(usd * 1000)} credits`
 }
 
 function pct(num: number, den: number): number {
@@ -166,8 +166,23 @@ function AnalyticsError({ message }: { message: string }) {
 
 // ── Main analytics view ──────────────────────────────────
 
+function EngagementRateBar({ label, rate, color }: { label: string; rate: number; color: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-text-muted w-20 shrink-0">{label}</span>
+      <div className="flex-1 h-2 bg-surface-alt rounded-full overflow-hidden border border-border">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${color}`}
+          style={{ width: `${Math.min(rate, 100)}%` }}
+        />
+      </div>
+      <span className="text-xs text-text tabular-nums w-12 text-right">{rate}%</span>
+    </div>
+  )
+}
+
 function AnalyticsView({ data }: { data: CampaignAnalyticsData }) {
-  const { messages, sending, contacts, cost, timeline } = data
+  const { messages, sending, contacts, cost, timeline, engagement } = data
 
   const approved = messages.by_status['approved'] ?? 0
   const rejected = messages.by_status['rejected'] ?? 0
@@ -306,6 +321,51 @@ function AnalyticsView({ data }: { data: CampaignAnalyticsData }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Email Engagement Tracking ── */}
+      {engagement && (engagement.opened > 0 || engagement.replied > 0 || engagement.bounced > 0 || engagement.clicked > 0) && (
+        <div>
+          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Email Engagement</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <StatCard
+              label="Opened"
+              value={engagement.opened}
+              sub={`${engagement.open_rate}% open rate`}
+            />
+            <StatCard
+              label="Replied"
+              value={engagement.replied}
+              sub={`${engagement.reply_rate}% reply rate`}
+            />
+            <StatCard
+              label="Clicked"
+              value={engagement.clicked}
+              sub={`${engagement.click_rate}% click rate`}
+            />
+            <StatCard
+              label="Bounced"
+              value={engagement.bounced}
+              sub={engagement.hard_bounces > 0 ? `${engagement.hard_bounces} hard, ${engagement.soft_bounces} soft` : `${engagement.bounce_rate}% bounce rate`}
+            />
+          </div>
+          <div className="space-y-2">
+            <EngagementRateBar label="Open Rate" rate={engagement.open_rate} color="bg-accent-cyan" />
+            <EngagementRateBar label="Reply Rate" rate={engagement.reply_rate} color="bg-success" />
+            <EngagementRateBar label="Click Rate" rate={engagement.click_rate} color="bg-accent" />
+            <EngagementRateBar label="Bounce Rate" rate={engagement.bounce_rate} color="bg-error" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Engagement placeholder when no data yet ── */}
+      {engagement && engagement.opened === 0 && engagement.replied === 0 && engagement.bounced === 0 && (sending.email.sent > 0 || sending.email.delivered > 0) && (
+        <div>
+          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Email Engagement</h3>
+          <div className="bg-surface-alt rounded-lg border border-border px-4 py-6 text-center">
+            <p className="text-xs text-text-dim">No engagement data received yet. Open/reply/bounce tracking will appear here once webhook events arrive.</p>
           </div>
         </div>
       )}

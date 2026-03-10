@@ -210,11 +210,11 @@ class TestExtensionPull:
     def _setup_user_with_owner(self, db, seed):
         """Create a user linked to owner[0] (Alice)."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         user = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice User",
             is_super_admin=False,
             is_active=True,
@@ -235,11 +235,11 @@ class TestExtensionPull:
     def _setup_user_with_owner_bob(self, db, seed):
         """Create a user linked to owner[1] (Bob)."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         user = User(
             email="bob@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-bob-001",
             display_name="Bob User",
             is_super_admin=False,
             is_active=True,
@@ -390,11 +390,11 @@ class TestStatusUpdate:
     def _setup_queued_item(self, client, db, seed):
         """Create a queued item and return its ID + the alice user headers."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         alice_user = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice User",
             is_super_admin=False,
             is_active=True,
@@ -508,12 +508,12 @@ class TestStatusUpdate:
     def test_update_not_found(self, client, seed_companies_contacts, db):
         """Updating a nonexistent queue item returns 404."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         seed = seed_companies_contacts
         user = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice",
             is_super_admin=False,
             is_active=True,
@@ -543,7 +543,6 @@ class TestStatusUpdate:
     def test_update_wrong_owner(self, client, seed_companies_contacts, db):
         """User cannot update a queue item belonging to another owner."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         seed = seed_companies_contacts
         queue_id, alice_headers, _ = self._setup_queued_item(client, db, seed)
@@ -551,7 +550,8 @@ class TestStatusUpdate:
         # Create Bob user linked to owner[1]
         bob = User(
             email="bob@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-bob-001",
             display_name="Bob",
             is_super_admin=False,
             is_active=True,
@@ -586,12 +586,12 @@ class TestLinkedInQueueStats:
     def test_stats_empty(self, client, seed_companies_contacts, db):
         """Stats for a user with no queue items."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         seed = seed_companies_contacts
         user = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice",
             is_super_admin=False,
             is_active=True,
@@ -623,12 +623,12 @@ class TestLinkedInQueueStats:
     def test_stats_with_queued_items(self, client, seed_companies_contacts, db):
         """Stats reflect queued items."""
         from api.models import User, UserTenantRole
-        from api.auth import hash_password
 
         seed = seed_companies_contacts
         user = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice",
             is_super_admin=False,
             is_active=True,
@@ -677,12 +677,12 @@ class TestFullLifecycle:
     def test_queue_claim_send_lifecycle(self, client, seed_companies_contacts, db):
         """Full lifecycle: queue messages, pull (claim), mark as sent."""
         from api.models import LinkedInSendQueue, Message, User, UserTenantRole
-        from api.auth import hash_password
 
         seed = seed_companies_contacts
         alice = User(
             email="alice@test.com",
-            password_hash=hash_password("testpass123"),
+            password_hash=None,
+            iam_user_id="iam-alice-001",
             display_name="Alice",
             is_super_admin=False,
             is_active=True,

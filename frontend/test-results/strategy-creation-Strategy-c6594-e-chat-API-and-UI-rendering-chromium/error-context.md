@@ -1,0 +1,208 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - link "VisionVolve Leadgen" [ref=e6] [cursor=pointer]:
+      - /url: /
+      - img "VisionVolve" [ref=e7]
+      - generic [ref=e8]: Leadgen
+    - generic [ref=e9]:
+      - link "Playbook" [ref=e10] [cursor=pointer]:
+        - /url: /visionvolve/playbook
+        - img [ref=e12]
+        - generic [ref=e16]: Playbook
+      - link "Radar" [ref=e17] [cursor=pointer]:
+        - /url: /visionvolve/contacts
+        - img [ref=e19]
+        - generic [ref=e23]: Radar
+      - link "Reach" [ref=e24] [cursor=pointer]:
+        - /url: /visionvolve/campaigns
+        - img [ref=e26]
+        - generic [ref=e29]: Reach
+      - link "Echo" [ref=e30] [cursor=pointer]:
+        - /url: /visionvolve/echo
+        - img [ref=e32]
+        - generic [ref=e33]: Echo
+    - generic [ref=e34]:
+      - button "Toggle AI Chat (Cmd+K)" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+      - combobox [ref=e38] [cursor=pointer]:
+        - option "ua5"
+        - option "ua4"
+        - option "unitedarts-cz"
+        - option "unitedarts3"
+        - option "unitedarts"
+        - option "united-arts"
+        - option "test"
+        - option "visionvolve" [selected]
+      - button "Staging Test User Super" [ref=e40] [cursor=pointer]:
+        - generic [ref=e41]: Staging Test User
+        - generic [ref=e42]: Super
+        - img [ref=e43]
+  - generic [ref=e45]:
+    - generic [ref=e47]:
+      - heading "GTM Strategy" [level=1] [ref=e49]
+      - generic [ref=e50]:
+        - button "Strategy Overview" [ref=e51] [cursor=pointer]
+        - button "ICP Tiers" [ref=e52] [cursor=pointer]
+        - button "Buyer Personas" [ref=e53] [cursor=pointer]
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - button "B" [ref=e58] [cursor=pointer]
+          - button "I" [ref=e59] [cursor=pointer]
+          - button "H1" [ref=e61] [cursor=pointer]
+          - button "H2" [ref=e62] [cursor=pointer]
+          - button "H3" [ref=e63] [cursor=pointer]
+          - button "Bullet" [ref=e65] [cursor=pointer]
+          - button "Number" [ref=e66] [cursor=pointer]
+          - button "Quote" [ref=e68] [cursor=pointer]
+          - button "Table" [ref=e69] [cursor=pointer]
+          - button "Diagram" [ref=e70] [cursor=pointer]
+        - textbox [ref=e72]:
+          - paragraph [ref=e73]: Testing save indicator
+    - complementary "AI Chat Sidebar" [ref=e75]:
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - heading "AI Strategist" [level=3] [ref=e79]
+          - generic [ref=e80]:
+            - button "Start new conversation" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+            - button "Collapse chat sidebar" [ref=e84] [cursor=pointer]:
+              - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e90]
+            - generic [ref=e94]:
+              - generic [ref=e95]: Create a lead generation strategy for B2B SaaS companies targeting enterprise customers in Europe. Focus on companies with 500+ employees in the financial services sector.
+              - generic [ref=e96]: 04:28 PM
+          - generic [ref=e97]:
+            - img [ref=e99]
+            - generic [ref=e103]:
+              - generic [ref=e104]: Refine the ICP to focus specifically on fintech companies with 50-200 employees that have recently raised Series B funding.
+              - generic [ref=e105]: 04:31 PM
+          - generic [ref=e106]:
+            - img [ref=e108]
+            - generic [ref=e112]:
+              - generic [ref=e113]: What are the key pain points for fintech CTOs that we should address in our outreach?
+              - generic [ref=e114]: 04:33 PM
+          - generic [ref=e115]:
+            - img [ref=e117]
+            - generic [ref=e121]:
+              - generic [ref=e122]: Create a lead generation strategy for B2B SaaS companies targeting enterprise customers in Europe. Focus on companies with 500+ employees in the financial services sector.
+              - generic [ref=e123]: 04:35 PM
+          - generic [ref=e124]:
+            - img [ref=e126]
+            - generic [ref=e130]:
+              - generic [ref=e131]: Refine the ICP to focus specifically on fintech companies with 50-200 employees that have recently raised Series B funding.
+              - generic [ref=e132]: 04:37 PM
+          - generic [ref=e133]:
+            - img [ref=e135]
+            - generic [ref=e139]:
+              - generic [ref=e140]: Hello, what can you help me with?
+              - generic [ref=e141]: 04:40 PM
+          - generic [ref=e142]:
+            - img [ref=e144]
+            - generic [ref=e149]:
+              - generic [ref=e150]:
+                - paragraph [ref=e151]: Ahoj! 👋
+                - paragraph [ref=e152]: Vidím, že jsi poslal několik různých požadavků najednou. Pojďme si to vyjasnit.
+                - paragraph [ref=e153]:
+                  - strong [ref=e154]: Tvůj aktuální projekt
+                  - text: je talent booking agentura pro cirkusové a varietní umělce se sídlem v Praze, která chce více evropských festivalů a korporátních klientů.
+                - paragraph [ref=e155]: Požadavky, které jsi poslal (B2B SaaS, enterprise, fintech), se nehodí k tvému projektu. Myslím, že to byla chyba při kopírování.
+                - paragraph [ref=e156]:
+                  - strong [ref=e157]: Jak ti mohu pomoci?
+                - paragraph [ref=e158]: "Máme prázdný strategický dokument. Chceš, abych:"
+                - paragraph [ref=e159]:
+                  - text: → Vytvořil kompletní GTM strategii pro tvou talent booking agenturu?
+                  - text: → Nebo máš konkrétní otázku k nějaké části strategie?
+                - paragraph [ref=e160]: Řekni mi, kde začít. 🎪
+              - generic [ref=e161]: 04:40 PM
+          - generic [ref=e162]:
+            - img [ref=e164]
+            - generic [ref=e168]:
+              - generic [ref=e169]: Hi
+              - generic [ref=e170]: 04:41 PM
+          - generic [ref=e171]:
+            - img [ref=e173]
+            - generic [ref=e178]:
+              - generic [ref=e179]:
+                - paragraph [ref=e180]: Ahoj! 👋
+                - paragraph [ref=e181]:
+                  - text: "Jsem tvůj fractional CMO pro talent booking agenturu v Praze. Máš prázdný strategický dokument a cíl:"
+                  - strong [ref=e182]: více evropských festivalů a korporátních klientů
+                  - text: .
+                - paragraph [ref=e183]:
+                  - strong [ref=e184]: Jak ti mohu pomoci dnes?
+                - paragraph [ref=e185]:
+                  - text: → Vytvořit kompletní strategii od nuly?
+                  - text: → Zaměřit se na konkrétní část (positioning, messaging, channels)?
+                  - text: → Analyzovat tvůj trh a konkurenci?
+                - paragraph [ref=e186]: Řekni mi, co je nejnaléhavější. 🎪
+              - generic [ref=e187]: 04:41 PM
+          - generic [ref=e188]:
+            - img [ref=e190]
+            - generic [ref=e194]:
+              - generic [ref=e195]: Hi there
+              - generic [ref=e196]: 04:41 PM
+          - generic [ref=e197]:
+            - img [ref=e199]
+            - generic [ref=e204]:
+              - generic [ref=e205]:
+                - paragraph [ref=e206]: Ahoj! 👋
+                - paragraph [ref=e207]: Jsem tady, abych ti pomohl vybudovat GTM strategii pro tvou talent booking agenturu.
+                - paragraph [ref=e208]:
+                  - strong [ref=e209]: Co potřebuješ?
+                - paragraph [ref=e210]:
+                  - text: → Kompletní strategii pro evropské festivaly a corporate eventy?
+                  - text: → Pomoc s konkrétní částí (positioning, channels, messaging)?
+                  - text: → Analýzu trhu a konkurence?
+                - paragraph [ref=e211]: Řekni mi, kde začít. 🎪
+              - generic [ref=e212]: 04:41 PM
+          - generic [ref=e213]:
+            - img [ref=e215]
+            - generic [ref=e219]:
+              - generic [ref=e220]: Create a lead generation strategy for B2B SaaS targeting enterprise in Europe
+              - generic [ref=e221]: 04:43 PM
+          - generic [ref=e222]:
+            - img [ref=e224]
+            - generic [ref=e228]:
+              - generic [ref=e229]: Create a lead generation strategy for B2B SaaS targeting enterprise in Europe
+              - generic [ref=e230]: 04:43 PM
+        - generic [ref=e231]:
+          - generic [ref=e235]: Strategy
+          - generic [ref=e240]: Contacts
+          - generic [ref=e245]: Enrich
+          - generic [ref=e250]: Messages
+          - generic [ref=e255]: Campaign
+        - generic [ref=e257]:
+          - generic [ref=e258]:
+            - img [ref=e260]
+            - generic [ref=e263]:
+              - paragraph [ref=e264]: Enrichment complete. Review and select qualified contacts.
+              - paragraph [ref=e265]: "Ready to move to: Contacts Qualified"
+            - button "Dismiss" [ref=e266] [cursor=pointer]:
+              - img [ref=e267]
+          - button "Select Contacts" [ref=e269] [cursor=pointer]:
+            - text: Select Contacts
+            - img [ref=e270]
+        - generic [ref=e273]:
+          - generic [ref=e274]: "Next:"
+          - button "Review Messages" [ref=e275] [cursor=pointer]:
+            - img [ref=e277]
+            - text: Review Messages
+          - button "Continue Enrichment" [ref=e279] [cursor=pointer]:
+            - img [ref=e281]
+            - text: Continue Enrichment
+          - button "Open Playbook" [ref=e284] [cursor=pointer]:
+            - img [ref=e286]
+            - text: Open Playbook
+        - generic [ref=e288]:
+          - generic [ref=e289]:
+            - textbox "Ask about your GTM strategy..." [ref=e290]
+            - button "Send message" [disabled] [ref=e291]:
+              - img [ref=e292]
+          - paragraph [ref=e295]: Enter to send, Shift+Enter for new line
+        - paragraph [ref=e297]: Cmd+K to toggle
+```

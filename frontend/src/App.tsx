@@ -19,8 +19,11 @@ import { ImportPage } from './pages/import/ImportPage'
 import { AdminPage } from './pages/admin/AdminPage'
 import { PreferencesPage } from './pages/preferences/PreferencesPage'
 import { PlaybookPage } from './pages/playbook/PlaybookPage'
+import { PlaybookDemo } from './pages/playbook/PlaybookDemo'
 import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 import { TokensPage } from './pages/tokens/TokensPage'
+import { TriageReviewPage } from './pages/companies/TriageReviewPage'
+import { AuthCallbackPage } from './pages/auth/AuthCallbackPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +45,9 @@ export default function App() {
             {/* Login — root page */}
             <Route path="/" element={<LoginPage />} />
 
+            {/* IAM OAuth callback — receives tokens after code exchange */}
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
             {/* Namespaced routes */}
             <Route path="/:namespace" element={<AppShell />}>
               <Route index element={<Navigate to="contacts" replace />} />
@@ -49,6 +55,7 @@ export default function App() {
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="companies/:companyId" element={<CompanyDetailPage />} />
+              <Route path="triage" element={<TriageReviewPage />} />
               <Route path="import" element={<ImportPage />} />
               <Route path="enrich" element={<EnrichPage />} />
               <Route path="messages" element={<MessagesPage />} />
@@ -57,6 +64,7 @@ export default function App() {
               <Route path="campaigns/:campaignId/review" element={<MessageReviewPage />} />
               <Route path="playbook" element={<PlaybookPage />} />
               <Route path="playbook/:phase" element={<PlaybookPage />} />
+              <Route path="playbook-demo" element={<PlaybookDemo />} />
               <Route path="echo" element={<PlaceholderPage title="Echo Analytics" description="Outreach performance dashboard — conversion funnels, response rates by channel, pipeline velocity." />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="admin/tokens" element={<TokensPage />} />

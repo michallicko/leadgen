@@ -2,11 +2,7 @@
 import json
 from unittest.mock import patch, MagicMock
 
-
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+from tests.conftest import auth_header
 
 
 class TestGetPlaybook:
@@ -820,10 +816,10 @@ class TestPlaybookResearch:
         assert data["company"]["domain"] == "testcorp.com"
         assert data["company"]["tier"] == "tier_1_platinum"
 
-    def test_get_research_in_progress_when_no_content(
+    def test_get_research_completed_even_when_no_content(
         self, client, seed_tenant, seed_super_admin, db
     ):
-        """Race condition guard: enriched_l2 but empty doc content stays in_progress."""
+        """enriched_l2 status maps to completed regardless of doc content."""
         from api.models import Company, StrategyDocument
 
         company = Company(
@@ -850,7 +846,7 @@ class TestPlaybookResearch:
         resp = client.get("/api/playbook/research", headers=headers)
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["status"] == "in_progress"
+        assert data["status"] == "completed"
 
     def test_research_requires_auth(self, client, seed_tenant):
         """GET and POST /api/playbook/research return 401 without token."""

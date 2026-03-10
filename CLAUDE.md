@@ -21,6 +21,10 @@ Call `backlog_onboard("leadgen-pipeline")` at session start to load full governa
 - **Lead agent NEVER does work** — In delegation mode, the lead coordinator NEVER reads source files, writes code, calls MCP tools for data gathering, runs bash commands, or does any extensive work (more than 1 tool call). ALL work is delegated to spawned agents. "Let me just read this first" is building. Delegate it.
 - **Start every session from the backlog** — The backlog service at `https://backlog.visionvolve.com/leadgen-pipeline/` is the source of truth. Use `backlog_onboard` MCP tool or check the dashboard to see sprint status, then pick up from there. Never start work without consulting the backlog.
 - **Everything goes through the backlog** — When the user requests a new feature, improvement, or reports a bug: (1) Use `backlog_create_item` MCP tool (or `/backlog <idea>`), (2) Assign priority (Must Have/Should Have/Could Have), (3) Write a spec (problem, acceptance criteria, technical approach), (4) Assign to a sprint. **No implementation starts without a backlog entry and spec.** Even single-line bug fixes get a backlog entry (lightweight: problem + fix + test plan). The backlog service is the single source of truth.
+- **Specs before code — always**:
+  - **Features/enrichers/new functionality**: Full spec required (problem statement, user stories, acceptance criteria Given/When/Then, data model changes, API contracts, UI wireframes). No code until spec is written and reviewed.
+  - **Bug fixes/hotfixes**: Lightweight spec required (problem + fix + test plan). Can be written in batch for sprint bug-fix items. No code until spec exists.
+  - **Single-line fixes**: Inline spec in the commit message is acceptable (problem + fix + verification).
 - **Agents must self-test before handoff** — Before notifying the user or asking them to test anything, agents MUST: (1) Run ALL tests in the current sprint test script (`docs/testing/sprint-{N}-manual-tests.md`), (2) Mark each test PASS or FAIL, (3) Fix any FAIL and redeploy before proceeding, (4) Only notify the user after ALL tests pass or after documenting unfixable issues with a clear explanation. **Never ask the user to test something you haven't tested yourself first.**
 
 ## Branch Model
@@ -101,6 +105,7 @@ leadgen-pipeline/
   docs/
     vision/               # Product vision microsite (the north star)
     ARCHITECTURE.md       # System architecture and data flow
+    AGENTIC_ARCHITECTURE.md # Comprehensive agentic system reference
     adr/                  # Architecture Decision Records (append-only)
     specs/                # Feature specifications (created per feature)
   docs/backlog/           # DEPRECATED — migrated to backlog.visionvolve.com
@@ -164,6 +169,34 @@ Opens:
 - API: http://localhost:5001/api/health
 - Login: `test@staging.local` / `staging123`
 
+### Local-First Development (MANDATORY)
+
+**All code MUST be tested locally before any staging deployment.** This is non-negotiable.
+
+**Workflow:**
+1. `make dev` — start local servers (Flask auto-reload + Vite HMR)
+2. Code changes appear instantly — no build step, no Docker rebuild
+3. Test in browser at `http://localhost:5173` (login: `test@staging.local` / `staging123`)
+4. Run `make test-changed` for unit tests
+5. Only after local verification → deploy revision to staging
+
+**Setup (one-time per machine):**
+```bash
+bash scripts/init-env.sh    # Pull all API tokens/secrets from staging VPS → .env.dev
+make db-pull                 # Clone staging database to local PostgreSQL
+cd frontend && npm install   # Frontend dependencies
+```
+
+**What hot-reloads:**
+- Python backend: Flask auto-reload watches `api/` — save a file, server restarts in <1s
+- React frontend: Vite HMR watches `frontend/src/` — save a file, browser updates instantly
+- No Docker rebuild needed for code changes
+
+**What requires restart:**
+- `.env.dev` changes → restart Flask (`make dev` again)
+- New Python dependencies → `pip install` + restart Flask
+- Database schema changes → run migration SQL against local PG
+
 ### Running Tests
 
 ```bash
@@ -211,13 +244,20 @@ make db-pull     # Refresh local DB from staging
 make db-reset    # Empty local DB (then db-pull to restore)
 ```
 
-### Dev-First Workflow
+### Dev-First Workflow (ENFORCED)
 
-1. Start dev server first — `make dev` (or `DEV_SLOT=N make dev` in a worktree)
-2. Use HMR — Vite picks up React changes instantly, Flask auto-reloads
-3. Run changed unit tests frequently — `make test-changed` is fast (SQLite in-memory)
-4. Local first, staging second — deploy revision for acceptance verification
-5. E2E runs at sprint completion only — not per feature, not per PR
+1. **Start local servers** — `make dev` (or `DEV_SLOT=N make dev` in a worktree)
+2. **Code with hot reload** — Vite picks up React changes instantly (<100ms), Flask auto-reloads Python (<1s)
+3. **Test in browser** — `http://localhost:5173` — verify UI behavior manually
+4. **Run unit tests** — `make test-changed` (fast, SQLite in-memory, ~10s)
+5. **Only then deploy** — `deploy-revision.sh` for staging acceptance testing
+6. **E2E at sprint end** — never per feature, never per PR
+
+**Anti-patterns (DO NOT):**
+- Deploy to staging to "see if it works" — test locally first
+- Skip browser testing — unit tests don't catch UI regressions
+- Run full test suite — `make test-changed` is sufficient during development
+- Rebuild Docker images for code changes — hot reload handles it
 
 ### Worktree Commands
 
@@ -234,6 +274,13 @@ make pr-scan                           # Check open PRs for file conflicts
 ## Deployment Rules
 
 **Claude must NEVER run deploy scripts directly.** Use `/deploy` skill instead.
+
+**Local verification gate**: Before deploying ANY revision to staging, the developer (or agent) MUST have:
+1. Tested the change locally with `make dev`
+2. Verified the UI works in browser (not just unit tests)
+3. Run `make test-changed` with all tests passing
+
+Staging deployments without local verification are blocked. This prevents wasted deploy cycles.
 
 Forbidden commands:
 - `bash deploy/deploy-api.sh`
@@ -357,6 +404,7 @@ Lead decides N (engineers) based on how many items can run in parallel. PM, EM, 
 5. **Acceptance criteria** — what "done" looks like for this specific task
 6. **Constraints** — what NOT to do (e.g., "don't touch PlaybookPage.tsx, it's being refactored by another agent")
 7. **Workflow** — exact steps: implement → test → lint → commit → push → PR → report
+8. **Local testing** — remind agent to test locally with `make dev` before any staging deployment. Include: `Test locally first: make dev → verify in browser at localhost:5173 → make test-changed → only then deploy.`
 
 **What NOT to assume agents know:**
 - Previous agent results (pass them explicitly)
@@ -387,7 +435,8 @@ The backlog dashboard at `https://backlog.visionvolve.com/leadgen-pipeline/` sho
 
 A feature is **development-ready** when ALL of the following are complete. No code is written until this gate passes.
 
-1. **Full specification** — Written spec with: problem statement, user stories, acceptance criteria (Given/When/Then), data model changes, API contracts, UI wireframes or descriptions
+1. **Full specification** (features/new functionality) — Written spec with: problem statement, user stories, acceptance criteria (Given/When/Then), data model changes, API contracts, UI wireframes or descriptions
+   **Lightweight specification** (bug fixes) — Written spec with: problem statement, exact fix description, acceptance criteria, test plan. Can be batched for sprint bug-fix items.
 2. **Product strategy alignment** — Reviewed against `docs/vision/index.html` and `PRODUCT_STRATEGY.md`. The feature moves us closer to the north star, not sideways.
 3. **Technical strategy alignment** — Reviewed against `docs/TECHNICAL_STRATEGY.md`. No architectural contradictions, tech debt is acknowledged and planned for.
 4. **Usability perspective** — UX flow reviewed: is this zero-busywork? Does every interaction gather a decision or deliver a result? Accessibility considered.
@@ -420,6 +469,12 @@ Gate order: spec compliance -> code quality + security (parallel) -> QA -> docs 
 ## Definition of Done (Project-Specific Detail)
 
 A feature is **done** when ALL quality gates above pass AND:
+
+### Local Verification (before staging)
+- [ ] Tested with `make dev` — hot reload, no Docker rebuild
+- [ ] UI verified in browser at `localhost:5173`
+- [ ] `make test-changed` passes
+- [ ] `make lint-changed` passes
 
 ### Staging Verification
 - [ ] Deployed to staging revision (`deploy-revision.sh`)
@@ -461,17 +516,22 @@ A feature is **done** when ALL quality gates above pass AND:
 
 When an SDLC agent starts execution on a backlog item:
 
-1. **Claim immediately**: Call `backlog_claim_item` with the item short_id before writing any code
-2. **Update status to Building**: Set item status from Spec'd/Idea to Building on first action
-3. **Release on completion**: Call `backlog_release_item` and set status to Done/PR Open when finished
+1. **Claim immediately**: Call `backlog_claim_item` with the item short_id before writing any code. Status stays as-is (e.g., Spec'd) — claiming does NOT change status.
+2. **Set Building**: Call `backlog_update_item(status='Building')` as the very first code action. This signals work has started.
+3. **Set PR Open**: Call `backlog_update_item(status='PR Open')` when branch is pushed and PR is created.
+4. **Set Done**: Call `backlog_update_item(status='Done')` when PR is merged to staging.
+5. **Release claim**: Call `backlog_release_item` after Done is set.
 
 This is non-negotiable. No agent works on an item without claiming it first. This prevents duplicate work and gives the team visibility into who is working on what.
 
 ### Status Transitions
 
-- Idea -> Building (when agent starts)
-- Building -> PR Open (when code is committed)
-- PR Open -> Done (when merged/deployed)
+- Spec'd → Building (agent calls `backlog_update_item(status='Building')` after claiming)
+- Idea → Building (same, for items not yet spec'd)
+- Building → PR Open (when branch pushed + PR created)
+- PR Open → Done (when merged to staging)
+
+Note: `backlog_claim_item` does NOT change status. Status must be updated explicitly at each transition.
 
 ### Sprint Assignment
 

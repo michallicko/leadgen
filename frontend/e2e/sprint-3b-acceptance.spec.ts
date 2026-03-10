@@ -215,7 +215,7 @@ test.describe('2. BL-038 — Clone Campaign', () => {
     await page.waitForTimeout(2000)
 
     // Look for clone/duplicate buttons, icons, or menu options
-    const cloneBtn = page.locator(
+    const _cloneBtn = page.locator(
       '[aria-label*="clone" i], [aria-label*="duplicate" i], ' +
       '[title*="clone" i], [title*="duplicate" i], ' +
       'button:has-text("Clone"), button:has-text("Duplicate"), ' +

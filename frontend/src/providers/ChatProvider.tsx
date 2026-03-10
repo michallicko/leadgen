@@ -19,7 +19,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { usePlaybookChat, useNewThread } from '../api/queries/usePlaybook'
@@ -28,6 +28,9 @@ import { resolveApiBase, buildHeaders } from '../api/client'
 import { getAccessToken } from '../lib/auth'
 import type { ChatMessage } from '../components/chat/ChatMessages'
 import type { ToolCallEvent } from '../components/playbook/ToolCallCard'
+import { getToolStatusText } from '../lib/toolStatus'
+import type { ThinkingFinding } from '../components/chat/ThinkingStatus'
+import type { QuickAction } from '../components/chat/QuickActions'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,7 +42,7 @@ export interface DocumentChangeInfo {
   summary: string | null
 }
 
-interface ChatContextValue {
+export interface ChatContextValue {
   // State
   messages: ChatMessage[]
   isOpen: boolean
@@ -54,6 +57,8 @@ interface ChatContextValue {
   toolCalls: ToolCallEvent[]
   isThinking: boolean
   activeToolName: string | null
+  /** Dynamic status text for the thinking indicator (e.g., "Researching your market...") */
+  thinkingStatus: string
 
   /** Proactive analysis: streaming text for the analysis follow-up. */
   analysisStreamingText: string
@@ -61,6 +66,29 @@ interface ChatContextValue {
   isAnalysisStreaming: boolean
   /** Dynamic suggestion chips extracted from proactive analysis. */
   analysisSuggestions: string[]
+
+  /** Section content streaming: accumulated text for the typewriter effect. */
+  sectionStreamingText: string
+  /** Section content streaming: true while content is being streamed. */
+  isSectionStreaming: boolean
+  /** Section content streaming: which section is currently streaming. */
+  streamingSection: string | null
+
+  // Transparent thinking state (BL-1015)
+  /** Current research finding being displayed during agent work. */
+  currentFinding: ThinkingFinding | null
+  /** History of all findings from the current agent turn. */
+  thinkingHistory: ThinkingFinding[]
+  /** Per-message thinking history, keyed by message ID. */
+  messageFindings: Record<string, ThinkingFinding[]>
+
+  // Quick actions (BL-1017)
+  /** Quick actions from the last completed agent response. */
+  quickActions: QuickAction[]
+  /** Per-message quick actions, keyed by message ID. */
+  messageQuickActions: Record<string, QuickAction[]>
+  /** Handler for quick action button clicks. */
+  handleQuickAction: (action: QuickAction) => void
 
   // Actions
   toggleChat: () => void
@@ -77,7 +105,7 @@ interface ChatContextValue {
   chatInputRef: React.RefObject<HTMLTextAreaElement | null>
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null)
+export const ChatContext = createContext<ChatContextValue | null>(null)
 
 // ---------------------------------------------------------------------------
 // localStorage helpers
@@ -108,6 +136,7 @@ function setStoredOpen(open: boolean) {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
 
@@ -130,20 +159,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [toolCalls, setToolCalls] = useState<ToolCallEvent[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const [activeToolName, setActiveToolName] = useState<string | null>(null)
+  const [thinkingStatus, setThinkingStatus] = useState('Thinking...')
+
+  // Section-level soft lock (BL-1019): track which section AI is writing to
+  const [streamingSection, setStreamingSection] = useState<string | null>(null)
 
   // Proactive analysis state (BL-119)
   const [analysisStreamingText, setAnalysisStreamingText] = useState('')
   const [isAnalysisStreaming, setIsAnalysisStreaming] = useState(false)
   const [analysisSuggestions, setAnalysisSuggestions] = useState<string[]>([])
 
+  // Section content streaming state (typewriter effect)
+  const [sectionStreamingText, setSectionStreamingText] = useState('')
+  const [isSectionStreaming, setIsSectionStreaming] = useState(false)
+
+  // Transparent thinking state (BL-1015)
+  const [currentFinding, setCurrentFinding] = useState<ThinkingFinding | null>(null)
+  const [thinkingHistory, setThinkingHistory] = useState<ThinkingFinding[]>([])
+  const [messageFindings, setMessageFindings] = useState<Record<string, ThinkingFinding[]>>({})
+
+  // Quick actions state (BL-1017)
+  const [quickActions, setQuickActions] = useState<QuickAction[]>([])
+  const [messageQuickActions, setMessageQuickActions] = useState<Record<string, QuickAction[]>>({})
+
+
   // Ref for inline chat input (Cmd+K focus)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Derive current page from router location
+  // Derive current page and namespace from router location
   const currentPage = useMemo(() => {
     const segments = location.pathname.split('/').filter(Boolean)
     // URL: /:namespace/:page/...
     return segments[1] || 'unknown'
+  }, [location.pathname])
+
+  const currentNamespace = useMemo(() => {
+    const segments = location.pathname.split('/').filter(Boolean)
+    return segments[0] || ''
   }, [location.pathname])
 
   const isOnPlaybookPage = currentPage === 'playbook'
@@ -194,6 +246,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(
     (text: string) => {
+      // BL-208: Detect onboarding trigger prompts so the optimistic message
+      // also renders as condensed (hidden) during streaming — same check as
+      // the backend in playbook_routes.py::post_chat_message
+      const isOnboardingTrigger = text.startsWith('Generate a complete GTM strategy')
+
       // Add optimistic user message
       const optimisticMsg: ChatMessage = {
         id: `optimistic-${Date.now()}`,
@@ -201,15 +258,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: text,
         created_at: new Date().toISOString(),
         page_context: currentPage,
+        ...(isOnboardingTrigger ? { extra: { hidden: true } } : {}),
       }
       setOptimisticMessages((prev) => [...prev, optimisticMsg])
       setStreamingText('')
       setToolCalls([])
       setIsThinking(true)
       setActiveToolName(null)
+      setThinkingStatus('Thinking...')
       setAnalysisStreamingText('')
       setIsAnalysisStreaming(false)
       setAnalysisSuggestions([])
+      setSectionStreamingText('')
+      setIsSectionStreaming(false)
+      setStreamingSection(null)
+      setCurrentFinding(null)
+      setThinkingHistory([])
+      setQuickActions([])
 
       const url = `${resolveApiBase()}/playbook/chat`
       const token = getAccessToken()
@@ -229,11 +294,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
           onDone: (doneData) => {
             setStreamingText('')
-            setOptimisticMessages([])
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
-            chatQuery.refetch()
+            setThinkingStatus('Thinking...')
+
+            // BL-1015: Save thinking history per message
+            setCurrentFinding(null)
+            setThinkingHistory((prev) => {
+              if (prev.length > 0 && doneData.messageId) {
+                setMessageFindings((mf) => ({
+                  ...mf,
+                  [doneData.messageId]: prev,
+                }))
+              }
+              return []
+            })
+
+            // BL-1017: Save quick actions per message
+            const doneQuickActions = doneData.quickActions
+            if (doneQuickActions && doneQuickActions.length > 0) {
+              setQuickActions(doneQuickActions)
+              if (doneData.messageId) {
+                setMessageQuickActions((mqa) => ({
+                  ...mqa,
+                  [doneData.messageId]: doneQuickActions,
+                }))
+              }
+            } else {
+              setQuickActions([])
+            }
+
+            // Keep optimistic messages visible until server data arrives
+            chatQuery.refetch().then(() => {
+              setOptimisticMessages([])
+            })
 
             // Detect document changes from strategy tool calls
             const doneToolCalls = doneData.toolCalls
@@ -258,25 +353,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               }
             }
 
-            // BL-135: Refresh workflow suggestions & status after tool calls
+            // BL-135 + BL-170: Refresh workflow suggestions, status & phase transition after tool calls
             if (doneData.toolCalls && doneData.toolCalls.length > 0) {
               queryClient.invalidateQueries({ queryKey: ['workflow-suggestions'] })
               queryClient.invalidateQueries({ queryKey: ['workflow-status'] })
               queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
+              queryClient.invalidateQueries({ queryKey: ['phase-transition'] })
+
+              // BL-241: Refresh structured data tabs when AI writes tiers or personas
+              const hasPersonaEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_buyer_personas' && tc.status === 'success',
+              )
+              const hasTierEdit = doneToolCalls?.some(
+                (tc) => tc.tool_name === 'set_icp_tiers' && tc.status === 'success',
+              )
+              if (hasPersonaEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'personas'] })
+              }
+              if (hasTierEdit) {
+                queryClient.invalidateQueries({ queryKey: ['playbook', 'tiers'] })
+              }
             }
           },
           onError: () => {
             setStreamingText('')
-            setOptimisticMessages([])
             setToolCalls([])
             setIsThinking(false)
             setActiveToolName(null)
+            setThinkingStatus('Thinking...')
             setIsAnalysisStreaming(false)
             setAnalysisStreamingText('')
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
+            setCurrentFinding(null)
+            setThinkingHistory([])
+            setQuickActions([])
+            // Refetch server messages to show the persisted user message,
+            // then clear optimistic copies to avoid duplicates
+            chatQuery.refetch().then(() => {
+              setOptimisticMessages([])
+            })
           },
           onToolStart: (event) => {
             setIsThinking(false)
             setActiveToolName(event.toolName)
+            setThinkingStatus(getToolStatusText(event.toolName))
             setToolCalls((prev) => [
               ...prev,
               {
@@ -286,6 +408,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 status: 'running',
               },
             ])
+
+            // BL-1019: Track which section the AI is writing to
+            const SECTION_TOOLS = new Set(['update_strategy_section', 'append_to_section'])
+            if (SECTION_TOOLS.has(event.toolName)) {
+              const section = (event.input?.section as string) ?? null
+              setStreamingSection(section)
+            }
           },
           onToolResult: (result) => {
             setToolCalls((prev) =>
@@ -301,8 +430,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   : tc,
               ),
             )
-            // Clear active tool name when result arrives
+            // Clear active tool name and re-enable thinking between tool calls
             setActiveToolName(null)
+            setIsThinking(true)
+            setThinkingStatus('Thinking...')
+          },
+          onSectionUpdate: () => {
+            // Refresh is now deferred to onSectionContentDone for typewriter effect.
+            // Only refresh immediately if no streaming follows (fallback).
+            // The section_content_start event arrives right after, so this is a no-op
+            // when streaming is active.
+          },
+          onSectionContentStart: (section) => {
+            setIsSectionStreaming(true)
+            setSectionStreamingText('')
+            setStreamingSection(section)
+          },
+          onSectionContentChunk: (text) => {
+            setSectionStreamingText((prev) => prev + text)
+          },
+          onSectionContentDone: () => {
+            setIsSectionStreaming(false)
+            setSectionStreamingText('')
+            setStreamingSection(null)
+            // Now do the full refetch to sync editor with DB
+            queryClient.invalidateQueries({ queryKey: ['playbook'] })
           },
           onThinking: () => {
             setIsThinking(false)
@@ -321,6 +473,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Refetch to pick up the new analysis message
             chatQuery.refetch()
           },
+          onResearchStatus: (event) => {
+            if (event.status === 'in_progress') {
+              setThinkingStatus(event.message)
+            } else if (event.status === 'completed') {
+              setThinkingStatus('Research complete')
+            } else if (event.status === 'timeout') {
+              setThinkingStatus('Research timed out, proceeding with available data')
+            }
+          },
+          onResearchFinding: (event) => {
+            const finding: ThinkingFinding = {
+              action: event.action,
+              finding: event.finding,
+              timestamp: Date.now(),
+              step: event.step,
+            }
+            setCurrentFinding(finding)
+            setThinkingHistory((prev) => [...prev, finding])
+            // Also clear the initial thinking state (like tool_start does)
+            setIsThinking(false)
+          },
         },
       )
     },
@@ -335,6 +508,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     newThreadMutation.mutate(undefined)
   }, [newThreadMutation])
 
+  // BL-1017: Quick action handler
+  const handleQuickAction = useCallback(
+    (action: QuickAction) => {
+      if (action.type === 'navigate' && action.target) {
+        const path = currentNamespace ? `/${currentNamespace}${action.target}` : action.target
+        navigate(path)
+      } else if (action.type === 'chat_action') {
+        sendMessage(action.label)
+      }
+    },
+    [currentNamespace, navigate, sendMessage],
+  )
+
   // ---------------------------------------------------------------------------
   // Cmd+K shortcut
   // ---------------------------------------------------------------------------
@@ -344,19 +530,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
 
-        if (isOnPlaybookPage) {
-          // Focus the inline chat input
-          chatInputRef.current?.focus()
-          return
-        }
-
-        // Toggle the sliding panel
+        // Toggle the sidebar; after opening, focus input
         toggleChat()
+        setTimeout(() => chatInputRef.current?.focus(), 350)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOnPlaybookPage, toggleChat])
+  }, [toggleChat])
 
   // ---------------------------------------------------------------------------
   // Derived messages
@@ -374,10 +555,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }))
   }, [chatQuery.data?.messages])
 
-  const allMessages = useMemo(
-    () => [...serverMessages, ...optimisticMessages],
-    [serverMessages, optimisticMessages],
-  )
+  const allMessages = useMemo(() => {
+    // Deduplicate: if server already has a message with same content, drop the optimistic copy
+    const serverContents = new Set(serverMessages.map((m) => m.content))
+    const dedupedOptimistic = optimisticMessages.filter((m) => !serverContents.has(m.content))
+    return [...serverMessages, ...dedupedOptimistic].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+  }, [serverMessages, optimisticMessages])
 
   // ---------------------------------------------------------------------------
   // Context value
@@ -395,9 +580,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      thinkingStatus,
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
+      currentFinding,
+      thinkingHistory,
+      messageFindings,
+      quickActions,
+      messageQuickActions,
+      handleQuickAction,
       toggleChat,
       openChat,
       closeChat,
@@ -418,9 +613,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       toolCalls,
       isThinking,
       activeToolName,
+      thinkingStatus,
       analysisStreamingText,
       isAnalysisStreaming,
       analysisSuggestions,
+      sectionStreamingText,
+      isSectionStreaming,
+      streamingSection,
+      currentFinding,
+      thinkingHistory,
+      messageFindings,
+      quickActions,
+      messageQuickActions,
+      handleQuickAction,
       toggleChat,
       openChat,
       closeChat,

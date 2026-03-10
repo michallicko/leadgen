@@ -35,52 +35,97 @@ export function PlaybookOnboarding({
   const { namespace } = useParams<{ namespace: string }>()
   const { tenant } = useTenantBySlug(namespace)
 
-  const [description, setDescription] = useState('')
+  const [objective, setObjective] = useState('')
+  // BL-207: Editable domain — pre-filled from tenant config, user can correct
+  const [domain, setDomain] = useState('')
+  const [domainInitialized, setDomainInitialized] = useState(false)
 
-  const isValid = description.trim().length > 0
+  // Initialize domain from tenant once loaded (tenant may load async)
+  if (tenant?.domain && !domainInitialized) {
+    setDomain(tenant.domain)
+    setDomainInitialized(true)
+  }
+
+  const isValid = objective.trim().length > 0
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid || isGenerating) return
 
-    // Auto-resolve domains from tenant config
-    const domains = tenant?.domain ? [tenant.domain] : []
+    // Use the (possibly edited) domain from the input field
+    const primaryDomain = domain.trim()
+    const domains = primaryDomain ? [primaryDomain] : []
 
     onGenerate({
       domains,
-      description: description.trim(),
-      // AI infers the challenge from the description
+      description: objective.trim(),
+      // AI infers the challenge from the objective
       challenge_type: 'auto',
     })
   }
 
   return (
-    <div className="flex items-center justify-center h-full">
-      <div className="w-full max-w-md p-8 rounded-xl border border-border-solid bg-surface">
-        <h2 className="text-xl font-semibold text-text mb-1">
-          Generate Your GTM Strategy
-        </h2>
-        <p className="text-sm text-text-muted mb-6">
-          Describe your business and the AI will research your market and
-          draft a complete strategy playbook.
-        </p>
+    <div className="w-full max-w-lg mx-auto mt-12 mb-8">
+      <div className="rounded-xl border border-border-solid bg-surface p-6 shadow-sm">
+        {/* Welcome header */}
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-text mb-1">
+            Generate Your GTM Strategy
+          </h2>
+          <p className="text-sm text-text-muted">
+            Tell us your go-to-market objective and the AI will research your
+            market and draft a complete strategy playbook.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Business description */}
+        {/* Editable company domain (BL-207) */}
+        <div className="mb-4">
+          <label htmlFor="pb-domain" className="block text-xs font-medium text-text-muted mb-1">
+            Company domain
+          </label>
+          <div className="flex items-center gap-2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-accent-cyan flex-shrink-0"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <input
+              id="pb-domain"
+              type="text"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="yourcompany.com"
+              disabled={isGenerating}
+              className="flex-1 px-3 py-1.5 text-sm rounded-md bg-surface-alt border border-border-solid text-text placeholder:text-text-dim focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* GTM Objective */}
           <div>
             <label
-              htmlFor="pb-description"
+              htmlFor="pb-objective"
               className="block text-sm font-medium text-text mb-1"
             >
-              What does your business do?
+              What is your GTM objective?
             </label>
             <textarea
-              id="pb-description"
+              id="pb-objective"
               required
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g., We sell marketing automation software to mid-market B2B SaaS companies in Europe..."
-              rows={4}
+              value={objective}
+              onChange={(e) => setObjective(e.target.value)}
+              placeholder="e.g., Generate qualified B2B leads for our SaaS product, Book demos with enterprise CTOs, Expand into the DACH market..."
+              rows={3}
               disabled={isGenerating}
               className="w-full px-3 py-2 text-sm rounded-md border border-border-solid bg-surface-alt text-text placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none disabled:opacity-50"
               autoFocus
@@ -99,12 +144,12 @@ export function PlaybookOnboarding({
                 Generating...
               </span>
             ) : (
-              'Generate My Strategy'
+              'Get Started'
             )}
           </button>
         </form>
 
-        <div className="mt-4 flex items-center justify-center gap-4">
+        <div className="mt-3 flex items-center justify-center gap-4">
           {onBrowseTemplates && (
             <button
               type="button"

@@ -169,7 +169,7 @@ export function GenerationProgressModal({ campaignId, isOpen, onClose }: Props) 
           <div className="flex items-center justify-between px-4 py-3 bg-surface-alt rounded-lg border border-border">
             <span className="text-sm text-text-muted">Est. cost</span>
             <span className="text-sm font-medium text-accent-cyan">
-              ${cost.toFixed(2)}
+              {Math.round(cost * 1000)} credits
             </span>
           </div>
 

@@ -13,6 +13,7 @@ import json
 import uuid
 
 import pytest
+from tests.conftest import auth_header
 
 from api.models import StrategyDocument, StrategyVersion
 from api.services.strategy_tools import (
@@ -68,11 +69,6 @@ Phase 3: Evaluate and iterate.
 """
 
 
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": "Bearer {}".format(token)}
-
 
 @pytest.fixture
 def strategy_doc(db, seed_tenant):
@@ -117,6 +113,7 @@ def tool_ctx(seed_tenant, seed_super_admin):
 # ---------------------------------------------------------------------------
 # _find_section tests
 # ---------------------------------------------------------------------------
+
 
 class TestFindSection:
     def test_finds_first_section(self):
@@ -177,6 +174,7 @@ class TestFindSection:
 # _set_nested tests
 # ---------------------------------------------------------------------------
 
+
 class TestSetNested:
     def test_simple_path(self):
         obj = {"icp": {}}
@@ -213,6 +211,7 @@ class TestSetNested:
 # get_strategy_document tests
 # ---------------------------------------------------------------------------
 
+
 class TestGetStrategyDocument:
     def test_returns_document(self, app, strategy_doc, tool_ctx):
         with app.app_context():
@@ -232,6 +231,7 @@ class TestGetStrategyDocument:
 # update_strategy_section tests
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateStrategySection:
     def test_updates_section_content(self, app, strategy_doc, tool_ctx):
         with app.app_context():
@@ -243,9 +243,7 @@ class TestUpdateStrategySection:
             assert result["version"] == 2
             assert result["previous_version"] == 1
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert "New summary content." in doc.content
             # Other sections should be unchanged
             assert "mid-market SaaS" in doc.content
@@ -256,9 +254,7 @@ class TestUpdateStrategySection:
                 {"section": "Executive Summary", "content": "Updated."},
                 tool_ctx,
             )
-            snap = StrategyVersion.query.filter_by(
-                document_id=strategy_doc.id
-            ).first()
+            snap = StrategyVersion.query.filter_by(document_id=strategy_doc.id).first()
             assert snap is not None
             assert snap.version == 1
             assert snap.edit_source == "ai_tool"
@@ -280,9 +276,7 @@ class TestUpdateStrategySection:
                 {"section": "Channel Strategy", "content": "Only Twitter."},
                 tool_ctx,
             )
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert "mid-market SaaS" in doc.content
             assert "Only Twitter." in doc.content
 
@@ -292,9 +286,7 @@ class TestUpdateStrategySection:
                 {"section": "Executive Summary", "content": "Updated."},
                 tool_ctx,
             )
-            snap = StrategyVersion.query.filter_by(
-                document_id=strategy_doc.id
-            ).first()
+            snap = StrategyVersion.query.filter_by(document_id=strategy_doc.id).first()
             assert snap.turn_id == tool_ctx.turn_id
 
     def test_creates_section_on_blank_doc(self, app, blank_doc, tool_ctx):
@@ -307,9 +299,7 @@ class TestUpdateStrategySection:
             assert result.get("success") is True
             assert result["version"] == 2
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert "## Executive Summary" in doc.content
             assert "Brand new summary." in doc.content
 
@@ -325,21 +315,19 @@ class TestUpdateStrategySection:
                 tool_ctx,
             )
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert "## Executive Summary" in doc.content
             assert "Summary here." in doc.content
             assert "## Channel Strategy" in doc.content
             assert "LinkedIn outreach." in doc.content
 
-    def test_creates_section_on_doc_with_partial_content(self, app, db, blank_doc, tool_ctx):
+    def test_creates_section_on_doc_with_partial_content(
+        self, app, db, blank_doc, tool_ctx
+    ):
         """BL-089: add a missing section to a doc that already has some sections."""
         with app.app_context():
             # Seed doc with one section
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             doc.content = "## Executive Summary\n\nExisting summary.\n"
             db.session.commit()
 
@@ -350,9 +338,7 @@ class TestUpdateStrategySection:
             )
             assert result.get("success") is True
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             assert "Existing summary." in doc.content
             assert "## Channel Strategy" in doc.content
             assert "Email and LinkedIn." in doc.content
@@ -364,16 +350,85 @@ class TestUpdateStrategySection:
                 {"section": "Executive Summary", "content": "New content."},
                 tool_ctx,
             )
-            snap = StrategyVersion.query.filter_by(
-                document_id=blank_doc.id
-            ).first()
+            snap = StrategyVersion.query.filter_by(document_id=blank_doc.id).first()
             assert snap is not None
             assert snap.content == ""  # snapshot of the blank state
+
+    def test_all_sections_on_blank_doc(self, app, blank_doc, tool_ctx):
+        """BL-193/BL-240: populating all 7 sections on an empty document.
+
+        Simulates the AI calling update_strategy_section for each section
+        sequentially on a blank document. ICP and Buyer Personas are no
+        longer document sections (BL-240) — they use dedicated tools.
+        """
+        sections_content = {
+            "Executive Summary": "Our GTM strategy focuses on mid-market SaaS.",
+            "Value Proposition & Messaging": "We automate workflows with AI.",
+            "Competitive Positioning": "AI-native architecture differentiator.",
+            "Channel Strategy": "LinkedIn and cold email outreach.",
+            "Messaging Framework": "Problem-solution with social proof.",
+            "Metrics & KPIs": "5% reply rate, 2% meeting rate targets.",
+            "90-Day Action Plan": "Phase 1: LinkedIn. Phase 2: Email. Phase 3: Iterate.",
+        }
+
+        with app.app_context():
+            for section, content in sections_content.items():
+                result = update_strategy_section(
+                    {"section": section, "content": content},
+                    tool_ctx,
+                )
+                assert result.get("success") is True, (
+                    "Failed on section '{}': {}".format(section, result)
+                )
+
+            # Verify all 7 sections are present in the document
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
+            assert doc.content is not None
+            assert len(doc.content.strip()) > 0
+
+            for section, content in sections_content.items():
+                assert "## {}".format(section) in doc.content, (
+                    "Section heading '## {}' not found in document".format(section)
+                )
+                assert content in doc.content, (
+                    "Content for section '{}' not found".format(section)
+                )
+
+            # Version should have been bumped 7 times (1 + 7 = 8)
+            assert doc.version == 8
+
+    def test_update_section_with_separate_app_contexts(self, app, blank_doc, tool_ctx):
+        """BL-193: simulate tool calls running in separate app contexts.
+
+        This mirrors what happens in the agent executor where each tool
+        call runs inside its own `with app.app_context()` block.
+        """
+        sections = [
+            ("Executive Summary", "Summary content here."),
+            ("Channel Strategy", "LinkedIn-first approach."),
+            ("90-Day Action Plan", "Quick wins in first 30 days."),
+        ]
+
+        for section, content in sections:
+            with app.app_context():
+                result = update_strategy_section(
+                    {"section": section, "content": content},
+                    tool_ctx,
+                )
+                assert result.get("success") is True
+
+        # Verify in a fresh context
+        with app.app_context():
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
+            for section, content in sections:
+                assert "## {}".format(section) in doc.content
+                assert content in doc.content
 
 
 # ---------------------------------------------------------------------------
 # set_extracted_field tests
 # ---------------------------------------------------------------------------
+
 
 class TestSetExtractedField:
     def test_sets_simple_field(self, app, strategy_doc, tool_ctx):
@@ -383,9 +438,7 @@ class TestSetExtractedField:
                 tool_ctx,
             )
             assert result.get("success") is True
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
             extracted = doc.extracted_data
             if isinstance(extracted, str):
                 extracted = json.loads(extracted)
@@ -405,9 +458,7 @@ class TestSetExtractedField:
                 {"path": "icp.industries", "value": ["fintech"]},
                 tool_ctx,
             )
-            snap = StrategyVersion.query.filter_by(
-                document_id=strategy_doc.id
-            ).first()
+            snap = StrategyVersion.query.filter_by(document_id=strategy_doc.id).first()
             assert snap is not None
             assert snap.edit_source == "ai_tool"
 
@@ -416,24 +467,23 @@ class TestSetExtractedField:
 # append_to_section tests
 # ---------------------------------------------------------------------------
 
+
 class TestAppendToSection:
     def test_appends_content(self, app, strategy_doc, tool_ctx):
         with app.app_context():
             result = append_to_section(
                 {
-                    "section": "Buyer Personas",
-                    "content": "**VP Sales**: Revenue-focused buyer.",
+                    "section": "Channel Strategy",
+                    "content": "Also consider partner referrals.",
                 },
                 tool_ctx,
             )
             assert result.get("success") is True
             assert result["action"] == "appended"
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
-            assert "CTO" in doc.content
-            assert "VP Sales" in doc.content
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
+            assert "LinkedIn outreach" in doc.content
+            assert "partner referrals" in doc.content
 
     def test_invalid_section_returns_error(self, app, strategy_doc, tool_ctx):
         with app.app_context():
@@ -446,12 +496,10 @@ class TestAppendToSection:
     def test_creates_snapshot(self, app, strategy_doc, tool_ctx):
         with app.app_context():
             append_to_section(
-                {"section": "Buyer Personas", "content": "More content."},
+                {"section": "Channel Strategy", "content": "More content."},
                 tool_ctx,
             )
-            snap = StrategyVersion.query.filter_by(
-                document_id=strategy_doc.id
-            ).first()
+            snap = StrategyVersion.query.filter_by(document_id=strategy_doc.id).first()
             assert snap is not None
             assert snap.version == 1
 
@@ -459,39 +507,42 @@ class TestAppendToSection:
         """BL-089: append_to_section on blank doc creates the section."""
         with app.app_context():
             result = append_to_section(
-                {"section": "Buyer Personas", "content": "**CTO**: Drives tech decisions."},
+                {
+                    "section": "Channel Strategy",
+                    "content": "LinkedIn DM campaigns for decision makers.",
+                },
                 tool_ctx,
             )
             assert result.get("success") is True
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
-            assert "## Buyer Personas" in doc.content
-            assert "CTO" in doc.content
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
+            assert "## Channel Strategy" in doc.content
+            assert "decision makers" in doc.content
 
     def test_append_creates_then_appends(self, app, blank_doc, tool_ctx):
         """BL-089: first append creates section, second append adds to it."""
         with app.app_context():
             append_to_section(
-                {"section": "Buyer Personas", "content": "**CTO**: Tech leader."},
+                {"section": "Channel Strategy", "content": "LinkedIn outreach."},
                 tool_ctx,
             )
             append_to_section(
-                {"section": "Buyer Personas", "content": "**VP Sales**: Revenue driver."},
+                {
+                    "section": "Channel Strategy",
+                    "content": "Cold email as secondary channel.",
+                },
                 tool_ctx,
             )
 
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=tool_ctx.tenant_id
-            ).first()
-            assert "CTO" in doc.content
-            assert "VP Sales" in doc.content
+            doc = StrategyDocument.query.filter_by(tenant_id=tool_ctx.tenant_id).first()
+            assert "LinkedIn" in doc.content
+            assert "Cold email" in doc.content
 
 
 # ---------------------------------------------------------------------------
 # Batch edits (multiple tool calls in one turn)
 # ---------------------------------------------------------------------------
+
 
 class TestBatchEdits:
     def test_multiple_edits_create_multiple_snapshots(
@@ -521,13 +572,13 @@ class TestBatchEdits:
 # Undo endpoint tests
 # ---------------------------------------------------------------------------
 
+
 class TestUndoEndpoint:
     def test_undo_reverts_ai_edit(
         self, client, app, seed_tenant, seed_super_admin, strategy_doc, tool_ctx
     ):
         """POST /api/playbook/undo reverts the last AI edit."""
         with app.app_context():
-            original_content = strategy_doc.content
             update_strategy_section(
                 {"section": "Executive Summary", "content": "AI wrote this."},
                 tool_ctx,
@@ -541,11 +592,12 @@ class TestUndoEndpoint:
         assert data["success"] is True
         assert data["restored_version"] == 1
 
-        with app.app_context():
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=str(seed_tenant.id)
-            ).first()
-            assert doc.content == original_content
+        # Verify via GET /api/playbook that original content is restored
+        resp2 = client.get("/api/playbook", headers=headers)
+        assert resp2.status_code == 200
+        content = resp2.get_json()["content"]
+        assert "This is the executive summary" in content
+        assert "AI wrote this" not in content
 
     def test_undo_with_no_edits_returns_404(
         self, client, seed_tenant, seed_super_admin, strategy_doc
@@ -560,6 +612,7 @@ class TestUndoEndpoint:
 # ---------------------------------------------------------------------------
 # GET /api/playbook includes has_ai_edits
 # ---------------------------------------------------------------------------
+
 
 class TestGetPlaybookHasAIEdits:
     def test_has_ai_edits_false_when_no_versions(

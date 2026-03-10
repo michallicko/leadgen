@@ -17,16 +17,17 @@ class TestBuildSystemPrompt:
 
         assert isinstance(prompt, str)
         assert len(prompt) > 100
-        # Must reference the 9 strategy sections (unified STRATEGY_SECTIONS)
+        # Must reference the 7 strategy sections (ICP/Personas moved to tabs)
         assert "Executive Summary" in prompt
-        assert "ICP" in prompt
-        assert "Buyer Personas" in prompt
         assert "Value Proposition" in prompt
         assert "Competitive Positioning" in prompt
         assert "Channel Strategy" in prompt
         assert "Messaging Framework" in prompt
         assert "Metrics & KPIs" in prompt
         assert "90-Day Action Plan" in prompt
+        # ICP and Personas are now in dedicated tabs, referenced via tool instructions
+        assert "set_icp_tiers" in prompt
+        assert "set_buyer_personas" in prompt
 
     def test_includes_tenant_name(self):
         """System prompt references the tenant/company name."""
@@ -375,7 +376,10 @@ class TestBuildMessages:
         assert isinstance(result, list)
         assert len(result) == 3
         assert result[0] == {"role": "user", "content": "What is our ICP?"}
-        assert result[1] == {"role": "assistant", "content": "Your ICP should focus on..."}
+        assert result[1] == {
+            "role": "assistant",
+            "content": "Your ICP should focus on...",
+        }
         assert result[2] == {"role": "user", "content": "Tell me more"}
 
     def test_limits_history_to_20_messages(self):
@@ -446,11 +450,26 @@ class TestBuildExtractionPrompt:
 
         # Nested fields
         for field in [
-            "industries", "company_size", "geographies", "tech_signals",
-            "triggers", "disqualifiers", "title_patterns", "pain_points",
-            "goals", "tone", "themes", "angles", "proof_points",
-            "primary", "secondary", "cadence", "reply_rate_target",
-            "meeting_rate_target", "pipeline_goal_eur", "timeline_months",
+            "industries",
+            "company_size",
+            "geographies",
+            "tech_signals",
+            "triggers",
+            "disqualifiers",
+            "title_patterns",
+            "pain_points",
+            "goals",
+            "tone",
+            "themes",
+            "angles",
+            "proof_points",
+            "primary",
+            "secondary",
+            "cadence",
+            "reply_rate_target",
+            "meeting_rate_target",
+            "pipeline_goal_eur",
+            "timeline_months",
         ]:
             assert field in system, f"Missing schema field: {field}"
 
@@ -482,72 +501,38 @@ class TestBuildExtractionPrompt:
 
 
 class TestBuildSeededTemplate:
-    def test_returns_markdown_string(self):
-        """build_seeded_template returns a non-empty markdown string."""
+    """Tests for build_seeded_template.
+
+    Since BL-241, the strategy document starts blank. The AI writes
+    sections incrementally via update_strategy_section tool calls.
+    build_seeded_template now returns an empty string.
+    """
+
+    def test_returns_empty_string(self):
+        """build_seeded_template returns empty string (AI writes sections via tools)."""
         from api.services.playbook_service import build_seeded_template
 
         result = build_seeded_template()
         assert isinstance(result, str)
-        assert len(result) > 100
-        assert "Executive Summary" in result
+        assert result == ""
 
-    def test_includes_all_sections(self):
-        """Template contains all strategy sections."""
+    def test_accepts_all_params(self):
+        """Function signature still accepts objective, enrichment_data, challenge_type."""
+        from api.services.playbook_service import build_seeded_template
+
+        result = build_seeded_template(
+            objective="Grow enterprise pipeline by 3x",
+            enrichment_data={"company": {"name": "Acme"}},
+            challenge_type="growth",
+        )
+        assert result == ""
+
+    def test_works_without_args(self):
+        """Function works when called with no arguments."""
         from api.services.playbook_service import build_seeded_template
 
         result = build_seeded_template()
-        for section in [
-            "Executive Summary",
-            "Ideal Customer Profile",
-            "Buyer Personas",
-            "Value Proposition",
-            "Competitive Positioning",
-            "Channel Strategy",
-            "Messaging Framework",
-            "Metrics & KPIs",
-            "90-Day Action Plan",
-        ]:
-            assert section in result, "Missing section: {}".format(section)
-
-    def test_includes_objective(self):
-        """Template includes the user's stated objective."""
-        from api.services.playbook_service import build_seeded_template
-
-        result = build_seeded_template(objective="Grow enterprise pipeline by 3x")
-        assert "Grow enterprise pipeline by 3x" in result
-
-    def test_includes_enrichment_data(self):
-        """Template incorporates enrichment data into relevant sections."""
-        from api.services.playbook_service import build_seeded_template
-
-        enrichment = {
-            "company": {
-                "name": "HR Corp",
-                "industry": "SaaS",
-                "summary": "SaaS platform for HR",
-            },
-            "company_intel": "SaaS platform for HR",
-            "key_products": "Payroll, Benefits, Time Tracking",
-            "customer_segments": "Mid-market HR departments",
-            "competitors": "Workday, BambooHR, Rippling",
-        }
-
-        result = build_seeded_template(
-            objective="Win mid-market HR",
-            enrichment_data=enrichment,
-        )
-        assert "SaaS platform for HR" in result
-        assert "Payroll" in result
-        assert "Mid-market HR departments" in result
-        assert "Workday" in result
-
-    def test_works_without_enrichment(self):
-        """Template works with objective only (no enrichment data)."""
-        from api.services.playbook_service import build_seeded_template
-
-        result = build_seeded_template(objective="Scale outbound")
-        assert "Scale outbound" in result
-        assert "Executive Summary" in result
+        assert result == ""
 
 
 class TestEnrichmentExpansionBL054:

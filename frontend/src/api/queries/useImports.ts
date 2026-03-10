@@ -42,7 +42,7 @@ interface PreviewResponse {
 }
 
 interface ImportResultItem {
-  row_number: number
+  row_idx: number
   action: 'created' | 'skipped' | 'updated' | 'error'
   contact_name: string
   company_name: string
@@ -51,25 +51,31 @@ interface ImportResultItem {
 }
 
 interface ImportResponse {
-  created: number
-  skipped: number
-  updated: number
-  errors: number
-  results: ImportResultItem[]
+  job_id: string
+  status: string
+  tag_name: string
+  counts: {
+    contacts_created: number
+    contacts_skipped: number
+    contacts_updated: number
+    companies_created: number
+    companies_linked: number
+    total_conflicts?: number
+  }
 }
 
 interface ImportResultsResponse {
   total: number
   page: number
   per_page: number
-  results: ImportResultItem[]
+  rows: ImportResultItem[]
 }
 
 interface ImportJob {
   id: string
   filename: string
   source: 'csv' | 'google'
-  status: 'uploaded' | 'mapped' | 'previewed' | 'completed' | 'failed'
+  status: 'uploaded' | 'mapped' | 'previewed' | 'completed' | 'failed' | 'error'
   row_count: number
   created_at: string
   stats?: { created: number; skipped: number; updated: number; errors: number }
@@ -82,6 +88,7 @@ interface ImportListResponse {
 interface ImportStatusResponse {
   status: string
   mapping: ColumnMapping[] | null
+  upload_response: UploadResponse | null
   preview: PreviewResponse | null
 }
 
@@ -173,6 +180,12 @@ export function getImportResults(jobId: string, filter: string, page: number) {
 
 export function getImportStatus(jobId: string) {
   return apiFetch<ImportStatusResponse>(`/imports/${jobId}/status`)
+}
+
+export function retryImport(jobId: string) {
+  return apiFetch<{ job_id: string; status: string }>(`/imports/${jobId}/retry`, {
+    method: 'POST',
+  })
 }
 
 // Google OAuth

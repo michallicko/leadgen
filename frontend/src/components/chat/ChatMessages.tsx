@@ -15,9 +15,12 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import { ToolCallCardList, type ToolCallEvent } from '../playbook/ToolCallCard'
-import { ThinkingIndicator } from '../playbook/ThinkingIndicator'
+// ThinkingIndicator replaced by inline unified working state block
 import { ChatMermaidBlock } from './ChatMermaidBlock'
 import { WorkflowSuggestions } from './WorkflowSuggestions'
+import { ThinkingStatus, type ThinkingFinding } from './ThinkingStatus'
+import { ThinkingHistory } from './ThinkingHistory'
+import { QuickActions, type QuickAction } from './QuickActions'
 
 // ---------------------------------------------------------------------------
 // Markdown components (mermaid code block rendering)
@@ -79,6 +82,16 @@ interface ChatMessagesProps {
   toolCalls?: ToolCallEvent[]
   /** THINK: show thinking indicator before first tool_start or chunk */
   isThinking?: boolean
+  /** Dynamic status text for the thinking indicator */
+  thinkingStatus?: string
+  /** BL-1015: Current research finding during agent work */
+  currentFinding?: ThinkingFinding | null
+  /** BL-1015: Per-message thinking history, keyed by message ID */
+  messageFindings?: Record<string, ThinkingFinding[]>
+  /** BL-1017: Per-message quick actions, keyed by message ID */
+  messageQuickActions?: Record<string, QuickAction[]>
+  /** BL-1017: Handler for quick action button clicks */
+  onQuickAction?: (action: QuickAction) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +155,33 @@ function formatTime(iso: string): string {
 // Extract persisted tool calls from message extra/metadata (AC-6)
 // ---------------------------------------------------------------------------
 
+/**
+ * Map status from backend format to ToolCallEvent status.
+ * Research events use "completed"/"running"/"error"; agent events use "success"/"error".
+ */
+function normalizeStatus(rawStatus: string): 'running' | 'success' | 'error' {
+  if (rawStatus === 'error') return 'error'
+  if (rawStatus === 'running') return 'running'
+  return 'success' // "completed" or "success" both map to "success"
+}
+
+/** Safely coerce a value to Record<string, unknown>, parsing JSON strings. */
+function toRecordOrUndefined(val: unknown): Record<string, unknown> | undefined {
+  if (val == null) return undefined
+  if (typeof val === 'object' && !Array.isArray(val)) return val as Record<string, unknown>
+  if (typeof val === 'string' && val) {
+    try {
+      const parsed = JSON.parse(val)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // not valid JSON
+    }
+  }
+  return undefined
+}
+
 function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
   const extra = message.extra
   if (!extra || !Array.isArray(extra.tool_calls) || extra.tool_calls.length === 0) {
@@ -152,74 +192,144 @@ function getPersistedToolCalls(message: ChatMessage): ToolCallEvent[] | null {
     tool_call_id: (tc.tool_call_id as string) || (tc.id as string) || `persisted-${idx}`,
     tool_name: (tc.tool_name as string) || (tc.name as string) || 'unknown',
     input: (tc.input_args as Record<string, unknown>) || (tc.input as Record<string, unknown>) || {},
-    status: ((tc.status as string) === 'error' ? 'error' : 'success') as 'success' | 'error',
+    status: normalizeStatus((tc.status as string) || 'success'),
     summary: (tc.summary as string) || undefined,
-    output: (tc.output_data as Record<string, unknown>) || (tc.output as Record<string, unknown>) || undefined,
+    // Research events store structured results in "detail"; agent events use "output_data"/"output"
+    // Safely parse string values that may be JSON-encoded (defensive against mistyped data)
+    output: toRecordOrUndefined(tc.output_data)
+      || toRecordOrUndefined(tc.output)
+      || toRecordOrUndefined(tc.detail)
+      || undefined,
     duration_ms: (tc.duration_ms as number) || undefined,
+    // Research events include target (e.g., domain being researched)
+    target: (tc.target as string) || undefined,
   }))
+}
+
+/** Check if this message is a research progress message (should show tool cards only, no text bubble) */
+function isResearchProgressMessage(message: ChatMessage): boolean {
+  return !!message.extra?.is_research_progress
 }
 
 // ---------------------------------------------------------------------------
 // Message bubble
 // ---------------------------------------------------------------------------
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+interface MessageBubbleProps {
+  message: ChatMessage
+  findings?: ThinkingFinding[]
+  quickActions?: QuickAction[]
+  onQuickAction?: (action: QuickAction) => void
+}
+
+function MessageBubble({ message, findings, quickActions, onQuickAction }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
   // Don't render system messages (thread boundaries)
   if (message.role === 'system') return null
 
+  // BL-208: Hidden messages (e.g. onboarding trigger prompts) show a
+  // condensed placeholder instead of the full internal instructions.
+  // Fallback: also detect by content prefix for messages saved before the
+  // hidden flag was deployed to the backend.
+  const isHidden =
+    message.extra?.hidden ||
+    (isUser && message.content.startsWith('Generate a complete GTM strategy'))
+  if (isHidden) {
+    return (
+      <div className="flex gap-3 flex-row-reverse">
+        <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent/20 text-accent-hover">
+          <UserIcon />
+        </div>
+        <div className="text-xs text-text-muted italic py-2">
+          Strategy generation started...
+        </div>
+      </div>
+    )
+  }
+
   // AC-6: Render persisted tool calls from message metadata
   const persistedToolCalls = !isUser ? getPersistedToolCalls(message) : null
 
-  return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      {/* Avatar */}
-      <div
-        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
-          isUser
-            ? 'bg-accent/20 text-accent-hover'
-            : 'bg-accent-cyan/15 text-accent-cyan'
-        }`}
-      >
-        {isUser ? <UserIcon /> : <AssistantIcon />}
+  // Research progress messages show only tool cards -- no text bubble
+  // (the summary is already displayed inside the tool card)
+  const isResearchProgress = !isUser && isResearchProgressMessage(message)
+
+  if (isResearchProgress && persistedToolCalls) {
+    return (
+      <div className="flex gap-3 flex-row">
+        {/* Avatar */}
+        <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent-cyan/15 text-accent-cyan">
+          <AssistantIcon />
+        </div>
+        {/* Tool cards only -- no text bubble */}
+        <div className="max-w-[80%]">
+          <ToolCallCardList toolCalls={persistedToolCalls} />
+        </div>
       </div>
+    )
+  }
 
-      {/* Content */}
-      <div className="max-w-[80%] flex flex-col gap-1.5">
-        {/* Tool call cards (above the text, for assistant messages) */}
-        {persistedToolCalls && (
-          <div className="mb-1">
-            <ToolCallCardList toolCalls={persistedToolCalls} />
-          </div>
-        )}
-
-        {/* Text bubble */}
+  return (
+    <div>
+      <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Avatar */}
         <div
-          className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
+          className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
             isUser
-              ? 'bg-accent/15 text-text border border-accent/20'
-              : 'bg-surface-alt text-text border border-border-solid'
+              ? 'bg-accent/20 text-accent-hover'
+              : 'bg-accent-cyan/15 text-accent-cyan'
           }`}
         >
-          {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{message.content}</div>
-          ) : (
-            <div className="chat-markdown break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content}
-              </ReactMarkdown>
+          {isUser ? <UserIcon /> : <AssistantIcon />}
+        </div>
+
+        {/* Content */}
+        <div className="max-w-[80%] flex flex-col gap-1.5">
+          {/* Tool call cards (above the text, for assistant messages) */}
+          {persistedToolCalls && (
+            <div className="mb-1">
+              <ToolCallCardList toolCalls={persistedToolCalls} />
             </div>
           )}
+
+          {/* Text bubble */}
           <div
-            className={`text-[11px] mt-1.5 ${
-              isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+            className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
+              isUser
+                ? 'bg-accent/15 text-text border border-accent/20'
+                : 'bg-surface-alt text-text border border-border-solid'
             }`}
           >
-            {formatTime(message.created_at)}
+            {isUser ? (
+              <div className="whitespace-pre-wrap break-words">{message.content}</div>
+            ) : (
+              <div className="chat-markdown break-words">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
+            <div
+              className={`text-[11px] mt-1.5 ${
+                isUser ? 'text-accent-hover/60 text-right' : 'text-text-dim'
+              }`}
+            >
+              {formatTime(message.created_at)}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* BL-1015: Thinking history toggle (below assistant messages) */}
+      {!isUser && findings && findings.length > 0 && (
+        <ThinkingHistory findings={findings} />
+      )}
+
+      {/* BL-1017: Quick action buttons (below assistant messages) */}
+      {!isUser && quickActions && quickActions.length > 0 && onQuickAction && (
+        <QuickActions actions={quickActions} onAction={onQuickAction} />
+      )}
     </div>
   )
 }
@@ -312,6 +422,11 @@ export function ChatMessages({
   isLoading = false,
   toolCalls = [],
   isThinking = false,
+  thinkingStatus = 'Thinking...',
+  currentFinding = null,
+  messageFindings = {},
+  messageQuickActions = {},
+  onQuickAction,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -321,7 +436,7 @@ export function ChatMessages({
     if (el) {
       el.scrollTop = el.scrollHeight
     }
-  }, [messages, streamingText, toolCalls, isThinking])
+  }, [messages, streamingText, toolCalls, isThinking, currentFinding])
 
   if (isLoading) {
     return (
@@ -331,9 +446,25 @@ export function ChatMessages({
     )
   }
 
-  // Filter out system messages for display
-  const displayMessages = messages.filter((m) => m.role !== 'system')
-  const hasContent = displayMessages.length > 0 || isStreaming || isThinking || toolCalls.length > 0
+  // Filter out system messages for display, and deduplicate consecutive
+  // hidden messages (Bug: optimistic + server-persisted hidden messages
+  // can overlap during streaming, producing two "Strategy generation
+  // started..." placeholders).
+  const displayMessages = messages.filter((m) => m.role !== 'system').filter((m, i, arr) => {
+    const isHidden =
+      m.extra?.hidden ||
+      (m.role === 'user' && m.content.startsWith('Generate a complete GTM strategy'))
+    if (!isHidden) return true
+    // Keep only the first hidden message in a consecutive run
+    const prev = arr[i - 1]
+    if (!prev) return true
+    const prevHidden =
+      prev.extra?.hidden ||
+      (prev.role === 'user' && prev.content.startsWith('Generate a complete GTM strategy'))
+    return !prevHidden
+  })
+  const isAgentWorking = isStreaming || isThinking || toolCalls.length > 0 || currentFinding !== null
+  const hasContent = displayMessages.length > 0 || isAgentWorking
 
   return (
     <div
@@ -343,11 +474,48 @@ export function ChatMessages({
       {!hasContent && <EmptyState />}
 
       {displayMessages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          findings={messageFindings[msg.id]}
+          quickActions={messageQuickActions[msg.id]}
+          onQuickAction={onQuickAction}
+        />
       ))}
 
-      {/* THINK: Thinking indicator (AC-1: before first tool_start or chunk) */}
-      {isThinking && <ThinkingIndicator />}
+      {/* Unified working state: thinking + tool progress in one block */}
+      {(isThinking || (toolCalls && toolCalls.length > 0)) && (
+        <div className="flex gap-3 flex-row">
+          {/* Avatar */}
+          <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent-cyan/15 text-accent-cyan">
+            <AssistantIcon />
+          </div>
+          {/* Progress block */}
+          <div className="rounded-lg px-4 py-2.5 bg-surface-alt border border-border-solid flex flex-col gap-2 max-w-[320px]">
+            {/* Line 1: Pulsing dot + primary status */}
+            <div className="flex items-center gap-2.5">
+              <span
+                className="w-2 h-2 rounded-full bg-accent-cyan flex-shrink-0"
+                style={{ animation: 'thinkPulse 1.4s ease-in-out infinite' }}
+              />
+              <span className="text-xs text-text-muted truncate">
+                {thinkingStatus || 'Thinking...'}
+              </span>
+            </div>
+            {/* Line 2: Active tool or tool progress (if any) */}
+            {toolCalls && toolCalls.length > 0 && (
+              <div className="text-[11px] text-text-muted/70 pl-[18px]">
+                {toolCalls.filter((t) => t.status === 'running').length > 0
+                  ? `Running ${toolCalls.filter((t) => t.status === 'running').length} tool${toolCalls.filter((t) => t.status === 'running').length > 1 ? 's' : ''}...`
+                  : `${toolCalls.filter((t) => t.status === 'success').length} tool${toolCalls.filter((t) => t.status === 'success').length > 1 ? 's' : ''} completed`}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* BL-1015: Live thinking status with latest finding */}
+      <ThinkingStatus currentFinding={currentFinding} isActive={isAgentWorking && !isStreaming} />
 
       {/* THINK: In-flight tool call cards (AC-2, AC-4) */}
       {toolCalls.length > 0 && (

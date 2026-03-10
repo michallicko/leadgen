@@ -1,0 +1,39 @@
+{
+  "name": "research-flow",
+  "description": "Tests the basic research and strategy generation flow",
+  "model": "claude-haiku-4-5-20251001",
+  "system_prompt": "You are a CMO. Help the user research their company.",
+  "tags": ["research", "strategy", "smoke"],
+  "turns": [
+    {
+      "user_message": "Research Acme Corp and update the strategy",
+      "expected_tool_calls": [
+        {
+          "name": "research_own_company",
+          "args_contains": {}
+        }
+      ],
+      "expected_response": {
+        "contains": ["research"],
+        "not_contains": ["I cannot", "I'm unable"],
+        "format": "markdown",
+        "min_length": 20
+      },
+      "assertion_level": "structural"
+    },
+    {
+      "user_message": "Now update the ICP section based on the research",
+      "expected_tool_calls": [
+        {
+          "name": "update_strategy_section",
+          "args_contains": {}
+        }
+      ],
+      "expected_response": {
+        "contains": [],
+        "format": "markdown"
+      },
+      "assertion_level": "structural"
+    }
+  ]
+}

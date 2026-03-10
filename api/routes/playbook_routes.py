@@ -1,10 +1,12 @@
 """Playbook (GTM Strategy) API routes."""
 
+import ipaddress
 import json
 import logging
 import math
 import os
 import re
+import socket
 import threading
 import time
 
@@ -33,19 +35,47 @@ from ..models import (
     ToolExecution,
     db,
 )
-from ..services.agent_executor import execute_agent_turn
+from ..agents.graph import execute_graph_turn
 from ..services.anthropic_client import AnthropicClient
 from ..services.llm_logger import log_llm_usage
+from ..services.scoring_service import (
+    calculate_completeness,
+    score_strategy_quality,
+    strategy_score_to_dict,
+)
 from ..services.playbook_service import (
     build_extraction_prompt,
     build_messages,
     build_proactive_analysis_prompt,
-    build_seeded_template,
     build_system_prompt,
+    compute_chat_placeholder,
 )
-from ..services.tool_registry import ToolContext, get_tools_for_api
+from ..services.tool_registry import get_tools_for_api
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_domain(domain: str) -> bool:
+    """Reject domains that resolve to private/loopback/link-local addresses.
+
+    Prevents SSRF attacks where an authenticated user could supply domains
+    like ``169.254.169.254.nip.io`` or ``localhost`` to reach internal
+    services (e.g. cloud metadata endpoints).
+    """
+    if not domain:
+        return False
+    hostname = domain.split(":")[0].strip().rstrip("/")
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+        return False
+    try:
+        resolved = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(resolved)
+        return not (
+            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        )
+    except Exception:
+        return False
+
 
 playbook_bp = Blueprint("playbook", __name__)
 
@@ -87,6 +117,11 @@ def get_playbook():
         is not None
     )
     result["has_ai_edits"] = has_ai_edits
+
+    # Context-aware chat placeholder (BL-203)
+    result["chat_placeholder"] = compute_chat_placeholder(
+        doc, phase=doc.phase or "strategy"
+    )
 
     return jsonify(result), 200
 
@@ -133,7 +168,32 @@ def update_playbook():
         doc.playbook_selections = existing
 
     db.session.commit()
-    return jsonify(doc.to_dict()), 200
+
+    result = doc.to_dict()
+
+    # BL-201: Flag when content has ICP-related prose but no structured tiers/personas
+    if content is not None and content.strip():
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            try:
+                extracted = json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        content_lower = content.lower()
+        has_icp_prose = any(
+            term in content_lower
+            for term in ("ideal customer", "icp", "target market", "tier")
+        )
+        has_persona_prose = any(
+            term in content_lower
+            for term in ("buyer persona", "persona", "decision maker", "target role")
+        )
+        result["needs_tier_extraction"] = has_icp_prose and not extracted.get("tiers")
+        result["needs_persona_extraction"] = has_persona_prose and not extracted.get(
+            "personas"
+        )
+
+    return jsonify(result), 200
 
 
 @playbook_bp.route("/api/playbook/undo", methods=["POST"])
@@ -425,6 +485,106 @@ def get_icp_triage_config():
     ), 200
 
 
+# ---------------------------------------------------------------------------
+# ICP Tiers CRUD (BL-198) — stored in extracted_data.tiers
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/strategy/tiers", methods=["GET"])
+@require_auth
+def get_tiers():
+    """Return the structured ICP tiers from extracted_data."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    tiers = extracted.get("tiers", [])
+    return jsonify({"tiers": tiers}), 200
+
+
+@playbook_bp.route("/api/playbook/strategy/tiers", methods=["PUT"])
+@require_auth
+def update_tiers():
+    """Replace all ICP tiers in extracted_data.tiers."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    tiers = data.get("tiers")
+    if not isinstance(tiers, list):
+        return jsonify({"error": "tiers must be an array"}), 400
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    extracted["tiers"] = tiers
+    doc.extracted_data = extracted
+    db.session.commit()
+    return jsonify({"status": "ok", "tiers": tiers}), 200
+
+
+# ---------------------------------------------------------------------------
+# Buyer Personas CRUD (BL-199) — stored in extracted_data.personas
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/strategy/personas", methods=["GET"])
+@require_auth
+def get_personas():
+    """Return the structured buyer personas from extracted_data."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    personas = extracted.get("personas", [])
+    return jsonify({"personas": personas}), 200
+
+
+@playbook_bp.route("/api/playbook/strategy/personas", methods=["PUT"])
+@require_auth
+def update_personas():
+    """Replace all buyer personas in extracted_data.personas."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    personas = data.get("personas")
+    if not isinstance(personas, list):
+        return jsonify({"error": "personas must be an array"}), 400
+
+    doc = _get_or_create_document(tenant_id)
+    extracted = doc.extracted_data or {}
+    if isinstance(extracted, str):
+        try:
+            extracted = json.loads(extracted)
+        except (ValueError, TypeError):
+            extracted = {}
+    extracted["personas"] = personas
+    doc.extracted_data = extracted
+    db.session.commit()
+    return jsonify({"status": "ok", "personas": personas}), 200
+
+
 @playbook_bp.route("/api/playbook/contacts", methods=["GET"])
 @require_auth
 def playbook_contacts():
@@ -547,44 +707,53 @@ def playbook_contacts():
         LEFT JOIN owners o ON ct.owner_id = o.id
     """
 
-    # Count total
-    total = (
-        db.session.execute(
+    # Execute queries with safety wrapper for invalid enum values in filters
+    try:
+        # Count total
+        total = (
+            db.session.execute(
+                db.text(
+                    "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
+                        joins, where_clause
+                    )
+                ),
+                params,
+            ).scalar()
+            or 0
+        )
+
+        pages = max(1, math.ceil(total / per_page))
+        offset = (page - 1) * per_page
+
+        order = "ct.{} {} NULLS LAST".format(
+            sort_field, "ASC" if sort_dir == "asc" else "DESC"
+        )
+
+        rows = db.session.execute(
             db.text(
-                "SELECT COUNT(*) FROM contacts ct {} WHERE {}".format(
-                    joins, where_clause
-                )
+                """
+                SELECT
+                    ct.id, ct.first_name, ct.last_name, ct.job_title,
+                    co.id AS company_id, co.name AS company_name,
+                    ct.email_address, ct.seniority_level,
+                    ct.contact_score, ct.icp_fit,
+                    co.industry, co.company_size, co.status AS company_status
+                FROM contacts ct
+                {joins}
+                WHERE {where}
+                ORDER BY {order}
+                LIMIT :limit OFFSET :offset
+            """.format(joins=joins, where=where_clause, order=order)
             ),
-            params,
-        ).scalar()
-        or 0
-    )
-
-    pages = max(1, math.ceil(total / per_page))
-    offset = (page - 1) * per_page
-
-    order = "ct.{} {} NULLS LAST".format(
-        sort_field, "ASC" if sort_dir == "asc" else "DESC"
-    )
-
-    rows = db.session.execute(
-        db.text(
-            """
-            SELECT
-                ct.id, ct.first_name, ct.last_name, ct.job_title,
-                co.id AS company_id, co.name AS company_name,
-                ct.email_address, ct.seniority_level,
-                ct.contact_score, ct.icp_fit,
-                co.industry, co.company_size, co.status AS company_status
-            FROM contacts ct
-            {joins}
-            WHERE {where}
-            ORDER BY {order}
-            LIMIT :limit OFFSET :offset
-        """.format(joins=joins, where=where_clause, order=order)
-        ),
-        {**params, "limit": per_page, "offset": offset},
-    ).fetchall()
+            {**params, "limit": per_page, "offset": offset},
+        ).fetchall()
+    except Exception as e:
+        # Invalid filter values (e.g. bad enum) — roll back and return empty
+        logger.warning("playbook_contacts query failed: %s", e)
+        db.session.rollback()
+        total = 0
+        pages = 1
+        rows = []
 
     contacts = []
     for r in rows:
@@ -889,92 +1058,194 @@ def _log_event(tenant_id, user_id, doc_id, event_type, payload=None):
     db.session.commit()
 
 
+def _save_research_progress(tenant_id, company_id, event):
+    """Save a research progress event as a chat tool-call record.
+
+    This lets the frontend's ToolCallCard component render real-time
+    progress from the research pipeline.
+    """
+    try:
+        doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+        if not doc:
+            return
+
+        msg = StrategyChatMessage(
+            doc_id=doc.id,
+            role="assistant",
+            content=event.get("summary", ""),
+            extra={
+                "tool_calls": [
+                    {
+                        "name": event.get("tool_name", "Research"),
+                        "target": event.get("target", ""),
+                        "status": event.get("status", "running"),
+                        "summary": event.get("summary", ""),
+                        "detail": event.get("detail", {}),
+                        "duration_ms": event.get("duration_ms", 0),
+                        "step": event.get("step", ""),
+                    }
+                ],
+                "is_research_progress": True,
+            },
+        )
+        db.session.add(msg)
+        db.session.commit()
+    except Exception:
+        logger.debug("Could not save research progress event", exc_info=True)
+        # Do NOT rollback — this runs inside the research pipeline's session
+        # and a rollback here would corrupt the caller's transaction state.
+        # Progress save failure is non-fatal.
+
+
+def trigger_initial_research(tenant_id: str, domain: str) -> None:
+    """Trigger background research for a new tenant space (BL-206 Phase 1).
+
+    Creates or reuses a self-company record and strategy document, then
+    launches lightweight enrichment in a background thread. Safe to call
+    from tenant creation — non-blocking, failures are logged but not raised.
+
+    Must be called inside a Flask app context with an active DB session.
+    """
+    if not domain or not _is_safe_domain(domain):
+        logger.info(
+            "Skipping initial research for tenant %s: domain=%r (invalid/missing)",
+            tenant_id,
+            domain,
+        )
+        return
+
+    domain_parts = domain.split(".")
+    company_name = domain_parts[0].capitalize() if domain_parts else domain
+
+    company = Company.query.filter_by(tenant_id=tenant_id, is_self=True).first()
+    if company:
+        company.domain = domain
+        company.name = company_name
+        company.status = "new"
+    else:
+        company = Company(
+            tenant_id=tenant_id,
+            name=company_name,
+            domain=domain,
+            is_self=True,
+            status="new",
+        )
+        db.session.add(company)
+        db.session.flush()
+
+    doc = _get_or_create_document(tenant_id)
+    doc.enrichment_id = company.id
+    db.session.commit()
+
+    from flask import current_app
+
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_run_self_research,
+        args=(app, company.id, tenant_id),
+        daemon=True,
+        name="initial-research-{}".format(company.id),
+    )
+    t.start()
+    logger.info(
+        "BL-206: Triggered initial research for tenant %s domain=%s company=%s",
+        tenant_id,
+        domain,
+        company.id,
+    )
+
+
 def _run_self_research(
     app, company_id, tenant_id, additional_domains=None, challenge_type=None
 ):
-    """Run L1 + L2 enrichment in a background thread for self-company research.
+    """Run domain-first research in a background thread for self-company research.
+
+    Uses ResearchService to:
+    1. Fetch & parse the company website
+    2. Run targeted web search with website context
+    3. Synthesize findings into structured enrichment profile
+    4. Save to all enrichment tables (compatible with _load_enrichment_data)
 
     Args:
         additional_domains: Optional list of competitor/partner domains for
             lightweight web_search enrichment. The primary domain gets full
-            L1+L2 enrichment; additional domains get stored as metadata.
+            research; additional domains get stored as metadata.
         challenge_type: Optional string indicating the user's primary GTM
-            challenge. Passed to build_seeded_template for adaptive sections.
+            challenge. Passed to the AI system prompt for adaptive sections.
     """
     with app.app_context():
         try:
-            from api.services.l1_enricher import enrich_l1
-            from api.services.l2_enricher import enrich_l2
+            from api.services.research_service import ResearchService
 
             logger.info(
-                "Starting self-research for company %s (additional_domains=%s)",
+                "Starting domain-first research for company %s (additional_domains=%s)",
                 company_id,
                 additional_domains,
             )
 
-            enrich_l1(company_id, tenant_id)
-
-            # Update company name from L1 enrichment results
+            # Get company domain
             company = db.session.get(Company, company_id)
-            if company and company.is_self:
-                l1 = db.session.get(CompanyEnrichmentL1, company_id)
-                if l1 and l1.raw_response:
-                    import json as _json
+            if not company:
+                logger.error("Company %s not found", company_id)
+                return
 
-                    try:
-                        raw = (
-                            _json.loads(l1.raw_response)
-                            if isinstance(l1.raw_response, str)
-                            else l1.raw_response
-                        )
-                        l1_name = raw.get("company_name") or raw.get("name")
-                        if l1_name and l1_name != company.name:
-                            company.name = l1_name
-                    except (ValueError, TypeError, AttributeError):
-                        pass
+            domain = company.domain
+            if not domain:
+                logger.error("Company %s has no domain", company_id)
+                return
 
-            # After L1, auto-advance to triage_passed if still in early status
-            _SKIP_STATUSES = {"triage_passed", "enriched_l2", "enrichment_l2_failed"}
-            if company and company.status not in _SKIP_STATUSES:
-                company.status = "triage_passed"
-                db.session.commit()
+            # Progress callback: saves events as chat messages
+            def on_progress(event):
+                _save_research_progress(tenant_id, company_id, event)
 
-            l2_result = enrich_l2(company_id, tenant_id)
-            l2_failed = "error" in l2_result
+            # Run the domain-first research pipeline
+            service = ResearchService()
+            result = service.research_company(
+                company_id=company_id,
+                tenant_id=tenant_id,
+                domain=domain,
+                on_progress=on_progress,
+            )
 
-            if l2_failed:
+            research_failed = not result.get("success", False)
+
+            if research_failed:
                 logger.warning(
-                    "Self-research L2 failed for company %s: %s",
+                    "Self-research failed for company %s: %s",
                     company_id,
-                    l2_result.get("error"),
+                    result.get("error"),
                 )
 
-            # Seed the strategy document with whatever data we have
-            # (L1 data if L2 failed, full data if L2 succeeded).
-            # Start a clean session state since L2 failure may have
-            # left the session dirty from rollbacks.
+            # Update company name if research discovered it
+            if result.get("company_name"):
+                try:
+                    company = db.session.get(Company, company_id)
+                    if company and company.is_self:
+                        discovered_name = result["company_name"]
+                        if discovered_name and discovered_name != company.name:
+                            company.name = discovered_name
+                            db.session.commit()
+                except Exception:
+                    logger.debug("Could not update company name", exc_info=True)
+
+            # Link enrichment to the strategy document (but don't seed
+            # template content — the AI writes sections incrementally via
+            # update_strategy_section tool calls).
             try:
                 db.session.rollback()
             except Exception:
                 pass
             doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-            if doc and doc.version == 1:
-                enrichment_data = _load_enrichment_data(company_id)
-                if additional_domains and enrichment_data:
-                    enrichment_data["additional_domains"] = additional_domains
-                doc.content = build_seeded_template(
-                    doc.objective, enrichment_data, challenge_type=challenge_type
-                )
+            if doc and not doc.enrichment_id:
                 doc.enrichment_id = company_id
                 db.session.commit()
                 logger.info(
-                    "Seeded template for company %s (content length: %d, l2_failed: %s)",
+                    "Linked enrichment %s to strategy document (failed: %s)",
                     company_id,
-                    len(doc.content or ""),
-                    l2_failed,
+                    research_failed,
                 )
 
-            if not l2_failed:
+            if not research_failed:
                 logger.info("Self-research completed for company %s", company_id)
 
             # Log research completion (skip if no valid user_id to avoid UUID error)
@@ -986,14 +1257,16 @@ def _run_self_research(
                     user_id=doc.updated_by,
                     doc_id=doc.id,
                     event_type="research_complete"
-                    if not l2_failed
+                    if not research_failed
                     else "research_partial",
                     payload={
                         "company_id": str(company_id),
                         "enrichment_keys": list(enrichment_data.keys())
                         if enrichment_data
                         else [],
-                        "l2_failed": l2_failed,
+                        "research_failed": research_failed,
+                        "steps_completed": result.get("steps_completed", []),
+                        "cost_usd": result.get("enrichment_cost_usd", 0),
                     },
                 )
         except Exception:
@@ -1009,21 +1282,16 @@ def _run_self_research(
                 logger.exception(
                     "Failed to set terminal status for company %s", company_id
                 )
-            # Still try to seed template with whatever data we have
+            # Link enrichment even on error so enrichment data is available
+            # for the AI when it writes sections later.
             try:
-                db.session.rollback()  # Clear poisoned transaction
+                db.session.rollback()
                 doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
-                if doc and doc.version == 1:
-                    enrichment_data = _load_enrichment_data(company_id)
-                    if enrichment_data:
-                        doc.content = build_seeded_template(
-                            doc.objective,
-                            enrichment_data,
-                            challenge_type=challenge_type,
-                        )
-                        db.session.commit()
+                if doc and not doc.enrichment_id:
+                    doc.enrichment_id = company_id
+                    db.session.commit()
             except Exception:
-                logger.exception("Failed to seed template after research error")
+                logger.exception("Failed to link enrichment after research error")
 
 
 @playbook_bp.route("/api/playbook/research", methods=["POST"])
@@ -1068,6 +1336,11 @@ def trigger_research():
 
     if not domains:
         domains = [domain]
+
+    # SSRF protection: reject domains that resolve to private/internal IPs
+    for d in domains:
+        if not _is_safe_domain(d):
+            return jsonify({"error": "Invalid or non-public domain"}), 400
 
     # Derive company name from domain (strip TLD, capitalize)
     # e.g., "notion.so" -> "Notion", "stripe.com" -> "Stripe"
@@ -1188,12 +1461,8 @@ def get_research_status():
             db.session.commit()
             status = "failed"
 
-    # Guard against race condition: enrichment may set company status to
-    # "enriched_l2" before the template is seeded into the document.
-    # Keep reporting "in_progress" until the document actually has content.
-    if status == "completed":
-        if not doc.content or len(doc.content.strip()) == 0:
-            status = "in_progress"
+    # No template seeding race guard needed — the document starts blank
+    # and the AI writes sections incrementally via update_strategy_section.
 
     result = {
         "status": status,
@@ -1337,6 +1606,10 @@ def post_chat_message():
     tenant = db.session.get(Tenant, tenant_id)
     user_id = getattr(request, "user_id", None)
 
+    # Detect onboarding trigger prompts — these contain internal instructions
+    # that should not be displayed to the user in chat history (BL-208)
+    is_onboarding_trigger = message_text.startswith("Generate a complete GTM strategy")
+
     # Save the user message before any LLM work
     user_msg = StrategyChatMessage(
         tenant_id=tenant_id,
@@ -1345,6 +1618,7 @@ def post_chat_message():
         content=message_text,
         page_context=page_context,
         created_by=user_id,
+        extra={"hidden": True} if is_onboarding_trigger else None,
     )
     db.session.add(user_msg)
     db.session.flush()
@@ -1393,9 +1667,8 @@ def post_chat_message():
 
     # Load enrichment data if research has been done
     enrichment_data = None
-    if doc.enrichment_id:
-        enrichment_data = _load_enrichment_data(doc.enrichment_id)
-    else:
+    enrichment_company_id = doc.enrichment_id
+    if not enrichment_company_id:
         # BL-054: Fallback — find self-company for the tenant
         self_company = Company.query.filter_by(
             tenant_id=tenant_id, is_self=True
@@ -1403,7 +1676,7 @@ def post_chat_message():
         if self_company:
             doc.enrichment_id = self_company.id
             db.session.commit()
-            enrichment_data = _load_enrichment_data(self_company.id)
+            enrichment_company_id = self_company.id
             logger.info(
                 "Self-company fallback: linked company %s to strategy doc %s",
                 self_company.id,
@@ -1413,29 +1686,52 @@ def post_chat_message():
     # Determine phase for system prompt (request param overrides doc phase)
     phase = data.get("phase") or doc.phase or "strategy"
 
-    # Build prompt and messages
-    system_prompt = build_system_prompt(
-        tenant,
-        doc,
-        enrichment_data=enrichment_data,
-        phase=phase,
-        page_context=page_context,
-    )
     messages = build_messages(history, message_text)
-
     client = _get_anthropic_client()
 
     if _wants_streaming(request):
+        # Streaming path: defer research wait into the SSE generator so
+        # research_status events are visible to the frontend.
         return _stream_response(
             client,
-            system_prompt,
             messages,
             tenant_id,
             doc.id,
+            enrichment_company_id,
+            phase,
+            page_context,
             user_msg,
             user_id,
         )
     else:
+        # Sync path: blocking wait is acceptable (no SSE to emit into)
+        if enrichment_company_id:
+            company_obj = db.session.get(Company, enrichment_company_id)
+            if (
+                company_obj
+                and _research_status_from_company(company_obj) == "in_progress"
+            ):
+                max_wait = 45
+                poll_interval = 2
+                waited = 0
+                while waited < max_wait:
+                    time.sleep(poll_interval)
+                    waited += poll_interval
+                    db.session.expire(company_obj)
+                    company_obj = db.session.get(Company, enrichment_company_id)
+                    if not company_obj:
+                        break
+                    if _research_status_from_company(company_obj) != "in_progress":
+                        break
+            enrichment_data = _load_enrichment_data(enrichment_company_id)
+
+        system_prompt = build_system_prompt(
+            tenant,
+            doc,
+            enrichment_data=enrichment_data,
+            phase=phase,
+            page_context=page_context,
+        )
         return _sync_response(
             client,
             system_prompt,
@@ -1448,13 +1744,25 @@ def post_chat_message():
 
 
 def _stream_response(
-    client, system_prompt, messages, tenant_id, doc_id, user_msg, user_id=None
+    client,
+    messages,
+    tenant_id,
+    doc_id,
+    enrichment_company_id,
+    phase,
+    page_context,
+    user_msg,
+    user_id=None,
 ):
     """Return an SSE streaming response with LLM chunks.
 
     If tools are registered, uses the agent executor (agentic loop with
     tool_start/tool_result events). Otherwise, falls back to simple
     stream_query for backward compatibility.
+
+    Research polling (if enrichment is in progress) happens inside the
+    generator so that research_status SSE events are visible to the
+    frontend during the ~45s wait.
 
     DB operations (saving the assistant message) happen inside the generator
     using the app context, since the generator runs outside the request context.
@@ -1464,22 +1772,39 @@ def _stream_response(
 
     app = current_app._get_current_object()
 
-    # Check if any tools are registered
+    # Check if any tools are registered (determines agent vs simple path)
     tools = get_tools_for_api()
 
     if tools:
         return _stream_agent_response(
             client,
-            system_prompt,
             messages,
-            tools,
             tenant_id,
             doc_id,
+            enrichment_company_id,
+            phase,
+            page_context,
             user_msg,
             user_id,
             app,
         )
     else:
+        # Simple path: build system prompt eagerly (no research wait
+        # needed — simple mode is only used when no tools are registered,
+        # which means no research_own_company tool either).
+        with app.app_context():
+            enrichment_data = None
+            if enrichment_company_id:
+                enrichment_data = _load_enrichment_data(enrichment_company_id)
+            tenant = db.session.get(Tenant, tenant_id)
+            doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+            system_prompt = build_system_prompt(
+                tenant,
+                doc,
+                enrichment_data=enrichment_data,
+                phase=phase,
+                page_context=page_context,
+            )
         return _stream_simple_response(
             client,
             system_prompt,
@@ -1578,9 +1903,23 @@ def _stream_simple_response(
 
 
 def _stream_agent_response(
-    client, system_prompt, messages, tools, tenant_id, doc_id, user_msg, user_id, app
+    client,
+    messages,
+    tenant_id,
+    doc_id,
+    enrichment_company_id,
+    phase,
+    page_context,
+    user_msg,
+    user_id,
+    app,
 ):
     """Agent-mode streaming with tool-use loop.
+
+    Polls for in-progress research at the top of the generator, emitting
+    research_status SSE events so the frontend can show progress. Once
+    research resolves (or times out), builds the system prompt with
+    enrichment data and proceeds with the agent turn.
 
     Uses execute_agent_turn() generator to handle tool calls. Yields SSE
     events for tool_start, tool_result, chunk, and done. Saves assistant
@@ -1590,25 +1929,104 @@ def _stream_agent_response(
 
     turn_id = str(_uuid.uuid4())
 
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=turn_id,
-    )
-
     def generate():
+        # --- Research polling (yields research_status SSE events) ---
+        enrichment_data = None
+        with app.app_context():
+            domain = None
+            if enrichment_company_id:
+                company_obj = db.session.get(Company, enrichment_company_id)
+                if company_obj:
+                    domain = company_obj.domain
+                    research_st = _research_status_from_company(company_obj)
+                    if research_st == "in_progress":
+                        yield "event: research_status\ndata: {}\n\n".format(
+                            json.dumps(
+                                {
+                                    "type": "research_status",
+                                    "status": "in_progress",
+                                    "domain": domain or "",
+                                    "message": "Researching company profile for {}...".format(
+                                        domain or "your company"
+                                    ),
+                                }
+                            )
+                        )
+                        max_wait = 45
+                        poll_interval = 2
+                        waited = 0
+                        while waited < max_wait:
+                            time.sleep(poll_interval)
+                            waited += poll_interval
+                            db.session.expire(company_obj)
+                            company_obj = db.session.get(Company, enrichment_company_id)
+                            if not company_obj:
+                                break
+                            status = _research_status_from_company(company_obj)
+                            if status != "in_progress":
+                                logger.info(
+                                    "Research finished (status=%s) after %ds wait",
+                                    status,
+                                    waited,
+                                )
+                                yield "event: research_status\ndata: {}\n\n".format(
+                                    json.dumps(
+                                        {
+                                            "type": "research_status",
+                                            "status": "completed",
+                                            "domain": domain or "",
+                                            "message": "Research complete",
+                                        }
+                                    )
+                                )
+                                break
+                        else:
+                            logger.warning(
+                                "Research still in progress after %ds wait"
+                                " for company %s -- proceeding with partial data",
+                                max_wait,
+                                enrichment_company_id,
+                            )
+                            yield "event: research_status\ndata: {}\n\n".format(
+                                json.dumps(
+                                    {
+                                        "type": "research_status",
+                                        "status": "timeout",
+                                        "domain": domain or "",
+                                        "message": "Research timed out, proceeding with available data",
+                                    }
+                                )
+                            )
+
+                enrichment_data = _load_enrichment_data(enrichment_company_id)
+
+            # Build system prompt with enrichment data now available
+            tenant = db.session.get(Tenant, tenant_id)
+            doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+            system_prompt = build_system_prompt(
+                tenant,
+                doc,
+                enrichment_data=enrichment_data,
+                phase=phase,
+                page_context=page_context,
+            )
+
+        # --- Agent turn (yields chunk / tool_start / tool_result events) ---
         full_text = []
         msg_id = None
         done_data = None
 
         try:
-            for sse_event in execute_agent_turn(
-                client=client,
+            for sse_event in execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tools=tools,
-                tool_context=tool_context,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": turn_id,
+                },
+                page_context=page_context or "",
                 app=app,
             ):
                 if sse_event.type == "chunk":
@@ -1625,6 +2043,11 @@ def _stream_agent_response(
                 elif sse_event.type == "tool_result":
                     yield "data: {}\n\n".format(
                         json.dumps(sse_event.data | {"type": "tool_result"})
+                    )
+
+                elif sse_event.type == "section_update":
+                    yield "data: {}\n\n".format(
+                        json.dumps(sse_event.data | {"type": "section_update"})
                     )
 
                 elif sse_event.type == "done":
@@ -1914,7 +2337,6 @@ def _sync_response(
             client,
             system_prompt,
             messages,
-            tools,
             tenant_id,
             doc_id,
             user_msg,
@@ -1996,7 +2418,6 @@ def _sync_agent_response(
     client,
     system_prompt,
     messages,
-    tools,
     tenant_id,
     doc_id,
     user_msg,
@@ -2004,26 +2425,22 @@ def _sync_agent_response(
 ):
     """Sync (non-streaming) response with agent tool-use loop.
 
-    Collects all SSE events from execute_agent_turn(), persists the
+    Collects all SSE events from execute_graph_turn(), persists the
     assistant message and tool execution records, and returns JSON.
     """
     import uuid as _uuid
 
-    tool_context = ToolContext(
-        tenant_id=str(tenant_id),
-        user_id=str(user_id) if user_id else None,
-        document_id=str(doc_id) if doc_id else None,
-        turn_id=str(_uuid.uuid4()),
-    )
-
     try:
         events = list(
-            execute_agent_turn(
-                client=client,
+            execute_graph_turn(
                 system_prompt=system_prompt,
                 messages=messages,
-                tools=tools,
-                tool_context=tool_context,
+                tool_context={
+                    "tenant_id": str(tenant_id),
+                    "user_id": str(user_id) if user_id else None,
+                    "document_id": str(doc_id) if doc_id else None,
+                    "turn_id": str(_uuid.uuid4()),
+                },
             )
         )
     except Exception as e:
@@ -2637,3 +3054,215 @@ def confirm_messages(playbook_id):
             "campaign_id": str(campaign.id),
         }
     ), 200
+
+
+# ---------------------------------------------------------------------------
+# Quality Scoring endpoints (BL-1016)
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/playbook/score", methods=["GET"])
+@require_auth
+def get_strategy_score():
+    """Get current completeness score (cheap, no LLM call)."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    completeness = calculate_completeness(doc.content or "")
+    return jsonify(completeness), 200
+
+
+@playbook_bp.route("/api/playbook/score", methods=["POST"])
+@require_auth
+def request_quality_score():
+    """Trigger full AI quality scoring (calls Anthropic)."""
+    import asyncio
+
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if not doc:
+        return jsonify({"error": "No strategy document found"}), 404
+
+    content = doc.content or ""
+    if not content.strip():
+        return jsonify({"error": "Strategy document is empty"}), 422
+
+    goal = doc.objective or ""
+
+    # Run the async scoring function synchronously
+    try:
+        loop = asyncio.new_event_loop()
+        score = loop.run_until_complete(score_strategy_quality(content, goal))
+        loop.close()
+    except Exception:
+        logger.exception("Quality scoring failed")
+        return jsonify({"error": "Scoring failed"}), 500
+
+    return jsonify(strategy_score_to_dict(score)), 200
+
+
+# ---------------------------------------------------------------------------
+# V2 Chat endpoint — 3-tier router → chat / planner / planner_interrupt
+# ---------------------------------------------------------------------------
+
+
+@playbook_bp.route("/api/v2/chat", methods=["POST"])
+@require_auth
+def chat_v2():
+    """Routed chat endpoint using the 3-tier agent architecture.
+
+    Routes messages to:
+    - chat tier (Haiku) for simple queries
+    - planner tier (deterministic state machine + Opus) for strategy work
+    - planner interrupt for messages during active plan execution
+
+    SSE streaming response with the same event format as the existing
+    /api/playbook/chat endpoint.
+    """
+    from flask import current_app, stream_with_context
+
+    from ..agents.chat_tier import execute_chat_turn
+    from ..agents.planner_bridge import execute_planner_turn, get_active_plan
+    from ..agents.plans.loader import load_plan
+    from ..agents.router import route_message
+
+    data = request.get_json(silent=True) or {}
+    message_text = data.get("message", "")
+    if not message_text:
+        return jsonify({"error": "message is required"}), 400
+
+    page_context = data.get("page_context", "playbook")
+    if page_context not in _ALLOWED_PAGE_CONTEXTS:
+        page_context = "playbook"
+
+    thread_id = data.get("thread_id", "")
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    user_id = getattr(request, "user_id", None)
+    tenant = db.session.get(Tenant, tenant_id)
+    app = current_app._get_current_object()
+
+    # Build context dicts for routing
+    tenant_context = {
+        "company_name": tenant.name if tenant else "",
+        "domain": tenant.domain if tenant and hasattr(tenant, "domain") else "",
+        "namespace": tenant.namespace
+        if tenant and hasattr(tenant, "namespace")
+        else "",
+    }
+    state = {
+        "has_strategy": False,
+        "onboarding_completed": False,
+    }
+    # Check if a strategy doc exists to determine state.
+    # has_strategy: True only when extracted_data contains structured output
+    # from a completed onboarding (tiers, personas, or populated sections).
+    # Raw content length is unreliable — leftover drafts, templates, or
+    # partial generations can have >50 chars without a real strategy.
+    doc = StrategyDocument.query.filter_by(tenant_id=tenant_id).first()
+    if doc:
+        extracted = doc.extracted_data or {}
+        if isinstance(extracted, str):
+            try:
+                extracted = json.loads(extracted)
+            except (ValueError, TypeError):
+                extracted = {}
+        has_structured_data = bool(
+            extracted.get("tiers")
+            or extracted.get("personas")
+            or extracted.get("sections")
+        )
+        if has_structured_data:
+            state["has_strategy"] = True
+        if doc.phase and doc.phase != "strategy":
+            state["onboarding_completed"] = True
+    logger.info(
+        "V2 chat state: has_strategy=%s, onboarding_completed=%s, "
+        "doc_exists=%s, doc_phase=%s",
+        state["has_strategy"],
+        state["onboarding_completed"],
+        doc is not None,
+        doc.phase if doc else None,
+    )
+
+    tool_context = {
+        "tenant_id": str(tenant_id),
+        "user_id": str(user_id) if user_id else None,
+        "page_context": page_context,
+    }
+
+    # Route the message
+    decision = route_message(
+        message_text, page_context, thread_id, tenant_context, state
+    )
+    logger.info(
+        "V2 chat route: '%s' -> %s (%s)",
+        message_text[:60],
+        decision.target,
+        decision.reason,
+    )
+
+    def generate():
+        with app.app_context():
+            try:
+                if decision.target == "chat":
+                    for sse_event in execute_chat_turn(
+                        message_text, page_context, tool_context
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+                elif decision.target in ("planner", "planner_interrupt"):
+                    existing_state = None
+                    if decision.target == "planner_interrupt":
+                        existing_state = get_active_plan(thread_id)
+
+                    if existing_state:
+                        plan_config = existing_state.get("plan_config", {})
+                    else:
+                        from dataclasses import asdict
+
+                        plan = load_plan(page_context, tenant_context, state)
+                        plan_config = asdict(plan)
+
+                    for sse_event in execute_planner_turn(
+                        message=message_text,
+                        plan_config=plan_config,
+                        tool_context=tool_context,
+                        existing_state=existing_state,
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+                else:
+                    # Unknown target — fall back to chat
+                    for sse_event in execute_chat_turn(
+                        message_text, page_context, tool_context
+                    ):
+                        yield "data: {}\n\n".format(
+                            json.dumps(sse_event.data | {"type": sse_event.type})
+                        )
+
+            except Exception as exc:
+                logger.exception("V2 chat error: %s", exc)
+                yield "data: {}\n\n".format(
+                    json.dumps({"type": "error", "message": str(exc)[:500]})
+                )
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

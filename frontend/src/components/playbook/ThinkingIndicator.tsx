@@ -1,9 +1,13 @@
 /**
- * ThinkingIndicator -- animated pulsing dots shown while the AI is processing.
+ * ThinkingIndicator -- animated pulsing dot + dynamic status text shown
+ * while the AI is processing.
  *
  * Appears inline in the message stream (same layout as StreamingBubble)
- * after the user sends a message. Disappears when the first `tool_start`
- * or `chunk` SSE event arrives.
+ * after the user sends a message. Shows a single pulsing dot with a
+ * one-liner status message describing what the AI is doing (e.g.,
+ * "Researching your market...", "Updating strategy...").
+ *
+ * Disappears when the streaming text (final response) starts appearing.
  */
 
 // ---------------------------------------------------------------------------
@@ -33,28 +37,28 @@ function AssistantIcon() {
 // ThinkingIndicator
 // ---------------------------------------------------------------------------
 
-export function ThinkingIndicator() {
+interface ThinkingIndicatorProps {
+  /** Dynamic status text to display (e.g., "Researching your market...") */
+  statusText?: string
+}
+
+export function ThinkingIndicator({ statusText = 'Thinking...' }: ThinkingIndicatorProps) {
   return (
     <div className="flex gap-3 flex-row">
-      {/* Avatar — same as assistant messages */}
+      {/* Avatar -- same as assistant messages */}
       <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-accent-cyan/15 text-accent-cyan">
         <AssistantIcon />
       </div>
 
-      {/* Pulsing dots */}
-      <div className="rounded-lg px-4 py-3 bg-surface-alt border border-border-solid flex items-center gap-1.5">
+      {/* Pulsing dot + status text */}
+      <div className="rounded-lg px-4 py-2.5 bg-surface-alt border border-border-solid flex items-center gap-2.5">
         <span
-          className="w-2 h-2 rounded-full bg-accent-cyan"
+          className="w-2 h-2 rounded-full bg-accent-cyan flex-shrink-0"
           style={{ animation: 'thinkPulse 1.4s ease-in-out infinite' }}
         />
-        <span
-          className="w-2 h-2 rounded-full bg-accent-cyan"
-          style={{ animation: 'thinkPulse 1.4s ease-in-out 0.2s infinite' }}
-        />
-        <span
-          className="w-2 h-2 rounded-full bg-accent-cyan"
-          style={{ animation: 'thinkPulse 1.4s ease-in-out 0.4s infinite' }}
-        />
+        <span className="text-xs text-text-muted truncate max-w-[240px]">
+          {statusText}
+        </span>
       </div>
     </div>
   )

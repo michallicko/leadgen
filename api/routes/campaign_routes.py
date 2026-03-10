@@ -2513,6 +2513,41 @@ def campaign_analytics(campaign_id):
         if last_send_at is None or li_send_times[1] > last_send_at:
             last_send_at = li_send_times[1]
 
+    # ── Engagement tracking (opens, replies, bounces, clicks) ──
+    engagement_row = db.session.execute(
+        db.text("""
+            SELECT
+                COUNT(CASE WHEN esl.opened_at IS NOT NULL THEN 1 END) AS opened,
+                COUNT(CASE WHEN esl.replied_at IS NOT NULL THEN 1 END) AS replied,
+                COUNT(CASE WHEN esl.bounced_at IS NOT NULL THEN 1 END) AS bounced,
+                COUNT(CASE WHEN esl.clicked_at IS NOT NULL THEN 1 END) AS clicked,
+                COALESCE(SUM(esl.open_count), 0) AS total_opens,
+                COALESCE(SUM(esl.click_count), 0) AS total_clicks,
+                COUNT(CASE WHEN esl.bounce_type = 'hard' THEN 1 END) AS hard_bounces,
+                COUNT(CASE WHEN esl.bounce_type = 'soft' THEN 1 END) AS soft_bounces
+            FROM email_send_log esl
+            JOIN messages m ON esl.message_id = m.id
+            JOIN campaign_contacts cc ON m.campaign_contact_id = cc.id
+            WHERE cc.campaign_id = :cid AND cc.tenant_id = :t
+        """),
+        {"cid": campaign_id, "t": tenant_id},
+    ).fetchone()
+
+    emails_delivered = email_counts.get("delivered", 0) + email_counts.get("sent", 0)
+    opened_count = int(engagement_row[0]) if engagement_row else 0
+    replied_count = int(engagement_row[1]) if engagement_row else 0
+    bounced_count = int(engagement_row[2]) if engagement_row else 0
+    clicked_count = int(engagement_row[3]) if engagement_row else 0
+    total_opens = int(engagement_row[4]) if engagement_row else 0
+    total_clicks = int(engagement_row[5]) if engagement_row else 0
+    hard_bounces = int(engagement_row[6]) if engagement_row else 0
+    soft_bounces = int(engagement_row[7]) if engagement_row else 0
+
+    def _rate(num, den):
+        if den == 0:
+            return 0
+        return round((num / den) * 100, 1)
+
     return jsonify(
         {
             "messages": {
@@ -2547,6 +2582,20 @@ def campaign_analytics(campaign_id):
             "cost": {
                 "generation_usd": generation_cost_usd,
                 "email_sends": email_total,
+            },
+            "engagement": {
+                "opened": opened_count,
+                "replied": replied_count,
+                "bounced": bounced_count,
+                "clicked": clicked_count,
+                "total_opens": total_opens,
+                "total_clicks": total_clicks,
+                "hard_bounces": hard_bounces,
+                "soft_bounces": soft_bounces,
+                "open_rate": _rate(opened_count, emails_delivered),
+                "reply_rate": _rate(replied_count, emails_delivered),
+                "bounce_rate": _rate(bounced_count, email_total),
+                "click_rate": _rate(clicked_count, emails_delivered),
             },
             "timeline": {
                 "created_at": _format_ts(campaign_created_at),

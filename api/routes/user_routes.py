@@ -1,6 +1,6 @@
 from flask import Blueprint, g, jsonify, request
 
-from ..auth import hash_password, require_role, verify_password
+from ..auth import require_role
 from ..models import Tenant, User, UserTenantRole, db
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
@@ -41,16 +41,12 @@ def create_user():
         return jsonify({"error": "Request body required"}), 400
 
     email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
     display_name = (data.get("display_name") or "").strip()
     tenant_id = data.get("tenant_id")
     role = data.get("role", "viewer")
 
-    if not email or not password or not display_name:
-        return jsonify({"error": "email, password, and display_name required"}), 400
-
-    if len(password) < 8:
-        return jsonify({"error": "Password must be at least 8 characters"}), 400
+    if not email or not display_name:
+        return jsonify({"error": "email and display_name required"}), 400
 
     if role not in ("admin", "editor", "viewer"):
         return jsonify({"error": "Invalid role"}), 400
@@ -60,7 +56,7 @@ def create_user():
 
     user = User(
         email=email,
-        password_hash=hash_password(password),
+        password_hash=None,
         display_name=display_name,
         owner_id=data.get("owner_id"),
     )
@@ -147,43 +143,6 @@ def delete_user(user_id):
     user.is_active = False
     db.session.commit()
     return jsonify({"ok": True, "message": "User deactivated"})
-
-
-@users_bp.route("/<user_id>/password", methods=["PUT"])
-@require_role("viewer")
-def change_password(user_id):
-    current_user = g.current_user
-    is_self = current_user.id == user_id
-    is_admin = current_user.is_super_admin or any(
-        r.role == "admin" for r in current_user.roles
-    )
-
-    if not is_self and not is_admin:
-        return jsonify({"error": "Insufficient permissions"}), 403
-
-    data = request.get_json(silent=True)
-    if not data or not data.get("new_password"):
-        return jsonify({"error": "new_password required"}), 400
-
-    if len(data["new_password"]) < 8:
-        return jsonify({"error": "Password must be at least 8 characters"}), 400
-
-    if is_self and not is_admin:
-        if not data.get("current_password"):
-            return jsonify({"error": "current_password required"}), 400
-        user = db.session.get(User, user_id)
-        if not user or not verify_password(
-            data["current_password"], user.password_hash
-        ):
-            return jsonify({"error": "Current password is incorrect"}), 401
-    else:
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-
-    user.password_hash = hash_password(data["new_password"])
-    db.session.commit()
-    return jsonify({"ok": True, "message": "Password updated"})
 
 
 @users_bp.route("/<user_id>/roles/<tenant_id>", methods=["DELETE"])

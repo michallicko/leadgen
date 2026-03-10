@@ -27,7 +27,19 @@ N8N_WEBHOOK_PATHS = {
 # Stages that have workflows wired up (n8n or direct Python)
 AVAILABLE_STAGES = {"l1", "l2", "person", "registry"}
 # Stages that call Python directly instead of n8n
-DIRECT_STAGES = {"l1", "l2", "person", "registry", "triage"}
+DIRECT_STAGES = {
+    "l1",
+    "l2",
+    "person",
+    "registry",
+    "triage",
+    "qc",
+    "signals",
+    "news",
+    "social",
+    "career",
+    "contact_details",
+}
 # Stages that are manual gates (not executable)
 COMING_SOON_STAGES = {"review"}
 # Legacy aliases for backward compat with old API calls
@@ -45,6 +57,7 @@ STAGE_PREDECESSORS = {
     "l2": ["l1"],  # L2 watches L1 (triage is auto-output of L1)
     "person": ["l2"],  # Person watches L2
     "registry": [],  # Unified registry — independent, auto-detects country
+    "qc": ["l2", "person"],  # QC runs after L2 + person are done
 }
 
 REACTIVE_POLL_INTERVAL = 15  # seconds between re-querying eligible IDs
@@ -523,6 +536,32 @@ def _process_entity(
             return _process_registry_unified(entity_id, tenant_id)
         if stage == "triage":
             return _process_triage(entity_id, tenant_id, triage_rules)
+        if stage == "qc":
+            from .qc_checker import run_qc
+
+            return run_qc(entity_id, tenant_id)
+        if stage == "social":
+            from .social_enricher import enrich_social
+
+            return enrich_social(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "career":
+            from .career_enricher import enrich_career
+
+            return enrich_career(entity_id, tenant_id, previous_data=previous_data)
+        if stage == "contact_details":
+            from .contact_details_enricher import enrich_contact_details
+
+            return enrich_contact_details(
+                entity_id, tenant_id, previous_data=previous_data
+            )
+        if stage == "signals":
+            from .signals_enricher import enrich_signals
+
+            return enrich_signals(entity_id, tenant_id)
+        if stage == "news":
+            from .news_enricher import enrich_news
+
+            return enrich_news(entity_id, tenant_id)
         raise ValueError(f"No direct processor for stage: {stage}")
     # For webhook stages, include previous_data in the payload if provided
     payload = {_data_key_for_stage(stage): entity_id}

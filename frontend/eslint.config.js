@@ -19,5 +19,22 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Disable React Compiler rules from react-hooks v7 — codebase not compiled
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/immutability': 'off',
+      // Allow unused vars with _ prefix (destructuring patterns)
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+      // Allow exporting hooks/constants alongside components (common pattern)
+      'react-refresh/only-export-components': ['warn', {
+        allowConstantExport: true,
+      }],
+    },
   },
 ])

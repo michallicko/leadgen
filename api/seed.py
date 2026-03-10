@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Seed a super-admin user interactively.
+"""Seed a super-admin user interactively (IAM-only, no password).
 
 Usage:
     python -m api.seed
     # or from project root:
     FLASK_APP=api python -m api.seed
+
+The user will authenticate via IAM (iam.visionvolve.com). No local password is set.
 """
 
-import getpass
 import sys
 
 from . import create_app
-from .auth import hash_password
 from .models import User, UserTenantRole, Tenant, db
 
 
@@ -19,7 +19,7 @@ def main():
     app = create_app()
 
     with app.app_context():
-        print("=== Create Super-Admin User ===\n")
+        print("=== Create Super-Admin User (IAM-only) ===\n")
 
         email = input("Email: ").strip().lower()
         if not email:
@@ -43,19 +43,9 @@ def main():
             print("Display name is required.")
             sys.exit(1)
 
-        password = getpass.getpass("Password (min 8 chars): ")
-        if len(password) < 8:
-            print("Password must be at least 8 characters.")
-            sys.exit(1)
-
-        confirm = getpass.getpass("Confirm password: ")
-        if password != confirm:
-            print("Passwords do not match.")
-            sys.exit(1)
-
         user = User(
             email=email,
-            password_hash=hash_password(password),
+            password_hash=None,
             display_name=display_name,
             is_super_admin=True,
             is_active=True,
@@ -71,6 +61,7 @@ def main():
 
         db.session.commit()
         print(f"\nSuper-admin created: {email} (id={user.id})")
+        print("User will authenticate via IAM (no local password).")
         if tenants:
             print(
                 f"Admin role granted for {len(tenants)} tenant(s): {', '.join(t.slug for t in tenants)}"

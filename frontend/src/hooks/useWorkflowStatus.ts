@@ -29,6 +29,21 @@ const PHASES: WorkflowPhase[] = [
   'campaign',
 ]
 
+/** Map backend workflow_phase to the high-level GTM phase. */
+const BACKEND_PHASE_MAP: Record<string, WorkflowPhase> = {
+  no_strategy: 'strategy',
+  strategy_draft: 'strategy',
+  strategy_ready: 'contacts',
+  contacts_imported: 'enrich',
+  enrichment_running: 'enrich',
+  enrichment_done: 'messages',
+  qualified_reviewed: 'messages',
+  messages_generated: 'messages',
+  messages_approved: 'campaign',
+  campaign_created: 'campaign',
+  campaign_launched: 'campaign',
+}
+
 function deriveWorkflowStatus(status: OnboardingStatus): WorkflowStatus {
   const completed: WorkflowPhase[] = []
 
@@ -38,6 +53,22 @@ function deriveWorkflowStatus(status: OnboardingStatus): WorkflowStatus {
   if (status.contact_count > 0) {
     completed.push('contacts')
   }
+
+  // Use backend workflow_phase for enrichment completion detection
+  const backendPhase = status.workflow_phase
+  if (backendPhase) {
+    const mapped = BACKEND_PHASE_MAP[backendPhase]
+    if (mapped) {
+      // Mark all phases up to (but not including) the current mapped phase as completed
+      const idx = PHASES.indexOf(mapped)
+      for (let i = 0; i < idx; i++) {
+        if (!completed.includes(PHASES[i])) {
+          completed.push(PHASES[i])
+        }
+      }
+    }
+  }
+
   if (status.campaign_count > 0) {
     completed.push('messages')
     completed.push('campaign')

@@ -21,6 +21,8 @@ export interface StrategyDocument {
   status: string
   version: number
   has_ai_edits: boolean
+  /** Context-aware chat input placeholder computed from document state. */
+  chat_placeholder?: string
   created_at: string
   updated_at: string
 }
@@ -141,6 +143,59 @@ export function useAdvancePhase() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Quality Scoring (BL-1016)
+// ---------------------------------------------------------------------------
+
+export interface CompletenessResult {
+  ratio: number
+  filled: number
+  total: number
+  sections: Record<string, boolean>
+}
+
+export interface SectionScoreResult {
+  section_name: string
+  completeness: number
+  quality_score: number | null
+  quality_reasoning: string
+  improvement_suggestions: string[]
+  scored_at: string | null
+}
+
+export interface StrategyScoreResult {
+  completeness_ratio: number
+  sections_filled: number
+  sections_total: number
+  section_scores: SectionScoreResult[]
+  overall_quality: number | null
+  overall_assessment: string
+}
+
+export function useStrategyCompleteness() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'score', ns],
+    queryFn: () => apiFetch<CompletenessResult>('/playbook/score'),
+    refetchInterval: 30_000, // refresh every 30s
+  })
+}
+
+export function useRequestQualityScore() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<StrategyScoreResult>('/playbook/score', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'score'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Undo
+// ---------------------------------------------------------------------------
+
 interface UndoResponse {
   success: boolean
   restored_version: number
@@ -155,6 +210,147 @@ export function useUndoAIEdit() {
       apiFetch<UndoResponse>('/playbook/undo', { method: 'POST', body: {} }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+// ICP Tiers (BL-198)
+// ---------------------------------------------------------------------------
+
+export interface IcpTier {
+  name: string
+  description?: string
+  priority?: number
+  criteria?: {
+    industries?: string[]
+    company_size_min?: number
+    company_size_max?: number
+    revenue_min?: number
+    revenue_max?: number
+    geographies?: string[]
+    tech_signals?: string[]
+    qualifying_signals?: string[]
+  }
+}
+
+export function useIcpTiers() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'tiers', ns],
+    queryFn: () => apiFetch<{ tiers: IcpTier[] }>('/playbook/strategy/tiers'),
+  })
+}
+
+export function useUpdateIcpTiers() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tiers: IcpTier[]) =>
+      apiFetch<{ status: string; tiers: IcpTier[] }>('/playbook/strategy/tiers', {
+        method: 'PUT',
+        body: { tiers },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'tiers'] })
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Buyer Personas (BL-199)
+// ---------------------------------------------------------------------------
+
+export interface BuyerPersona {
+  name: string
+  role?: string
+  seniority?: string
+  pain_points?: string[]
+  goals?: string[]
+  preferred_channels?: string[]
+  messaging_hooks?: string[]
+  objections?: string[]
+  linked_tiers?: string[]
+}
+
+export function useBuyerPersonas() {
+  const ns = useNamespace()
+  return useQuery({
+    queryKey: ['playbook', 'personas', ns],
+    queryFn: () => apiFetch<{ personas: BuyerPersona[] }>('/playbook/strategy/personas'),
+  })
+}
+
+export function useUpdateBuyerPersonas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (personas: BuyerPersona[]) =>
+      apiFetch<{ status: string; personas: BuyerPersona[] }>('/playbook/strategy/personas', {
+        method: 'PUT',
+        body: { personas },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'personas'] })
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Version history (BL-1014)
+// ---------------------------------------------------------------------------
+
+export interface PlaybookVersion {
+  id: string
+  document_id: string
+  version_number: number
+  author_type: 'user' | 'ai'
+  description: string
+  created_at: string
+  metadata: Record<string, unknown>
+  content?: string
+  extracted_data?: Record<string, unknown>
+}
+
+export function usePlaybookVersions(documentId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['playbook', 'versions', documentId],
+    queryFn: () => apiFetch<PlaybookVersion[]>(`/playbook/${documentId}/versions`),
+    enabled: enabled && !!documentId,
+  })
+}
+
+export function usePlaybookVersionDetail(documentId: string, versionId: string | null) {
+  return useQuery({
+    queryKey: ['playbook', 'versions', documentId, versionId],
+    queryFn: () => apiFetch<PlaybookVersion>(`/playbook/${documentId}/versions/${versionId}`),
+    enabled: !!versionId,
+  })
+}
+
+export function useRestoreVersion(documentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (versionId: string) =>
+      apiFetch<UndoResponse>(`/playbook/${documentId}/versions/${versionId}/restore`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook'] })
+    },
+  })
+}
+
+export function useCreateVersion(documentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { content: string; description?: string }) =>
+      apiFetch<PlaybookVersion>(`/playbook/${documentId}/versions`, {
+        method: 'POST',
+        body: data,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['playbook', 'versions'] })
     },
   })
 }
