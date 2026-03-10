@@ -17,6 +17,8 @@ export interface StoredUser {
   display_name: string
   is_super_admin: boolean
   roles: UserRoles
+  iam_user_id?: string
+  auth_provider?: string
 }
 
 export type Role = 'viewer' | 'editor' | 'admin'

@@ -142,6 +142,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    // Notify IAM to revoke the refresh token (fire and forget)
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }).catch(() => {}) // fire and forget
+    }
     clearTokens()
     setState({ user: null, isAuthenticated: false, isLoading: false, role: 'viewer' })
     window.location.href = '/'
