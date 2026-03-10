@@ -133,23 +133,23 @@ class TestBuildChallengeSection:
 
 
 class TestBuildSeededTemplateWithChallengeType:
-    """Test that build_seeded_template generates correct adaptive sections."""
+    """Test that build_seeded_template returns empty string.
 
-    def test_empty_template_with_scaling_pipeline(self):
+    The template was refactored to start blank — the AI writes sections
+    incrementally via update_strategy_section tool calls.
+    """
+
+    def test_returns_empty_string(self):
         result = build_seeded_template(
             objective="Scale outbound", challenge_type="scaling_pipeline"
         )
-        assert "## Pipeline Velocity Analysis" in result
-        assert "Pipeline Velocity Formula" in result
+        assert result == ""
 
-    def test_empty_template_without_challenge_type(self):
+    def test_returns_empty_without_challenge_type(self):
         result = build_seeded_template(objective="Grow revenue")
-        assert "Pipeline Velocity Analysis" not in result
-        # Standard sections should still be present
-        assert "## Executive Summary" in result
-        assert "## 90-Day Action Plan" in result
+        assert result == ""
 
-    def test_enrichment_template_with_new_market_entry_saas(self):
+    def test_returns_empty_with_enrichment_data(self):
         enrichment = {
             "company": {
                 "name": "TestCo",
@@ -162,55 +162,16 @@ class TestBuildSeededTemplateWithChallengeType:
             enrichment_data=enrichment,
             challenge_type="new_market_entry",
         )
-        assert "## ICP Matrix & Channel Prioritization" in result
-        assert "ARR Targets" in result
-        assert "TestCo" in result
+        assert result == ""
 
-    def test_enrichment_template_with_reengaging(self):
-        enrichment = {
-            "company": {
-                "name": "BigCorp",
-                "industry": "financial_services",
-            },
-        }
+    def test_accepts_all_params_without_error(self):
+        """Signature preserved for backward compat even though output is empty."""
         result = build_seeded_template(
-            objective="Revive cold leads",
-            enrichment_data=enrichment,
-            challenge_type="reengaging_cold_leads",
+            objective="Test",
+            enrichment_data={"company": {"name": "X"}},
+            challenge_type="launching_new_product",
         )
-        assert "## Re-engagement Strategy" in result
-        assert "Re-engagement Sequences" in result
-
-    def test_enrichment_template_no_challenge(self):
-        enrichment = {
-            "company": {
-                "name": "NoCo",
-                "industry": "technology",
-            },
-        }
-        result = build_seeded_template(
-            objective="Test", enrichment_data=enrichment
-        )
-        # No adaptive section without challenge_type
-        assert "Pipeline Velocity" not in result
-        assert "Launch Playbook" not in result
-
-    def test_standard_sections_always_present(self):
-        result = build_seeded_template(
-            objective="Test", challenge_type="launching_new_product"
-        )
-        assert "## Executive Summary" in result
-        assert "## Value Proposition & Messaging" in result
-        assert "## Competitive Positioning" in result
-        assert "## Channel Strategy" in result
-        assert "## Messaging Framework" in result
-        assert "## Metrics & KPIs" in result
-        assert "## 90-Day Action Plan" in result
-        # Plus the adaptive section
-        assert "## Launch Playbook" in result
-        # ICP and Buyer Personas are no longer document sections (BL-240)
-        assert "## Ideal Customer Profile (ICP)" not in result
-        assert "## Buyer Personas" not in result
+        assert result == ""
 
 
 # ---------------------------------------------------------------------------
@@ -516,8 +477,8 @@ class TestStrategyPhasePrompt:
     def test_proactive_behavior(self):
         prompt = PHASE_INSTRUCTIONS["strategy"]
         assert "web_search" in prompt
-        assert "get_strategy_document" in prompt
-        assert "Strategic Brief" in prompt
+        assert "update_strategy_section" in prompt
+        assert "STRATEGIC BRIEF" in prompt
 
     def test_convergence_tracking_instructions(self):
         prompt = PHASE_INSTRUCTIONS["strategy"]
@@ -529,17 +490,17 @@ class TestStrategyPhasePrompt:
         assert "check_readiness" in prompt
         assert "READINESS DETECTION" in prompt
 
-    def test_challenge_type_format_selection(self):
+    def test_sequential_flow_instructions(self):
+        """Verify sequential flow steps are present in the prompt."""
         prompt = PHASE_INSTRUCTIONS["strategy"]
-        assert "challenge type" in prompt.lower()
-        assert "New market entry" in prompt
-        assert "Scaling pipeline" in prompt
-        assert "Re-engaging cold leads" in prompt
-        assert "Launching new product" in prompt
+        assert "SEQUENTIAL FLOW" in prompt
+        assert "STEP 1" in prompt
+        assert "STEP 2" in prompt
+        assert "STEP 3" in prompt
 
-    def test_first_message_instructions(self):
+    def test_opening_step_instructions(self):
+        """Verify the opening step and section-by-section writing instructions."""
         prompt = PHASE_INSTRUCTIONS["strategy"]
-        assert "FIRST MESSAGE BEHAVIOR" in prompt
-        assert "What We're Working With" in prompt
-        assert "Strategic Bets" in prompt
-        assert "Open Questions" in prompt
+        assert "OPENING" in prompt
+        assert "Executive Summary" in prompt
+        assert "90-Day Action Plan" in prompt

@@ -13,6 +13,7 @@ import json
 import uuid
 
 import pytest
+from tests.conftest import auth_header
 
 from api.models import StrategyDocument, StrategyVersion
 from api.services.strategy_tools import (
@@ -67,11 +68,6 @@ Phase 2: Expand to email.
 Phase 3: Evaluate and iterate.
 """
 
-
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": "Bearer {}".format(token)}
 
 
 @pytest.fixture
@@ -583,7 +579,6 @@ class TestUndoEndpoint:
     ):
         """POST /api/playbook/undo reverts the last AI edit."""
         with app.app_context():
-            original_content = strategy_doc.content
             update_strategy_section(
                 {"section": "Executive Summary", "content": "AI wrote this."},
                 tool_ctx,
@@ -597,11 +592,12 @@ class TestUndoEndpoint:
         assert data["success"] is True
         assert data["restored_version"] == 1
 
-        with app.app_context():
-            doc = StrategyDocument.query.filter_by(
-                tenant_id=str(seed_tenant.id)
-            ).first()
-            assert doc.content == original_content
+        # Verify via GET /api/playbook that original content is restored
+        resp2 = client.get("/api/playbook", headers=headers)
+        assert resp2.status_code == 200
+        content = resp2.get_json()["content"]
+        assert "This is the executive summary" in content
+        assert "AI wrote this" not in content
 
     def test_undo_with_no_edits_returns_404(
         self, client, seed_tenant, seed_super_admin, strategy_doc

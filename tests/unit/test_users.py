@@ -1,5 +1,4 @@
 """Unit tests for user management API."""
-import pytest
 from tests.conftest import auth_header
 
 
@@ -34,15 +33,15 @@ class TestCreateUser:
         data = resp.get_json()
         assert data["email"] == "new@test.com"
 
-    def test_create_user_short_password(self, client, seed_super_admin):
+    def test_create_user_without_password(self, client, seed_super_admin):
+        """IAM-only: creating a user without password should succeed."""
         headers = auth_header(client)
         resp = client.post("/api/users", headers=headers, json={
-            "email": "short@test.com",
-            "password": "short",
-            "display_name": "Short Pass",
+            "email": "nopass@test.com",
+            "display_name": "No Pass User",
         })
-        assert resp.status_code == 400
-        assert "8 characters" in resp.get_json()["error"]
+        assert resp.status_code == 201
+        assert resp.get_json()["email"] == "nopass@test.com"
 
     def test_create_duplicate_email(self, client, seed_super_admin):
         headers = auth_header(client)
@@ -81,21 +80,15 @@ class TestDeleteUser:
 
 
 class TestChangePassword:
-    def test_admin_can_reset_password(self, client, seed_super_admin, seed_user_with_role):
+    def test_password_reset_endpoint_removed(self, client, seed_super_admin, seed_user_with_role):
+        """IAM-only: password reset endpoint no longer exists."""
         headers = auth_header(client)
         resp = client.put(
             f"/api/users/{seed_user_with_role.id}/password",
             headers=headers,
             json={"new_password": "newpass12345"},
         )
-        assert resp.status_code == 200
-
-        # Verify new password works
-        login_resp = client.post("/api/auth/login", json={
-            "email": "user@test.com",
-            "password": "newpass12345",
-        })
-        assert login_resp.status_code == 200
+        assert resp.status_code in (404, 405)
 
 
 class TestRemoveUserRole:
