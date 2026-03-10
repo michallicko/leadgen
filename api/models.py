@@ -13,11 +13,13 @@ class User(db.Model):
         server_default=db.text("uuid_generate_v4()"),
     )
     email = db.Column(db.Text, unique=True, nullable=False)
-    password_hash = db.Column(db.Text, nullable=False)
+    password_hash = db.Column(db.Text, nullable=True)
     display_name = db.Column(db.Text, nullable=False)
     is_super_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     owner_id = db.Column(UUID(as_uuid=False), nullable=True)
+    iam_user_id = db.Column(db.Text, unique=True, nullable=True, index=True)
+    auth_provider = db.Column(db.Text, default="local")
     last_login_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
@@ -41,6 +43,8 @@ class User(db.Model):
             if self.last_login_at
             else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "iam_user_id": self.iam_user_id,
+            "auth_provider": self.auth_provider or "local",
         }
         if include_roles:
             d["roles"] = {r.tenant.slug: r.role for r in self.roles if r.tenant}
