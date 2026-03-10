@@ -1,6 +1,8 @@
+import logging
 from datetime import datetime, timezone
 
-from flask import Blueprint, g, jsonify, request
+import requests
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..auth import (
     create_access_token,
@@ -10,12 +12,23 @@ from ..auth import (
     verify_password,
 )
 from ..models import User, db
+from ..services.iam_sync import find_or_create_local_user, sync_iam_roles
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
+    """
+    Login endpoint — proxies to IAM, falls back to local auth during migration.
+
+    Flow:
+    1. Try IAM proxy login (POST to IAM /api/auth/login)
+    2. On success: find/create local user, sync roles, return IAM tokens
+    3. On IAM failure: fall back to local email/password auth
+    """
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body required"}), 400
@@ -26,6 +39,60 @@ def login():
     if not email or not password:
         return jsonify({"error": "Email and password required"}), 400
 
+    # Try IAM proxy login first
+    iam_base = current_app.config.get("IAM_BASE_URL")
+    if iam_base:
+        try:
+            iam_resp = requests.post(
+                f"{iam_base}/api/auth/login",
+                json={"email": email, "password": password, "app": "leadgen"},
+                timeout=10,
+            )
+            if iam_resp.status_code == 200:
+                iam_data = iam_resp.json()
+                iam_user = iam_data.get("user", {})
+                iam_permissions = iam_user.get("permissions", [])
+
+                # Find or create local user
+                local_user = find_or_create_local_user(
+                    {
+                        "id": iam_user.get("id"),
+                        "email": iam_user.get("email", email),
+                        "name": iam_user.get("name", ""),
+                    }
+                )
+
+                # Sync roles from IAM permissions
+                sync_iam_roles(local_user, iam_permissions)
+
+                # Update last login
+                local_user.last_login_at = datetime.now(timezone.utc)
+                db.session.commit()
+
+                # Pass through IAM tokens
+                return jsonify(
+                    {
+                        "access_token": iam_data.get("access_token"),
+                        "refresh_token": iam_data.get("refresh_token"),
+                        "user": local_user.to_dict(include_roles=True),
+                    }
+                )
+
+            # IAM returned an error — check if it's a credentials error
+            if iam_resp.status_code == 401:
+                # Try local fallback (user might not be in IAM yet)
+                logger.debug("IAM login returned 401 for %s, trying local auth", email)
+            else:
+                logger.warning(
+                    "IAM login returned %s for %s",
+                    iam_resp.status_code,
+                    email,
+                )
+        except requests.RequestException as e:
+            # IAM is unreachable — fall back to local auth
+            logger.warning("IAM unreachable during login for %s: %s", email, e)
+
+    # Fallback: local email/password auth (migration period)
     user = User.query.filter_by(email=email).first()
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "Invalid email or password"}), 401
@@ -47,12 +114,38 @@ def login():
 
 @auth_bp.route("/refresh", methods=["POST"])
 def refresh():
+    """
+    Refresh token endpoint — proxies to IAM if token looks like IAM token,
+    falls back to local refresh for legacy tokens.
+    """
     data = request.get_json(silent=True)
     if not data or not data.get("refresh_token"):
         return jsonify({"error": "refresh_token required"}), 400
 
+    refresh_token = data["refresh_token"]
+
+    # Try IAM refresh first
+    iam_base = current_app.config.get("IAM_BASE_URL")
+    if iam_base:
+        try:
+            iam_resp = requests.post(
+                f"{iam_base}/api/auth/refresh",
+                json={"refresh_token": refresh_token},
+                timeout=10,
+            )
+            if iam_resp.status_code == 200:
+                iam_data = iam_resp.json()
+                return jsonify(
+                    {
+                        "access_token": iam_data.get("access_token"),
+                    }
+                )
+        except requests.RequestException as e:
+            logger.warning("IAM unreachable during refresh: %s", e)
+
+    # Fallback: local HS256 refresh (migration period)
     try:
-        payload = decode_token(data["refresh_token"])
+        payload = decode_token(refresh_token)
     except Exception:
         return jsonify({"error": "Invalid or expired refresh token"}), 401
 
@@ -68,6 +161,29 @@ def refresh():
             "access_token": create_access_token(user),
         }
     )
+
+
+@auth_bp.route("/logout", methods=["POST"])
+def logout():
+    """
+    Logout endpoint — revokes refresh token at IAM (fire and forget).
+    """
+    data = request.get_json(silent=True)
+    refresh_token = data.get("refresh_token") if data else None
+
+    # Try to revoke at IAM
+    iam_base = current_app.config.get("IAM_BASE_URL")
+    if iam_base and refresh_token:
+        try:
+            requests.post(
+                f"{iam_base}/api/auth/revoke",
+                json={"refresh_token": refresh_token},
+                timeout=5,
+            )
+        except requests.RequestException:
+            pass  # Best effort — IAM may be unreachable
+
+    return jsonify({"status": "ok"})
 
 
 @auth_bp.route("/me")
