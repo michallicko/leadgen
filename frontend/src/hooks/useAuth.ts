@@ -92,8 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // No valid tokens
+    // No valid tokens — attempt silent SSO check before showing login
     clearTokens()
+    if (!sessionStorage.getItem('sso_checked')) {
+      sessionStorage.setItem('sso_checked', '1')
+      const callbackUrl = window.location.origin + '/api/auth/iam/callback'
+      window.location.href = 'https://iam.visionvolve.com/token?redirect=' + encodeURIComponent(callbackUrl)
+      return // Don't update state — page is navigating away
+    }
     setState({ user: null, isAuthenticated: false, isLoading: false, role: 'viewer' })
   }, [])
 
@@ -152,6 +158,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }).catch(() => {}) // fire and forget
     }
     clearTokens()
+    // Clear SSO check flag so next login attempt will try silent SSO again
+    sessionStorage.removeItem('sso_checked')
     setState({ user: null, isAuthenticated: false, isLoading: false, role: 'viewer' })
     window.location.href = '/'
   }, [])

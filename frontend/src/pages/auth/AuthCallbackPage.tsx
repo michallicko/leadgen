@@ -51,6 +51,9 @@ export function AuthCallbackPage() {
       // Clear the hash from the URL (security: remove tokens from browser history)
       window.history.replaceState(null, '', '/auth/callback')
 
+      // Clear SSO check flag on successful authentication
+      sessionStorage.removeItem('sso_checked')
+
       // Redirect to the app
       const ns = user ? getDefaultNamespace(user) : null
       if (ns) {
