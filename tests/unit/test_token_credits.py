@@ -362,12 +362,8 @@ class TestNamespaceTokenBudget:
 
 class TestTokenRoutes:
     def _auth_header(self, client, email="admin@test.com"):
-        resp = client.post(
-            "/api/auth/login",
-            json={"email": email, "password": "testpass123"},
-        )
-        token = resp.get_json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
+        from tests.conftest import auth_header
+        return auth_header(client, email=email)
 
     def test_get_tokens_no_budget(self, client, seed_tenant, seed_super_admin):
         """Should return null budget when none configured."""

@@ -1,59 +1,90 @@
-"""Unit tests for authentication module."""
-import pytest
-from api.auth import hash_password, verify_password
+"""Unit tests for IAM-only authentication module."""
+import uuid
+from unittest.mock import MagicMock, patch
 
-
-class TestPasswordHashing:
-    def test_hash_returns_bcrypt_string(self):
-        h = hash_password("mypassword")
-        assert h.startswith("$2b$")
-
-    def test_verify_correct_password(self):
-        h = hash_password("mypassword")
-        assert verify_password("mypassword", h) is True
-
-    def test_verify_wrong_password(self):
-        h = hash_password("mypassword")
-        assert verify_password("wrongpassword", h) is False
-
-    def test_different_passwords_different_hashes(self):
-        h1 = hash_password("password1")
-        h2 = hash_password("password2")
-        assert h1 != h2
-
-    def test_same_password_different_salts(self):
-        h1 = hash_password("same")
-        h2 = hash_password("same")
-        assert h1 != h2  # bcrypt uses random salt
+from tests.conftest import auth_header
 
 
 class TestAuthLogin:
-    def test_login_success(self, client, seed_super_admin):
-        resp = client.post("/api/auth/login", json={
-            "email": "admin@test.com",
-            "password": "testpass123",
-        })
+    """Test /api/auth/login — IAM proxy only, no local fallback."""
+
+    def test_login_success_via_iam(self, client, app, seed_super_admin):
+        """IAM returns 200 — user is synced and IAM tokens are returned."""
+        iam_user_id = str(uuid.uuid4())
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "access_token": "iam-access-token",
+            "refresh_token": "iam-refresh-token",
+            "user": {
+                "id": iam_user_id,
+                "email": "admin@test.com",
+                "name": "Admin User",
+                "permissions": [],
+            },
+        }
+
+        with app.app_context():
+            app.config["IAM_BASE_URL"] = "https://iam.test.local"
+
+        with patch("api.routes.auth_routes.requests.post", return_value=mock_resp):
+            resp = client.post("/api/auth/login", json={
+                "email": "admin@test.com",
+                "password": "somepassword",
+            })
+
         assert resp.status_code == 200
         data = resp.get_json()
-        assert "access_token" in data
-        assert "refresh_token" in data
+        assert data["access_token"] == "iam-access-token"
+        assert data["refresh_token"] == "iam-refresh-token"
         assert data["user"]["email"] == "admin@test.com"
-        assert data["user"]["is_super_admin"] is True
 
-    def test_login_wrong_password(self, client, seed_super_admin):
-        resp = client.post("/api/auth/login", json={
-            "email": "admin@test.com",
-            "password": "wrongpassword",
-        })
+    def test_login_iam_returns_401(self, client, app, seed_super_admin):
+        """IAM returns 401 — no local fallback, return 401."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+
+        with app.app_context():
+            app.config["IAM_BASE_URL"] = "https://iam.test.local"
+
+        with patch("api.routes.auth_routes.requests.post", return_value=mock_resp):
+            resp = client.post("/api/auth/login", json={
+                "email": "admin@test.com",
+                "password": "wrongpassword",
+            })
+
         assert resp.status_code == 401
         assert "Invalid" in resp.get_json()["error"]
 
-    def test_login_nonexistent_user(self, client, db):
+    def test_login_iam_unreachable(self, client, app, seed_super_admin):
+        """IAM is unreachable — return 503, no local fallback."""
+        import requests as req_lib
+
+        with app.app_context():
+            app.config["IAM_BASE_URL"] = "https://iam.test.local"
+
+        with patch(
+            "api.routes.auth_routes.requests.post",
+            side_effect=req_lib.ConnectionError("refused"),
+        ):
+            resp = client.post("/api/auth/login", json={
+                "email": "admin@test.com",
+                "password": "testpass123",
+            })
+
+        assert resp.status_code == 503
+        assert "unavailable" in resp.get_json()["error"].lower()
+
+    def test_login_no_iam_configured(self, client, app, db):
+        """IAM_BASE_URL not set — return 503."""
+        with app.app_context():
+            app.config.pop("IAM_BASE_URL", None)
+
         resp = client.post("/api/auth/login", json={
             "email": "nobody@test.com",
             "password": "testpass123",
         })
-        assert resp.status_code == 401
+        assert resp.status_code == 503
 
     def test_login_missing_fields(self, client, db):
         resp = client.post("/api/auth/login", json={"email": "a@b.com"})
@@ -63,61 +94,56 @@ class TestAuthLogin:
         resp = client.post("/api/auth/login")
         assert resp.status_code == 400
 
-    def test_login_inactive_user(self, client, db):
-        from api.models import User
-        user = User(
-            email="inactive@test.com",
-            password_hash=hash_password("testpass123"),
-            display_name="Inactive",
-            is_active=False,
-        )
-        db.session.add(user)
-        db.session.commit()
-
-        resp = client.post("/api/auth/login", json={
-            "email": "inactive@test.com",
-            "password": "testpass123",
-        })
-        assert resp.status_code == 401
-        assert "disabled" in resp.get_json()["error"]
-
 
 class TestAuthRefresh:
-    def test_refresh_success(self, client, seed_super_admin):
-        # Login first
-        login_resp = client.post("/api/auth/login", json={
-            "email": "admin@test.com",
-            "password": "testpass123",
-        })
-        refresh_token = login_resp.get_json()["refresh_token"]
+    """Test /api/auth/refresh — IAM proxy only."""
 
-        # Refresh
-        resp = client.post("/api/auth/refresh", json={
-            "refresh_token": refresh_token,
-        })
+    def test_refresh_success(self, client, app, db):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"access_token": "new-iam-access-token"}
+
+        with app.app_context():
+            app.config["IAM_BASE_URL"] = "https://iam.test.local"
+
+        with patch("api.routes.auth_routes.requests.post", return_value=mock_resp):
+            resp = client.post("/api/auth/refresh", json={
+                "refresh_token": "some-iam-refresh-token",
+            })
+
         assert resp.status_code == 200
-        assert "access_token" in resp.get_json()
+        assert resp.get_json()["access_token"] == "new-iam-access-token"
 
-    def test_refresh_with_access_token_fails(self, client, seed_super_admin):
-        login_resp = client.post("/api/auth/login", json={
-            "email": "admin@test.com",
-            "password": "testpass123",
-        })
-        access_token = login_resp.get_json()["access_token"]
+    def test_refresh_iam_failure(self, client, app, db):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
 
-        resp = client.post("/api/auth/refresh", json={
-            "refresh_token": access_token,
-        })
+        with app.app_context():
+            app.config["IAM_BASE_URL"] = "https://iam.test.local"
+
+        with patch("api.routes.auth_routes.requests.post", return_value=mock_resp):
+            resp = client.post("/api/auth/refresh", json={
+                "refresh_token": "expired-token",
+            })
+
         assert resp.status_code == 401
 
     def test_refresh_missing_token(self, client, db):
         resp = client.post("/api/auth/refresh", json={})
         assert resp.status_code == 400
 
+    def test_refresh_no_iam_configured(self, client, app, db):
+        with app.app_context():
+            app.config.pop("IAM_BASE_URL", None)
+
+        resp = client.post("/api/auth/refresh", json={
+            "refresh_token": "some-token",
+        })
+        assert resp.status_code == 503
+
 
 class TestAuthMe:
     def test_me_returns_user(self, client, seed_super_admin):
-        from tests.conftest import auth_header
         headers = auth_header(client)
         resp = client.get("/api/auth/me", headers=headers)
         assert resp.status_code == 200

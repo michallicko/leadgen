@@ -1,11 +1,10 @@
 import json
 import logging
 import re
-import secrets
 
 from flask import Blueprint, g, jsonify, request
 
-from ..auth import hash_password, require_auth, require_role, resolve_tenant
+from ..auth import require_auth, require_role, resolve_tenant
 from ..models import (
     Campaign,
     Company,
@@ -103,7 +102,6 @@ def create_tenant():
     db.session.flush()
 
     result = tenant.to_dict()
-    temp_password = None
 
     if admin_email:
         existing_user = User.query.filter_by(email=admin_email).first()
@@ -116,10 +114,9 @@ def create_tenant():
             )
             db.session.add(utr)
         else:
-            temp_password = secrets.token_urlsafe(12)
             new_user = User(
                 email=admin_email,
-                password_hash=hash_password(temp_password),
+                password_hash=None,
                 display_name=admin_email.split("@")[0],
             )
             db.session.add(new_user)
@@ -147,9 +144,6 @@ def create_tenant():
                 tenant.id,
                 exc_info=True,
             )
-
-    if temp_password:
-        result["temp_password"] = temp_password
 
     return jsonify(result), 201
 

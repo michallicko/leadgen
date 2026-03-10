@@ -1,6 +1,5 @@
 """Unit tests for IAM sync service."""
 import pytest
-from api.auth import hash_password
 from api.models import Tenant, User, UserTenantRole, db as _db
 from api.services.iam_sync import find_or_create_local_user, sync_iam_roles
 
@@ -39,7 +38,7 @@ class TestFindOrCreateLocalUser:
         """If user exists by email but not linked to IAM, link them."""
         existing = User(
             email="legacy@test.com",
-            password_hash=hash_password("oldpass"),
+            password_hash=None,
             display_name="Legacy",
         )
         db.session.add(existing)
@@ -52,8 +51,6 @@ class TestFindOrCreateLocalUser:
         assert user.iam_user_id == "iam-uuid-003"
         assert user.auth_provider == "iam"
         assert user.display_name == "Legacy Updated"
-        # Password hash should be preserved
-        assert user.password_hash is not None
 
     def test_update_display_name_on_existing_iam_user(self, client, db):
         """When an IAM-linked user logs in with a changed name, update it."""

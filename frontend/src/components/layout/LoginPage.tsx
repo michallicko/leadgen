@@ -1,23 +1,19 @@
 /**
  * Login page — full-screen overlay with brand card.
- * Ported from auth.js createLoginOverlay().
+ * IAM-only authentication via SSO (Google, GitHub).
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../../hooks/useAuth'
 import { getDefaultNamespace } from '../../lib/auth'
 
 export function LoginPage() {
-  const { isAuthenticated, user, login } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [entered, setEntered] = useState(false)
-  const emailRef = useRef<HTMLInputElement>(null)
 
   // Handle IAM redirect error params (?error=..., ?login_required=true)
   useEffect(() => {
@@ -46,11 +42,6 @@ export function LoginPage() {
     return () => cancelAnimationFrame(timer)
   }, [])
 
-  // Auto-focus email
-  useEffect(() => {
-    emailRef.current?.focus()
-  }, [])
-
   // Redirect if already authenticated
   useEffect(() => {
     if (!isAuthenticated || !user) return
@@ -66,25 +57,6 @@ export function LoginPage() {
       navigate(user.is_super_admin ? `/${ns}/admin` : `/${ns}/contacts`, { replace: true })
     }
   }, [isAuthenticated, user, navigate, searchParams])
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-
-    if (!email.trim() || !password) {
-      setError('Email and password required.')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await login(email.trim(), password)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Don't render login form if already authenticated (will redirect via useEffect)
   if (isAuthenticated) return null
@@ -134,81 +106,28 @@ export function LoginPage() {
           style={{ background: 'linear-gradient(90deg, transparent, rgba(110,44,139,.3) 30%, rgba(0,184,207,.2) 70%, transparent)' }}
         />
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="font-body">
-          <div className="mb-5">
-            <label htmlFor="auth_email" className="block text-[0.75rem] font-medium tracking-[0.06em] uppercase text-text-muted/80 mb-2">
-              Email address
-            </label>
-            <input
-              ref={emailRef}
-              id="auth_email"
-              type="email"
-              autoComplete="email"
-              required
-              placeholder="you@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-3 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.9rem] font-body outline-none placeholder:text-text-muted/35 focus:border-accent/50 focus:shadow-[0_0_0_3px_rgba(110,44,139,.08),0_0_20px_-4px_rgba(110,44,139,.15)] transition-all"
-            />
+        {/* Error */}
+        {error && (
+          <div className="text-error text-[0.82rem] text-center mb-5 px-3.5 py-2.5 bg-error/6 border border-error/15 rounded-lg animate-[authShake_0.4s_ease]">
+            {error}
           </div>
-
-          <div className="mb-5">
-            <label htmlFor="auth_password" className="block text-[0.75rem] font-medium tracking-[0.06em] uppercase text-text-muted/80 mb-2">
-              Password
-            </label>
-            <input
-              id="auth_password"
-              type="password"
-              autoComplete="current-password"
-              required
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-3 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.9rem] font-body outline-none placeholder:text-text-muted/35 focus:border-accent/50 focus:shadow-[0_0_0_3px_rgba(110,44,139,.08),0_0_20px_-4px_rgba(110,44,139,.15)] transition-all"
-            />
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="text-error text-[0.82rem] text-center mb-3.5 px-3.5 py-2.5 bg-error/6 border border-error/15 rounded-lg animate-[authShake_0.4s_ease]">
-              {error}
-            </div>
-          )}
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="relative w-full py-3.5 border-none rounded-[10px] cursor-pointer overflow-hidden font-body text-[0.9rem] font-semibold text-white tracking-[0.02em] disabled:opacity-60 disabled:cursor-not-allowed hover:translate-y-[-1px] hover:shadow-[0_4px_20px_-2px_rgba(110,44,139,.5)] active:translate-y-0 transition-all"
-            style={{ background: 'linear-gradient(135deg, #6E2C8B, #4A1D5E)', boxShadow: '0 2px 12px -2px rgba(110,44,139,.4), inset 0 1px 0 rgba(255,255,255,.08)' }}
-          >
-            {loading ? 'Authenticating...' : 'Sign In'}
-          </button>
-        </form>
-
-        {/* Divider between form and SSO */}
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(110,44,139,.2))' }} />
-          <span className="text-[0.72rem] tracking-[0.08em] uppercase text-text-muted/50 font-body">or</span>
-          <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(110,44,139,.2), transparent)' }} />
-        </div>
+        )}
 
         {/* SSO buttons */}
         <div className="flex flex-col gap-3 font-body">
           <a
             href={`https://iam.visionvolve.com/oauth/google?redirect=${encodeURIComponent(window.location.origin + '/api/auth/iam/callback')}`}
-            className="flex items-center justify-center gap-2.5 w-full py-3 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.85rem] no-underline hover:border-accent/40 hover:bg-bg/80 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.9rem] font-semibold no-underline hover:border-accent/40 hover:bg-bg/80 hover:translate-y-[-1px] hover:shadow-[0_4px_20px_-2px_rgba(110,44,139,.3)] active:translate-y-0 transition-all cursor-pointer"
           >
             <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            Continue with Google
+            Sign in with Google
           </a>
           <a
             href={`https://iam.visionvolve.com/oauth/github?redirect=${encodeURIComponent(window.location.origin + '/api/auth/iam/callback')}`}
-            className="flex items-center justify-center gap-2.5 w-full py-3 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.85rem] no-underline hover:border-accent/40 hover:bg-bg/80 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-bg/60 border border-accent/20 rounded-[10px] text-text text-[0.9rem] font-semibold no-underline hover:border-accent/40 hover:bg-bg/80 hover:translate-y-[-1px] hover:shadow-[0_4px_20px_-2px_rgba(110,44,139,.3)] active:translate-y-0 transition-all cursor-pointer"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-            Continue with GitHub
+            Sign in with GitHub
           </a>
         </div>
 

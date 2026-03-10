@@ -1,8 +1,10 @@
 """Shared test fixtures for the leadgen pipeline test suite."""
 import json
 import os
+import time
 import uuid
 
+import jwt as pyjwt
 import pytest
 from sqlalchemy import String, Text, event
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -15,8 +17,10 @@ os.environ.setdefault("CORS_ORIGINS", "*")
 
 from api import create_app
 from api.models import db as _db
-from api.auth import hash_password
 from api.services.tool_registry import clear_registry
+
+# Test-only HS256 secret for generating test tokens (not used in production)
+_TEST_JWT_SECRET = "test-secret-key-do-not-use-in-prod"
 
 
 def _uuid_default():
@@ -91,6 +95,19 @@ def clean_tool_registry():
     clear_registry()
 
 
+@pytest.fixture(autouse=True)
+def _patch_decode_token_for_tests(app, monkeypatch):
+    """Patch decode_token to accept HS256 test tokens (no JWKS needed)."""
+    def _test_decode_token(token):
+        return pyjwt.decode(
+            token,
+            _TEST_JWT_SECRET,
+            algorithms=["HS256"],
+            audience=app.config.get("IAM_AUDIENCE", "leadgen"),
+        )
+    monkeypatch.setattr("api.auth.decode_token", _test_decode_token)
+
+
 @pytest.fixture
 def seed_tenant(db):
     """Create a test tenant."""
@@ -103,14 +120,16 @@ def seed_tenant(db):
 
 @pytest.fixture
 def seed_super_admin(db):
-    """Create a super admin user."""
+    """Create a super admin user (IAM-only, no password)."""
     from api.models import User
+    iam_id = str(uuid.uuid4())
     user = User(
         email="admin@test.com",
-        password_hash=hash_password("testpass123"),
+        password_hash=None,
         display_name="Admin User",
         is_super_admin=True,
         is_active=True,
+        iam_user_id=iam_id,
     )
     db.session.add(user)
     db.session.commit()
@@ -119,14 +138,16 @@ def seed_super_admin(db):
 
 @pytest.fixture
 def seed_user_with_role(db, seed_tenant, seed_super_admin):
-    """Create a regular user with a tenant role."""
+    """Create a regular user with a tenant role (IAM-only, no password)."""
     from api.models import User, UserTenantRole
+    iam_id = str(uuid.uuid4())
     user = User(
         email="user@test.com",
-        password_hash=hash_password("testpass123"),
+        password_hash=None,
         display_name="Regular User",
         is_super_admin=False,
         is_active=True,
+        iam_user_id=iam_id,
     )
     db.session.add(user)
     db.session.flush()
@@ -142,10 +163,33 @@ def seed_user_with_role(db, seed_tenant, seed_super_admin):
     return user
 
 
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    """Helper: login and return Authorization header dict."""
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
+def _make_test_token(user):
+    """Generate an HS256 test token for the given user.
+
+    Tests monkeypatch decode_token to accept HS256, so this works
+    without a real JWKS endpoint.
+    """
+    payload = {
+        "sub": user.iam_user_id,
+        "email": user.email,
+        "name": user.display_name,
+        "aud": "leadgen",
+        "exp": int(time.time()) + 3600,
+    }
+    return pyjwt.encode(payload, _TEST_JWT_SECRET, algorithm="HS256")
+
+
+def auth_header(client, email="admin@test.com", password=None):
+    """Helper: generate a test token and return Authorization header dict.
+
+    The password parameter is accepted but ignored (kept for backwards
+    compatibility with existing test call sites).
+    """
+    from api.models import User
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        raise ValueError(f"No user with email {email} found — seed a user first")
+    token = _make_test_token(user)
     return {"Authorization": f"Bearer {token}"}
 
 

@@ -10,7 +10,6 @@ import {
   getRefreshToken,
   isTokenExpired,
   storeTokens,
-  storeUser,
   clearTokens,
   getStoredUser,
   getUserRole,
@@ -18,7 +17,6 @@ import {
   type StoredUser,
   type Role,
 } from '../lib/auth'
-import { login as apiLogin } from '../api/client'
 
 interface AuthState {
   user: StoredUser | null
@@ -28,7 +26,6 @@ interface AuthState {
 }
 
 interface AuthActions {
-  login: (email: string, password: string) => Promise<void>
   logout: () => void
   hasRole: (minRole: Role) => boolean
 }
@@ -44,8 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
     role: 'viewer',
   })
-  const [loginError, setLoginError] = useState<string | null>(null)
-
   // Check existing tokens on mount
   useEffect(() => {
     const token = getAccessToken()
@@ -134,19 +129,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [state.isAuthenticated])
 
-  const login = useCallback(async (email: string, password: string) => {
-    setLoginError(null)
-    const data = await apiLogin(email, password)
-    storeTokens(data.access_token, data.refresh_token)
-    storeUser(data.user)
-    setState({
-      user: data.user,
-      isAuthenticated: true,
-      isLoading: false,
-      role: getUserRole(data.user),
-    })
-  }, [])
-
   const logout = useCallback(() => {
     // Notify IAM to revoke the refresh token (fire and forget)
     const refreshToken = getRefreshToken()
@@ -171,13 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     ...state,
-    login,
     logout,
     hasRole: hasRoleFn,
   }
-
-  // Expose loginError for the login page if needed
-  void loginError
 
   return createElement(AuthContext.Provider, { value }, children)
 }
