@@ -2,11 +2,7 @@
 
 import json
 
-
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+from tests.conftest import auth_header
 
 
 # ---------------------------------------------------------------------------

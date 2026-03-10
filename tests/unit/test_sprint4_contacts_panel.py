@@ -5,11 +5,7 @@ endpoints, plus the playbook_selections persistence via PUT /api/playbook.
 """
 import json
 
-
-def auth_header(client, email="admin@test.com", password="testpass123"):
-    resp = client.post("/api/auth/login", json={"email": email, "password": password})
-    token = resp.get_json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+from tests.conftest import auth_header
 
 
 def _create_doc_with_icp(db, tenant_id, icp_data=None):
