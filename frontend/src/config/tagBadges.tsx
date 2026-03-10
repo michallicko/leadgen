@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
-
 /**
  * Compact tag badge renderer shared by company and contact column configs.
  * Shows at most 2 tags inline as pill badges, with a +N overflow indicator.

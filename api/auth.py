@@ -81,9 +81,7 @@ def decode_token(token):
             pass
 
     # Fallback: local HS256 (migration period only -- remove after full cutover)
-    return jwt.decode(
-        token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
-    )
+    return jwt.decode(token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
 
 
 def require_auth(f):

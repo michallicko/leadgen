@@ -314,7 +314,7 @@ function FormattedValue({ value, depth = 0 }: { value: unknown; depth?: number }
   // String — render as markdown if it contains formatting markers, otherwise plain text
   if (typeof value === 'string') {
     // Detect markdown: headers, bold/italic markers, links, lists, code blocks, tables
-    const hasMarkdown = /[*_#\[\]`|>-]/.test(value) && value.length > 50
+    const hasMarkdown = /[*_#[\]`|>-]/.test(value) && value.length > 50
     if (hasMarkdown) {
       return (
         <div className="tool-card-markdown text-xs text-text-muted leading-relaxed">

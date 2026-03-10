@@ -411,7 +411,7 @@ test.describe('Group 2: Contact Person Enrichment (BL-184)', () => {
     const body = await page.textContent('body') ?? ''
 
     // Check for relationship strategy section
-    const hasRelStrategy =
+    const _hasRelStrategy =
       body.includes('Relationship Strategy') ||
       body.includes('Personalization Angle') ||
       body.includes('Connection Points') ||
@@ -751,7 +751,7 @@ test.describe('Group 5: Enrichment Pipeline Stages', () => {
     // If stage selection UI exists, at least some should be interactive
     if (stageCount > 0) {
       const firstInput = stageInputs.first()
-      const isDisabled = await firstInput.isDisabled().catch(() => false)
+      const _isDisabled = await firstInput.isDisabled().catch(() => false)
       // Stage inputs should not be permanently disabled
       // (they may be disabled during loading, but not permanently)
       await page.waitForTimeout(3000)

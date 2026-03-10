@@ -116,7 +116,7 @@ test.describe('Company Detail', () => {
 
   test('shows company links when available', async ({ page }) => {
     // Check for website/linkedin links if the company has them
-    const links = page.locator('a[target="_blank"]')
+    const _links = page.locator('a[target="_blank"]')
     // Some companies may not have links, so just check page loads
     const body = await page.textContent('body')
     expect(body).toBeTruthy()
