@@ -15,9 +15,7 @@ import { useChatContext, useHasUnread } from '../../providers/ChatProvider'
 import { useNudgeCount } from '../../hooks/useWorkflowSuggestions'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
-import { PhaseTransitionBanner } from './PhaseTransitionBanner'
 import { WelcomeBackBanner } from './WelcomeBackBanner'
-import { WorkflowProgressStrip } from './WorkflowProgressStrip'
 import { WorkflowSuggestionChips } from './WorkflowSuggestions'
 
 // ---------------------------------------------------------------------------
@@ -196,12 +194,6 @@ export function ChatSidebar() {
             isThinking={isThinking}
             thinkingStatus={thinkingStatus}
           />
-
-          {/* Workflow progress strip */}
-          <WorkflowProgressStrip />
-
-          {/* Phase transition banner */}
-          <PhaseTransitionBanner />
 
           {/* Suggestion chips */}
           <WorkflowSuggestionChips />

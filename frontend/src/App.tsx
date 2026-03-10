@@ -23,6 +23,7 @@ import { PlaybookDemo } from './pages/playbook/PlaybookDemo'
 import { LlmCostsPage } from './pages/llm-costs/LlmCostsPage'
 import { TokensPage } from './pages/tokens/TokensPage'
 import { TriageReviewPage } from './pages/companies/TriageReviewPage'
+import { AuthCallbackPage } from './pages/auth/AuthCallbackPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +44,9 @@ export default function App() {
           <Routes>
             {/* Login — root page */}
             <Route path="/" element={<LoginPage />} />
+
+            {/* IAM OAuth callback — receives tokens after code exchange */}
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
             {/* Namespaced routes */}
             <Route path="/:namespace" element={<AppShell />}>

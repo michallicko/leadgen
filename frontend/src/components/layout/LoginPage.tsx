@@ -19,6 +19,27 @@ export function LoginPage() {
   const [entered, setEntered] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
 
+  // Handle IAM redirect error params (?error=..., ?login_required=true)
+  useEffect(() => {
+    const iamError = searchParams.get('error')
+    const loginRequired = searchParams.get('login_required')
+
+    if (iamError) {
+      const errorMessages: Record<string, string> = {
+        token_exchange_failed: 'Sign-in failed. Please try again.',
+        iam_unreachable: 'Authentication service is temporarily unavailable.',
+        iam_not_configured: 'Single sign-on is not configured.',
+        missing_code: 'Invalid authentication response. Please try again.',
+        no_access_token: 'Sign-in failed. Please try again.',
+        invalid_token: 'Invalid authentication response. Please try again.',
+        user_sync_failed: 'Account setup failed. Please try again.',
+      }
+      setError(errorMessages[iamError] || `Sign-in error: ${iamError}`)
+    } else if (loginRequired === 'true') {
+      setError('Please sign in to continue.')
+    }
+  }, [searchParams])
+
   // Card entrance animation
   useEffect(() => {
     const timer = requestAnimationFrame(() => setEntered(true))

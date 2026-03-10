@@ -1,8 +1,10 @@
+import json
 import logging
 from datetime import datetime, timezone
+from urllib.parse import urlencode
 
 import requests
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, redirect, request
 
 from ..auth import (
     create_access_token,
@@ -110,6 +112,110 @@ def login():
             "user": user.to_dict(include_roles=True),
         }
     )
+
+
+@auth_bp.route("/iam/callback", methods=["GET"])
+def iam_callback():
+    """
+    IAM OAuth callback — exchanges auth code for tokens, syncs user, redirects to frontend.
+
+    IAM redirects here with ?code=AUTH_CODE after successful OAuth (Google/GitHub).
+    We exchange the code server-side, find/create the local user, sync roles,
+    and redirect to the frontend callback page with tokens in the URL hash.
+    """
+    code = request.args.get("code")
+    error = request.args.get("error")
+    login_required = request.args.get("login_required")
+
+    # Handle error from IAM
+    if error:
+        logger.warning("IAM OAuth callback received error: %s", error)
+        return redirect(f"/?error={error}")
+
+    # Handle login_required redirect (IAM session expired or not authenticated)
+    if login_required:
+        return redirect("/?login_required=true")
+
+    if not code:
+        return redirect("/?error=missing_code")
+
+    # Exchange auth code for tokens via IAM
+    iam_base = current_app.config.get("IAM_BASE_URL")
+    if not iam_base:
+        logger.error("IAM_BASE_URL not configured, cannot exchange OAuth code")
+        return redirect("/?error=iam_not_configured")
+
+    try:
+        exchange_resp = requests.post(
+            f"{iam_base}/token/exchange",
+            json={"code": code},
+            timeout=10,
+        )
+        if exchange_resp.status_code != 200:
+            logger.warning(
+                "IAM token exchange failed with status %s: %s",
+                exchange_resp.status_code,
+                exchange_resp.text[:200],
+            )
+            return redirect("/?error=token_exchange_failed")
+
+        token_data = exchange_resp.json()
+        access_token = token_data.get("accessToken")
+        refresh_token = token_data.get("refreshToken")
+
+        if not access_token:
+            logger.error("IAM token exchange returned no accessToken")
+            return redirect("/?error=no_access_token")
+
+    except requests.RequestException as e:
+        logger.error("IAM token exchange request failed: %s", e)
+        return redirect("/?error=iam_unreachable")
+
+    # Decode the access token to get user info (without full verification —
+    # we trust IAM since we just received this token from a server-side exchange)
+    try:
+        import jwt
+
+        # Decode without verification — we trust this token from IAM server-side exchange
+        payload = jwt.decode(access_token, options={"verify_signature": False})
+        iam_user_id = payload.get("sub")
+        email = payload.get("email", "")
+        name = payload.get("name", "")
+        permissions = payload.get("permissions", [])
+    except Exception as e:
+        logger.error("Failed to decode IAM access token: %s", e)
+        return redirect("/?error=invalid_token")
+
+    # Find or create local user and sync roles
+    try:
+        local_user = find_or_create_local_user(
+            {
+                "id": iam_user_id,
+                "email": email,
+                "name": name,
+            }
+        )
+        sync_iam_roles(local_user, permissions)
+
+        local_user.last_login_at = datetime.now(timezone.utc)
+        db.session.commit()
+    except Exception as e:
+        logger.error("Failed to sync IAM user locally: %s", e)
+        return redirect("/?error=user_sync_failed")
+
+    # Serialize user data for frontend
+    user_data = local_user.to_dict(include_roles=True)
+
+    # Redirect to frontend callback page with tokens in URL hash (not query params,
+    # so they don't appear in server logs or browser history)
+    fragment = urlencode(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token or "",
+            "user": json.dumps(user_data),
+        }
+    )
+    return redirect(f"/auth/callback#{fragment}")
 
 
 @auth_bp.route("/refresh", methods=["POST"])

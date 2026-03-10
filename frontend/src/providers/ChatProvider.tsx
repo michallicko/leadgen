@@ -172,7 +172,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Section content streaming state (typewriter effect)
   const [sectionStreamingText, setSectionStreamingText] = useState('')
   const [isSectionStreaming, setIsSectionStreaming] = useState(false)
-  const [streamingSection, setStreamingSection] = useState<string | null>(null)
 
   // Transparent thinking state (BL-1015)
   const [currentFinding, setCurrentFinding] = useState<ThinkingFinding | null>(null)
