@@ -112,6 +112,8 @@ export interface MultiPageProcess {
   createdContacts?: number;
   /** Cumulative count of duplicate contacts (tagged only) across all pages. */
   skippedDuplicates?: number;
+  /** Error message if upload failed. */
+  uploadError?: string;
 }
 
 /** Import settings stored in chrome.storage.local. */

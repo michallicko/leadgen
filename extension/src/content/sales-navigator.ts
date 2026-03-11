@@ -21,6 +21,15 @@ import type {
   ExtractionProgress,
 } from '../common/types';
 
+// ============== EXTRACTION GUARD ==============
+// Each content script instance registers a unique ID on load.
+// Only the LATEST instance (highest scriptLoadTime) may run extractions.
+// This prevents stale VM instances (kept alive by Chrome) from duplicating work.
+let extractionInProgress = false;
+const scriptLoadTime = Date.now();
+// Register as the latest content script instance
+chrome.storage.local.set({ latestContentScript: scriptLoadTime });
+
 // ============== LOGGING UTILITY ==============
 const LOG_PREFIX = '[VV Sales Nav]';
 
@@ -309,6 +318,13 @@ async function extractLeads(): Promise<ExtractionResult> {
   let companyDataFound = 0;
 
   for (const lead of leads) {
+    // Check if extraction was stopped by the user
+    const { multiPageProcess: proc } = await chrome.storage.local.get(['multiPageProcess']);
+    if (proc && (proc.stopped || !proc.active)) {
+      log.info('Extraction stopped by user, aborting enrichment');
+      break;
+    }
+
     const row: EnrichedLeadRow = {
       name: lead.name,
       jobTitle: lead.jobTitle,
@@ -625,27 +641,42 @@ async function runExtractionAndReport(): Promise<void> {
       return;
     }
 
+    // Check if stopped before uploading
+    const { multiPageProcess: stopCheck } = await chrome.storage.local.get(['multiPageProcess']);
+    if (stopCheck && (stopCheck.stopped || !stopCheck.active)) {
+      log.info('Extraction stopped before upload, aborting');
+      return;
+    }
+
     // Convert and send leads
     const leads = convertToLeads(extraction.results);
     const currentPage = new URL(window.location.href).searchParams.get('page') || '1';
     const autoTag = `sn-import-p${currentPage}-${Date.now()}`;
     const tag = await getImportTag(autoTag);
 
-    chrome.runtime.sendMessage(
-      {
-        type: 'leads_extracted',
-        leads,
-        source: 'sales_navigator',
-        tag,
-      },
-      (uploadResponse?: { success: boolean; error?: string }) => {
-        if (uploadResponse?.success) {
-          log.success(`Upload successful for page ${currentPage}`);
-        } else {
-          log.warn(`Upload failed: ${uploadResponse?.error || 'Unknown'}`);
-        }
-      },
-    );
+    // Wait for upload to complete before reporting page result
+    const uploadResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          type: 'leads_extracted',
+          leads,
+          source: 'sales_navigator',
+          tag,
+        },
+        (uploadResponse?: { success: boolean; error?: string }) => {
+          if (chrome.runtime.lastError) {
+            log.error(`Upload messaging error: ${chrome.runtime.lastError.message}`);
+            resolve({ success: false, error: chrome.runtime.lastError.message });
+          } else if (uploadResponse?.success) {
+            log.success(`Upload successful for page ${currentPage}`);
+            resolve({ success: true });
+          } else {
+            log.error(`Upload FAILED for page ${currentPage}: ${uploadResponse?.error || 'Unknown'}`);
+            resolve({ success: false, error: uploadResponse?.error || 'Unknown' });
+          }
+        },
+      );
+    });
 
     // Get pagination info and report completion
     const pagination = getPaginationInfo();
@@ -655,12 +686,16 @@ async function runExtractionAndReport(): Promise<void> {
     const tabId = multiPageProcess?.tabId as number | undefined;
 
     const result: PageExtractionResult = {
-      success: true,
-      leadCount: extraction.leadCount || 0,
+      success: uploadResult.success,
+      leadCount: uploadResult.success ? (extraction.leadCount || 0) : 0,
       stats: extraction.stats,
       hasNextPage: pagination.hasNextPage,
       nextPage: pagination.nextPage,
     };
+
+    if (!uploadResult.success) {
+      log.error(`Page ${currentPage} upload failed — reporting failure to service worker`);
+    }
 
     chrome.runtime.sendMessage({
       type: 'page_extraction_complete',
@@ -688,10 +723,31 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (request.action === 'extractAndReport' || request.type === 'extract_page') {
-      log.info('Starting extraction for multi-page process...');
-      runExtractionAndReport();
-      sendResponse({ success: true, message: 'Extraction started' });
-      return true;
+      // Guard 1: local variable (same VM instance)
+      if (extractionInProgress) {
+        log.warn('Extraction already in progress (local guard), ignoring');
+        sendResponse({ success: false, message: 'Extraction already in progress' });
+        return true;
+      }
+
+      // Guard 2: only the LATEST content script instance may run extractions
+      // (Chrome keeps old VM instances alive after SPA navigation)
+      chrome.storage.local.get(['latestContentScript'], (data) => {
+        const latest = data.latestContentScript as number | undefined;
+        if (latest && latest !== scriptLoadTime) {
+          log.warn(`Stale content script (${scriptLoadTime} vs latest ${latest}), ignoring`);
+          sendResponse({ success: false, message: 'Stale content script' });
+          return;
+        }
+
+        extractionInProgress = true;
+        log.info('Starting extraction for multi-page process...');
+        runExtractionAndReport().finally(() => {
+          extractionInProgress = false;
+        });
+        sendResponse({ success: true, message: 'Extraction started' });
+      });
+      return true; // keep message channel open for async sendResponse
     }
 
     if (request.action === 'checkPage' || request.type === 'check_page') {

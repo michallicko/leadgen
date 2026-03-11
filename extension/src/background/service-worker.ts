@@ -70,12 +70,7 @@ async function handleLeadUpload(
   leads: Lead[],
   source: string,
   tag: string,
-): Promise<{ success: boolean; created_contacts?: number; error?: string }> {
-  const state = await getAuthState();
-  if (!state) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
+): Promise<{ success: boolean; created_contacts?: number; skipped_duplicates?: number; error?: string }> {
   try {
     const result = await uploadLeads(leads, source, tag);
     log.success(
@@ -95,7 +90,7 @@ async function handleLeadUpload(
       });
     }
 
-    return { success: true, created_contacts: result.created_contacts };
+    return { success: true, created_contacts: result.created_contacts, skipped_duplicates: result.skipped_duplicates };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     log.error(`Lead upload failed: ${msg}`);
@@ -375,6 +370,13 @@ async function handlePageExtractionComplete(
   const process = multiPageProcess as MultiPageProcess | undefined;
   if (!process || !process.active || process.stopped) {
     log.info('Process stopped, not continuing');
+    return;
+  }
+
+  // Stop multi-page process if upload failed
+  if (!result.success) {
+    log.error('Upload failed for page, stopping multi-page process');
+    await finishMultiPage({ ...process, uploadError: 'Upload failed — check authentication' });
     return;
   }
 

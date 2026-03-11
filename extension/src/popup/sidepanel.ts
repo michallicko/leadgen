@@ -384,7 +384,14 @@ function startExtractionPolling(): void {
         }
       } else {
         setExtractionUI(false);
-        if (state.totalLeads > 0) {
+        if (state.uploadError) {
+          // Upload failed — show error prominently
+          showExtractionStatus(`Upload failed: ${state.uploadError}`, true);
+          progressBar.style.width = '100%';
+          progressBar.classList.remove('animated');
+          progressTitle.textContent = 'Upload failed';
+          progressDetail.textContent = state.uploadError;
+        } else if (state.totalLeads > 0) {
           showCompletionProgress(state.totalLeads, state.pagesCompleted, state.createdContacts, state.skippedDuplicates);
           // Show summary with new/duplicate breakdown if available
           let statusText: string;
