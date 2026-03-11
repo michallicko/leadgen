@@ -544,5 +544,42 @@ chrome.storage.onChanged.addListener((changes) => {
   }
 });
 
+// --------------- Test Upload (staging only) ---------------
+if (config.environment === 'staging') {
+  const testSection = document.getElementById('test-upload-section') as HTMLDivElement;
+  const testBtn = document.getElementById('test-upload-btn') as HTMLButtonElement;
+  const testStatus = document.getElementById('test-upload-status') as HTMLDivElement;
+  testSection.classList.remove('hidden');
+
+  testBtn.addEventListener('click', () => {
+    testBtn.disabled = true;
+    testStatus.textContent = 'Uploading 3 mock leads...';
+    testStatus.style.color = '#9896a6';
+
+    const tag = importTagInput.value.trim() || 'test-upload';
+
+    chrome.runtime.sendMessage(
+      { type: 'test_upload', tag },
+      (response?: { success: boolean; created_contacts?: number; skipped_duplicates?: number; error?: string }) => {
+        testBtn.disabled = false;
+        if (chrome.runtime.lastError) {
+          testStatus.textContent = `Error: ${chrome.runtime.lastError.message}`;
+          testStatus.style.color = '#ff4d6a';
+        } else if (response?.success) {
+          testStatus.textContent = `OK: ${response.created_contacts} created, ${response.skipped_duplicates} duplicates`;
+          testStatus.style.color = '#00d68f';
+          // Refresh stats
+          getStatus().then((status) => {
+            leadCount.textContent = String(status.total_leads_imported);
+          }).catch(() => {});
+        } else {
+          testStatus.textContent = `Failed: ${response?.error || 'Unknown'}`;
+          testStatus.style.color = '#ff4d6a';
+        }
+      },
+    );
+  });
+}
+
 // --------------- Start ---------------
 init();

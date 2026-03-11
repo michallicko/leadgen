@@ -71,31 +71,42 @@ async function handleLeadUpload(
   source: string,
   tag: string,
 ): Promise<{ success: boolean; created_contacts?: number; skipped_duplicates?: number; error?: string }> {
-  try {
-    const result = await uploadLeads(leads, source, tag);
-    log.success(
-      `Uploaded ${leads.length} leads: ${result.created_contacts} created, ${result.skipped_duplicates} skipped`,
-    );
+  const maxRetries = 3;
+  let lastError = '';
 
-    // Accumulate upload stats in multiPageProcess for side panel display
-    const { multiPageProcess } = await chrome.storage.local.get(['multiPageProcess']);
-    const process = multiPageProcess as MultiPageProcess | undefined;
-    if (process) {
-      await chrome.storage.local.set({
-        multiPageProcess: {
-          ...process,
-          createdContacts: (process.createdContacts || 0) + result.created_contacts,
-          skippedDuplicates: (process.skippedDuplicates || 0) + result.skipped_duplicates,
-        },
-      });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await uploadLeads(leads, source, tag);
+      log.success(
+        `Uploaded ${leads.length} leads: ${result.created_contacts} created, ${result.skipped_duplicates} skipped`,
+      );
+
+      // Accumulate upload stats in multiPageProcess for side panel display
+      const { multiPageProcess } = await chrome.storage.local.get(['multiPageProcess']);
+      const process = multiPageProcess as MultiPageProcess | undefined;
+      if (process) {
+        await chrome.storage.local.set({
+          multiPageProcess: {
+            ...process,
+            createdContacts: (process.createdContacts || 0) + result.created_contacts,
+            skippedDuplicates: (process.skippedDuplicates || 0) + result.skipped_duplicates,
+          },
+        });
+      }
+
+      return { success: true, created_contacts: result.created_contacts, skipped_duplicates: result.skipped_duplicates };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      if (attempt < maxRetries) {
+        const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+        log.warn(`Lead upload attempt ${attempt}/${maxRetries} failed: ${lastError}. Retrying in ${delay / 1000}s...`);
+        await new Promise<void>((r) => setTimeout(r, delay));
+      }
     }
-
-    return { success: true, created_contacts: result.created_contacts, skipped_duplicates: result.skipped_duplicates };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    log.error(`Lead upload failed: ${msg}`);
-    return { success: false, error: msg };
   }
+
+  log.error(`Lead upload failed after ${maxRetries} attempts: ${lastError}`);
+  return { success: false, error: lastError };
 }
 
 // ============== ACTIVITY SYNC ==============
@@ -537,6 +548,17 @@ chrome.runtime.onMessage.addListener(
         message.source as string,
         message.tag as string,
       ).then(sendResponse);
+      return true;
+    }
+
+    // Test upload from side panel (staging debug)
+    if (msgType === 'test_upload') {
+      const testLeads: Lead[] = [
+        { name: 'Test User Alpha', company_name: 'AlphaCorp', industry: 'Construction', linkedin_url: `https://linkedin.com/in/test-${Date.now()}-1` },
+        { name: 'Test User Beta', company_name: 'BetaSoft', industry: 'Furniture and Home Furnishings Manufacturing', linkedin_url: `https://linkedin.com/in/test-${Date.now()}-2` },
+        { name: 'Test User Gamma', company_name: 'GammaTech', industry: 'software_saas', linkedin_url: `https://linkedin.com/in/test-${Date.now()}-3` },
+      ];
+      handleLeadUpload(testLeads, 'test', message.tag as string || 'test-upload').then(sendResponse);
       return true;
     }
 
