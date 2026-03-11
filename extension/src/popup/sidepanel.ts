@@ -301,13 +301,24 @@ function updateProgress(state: { active: boolean; stopped: boolean; totalLeads: 
   }
 }
 
-function showCompletionProgress(totalLeads: number, pagesCompleted: number): void {
+function showCompletionProgress(totalLeads: number, pagesCompleted: number, createdContacts?: number, skippedDuplicates?: number): void {
   const elapsed = Date.now() - extractionStartTime;
   progressBar.style.width = '100%';
   progressBar.classList.remove('animated');
   progressTitle.textContent = 'Extraction complete';
   progressElapsed.textContent = formatElapsed(elapsed);
-  progressDetail.textContent = `${totalLeads} leads imported from ${pagesCompleted} page${pagesCompleted !== 1 ? 's' : ''} in ${formatElapsed(elapsed)}`;
+
+  // Show breakdown if upload stats are available
+  let detail: string;
+  if (createdContacts != null && skippedDuplicates != null) {
+    const parts = [`${createdContacts} new`];
+    if (skippedDuplicates > 0) parts.push(`${skippedDuplicates} duplicates tagged`);
+    detail = `${totalLeads} leads processed (${parts.join(', ')}) from ${pagesCompleted} page${pagesCompleted !== 1 ? 's' : ''} in ${formatElapsed(elapsed)}`;
+  } else {
+    detail = `${totalLeads} leads imported from ${pagesCompleted} page${pagesCompleted !== 1 ? 's' : ''} in ${formatElapsed(elapsed)}`;
+  }
+
+  progressDetail.textContent = detail;
   progressLeads.textContent = String(totalLeads);
   progressPagesDone.textContent = String(pagesCompleted);
 }
@@ -353,7 +364,7 @@ function startExtractionPolling(): void {
   extractionPollTimer = setInterval(() => {
     // Poll both multi-page state and per-lead extraction progress from storage
     chrome.storage.local.get(['multiPageProcess', 'extractionProgress'], (result) => {
-      const state = result.multiPageProcess as { active: boolean; stopped: boolean; totalLeads: number; currentPage: number; pagesCompleted: number; totalPages?: number; startTime?: number } | undefined;
+      const state = result.multiPageProcess as MultiPageProcess | undefined;
       const leadProgress = result.extractionProgress as ExtractionProgress | undefined;
 
       if (!state) return;
@@ -368,18 +379,23 @@ function startExtractionPolling(): void {
         updateProgress(state);
 
         // Overlay per-lead detail if available
-        if (leadProgress && leadProgress.updatedAt > Date.now() - 10000) {
+        if (leadProgress) {
           updateLeadProgress(leadProgress);
         }
       } else {
         setExtractionUI(false);
         if (state.totalLeads > 0) {
-          showCompletionProgress(state.totalLeads, state.pagesCompleted);
-          showExtractionStatus(
-            `${state.totalLeads} leads imported from ${state.pagesCompleted} pages`,
-            false,
-            true,
-          );
+          showCompletionProgress(state.totalLeads, state.pagesCompleted, state.createdContacts, state.skippedDuplicates);
+          // Show summary with new/duplicate breakdown if available
+          let statusText: string;
+          if (state.createdContacts != null && state.skippedDuplicates != null) {
+            const parts = [`${state.createdContacts} new`];
+            if (state.skippedDuplicates > 0) parts.push(`${state.skippedDuplicates} duplicates tagged`);
+            statusText = `${state.totalLeads} leads (${parts.join(', ')})`;
+          } else {
+            statusText = `${state.totalLeads} leads imported from ${state.pagesCompleted} pages`;
+          }
+          showExtractionStatus(statusText, false, true);
         }
         stopExtractionPolling();
         getStatus()

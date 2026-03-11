@@ -108,6 +108,10 @@ export interface MultiPageProcess {
   startTime: number;
   endTime?: number;
   maxContacts?: number;
+  /** Cumulative count of newly created contacts across all pages. */
+  createdContacts?: number;
+  /** Cumulative count of duplicate contacts (tagged only) across all pages. */
+  skippedDuplicates?: number;
 }
 
 /** Import settings stored in chrome.storage.local. */

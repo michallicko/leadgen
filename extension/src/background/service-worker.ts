@@ -81,6 +81,20 @@ async function handleLeadUpload(
     log.success(
       `Uploaded ${leads.length} leads: ${result.created_contacts} created, ${result.skipped_duplicates} skipped`,
     );
+
+    // Accumulate upload stats in multiPageProcess for side panel display
+    const { multiPageProcess } = await chrome.storage.local.get(['multiPageProcess']);
+    const process = multiPageProcess as MultiPageProcess | undefined;
+    if (process) {
+      await chrome.storage.local.set({
+        multiPageProcess: {
+          ...process,
+          createdContacts: (process.createdContacts || 0) + result.created_contacts,
+          skippedDuplicates: (process.skippedDuplicates || 0) + result.skipped_duplicates,
+        },
+      });
+    }
+
     return { success: true, created_contacts: result.created_contacts };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -580,6 +594,8 @@ chrome.runtime.onMessage.addListener(
           chrome.storage.local.set({
             multiPageProcess: { ...process, stopped: true, active: false },
           });
+          // Clear extraction lock so stale content scripts stop
+          chrome.storage.local.remove('extractionLock');
         }
       });
       sendResponse({ success: true });
