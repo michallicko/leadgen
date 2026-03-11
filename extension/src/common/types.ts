@@ -107,6 +107,12 @@ export interface MultiPageProcess {
   pagesCompleted: number;
   startTime: number;
   endTime?: number;
+  maxContacts?: number;
+}
+
+/** Import settings stored in chrome.storage.local. */
+export interface ImportSettings {
+  maxContacts: number;
 }
 
 /** Extraction result from content script. */
@@ -135,7 +141,9 @@ export type ExtensionMessage =
   | { type: 'get_multi_page_state' }
   | { type: 'check_page' }
   | { type: 'go_to_next_page' }
-  | { type: 'linkedin_page_loaded'; url: string };
+  | { type: 'linkedin_page_loaded'; url: string }
+  | { type: 'sso_login'; provider: 'google' | 'github' }
+  | { type: 'extraction_progress'; progress: ExtractionProgress };
 
 /** Result reported after extracting a single page in multi-page mode. */
 export interface PageExtractionResult {
@@ -154,4 +162,20 @@ export interface PageExtractionResult {
 export interface ActivitySyncSettings {
   lastSyncTime: string;
   syncEnabled: boolean;
+}
+
+/** Per-lead extraction progress stored in chrome.storage.local. */
+export interface ExtractionProgress {
+  /** Current lead index being processed (1-based). */
+  currentLead: number;
+  /** Total leads on this page to process. */
+  totalLeadsOnPage: number;
+  /** Name of the lead currently being enriched. */
+  currentLeadName: string;
+  /** Current enrichment phase. */
+  phase: 'extracting' | 'enriching_profile' | 'enriching_company' | 'uploading' | 'done';
+  /** Company name being enriched (if in enriching_company phase). */
+  currentCompany?: string;
+  /** Timestamp of this update. */
+  updatedAt: number;
 }

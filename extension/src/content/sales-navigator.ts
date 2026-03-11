@@ -8,7 +8,7 @@
  * Ported from ~/git/linkedin-lead-uploader/content.js
  */
 
-import { config } from '../common/config';
+import { config, jitter } from '../common/config';
 import type {
   RawLeadRow,
   EnrichedLeadRow,
@@ -16,6 +16,9 @@ import type {
   PaginationInfo,
   ExtractionResult,
   PageExtractionResult,
+  ImportSettings,
+  MultiPageProcess,
+  ExtractionProgress,
 } from '../common/types';
 
 // ============== LOGGING UTILITY ==============
@@ -43,8 +46,9 @@ async function rateLimitedFetch(url: string, options: RequestInit): Promise<Resp
     config.maxDelay,
   );
 
-  if (timeSinceLastRequest < currentDelay) {
-    await new Promise<void>((r) => setTimeout(r, currentDelay - timeSinceLastRequest));
+  const jitteredDelay = jitter(currentDelay);
+  if (timeSinceLastRequest < jitteredDelay) {
+    await new Promise<void>((r) => setTimeout(r, jitteredDelay - timeSinceLastRequest));
   }
 
   lastRequestTime = Date.now();
@@ -127,7 +131,50 @@ async function getPublicLinkedInUrl(
   };
 }
 
+// ============== PROGRESS REPORTING ==============
+
+function sendProgress(progress: ExtractionProgress): void {
+  chrome.runtime.sendMessage({ type: 'extraction_progress', progress });
+}
+
 // ============== MAIN EXTRACTION FUNCTION ==============
+
+/** Get the user-chosen import tag, or generate a default one. */
+async function getImportTag(fallback: string): Promise<string> {
+  try {
+    const { import_tag } = await chrome.storage.local.get('import_tag');
+    if (import_tag && typeof import_tag === 'string' && import_tag.trim()) {
+      return import_tag.trim();
+    }
+  } catch {
+    // storage not available
+  }
+  return fallback;
+}
+
+/** Get the max contacts limit from storage (0 = unlimited). */
+async function getMaxContactsLimit(): Promise<number> {
+  try {
+    const { import_settings } = await chrome.storage.local.get('import_settings');
+    return (import_settings as ImportSettings | undefined)?.maxContacts ?? config.defaultMaxContacts;
+  } catch {
+    return config.defaultMaxContacts;
+  }
+}
+
+/** Get how many leads have already been collected in this multi-page run. */
+async function getMultiPageLeadCount(): Promise<number> {
+  try {
+    const { multiPageProcess } = await chrome.storage.local.get('multiPageProcess');
+    const process = multiPageProcess as MultiPageProcess | undefined;
+    if (process && process.active && !process.stopped) {
+      return process.totalLeads;
+    }
+  } catch {
+    // not in multi-page mode
+  }
+  return 0;
+}
 
 async function extractLeads(): Promise<ExtractionResult> {
   log.info('Starting LinkedIn Sales Navigator extraction...');
@@ -232,6 +279,21 @@ async function extractLeads(): Promise<ExtractionResult> {
 
   log.success(`Extracted ${leads.length} leads from DOM`);
 
+  // 2b. Apply max contacts limit
+  const maxContacts = await getMaxContactsLimit();
+  if (maxContacts > 0) {
+    const alreadyCollected = await getMultiPageLeadCount();
+    const remaining = Math.max(0, maxContacts - alreadyCollected);
+    if (remaining === 0) {
+      log.info(`Max contacts limit reached (${maxContacts}), skipping extraction`);
+      return { success: true, results: [], leadCount: 0, stats: { profileUrlsFound: 0, companyDataFound: 0, duration: '0' } };
+    }
+    if (leads.length > remaining) {
+      log.info(`Trimming leads from ${leads.length} to ${remaining} (limit: ${maxContacts}, already collected: ${alreadyCollected})`);
+      leads.splice(remaining);
+    }
+  }
+
   // 3. Fetch enrichment data (company data + public profile URLs)
   log.info('Starting data enrichment (company data + public profile URLs)...');
 
@@ -258,6 +320,15 @@ async function extractLeads(): Promise<ExtractionResult> {
       website: '',
     };
 
+    // Report progress: enriching profile
+    sendProgress({
+      currentLead: processed + 1,
+      totalLeadsOnPage: leads.length,
+      currentLeadName: lead.name,
+      phase: 'enriching_profile',
+      updatedAt: Date.now(),
+    });
+
     // Fetch public LinkedIn profile URL
     try {
       log.debug(`Fetching public profile URL for ${lead.name}...`);
@@ -280,6 +351,16 @@ async function extractLeads(): Promise<ExtractionResult> {
 
     // Fetch company data
     if (lead.companyId) {
+      // Report progress: enriching company
+      sendProgress({
+        currentLead: processed + 1,
+        totalLeadsOnPage: leads.length,
+        currentLeadName: lead.name,
+        phase: 'enriching_company',
+        currentCompany: lead.company,
+        updatedAt: Date.now(),
+      });
+
       try {
         log.debug(`Fetching company data for ${lead.company}...`);
         const url = `https://www.linkedin.com/sales-api/salesApiCompanies/${lead.companyId}?decoration=%28entityUrn%2Cname%2CemployeeCountRange%2CrevenueRange%2Cindustry%2Cwebsite%29`;
@@ -323,6 +404,15 @@ async function extractLeads(): Promise<ExtractionResult> {
       log.progress(processed, leads.length, `${lead.name} - ${lead.company}`);
     }
   }
+
+  // Report progress: done enriching
+  sendProgress({
+    currentLead: leads.length,
+    totalLeadsOnPage: leads.length,
+    currentLeadName: '',
+    phase: 'done',
+    updatedAt: Date.now(),
+  });
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   log.success(`Data enrichment complete in ${duration}s`);
@@ -446,7 +536,8 @@ async function runExtraction(): Promise<ExtractionResult> {
 
     // Step 3: Send to service worker for upload
     const currentPage = new URL(window.location.href).searchParams.get('page') || '1';
-    const tag = `sn-import-p${currentPage}-${Date.now()}`;
+    const autoTag = `sn-import-p${currentPage}-${Date.now()}`;
+    const tag = await getImportTag(autoTag);
 
     log.info(`Sending ${leads.length} leads to service worker...`);
 
@@ -537,7 +628,8 @@ async function runExtractionAndReport(): Promise<void> {
     // Convert and send leads
     const leads = convertToLeads(extraction.results);
     const currentPage = new URL(window.location.href).searchParams.get('page') || '1';
-    const tag = `sn-import-p${currentPage}-${Date.now()}`;
+    const autoTag = `sn-import-p${currentPage}-${Date.now()}`;
+    const tag = await getImportTag(autoTag);
 
     chrome.runtime.sendMessage(
       {

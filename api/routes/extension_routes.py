@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Activity, Company, Contact, Tag, db
+from ..models import Activity, Company, Contact, ContactTagAssignment, Tag, db
 
 extension_bp = Blueprint("extension", __name__)
 
@@ -41,6 +41,8 @@ def upload_leads():
             db.session.add(tag)
             db.session.flush()
 
+    contacts_to_tag = []
+
     for lead in leads:
         linkedin_url = (lead.get("linkedin_url") or "").strip()
 
@@ -51,6 +53,8 @@ def upload_leads():
             ).first()
             if existing:
                 skipped_duplicates += 1
+                # Still tag duplicates so they appear under the import tag
+                contacts_to_tag.append(existing.id)
                 continue
 
         # Find or create company
@@ -91,13 +95,28 @@ def upload_leads():
             linkedin_url=linkedin_url or None,
             company_id=company.id if company else None,
             owner_id=owner_id,
-            tag_id=tag.id if tag else None,
             import_source=source,
             is_stub=False,
         )
         db.session.add(contact)
         db.session.flush()
+        contacts_to_tag.append(contact.id)
         created_contacts += 1
+
+    # Assign tag via junction table (used by contacts listing queries)
+    if tag and contacts_to_tag:
+        for contact_id in contacts_to_tag:
+            exists = ContactTagAssignment.query.filter_by(
+                contact_id=str(contact_id), tag_id=str(tag.id)
+            ).first()
+            if not exists:
+                db.session.add(
+                    ContactTagAssignment(
+                        tenant_id=str(tenant_id),
+                        contact_id=str(contact_id),
+                        tag_id=str(tag.id),
+                    )
+                )
 
     db.session.commit()
 
@@ -106,6 +125,7 @@ def upload_leads():
             "created_contacts": created_contacts,
             "created_companies": created_companies,
             "skipped_duplicates": skipped_duplicates,
+            "tagged_total": len(contacts_to_tag),
         }
     )
 
@@ -187,6 +207,7 @@ def upload_activities():
             activity_detail=payload.get("message", ""),
             source="linkedin_extension",
             external_id=external_id,
+            occurred_at=timestamp or datetime.now(timezone.utc),
             timestamp=timestamp,
             payload=payload,
         )

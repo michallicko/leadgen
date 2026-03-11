@@ -1,7 +1,7 @@
 import { login, logout, getAuthState, storeAuthState, getImportSettings, storeImportSettings, getImportTag, storeImportTag } from '../common/auth';
 import { getStatus, fetchTags } from '../common/api-client';
 import { config } from '../common/config';
-import type { AuthState } from '../common/types';
+import type { AuthState, ExtractionProgress, MultiPageProcess } from '../common/types';
 
 // --------------- DOM Elements ---------------
 const header = document.getElementById('header') as HTMLDivElement;
@@ -32,6 +32,7 @@ const tagSuggestions = document.getElementById('tag-suggestions') as HTMLDataLis
 const loadLeadsBtn = document.getElementById('load-leads-btn') as HTMLButtonElement;
 const stopExtractionBtn = document.getElementById('stop-extraction-btn') as HTMLButtonElement;
 const extractionStatus = document.getElementById('extraction-status') as HTMLDivElement;
+const tabNotice = document.getElementById('tab-notice') as HTMLDivElement;
 
 // --------------- Environment Badge ---------------
 if (config.environment === 'staging') {
@@ -97,6 +98,9 @@ async function showConnected(state: AuthState): Promise<void> {
     leadCount.textContent = '\u2014';
     activityCount.textContent = '\u2014';
   }
+
+  // Check current tab for Sales Navigator
+  checkCurrentTab();
 }
 
 function showNamespacePicker(state: AuthState): void {
@@ -112,6 +116,30 @@ function showNamespacePicker(state: AuthState): void {
   }
   showView('namespace');
 }
+
+// --------------- Tab Awareness ---------------
+async function checkCurrentTab(): Promise<void> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const isSalesNav = tab?.url?.includes('linkedin.com/sales/') ?? false;
+    tabNotice.classList.toggle('hidden', isSalesNav);
+    loadLeadsBtn.disabled = !isSalesNav;
+  } catch {
+    // Tab query may fail in some contexts
+  }
+}
+
+// Listen for tab switches — side panel stays open across tabs
+chrome.tabs.onActivated.addListener(() => {
+  checkCurrentTab();
+});
+
+// Listen for tab URL changes (e.g. navigating within a tab)
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.active) {
+    checkCurrentTab();
+  }
+});
 
 // --------------- Initialization ---------------
 async function init(): Promise<void> {
@@ -209,15 +237,36 @@ logoutBtn.addEventListener('click', async () => {
 
 // --------------- Load Leads Button ---------------
 let extractionPollTimer: ReturnType<typeof setInterval> | null = null;
+let extractionStartTime = 0;
 
-function showExtractionStatus(text: string, isError = false): void {
+const progressContainer = document.getElementById('extraction-progress') as HTMLDivElement;
+const progressTitle = document.getElementById('progress-title') as HTMLSpanElement;
+const progressElapsed = document.getElementById('progress-elapsed') as HTMLSpanElement;
+const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
+const progressDetail = document.getElementById('progress-detail') as HTMLDivElement;
+const progressLeads = document.getElementById('progress-leads') as HTMLSpanElement;
+const progressPage = document.getElementById('progress-page') as HTMLSpanElement;
+const progressPagesDone = document.getElementById('progress-pages-done') as HTMLSpanElement;
+
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function showExtractionStatus(text: string, isError = false, isSuccess = false): void {
   extractionStatus.textContent = text;
-  extractionStatus.classList.remove('hidden', 'error-status');
+  extractionStatus.classList.remove('hidden', 'error-status', 'success-status');
   if (isError) extractionStatus.classList.add('error-status');
+  if (isSuccess) extractionStatus.classList.add('success-status');
 }
 
 function hideExtractionStatus(): void {
   extractionStatus.classList.add('hidden');
+}
+
+function showProgress(show: boolean): void {
+  progressContainer.classList.toggle('hidden', !show);
 }
 
 function setExtractionUI(extracting: boolean): void {
@@ -225,26 +274,114 @@ function setExtractionUI(extracting: boolean): void {
   stopExtractionBtn.classList.toggle('hidden', !extracting);
 }
 
+function updateProgress(state: { active: boolean; stopped: boolean; totalLeads: number; currentPage: number; pagesCompleted: number; totalPages?: number }): void {
+  const maxContacts = parseInt(maxContactsSelect.value, 10);
+  const elapsed = Date.now() - extractionStartTime;
+  progressElapsed.textContent = formatElapsed(elapsed);
+  progressLeads.textContent = String(state.totalLeads);
+  progressPage.textContent = String(state.currentPage);
+  progressPagesDone.textContent = String(state.pagesCompleted);
+
+  // Calculate progress percentage
+  let pct = 0;
+  if (maxContacts > 0 && state.totalLeads > 0) {
+    pct = Math.min(95, (state.totalLeads / maxContacts) * 100);
+  } else if (state.totalPages && state.totalPages > 0) {
+    pct = Math.min(95, (state.pagesCompleted / state.totalPages) * 100);
+  } else if (state.pagesCompleted > 0) {
+    pct = Math.min(95, state.pagesCompleted * 25);
+  }
+  progressBar.style.width = `${Math.max(5, pct)}%`;
+
+  if (state.totalLeads > 0) {
+    progressDetail.textContent = `Enriching leads on page ${state.currentPage}...`;
+    progressTitle.textContent = 'Extracting leads...';
+  } else {
+    progressDetail.textContent = 'Scanning page for leads...';
+  }
+}
+
+function showCompletionProgress(totalLeads: number, pagesCompleted: number): void {
+  const elapsed = Date.now() - extractionStartTime;
+  progressBar.style.width = '100%';
+  progressBar.classList.remove('animated');
+  progressTitle.textContent = 'Extraction complete';
+  progressElapsed.textContent = formatElapsed(elapsed);
+  progressDetail.textContent = `${totalLeads} leads imported from ${pagesCompleted} page${pagesCompleted !== 1 ? 's' : ''} in ${formatElapsed(elapsed)}`;
+  progressLeads.textContent = String(totalLeads);
+  progressPagesDone.textContent = String(pagesCompleted);
+}
+
+function updateLeadProgress(progress: ExtractionProgress): void {
+  if (progressContainer.classList.contains('hidden')) return;
+
+  const phaseName = {
+    extracting: 'Scanning page...',
+    enriching_profile: 'Enriching profile...',
+    enriching_company: 'Enriching company data...',
+    uploading: 'Uploading leads...',
+    done: 'Page enrichment complete',
+  }[progress.phase];
+
+  let detail = `Lead ${progress.currentLead}/${progress.totalLeadsOnPage}`;
+  if (progress.currentLeadName) {
+    detail += ` \u2014 <span class="lead-name">${progress.currentLeadName}</span>`;
+  }
+  if (progress.phase === 'enriching_company' && progress.currentCompany) {
+    detail += ` \u2014 ${progress.currentCompany}`;
+  }
+
+  progressDetail.innerHTML = detail;
+  progressTitle.textContent = phaseName;
+
+  // Show in-progress lead count (totalLeads only updates after page completes)
+  progressLeads.textContent = String(progress.currentLead);
+
+  // Bar reflects per-lead progress on the current page
+  if (progress.totalLeadsOnPage > 0) {
+    const pct = Math.min(95, (progress.currentLead / progress.totalLeadsOnPage) * 100);
+    progressBar.style.width = `${Math.max(5, pct)}%`;
+  }
+}
+
 function startExtractionPolling(): void {
   if (extractionPollTimer) return;
+  if (!extractionStartTime) extractionStartTime = Date.now();
+  showProgress(true);
+  progressBar.classList.add('animated');
+
   extractionPollTimer = setInterval(() => {
-    chrome.runtime.sendMessage({ type: 'get_multi_page_state' }, (state) => {
-      if (chrome.runtime.lastError || !state) return;
+    // Poll both multi-page state and per-lead extraction progress from storage
+    chrome.storage.local.get(['multiPageProcess', 'extractionProgress'], (result) => {
+      const state = result.multiPageProcess as { active: boolean; stopped: boolean; totalLeads: number; currentPage: number; pagesCompleted: number; totalPages?: number; startTime?: number } | undefined;
+      const leadProgress = result.extractionProgress as ExtractionProgress | undefined;
+
+      if (!state) return;
+
+      // Update elapsed time
+      const elapsed = Date.now() - extractionStartTime;
+      progressElapsed.textContent = formatElapsed(elapsed);
 
       if (state.active && !state.stopped) {
         setExtractionUI(true);
-        showExtractionStatus(
-          `Extracting... ${state.totalLeads} leads found (page ${state.currentPage}, ${state.pagesCompleted} pages done)`,
-        );
+        hideExtractionStatus();
+        updateProgress(state);
+
+        // Overlay per-lead detail if available
+        if (leadProgress && leadProgress.updatedAt > Date.now() - 10000) {
+          updateLeadProgress(leadProgress);
+        }
       } else {
         setExtractionUI(false);
         if (state.totalLeads > 0) {
+          showCompletionProgress(state.totalLeads, state.pagesCompleted);
           showExtractionStatus(
-            `Extraction complete: ${state.totalLeads} leads imported from ${state.pagesCompleted} pages`,
+            `${state.totalLeads} leads imported from ${state.pagesCompleted} pages`,
+            false,
+            true,
           );
         }
         stopExtractionPolling();
-        // Refresh stats
         getStatus()
           .then((status) => {
             leadCount.textContent = String(status.total_leads_imported);
@@ -253,7 +390,7 @@ function startExtractionPolling(): void {
           .catch(() => {});
       }
     });
-  }, 1000);
+  }, 500);
 }
 
 function stopExtractionPolling(): void {
@@ -286,8 +423,18 @@ loadLeadsBtn.addEventListener('click', async () => {
         return;
       }
       if (response?.success) {
+        extractionStartTime = Date.now();
         setExtractionUI(true);
-        showExtractionStatus('Starting extraction...');
+        hideExtractionStatus();
+        showProgress(true);
+        progressBar.style.width = '5%';
+        progressBar.classList.add('animated');
+        progressTitle.textContent = 'Extracting leads...';
+        progressDetail.textContent = 'Scanning page for leads...';
+        progressElapsed.textContent = '0:00';
+        progressLeads.textContent = '0';
+        progressPage.textContent = '1';
+        progressPagesDone.textContent = '0';
         startExtractionPolling();
       } else {
         showExtractionStatus(response?.error || 'Failed to start extraction', true);
@@ -299,19 +446,31 @@ loadLeadsBtn.addEventListener('click', async () => {
 stopExtractionBtn.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'stop_multi_page' }, () => {
     setExtractionUI(false);
+    showProgress(false);
     showExtractionStatus('Extraction stopped');
     stopExtractionPolling();
   });
 });
 
-// Check if extraction is already running on popup open
-chrome.runtime.sendMessage({ type: 'get_multi_page_state' }, (state) => {
-  if (chrome.runtime.lastError || !state) return;
+// Check if extraction is already running on panel open
+chrome.storage.local.get(['multiPageProcess', 'extractionProgress'], (result) => {
+  const state = result.multiPageProcess as MultiPageProcess | undefined;
+  const leadProgress = result.extractionProgress as ExtractionProgress | undefined;
+
+  if (!state) return;
   if (state.active && !state.stopped) {
+    extractionStartTime = state.startTime || Date.now();
     setExtractionUI(true);
-    showExtractionStatus(
-      `Extracting... ${state.totalLeads} leads found (page ${state.currentPage})`,
-    );
+    hideExtractionStatus();
+    showProgress(true);
+    progressBar.classList.add('animated');
+    updateProgress(state);
+
+    // Show per-lead detail if recent
+    if (leadProgress && leadProgress.updatedAt > Date.now() - 10000) {
+      updateLeadProgress(leadProgress);
+    }
+
     startExtractionPolling();
   }
 });
@@ -340,7 +499,7 @@ function handleSsoClick(provider: 'google' | 'github'): void {
 googleSsoBtn.addEventListener('click', () => handleSsoClick('google'));
 githubSsoBtn.addEventListener('click', () => handleSsoClick('github'));
 
-// Listen for auth state changes (e.g., from SSO completing in background)
+// Listen for auth state and extraction progress changes
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.auth_state?.newValue) {
     const state = changes.auth_state.newValue as AuthState;
@@ -353,6 +512,12 @@ chrome.storage.onChanged.addListener((changes) => {
         showConnected(state);
       }
     }
+  }
+
+  // Per-lead extraction progress from content script (via service worker → storage)
+  if (changes.extractionProgress?.newValue) {
+    const progress = changes.extractionProgress.newValue as ExtractionProgress;
+    updateLeadProgress(progress);
   }
 });
 

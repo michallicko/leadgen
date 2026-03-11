@@ -11,14 +11,16 @@
  */
 
 import { uploadLeads, uploadActivities } from '../common/api-client';
-import { getAuthState } from '../common/auth';
-import { config } from '../common/config';
+import { getAuthState, storeAuthState } from '../common/auth';
+import { config, jitter } from '../common/config';
 import type {
   Lead,
   ActivityEvent,
   MultiPageProcess,
   ActivitySyncSettings,
   PageExtractionResult,
+  AuthState,
+  ImportSettings,
 } from '../common/types';
 
 // ============== LOGGING ==============
@@ -378,6 +380,15 @@ async function handlePageExtractionComplete(
 
   await chrome.storage.local.set({ multiPageProcess: updatedData });
 
+  // Check if max contacts limit has been reached
+  const { import_settings } = await chrome.storage.local.get('import_settings');
+  const maxContacts = (import_settings as ImportSettings | undefined)?.maxContacts ?? config.defaultMaxContacts;
+  if (maxContacts > 0 && updatedData.totalLeads >= maxContacts) {
+    log.success(`Max contacts limit reached (${updatedData.totalLeads}/${maxContacts}), stopping`);
+    await finishMultiPage(updatedData);
+    return;
+  }
+
   // Navigate to next page if available
   if (result.hasNextPage && result.nextPage) {
     const nextPageData: MultiPageProcess = {
@@ -386,10 +397,11 @@ async function handlePageExtractionComplete(
     };
     await chrome.storage.local.set({ multiPageProcess: nextPageData });
 
+    const pageDelay = jitter(config.multiPageDelay);
     log.info(
-      `Waiting ${config.multiPageDelay / 1000}s before navigating to page ${result.nextPage}...`,
+      `Waiting ${(pageDelay / 1000).toFixed(1)}s before navigating to page ${result.nextPage}...`,
     );
-    await new Promise<void>((r) => setTimeout(r, config.multiPageDelay));
+    await new Promise<void>((r) => setTimeout(r, pageDelay));
 
     // Re-check if still active after delay
     const { multiPageProcess: current } = await chrome.storage.local.get([
@@ -422,6 +434,74 @@ async function finishMultiPage(data: MultiPageProcess): Promise<void> {
   log.success(
     `Multi-page complete: ${data.totalLeads} leads, ${data.totalProfileUrls} URLs, ${data.pagesCompleted} pages`,
   );
+}
+
+// ============== SSO AUTH ==============
+
+// Track SSO auth tab so we can detect the callback and close it
+let ssoAuthTabId: number | null = null;
+
+async function startSsoLogin(
+  provider: 'google' | 'github',
+): Promise<{ success: boolean; error?: string }> {
+  const callbackUrl = `${config.apiBase}/api/auth/iam/callback`;
+  const oauthUrl = `${config.iamBase}/oauth/${provider}?redirect=${encodeURIComponent(callbackUrl)}`;
+
+  try {
+    const tab = await chrome.tabs.create({ url: oauthUrl });
+    if (tab.id) {
+      ssoAuthTabId = tab.id;
+    }
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    log.error(`SSO login failed: ${msg}`);
+    return { success: false, error: msg };
+  }
+}
+
+function parseSsoCallback(url: string): AuthState | null {
+  try {
+    const parsed = new URL(url);
+    const hash = parsed.hash.substring(1); // remove leading #
+    if (!hash) return null;
+
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const userJson = params.get('user');
+
+    if (!accessToken || !userJson) return null;
+
+    const user = JSON.parse(userJson) as {
+      id: string;
+      email: string;
+      display_name?: string;
+      name?: string;
+      owner_id: string | null;
+      roles: Record<string, string>;
+    };
+
+    const roles = user.roles || {};
+    const namespaces = Object.keys(roles);
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken || '',
+      namespace: namespaces.length === 1 ? namespaces[0] : '',
+      user: {
+        id: user.id,
+        email: user.email,
+        display_name: user.display_name || user.name || '',
+        owner_id: user.owner_id,
+        roles,
+      },
+      token_stored_at: Date.now(),
+    };
+  } catch (error) {
+    log.error(`Failed to parse SSO callback: ${error}`);
+    return null;
+  }
 }
 
 // ============== MESSAGE HANDLER ==============
@@ -513,6 +593,39 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    // Start lead extraction from popup
+    if (msgType === 'start_extraction') {
+      const tabId = message.tabId as number;
+      const tag = (message.tag as string) || '';
+      const maxContacts = (message.maxContacts as number) || 0;
+
+      // Store import settings so the multi-page process respects them
+      chrome.storage.local
+        .set({
+          import_settings: { maxContacts } as ImportSettings,
+          import_tag: tag,
+        })
+        .then(() => startMultiPageFromTab(tabId, { currentPage: 1 }))
+        .then(() => {
+          sendResponse({ success: true });
+        });
+      return true;
+    }
+
+    // SSO login (from popup)
+    if (msgType === 'sso_login') {
+      const provider = message.provider as 'google' | 'github';
+      startSsoLogin(provider).then(sendResponse);
+      return true;
+    }
+
+    // Per-lead extraction progress from content script
+    if (msgType === 'extraction_progress') {
+      chrome.storage.local.set({ extractionProgress: message.progress });
+      sendResponse({ success: true });
+      return false;
+    }
+
     // LinkedIn page loaded notification
     if (msgType === 'linkedin_page_loaded') {
       log.debug(`LinkedIn page loaded: ${message.url}`);
@@ -553,6 +666,33 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return;
+
+  // Detect SSO callback: /auth/callback#access_token=...
+  if (
+    ssoAuthTabId === tabId &&
+    tab.url &&
+    tab.url.includes('/auth/callback#')
+  ) {
+    log.info('SSO callback detected, extracting tokens...');
+    ssoAuthTabId = null;
+
+    const authState = parseSsoCallback(tab.url);
+    if (authState) {
+      await storeAuthState(authState);
+      log.success(`SSO login successful for ${authState.user.email}`);
+    } else {
+      log.error('Failed to extract auth data from SSO callback URL');
+    }
+
+    // Close the auth tab
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch {
+      // Tab may already be closed
+    }
+    return;
+  }
+
   if (!tab.url?.includes('linkedin.com')) return;
 
   // Tab-triggered activity sync (throttled)
@@ -582,10 +722,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       log.info(
         `Sales page loaded on tracked tab ${tabId}, waiting for page to stabilize...`,
       );
-      setTimeout(() => triggerExtraction(tabId), config.multiPageDelay);
+      setTimeout(() => triggerExtraction(tabId), jitter(config.multiPageDelay));
     }
   }
 });
+
+// ============== SIDE PANEL ==============
+
+// Open side panel when extension icon is clicked
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 // ============== STARTUP ==============
 
