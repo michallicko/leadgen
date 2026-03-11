@@ -6,6 +6,7 @@ from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
 from ..models import Activity, Company, Contact, ContactTagAssignment, Tag, db
+from ..services.enum_mapper import map_enum_value
 
 extension_bp = Blueprint("extension", __name__)
 
@@ -70,7 +71,7 @@ def upload_leads():
                     tenant_id=str(tenant_id),
                     name=company_name,
                     domain=lead.get("company_domain"),
-                    industry=lead.get("industry"),
+                    industry=map_enum_value("industry", lead.get("industry")),
                     company_size=lead.get("company_size"),
                     revenue_range=lead.get("revenue_range"),
                     status="new",
