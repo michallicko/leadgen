@@ -9,9 +9,13 @@ import {
   useAiDesignSteps,
   useConfirmAiDesign,
   useFeedbackSummary,
+  useSequence,
+  useUpdateSequenceStep,
   type CampaignStep,
   type ExampleMessage,
   type StepConfig,
+  type StepCondition,
+  type ExecutionStatus,
   type AiDesignProposedStep,
   type FeedbackSummary,
 } from '../../../api/queries/useCampaignSteps'
@@ -50,6 +54,19 @@ const TONE_OPTIONS = [
   { value: 'empathetic', label: 'Empathetic' },
 ]
 
+const CONDITION_OPTIONS: { value: StepCondition; label: string }[] = [
+  { value: 'always', label: 'Always' },
+  { value: 'no_response', label: 'No Response' },
+  { value: 'opened_not_replied', label: 'Opened, Not Replied' },
+]
+
+const EXECUTION_STATUS_STYLES: Record<ExecutionStatus, { color: string; label: string }> = {
+  pending: { color: 'bg-[#8B92A0]/15 text-[#8B92A0] border-[#8B92A0]/30', label: 'Pending' },
+  active: { color: 'bg-[#00B8CF]/15 text-[#00B8CF] border-[#00B8CF]/30', label: 'Active' },
+  completed: { color: 'bg-success/15 text-success border-success/30', label: 'Completed' },
+  skipped: { color: 'bg-warning/15 text-warning border-warning/30', label: 'Skipped' },
+}
+
 // ── Props ────────────────────────────────────────────────
 
 interface Props {
@@ -72,8 +89,16 @@ export function StepsTab({ campaignId, isEditable }: Props) {
   const confirmAiDesign = useConfirmAiDesign()
   const { data: feedbackData } = useFeedbackSummary(campaignId)
 
+  // Sequence data
+  const { data: sequenceData } = useSequence(campaignId)
+  const updateSequenceStep = useUpdateSequenceStep()
+
   const steps = data?.steps ?? []
+  const sequenceSteps = sequenceData?.steps ?? []
   const templates = templateData?.templates ?? []
+
+  // View toggle: 'editor' (existing) or 'sequence' (timeline)
+  const [view, setView] = useState<'editor' | 'sequence'>('editor')
 
   // Track which step card is expanded for config editing
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -229,6 +254,32 @@ export function StepsTab({ campaignId, isEditable }: Props) {
     )
   }, [])
 
+  // ── Sequence step updates ──
+
+  const handleUpdateSequenceStep = useCallback(async (
+    stepNumber: number,
+    data: { condition?: StepCondition; execution_status?: ExecutionStatus; day_offset?: number },
+  ) => {
+    try {
+      await updateSequenceStep.mutateAsync({ campaignId, stepNumber, data })
+    } catch {
+      toast('Failed to update step', 'error')
+    }
+  }, [campaignId, updateSequenceStep, toast])
+
+  const handleExecuteNow = useCallback(async (stepNumber: number) => {
+    try {
+      await updateSequenceStep.mutateAsync({
+        campaignId,
+        stepNumber,
+        data: { execution_status: 'active' },
+      })
+      toast('Step activated', 'success')
+    } catch {
+      toast('Failed to activate step', 'error')
+    }
+  }, [campaignId, updateSequenceStep, toast])
+
   // ── Loading ──
 
   if (isLoading) {
@@ -241,6 +292,42 @@ export function StepsTab({ campaignId, isEditable }: Props) {
 
   return (
     <div className="max-w-2xl space-y-4">
+      {/* View toggle */}
+      <div className="flex items-center gap-1 p-0.5 bg-surface-alt/50 rounded-md w-fit">
+        <button
+          onClick={() => setView('editor')}
+          className={`px-3 py-1 text-xs font-medium rounded transition-colors border-none cursor-pointer ${
+            view === 'editor'
+              ? 'bg-surface text-text shadow-sm'
+              : 'bg-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          Editor
+        </button>
+        <button
+          onClick={() => setView('sequence')}
+          className={`px-3 py-1 text-xs font-medium rounded transition-colors border-none cursor-pointer ${
+            view === 'sequence'
+              ? 'bg-surface text-text shadow-sm'
+              : 'bg-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          Sequence
+        </button>
+      </div>
+
+      {/* Sequence Timeline View */}
+      {view === 'sequence' && (
+        <SequenceTimeline
+          steps={sequenceSteps.length > 0 ? sequenceSteps : steps}
+          onUpdateStep={handleUpdateSequenceStep}
+          onExecuteNow={handleExecuteNow}
+          isUpdating={updateSequenceStep.isPending}
+        />
+      )}
+
+      {/* Editor View */}
+      {view === 'editor' && <>
       {/* From template */}
       {isEditable && templates.length > 0 && (
         <div className="flex items-center gap-2">
@@ -493,6 +580,176 @@ export function StepsTab({ campaignId, isEditable }: Props) {
           {addStep.isPending ? 'Adding...' : 'Add Step'}
         </button>
       )}
+      </>}
+    </div>
+  )
+}
+
+// ── SequenceTimeline ─────────────────────────────────────
+
+interface SequenceTimelineProps {
+  steps: CampaignStep[]
+  onUpdateStep: (stepNumber: number, data: { condition?: StepCondition; execution_status?: ExecutionStatus; day_offset?: number }) => void
+  onExecuteNow: (stepNumber: number) => void
+  isUpdating: boolean
+}
+
+function formatTimestamp(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function SequenceTimeline({ steps, onUpdateStep, onExecuteNow, isUpdating }: SequenceTimelineProps) {
+  if (steps.length === 0) {
+    return (
+      <p className="text-xs text-text-muted py-4">
+        No steps configured. Switch to Editor to add steps.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-0">
+      {steps.map((step, idx) => {
+        const channelLabel = CHANNEL_OPTIONS.find((c) => c.value === step.channel)?.label ?? step.channel
+        const status = step.execution_status ?? 'pending'
+        const statusStyle = EXECUTION_STATUS_STYLES[status] ?? EXECUTION_STATUS_STYLES.pending
+        const condition = step.condition ?? 'always'
+        const conditionLabel = CONDITION_OPTIONS.find((c) => c.value === condition)?.label ?? condition
+        const isFirst = idx === 0
+        const isLast = idx === steps.length - 1
+
+        // Day gap to next step
+        const nextStep = !isLast ? steps[idx + 1] : null
+        const dayGap = nextStep ? nextStep.day_offset - step.day_offset : 0
+
+        return (
+          <div key={step.id}>
+            {/* Step row */}
+            <div className="flex items-start gap-3 group">
+              {/* Timeline track */}
+              <div className="flex flex-col items-center w-6 flex-shrink-0">
+                {/* Connector line above (hidden for first) */}
+                <div className={`w-px h-3 ${isFirst ? 'bg-transparent' : status === 'completed' ? 'bg-success/40' : 'bg-border'}`} />
+                {/* Node dot */}
+                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+                  status === 'completed' ? 'bg-success border-success' :
+                  status === 'active' ? 'bg-[#00B8CF] border-[#00B8CF] animate-pulse' :
+                  status === 'skipped' ? 'bg-warning/50 border-warning' :
+                  'bg-surface border-[#8B92A0]'
+                }`} />
+                {/* Connector line below (hidden for last) */}
+                {!isLast && (
+                  <div className={`w-px flex-1 min-h-[12px] ${status === 'completed' ? 'bg-success/40' : 'border-l border-dashed border-border'}`} />
+                )}
+              </div>
+
+              {/* Step content card */}
+              <div className="flex-1 border border-border rounded-lg bg-surface px-3 py-2.5 mb-1">
+                {/* Top row: label, channel, day, badges */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Position */}
+                  <span className="w-5 h-5 flex items-center justify-center text-[10px] font-bold text-text-muted bg-surface-alt rounded flex-shrink-0">
+                    {step.position}
+                  </span>
+
+                  {/* Channel icon */}
+                  <span className="text-[9px] font-bold text-text-dim bg-surface-alt px-1.5 py-0.5 rounded flex-shrink-0">
+                    {CHANNEL_ICONS[step.channel] || '?'}
+                  </span>
+
+                  {/* Label */}
+                  <span className="text-sm text-text font-medium truncate">
+                    {step.label || channelLabel}
+                  </span>
+
+                  {/* Spacer */}
+                  <div className="flex-1" />
+
+                  {/* Day offset badge */}
+                  <span className="text-[10px] text-text-dim bg-surface-alt px-1.5 py-0.5 rounded flex-shrink-0">
+                    Day {step.day_offset}
+                  </span>
+
+                  {/* Condition badge */}
+                  <span className="text-[10px] text-text-muted bg-surface-alt/80 px-1.5 py-0.5 rounded border border-border/50 flex-shrink-0">
+                    {conditionLabel}
+                  </span>
+
+                  {/* Execution status badge */}
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex-shrink-0 ${statusStyle.color}`}>
+                    {statusStyle.label}
+                  </span>
+                </div>
+
+                {/* Bottom row: timestamps + controls */}
+                <div className="flex items-center gap-3 mt-1.5">
+                  {/* Timestamps */}
+                  {step.started_at && (
+                    <span className="text-[10px] text-text-dim" title="Started">
+                      Started: {formatTimestamp(step.started_at)}
+                    </span>
+                  )}
+                  {step.completed_at && (
+                    <span className="text-[10px] text-text-dim" title="Completed">
+                      Completed: {formatTimestamp(step.completed_at)}
+                    </span>
+                  )}
+
+                  <div className="flex-1" />
+
+                  {/* Condition selector */}
+                  <select
+                    value={condition}
+                    onChange={(e) => onUpdateStep(step.position, { condition: e.target.value as StepCondition })}
+                    className="px-1.5 py-0.5 text-[10px] rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent"
+                  >
+                    {CONDITION_OPTIONS.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+
+                  {/* Day offset control */}
+                  <div className="flex items-center gap-1">
+                    <label className="text-[10px] text-text-dim">Day:</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={step.day_offset}
+                      onChange={(e) => onUpdateStep(step.position, { day_offset: parseInt(e.target.value, 10) || 0 })}
+                      className="w-12 px-1 py-0.5 text-[10px] rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent text-center"
+                    />
+                  </div>
+
+                  {/* Execute now button for pending steps */}
+                  {status === 'pending' && (
+                    <button
+                      onClick={() => onExecuteNow(step.position)}
+                      disabled={isUpdating}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded bg-[#00B8CF]/15 text-[#00B8CF] border border-[#00B8CF]/30 hover:bg-[#00B8CF]/25 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Execute Now
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Day gap connector label */}
+            {!isLast && dayGap > 0 && (
+              <div className="flex items-center gap-3 py-0.5">
+                <div className="w-6 flex items-center justify-center flex-shrink-0">
+                  <div className={`w-px h-4 ${status === 'completed' ? 'bg-success/40' : 'border-l border-dashed border-border'}`} />
+                </div>
+                <span className="text-[10px] text-text-dim italic">
+                  {dayGap} day{dayGap !== 1 ? 's' : ''} wait
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

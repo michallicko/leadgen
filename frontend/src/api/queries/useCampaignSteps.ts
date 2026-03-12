@@ -16,6 +16,9 @@ export interface ExampleMessage {
   note?: string
 }
 
+export type StepCondition = 'always' | 'no_response' | 'opened_not_replied'
+export type ExecutionStatus = 'pending' | 'active' | 'completed' | 'skipped'
+
 export interface CampaignStep {
   id: string
   campaign_id: string
@@ -24,6 +27,10 @@ export interface CampaignStep {
   day_offset: number
   label: string
   config: StepConfig
+  condition: StepCondition
+  execution_status: ExecutionStatus
+  started_at: string | null
+  completed_at: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -196,6 +203,64 @@ export function useConfirmAiDesign() {
         body: { steps },
       }),
     onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-steps', vars.campaignId] })
+    },
+  })
+}
+
+// ── Sequence API ─────────────────────────────────────────
+
+interface SequenceResponse {
+  steps: CampaignStep[]
+}
+
+export function useSequence(campaignId: string | null) {
+  return useQuery({
+    queryKey: ['campaign-sequence', campaignId],
+    queryFn: () => apiFetch<SequenceResponse>(`/campaigns/${campaignId}/sequence`),
+    enabled: !!campaignId,
+  })
+}
+
+export function useUpdateSequenceStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      campaignId,
+      stepNumber,
+      data,
+    }: {
+      campaignId: string
+      stepNumber: number
+      data: { condition?: StepCondition; execution_status?: ExecutionStatus; day_offset?: number }
+    }) =>
+      apiFetch<CampaignStep>(`/campaigns/${campaignId}/sequence/${stepNumber}`, {
+        method: 'PATCH',
+        body: data,
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-sequence', vars.campaignId] })
+      qc.invalidateQueries({ queryKey: ['campaign-steps', vars.campaignId] })
+    },
+  })
+}
+
+export function useReplaceSequence() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      campaignId,
+      steps,
+    }: {
+      campaignId: string
+      steps: Array<{ channel: string; day_offset: number; label: string; condition?: StepCondition; config?: StepConfig }>
+    }) =>
+      apiFetch<SequenceResponse>(`/campaigns/${campaignId}/sequence`, {
+        method: 'PUT',
+        body: { steps },
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-sequence', vars.campaignId] })
       qc.invalidateQueries({ queryKey: ['campaign-steps', vars.campaignId] })
     },
   })
