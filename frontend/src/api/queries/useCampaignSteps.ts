@@ -10,7 +10,7 @@ export interface StepConfig {
 }
 
 export interface ExampleMessage {
-  text: string
+  body: string
   note?: string
 }
 

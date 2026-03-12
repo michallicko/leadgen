@@ -41,9 +41,7 @@ def _get_campaign_or_404(campaign_id, tenant_id):
     return campaign, None
 
 
-@campaign_steps_bp.route(
-    "/api/campaigns/<campaign_id>/steps", methods=["GET"]
-)
+@campaign_steps_bp.route("/api/campaigns/<campaign_id>/steps", methods=["GET"])
 @require_auth
 def list_steps(campaign_id):
     """List all steps for a campaign, ordered by position."""
@@ -63,9 +61,7 @@ def list_steps(campaign_id):
     return jsonify({"steps": [_step_to_dict(s) for s in steps]}), 200
 
 
-@campaign_steps_bp.route(
-    "/api/campaigns/<campaign_id>/steps", methods=["POST"]
-)
+@campaign_steps_bp.route("/api/campaigns/<campaign_id>/steps", methods=["POST"])
 @require_auth
 def add_step(campaign_id):
     """Add a new step to a campaign. Position auto-increments if not provided."""
@@ -183,9 +179,7 @@ def delete_step(campaign_id, step_id):
     return jsonify({"ok": True}), 200
 
 
-@campaign_steps_bp.route(
-    "/api/campaigns/<campaign_id>/steps/reorder", methods=["PUT"]
-)
+@campaign_steps_bp.route("/api/campaigns/<campaign_id>/steps/reorder", methods=["PUT"])
 @require_auth
 def reorder_steps(campaign_id):
     """Reorder steps. Expects {"order": ["step-id-1", "step-id-2", ...]}."""
@@ -206,6 +200,10 @@ def reorder_steps(campaign_id):
         campaign_id=campaign_id, tenant_id=tenant_id
     ).all()
     step_map = {s.id: s for s in steps}
+
+    # Validate order contains exactly all existing step IDs
+    if len(order) != len(step_map):
+        return jsonify({"error": "order must contain all step IDs"}), 400
 
     # Validate all IDs exist
     for sid in order:
@@ -250,7 +248,9 @@ def populate_from_template(campaign_id):
     if not template_id:
         return jsonify({"error": "template_id is required"}), 400
 
-    template = CampaignTemplate.query.filter_by(id=template_id).first()
+    template = CampaignTemplate.query.filter_by(
+        id=template_id, tenant_id=str(tenant_id)
+    ).first()
     if not template:
         return jsonify({"error": "Template not found"}), 404
 
@@ -260,9 +260,7 @@ def populate_from_template(campaign_id):
         return jsonify({"error": "Template has no steps"}), 400
 
     # Delete existing steps for this campaign
-    CampaignStep.query.filter_by(
-        campaign_id=campaign_id, tenant_id=tenant_id
-    ).delete()
+    CampaignStep.query.filter_by(campaign_id=campaign_id, tenant_id=tenant_id).delete()
     db.session.flush()
 
     # Create new steps from template

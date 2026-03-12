@@ -1341,11 +1341,14 @@ def generation_cost_estimate(campaign_id):
     if total_contacts == 0:
         return jsonify({"error": "No contacts in campaign"}), 400
 
+    step_count = CampaignStep.query.filter_by(campaign_id=campaign_id).count()
     enabled = [s for s in template_config if s.get("enabled")]
-    if not enabled:
+    if step_count == 0 and not enabled:
         return jsonify({"error": "No enabled message steps"}), 400
 
-    estimate = estimate_generation_cost(template_config, total_contacts)
+    estimate = estimate_generation_cost(
+        template_config, total_contacts, campaign_id=campaign_id, tenant_id=tenant_id
+    )
 
     # Enrichment gap analysis — find contacts missing key stages
     gap_rows = db.session.execute(
@@ -1461,8 +1464,9 @@ def start_campaign_generation(campaign_id):
     if total_contacts == 0:
         return jsonify({"error": "No contacts in campaign"}), 400
 
+    step_count = CampaignStep.query.filter_by(campaign_id=campaign_id).count()
     enabled = [s for s in template_config if s.get("enabled")]
-    if not enabled:
+    if step_count == 0 and not enabled:
         return jsonify({"error": "No enabled message steps"}), 400
 
     # Handle skip_unenriched flag

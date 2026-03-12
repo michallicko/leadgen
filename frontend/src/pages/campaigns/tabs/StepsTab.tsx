@@ -522,14 +522,14 @@ interface ExampleMessagesEditorProps {
 
 function ExampleMessagesEditor({ examples, isEditable, onChange }: ExampleMessagesEditorProps) {
   const handleAdd = () => {
-    onChange([...examples, { text: '', note: '' }])
+    onChange([...examples, { body: '', note: '' }])
   }
 
   const handleRemove = (index: number) => {
     onChange(examples.filter((_, i) => i !== index))
   }
 
-  const handleChange = (index: number, field: 'text' | 'note', value: string) => {
+  const handleChange = (index: number, field: 'body' | 'note', value: string) => {
     const updated = examples.map((ex, i) => (i === index ? { ...ex, [field]: value } : ex))
     onChange(updated)
   }
@@ -563,8 +563,8 @@ function ExampleMessagesEditor({ examples, isEditable, onChange }: ExampleMessag
                 )}
               </div>
               <textarea
-                value={ex.text}
-                onChange={(e) => handleChange(idx, 'text', e.target.value)}
+                value={ex.body}
+                onChange={(e) => handleChange(idx, 'body', e.target.value)}
                 disabled={!isEditable}
                 rows={3}
                 placeholder="Paste an example message..."

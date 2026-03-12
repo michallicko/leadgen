@@ -363,7 +363,9 @@ def build_generation_prompt(
             "Use these as style/tone reference (do NOT copy verbatim):",
         ]
         for i, ex in enumerate(example_messages, 1):
-            examples_lines.append(f"\nExample {i}:\n{ex['body']}")
+            examples_lines.append(
+                f"\nExample {i}:\n{ex.get('body') or ex.get('text', '')}"
+            )
             if ex.get("note"):
                 examples_lines.append(f"(Note: {ex['note']})")
         parts.extend(examples_lines)

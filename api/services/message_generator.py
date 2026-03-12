@@ -77,6 +77,7 @@ def estimate_generation_cost(
     total_contacts: int,
     variant_count: int = 1,
     campaign_id: str | None = None,
+    tenant_id: str | None = None,
 ) -> dict:
     """Estimate the cost of generating messages for a campaign.
 
@@ -85,13 +86,17 @@ def estimate_generation_cost(
     Args:
         variant_count: Number of A/B variants per message (1-3). Default 1.
         campaign_id: Optional campaign ID to check for campaign_steps.
+        tenant_id: Optional tenant ID for tenant-scoped queries.
     """
     variant_count = max(1, min(int(variant_count), 3))
 
     # Prefer campaign_steps over legacy template_config
     if campaign_id:
+        step_filter = {"campaign_id": campaign_id}
+        if tenant_id:
+            step_filter["tenant_id"] = str(tenant_id)
         campaign_steps = (
-            CampaignStep.query.filter_by(campaign_id=campaign_id)
+            CampaignStep.query.filter_by(**step_filter)
             .order_by(CampaignStep.position)
             .all()
         )
@@ -305,7 +310,7 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
 
     # Prefer campaign_steps over legacy template_config
     campaign_steps = (
-        CampaignStep.query.filter_by(campaign_id=campaign_id)
+        CampaignStep.query.filter_by(campaign_id=campaign_id, tenant_id=str(tenant_id))
         .order_by(CampaignStep.position)
         .all()
     )
@@ -895,7 +900,7 @@ def regenerate_message(
     if cc_id:
         camp_row = db.session.execute(
             db.text("""
-                SELECT c.generation_config, c.template_config, c.tenant_id
+                SELECT c.generation_config, c.template_config, c.tenant_id, c.id
                 FROM campaigns c
                 JOIN campaign_contacts cc ON cc.campaign_id = c.id
                 WHERE cc.id = :cc_id
@@ -913,7 +918,12 @@ def regenerate_message(
                 if isinstance(camp_row[1], str)
                 else (camp_row[1] or [])
             )
-            total_steps = len([s for s in template_config if s.get("enabled")])
+            camp_id = camp_row[3]
+            step_count = CampaignStep.query.filter_by(campaign_id=camp_id).count()
+            if step_count > 0:
+                total_steps = step_count
+            else:
+                total_steps = len([s for s in template_config if s.get("enabled")])
 
             # Use strategy snapshot from generation_config, or load fresh
             strategy_data = campaign_config.get("strategy_snapshot")
