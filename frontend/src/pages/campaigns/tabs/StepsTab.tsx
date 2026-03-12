@@ -6,9 +6,12 @@ import {
   useDeleteCampaignStep,
   useReorderCampaignSteps,
   usePopulateFromTemplate,
+  useAiDesignSteps,
+  useConfirmAiDesign,
   type CampaignStep,
   type ExampleMessage,
   type StepConfig,
+  type AiDesignProposedStep,
 } from '../../../api/queries/useCampaignSteps'
 import { useCampaignTemplates } from '../../../api/queries/useCampaigns'
 import { useAssets, useUploadAsset, type Asset } from '../../../api/queries/useAssets'
@@ -63,6 +66,8 @@ export function StepsTab({ campaignId, isEditable }: Props) {
   const deleteStep = useDeleteCampaignStep()
   const reorderSteps = useReorderCampaignSteps()
   const populateFromTemplate = usePopulateFromTemplate()
+  const aiDesign = useAiDesignSteps()
+  const confirmAiDesign = useConfirmAiDesign()
 
   const steps = data?.steps ?? []
   const templates = templateData?.templates ?? []
@@ -72,6 +77,14 @@ export function StepsTab({ campaignId, isEditable }: Props) {
 
   // Template dropdown
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+
+  // AI design state
+  const [aiGoal, setAiGoal] = useState('')
+  const [aiChannelPref, setAiChannelPref] = useState('')
+  const [aiNumSteps, setAiNumSteps] = useState<number | ''>('')
+  const [aiProposal, setAiProposal] = useState<{ steps: AiDesignProposedStep[]; reasoning: string } | null>(null)
+  const [editedProposal, setEditedProposal] = useState<AiDesignProposedStep[]>([])
+  const [showAiDesigner, setShowAiDesigner] = useState(false)
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id))
@@ -164,6 +177,55 @@ export function StepsTab({ campaignId, isEditable }: Props) {
     }
   }, [campaignId, selectedTemplateId, populateFromTemplate, toast])
 
+  // ── AI Design ──
+
+  const handleAiDesign = useCallback(async () => {
+    if (!aiGoal.trim()) return
+    try {
+      const result = await aiDesign.mutateAsync({
+        campaignId,
+        goal: aiGoal.trim(),
+        channel_preference: aiChannelPref || undefined,
+        num_steps: aiNumSteps || undefined,
+      })
+      setAiProposal(result)
+      setEditedProposal(result.steps.map((s) => ({ ...s, config: { ...s.config } })))
+    } catch {
+      toast('AI design failed', 'error')
+    }
+  }, [campaignId, aiGoal, aiChannelPref, aiNumSteps, aiDesign, toast])
+
+  const handleAiConfirm = useCallback(async () => {
+    if (!editedProposal.length) return
+    try {
+      await confirmAiDesign.mutateAsync({ campaignId, steps: editedProposal })
+      setAiProposal(null)
+      setEditedProposal([])
+      setShowAiDesigner(false)
+      setAiGoal('')
+      setAiChannelPref('')
+      setAiNumSteps('')
+      toast('Steps saved from AI design', 'success')
+    } catch {
+      toast('Failed to save steps', 'error')
+    }
+  }, [campaignId, editedProposal, confirmAiDesign, toast])
+
+  const handleAiCancel = useCallback(() => {
+    setAiProposal(null)
+    setEditedProposal([])
+  }, [])
+
+  const handleEditProposedStep = useCallback((index: number, field: string, value: unknown) => {
+    setEditedProposal((prev) =>
+      prev.map((s, i) => {
+        if (i !== index) return s
+        if (field === 'config') return { ...s, config: value as StepConfig }
+        return { ...s, [field]: value }
+      }),
+    )
+  }, [])
+
   // ── Loading ──
 
   if (isLoading) {
@@ -198,6 +260,193 @@ export function StepsTab({ campaignId, isEditable }: Props) {
           </button>
           {steps.length > 0 && (
             <span className="text-[10px] text-warning">Replaces all existing steps</span>
+          )}
+        </div>
+      )}
+
+      {/* AI Step Designer */}
+      {isEditable && (
+        <div className="space-y-3">
+          {!showAiDesigner ? (
+            <button
+              onClick={() => setShowAiDesigner(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-text-muted hover:text-text hover:border-accent cursor-pointer bg-transparent transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M7 1v4M5 3h4M2 7l2.5 1M9.5 8L12 7M4.5 11.5L6 9M8 9l1.5 2.5" />
+              </svg>
+              Let AI design steps
+            </button>
+          ) : (
+            <div className="border border-accent/30 rounded-lg p-4 bg-surface-alt/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-text">AI Step Designer</h4>
+                <button
+                  onClick={() => { setShowAiDesigner(false); handleAiCancel() }}
+                  className="text-[10px] text-text-dim hover:text-text bg-transparent border-none cursor-pointer transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+
+              {!aiProposal ? (
+                <>
+                  {/* Goal input */}
+                  <div>
+                    <label className="text-xs text-text-muted mb-1 block">Describe your outreach goal</label>
+                    <textarea
+                      value={aiGoal}
+                      onChange={(e) => setAiGoal(e.target.value)}
+                      rows={2}
+                      placeholder="e.g., 3-step LinkedIn outreach for SaaS CTOs, warm intro then value pitch"
+                      className="w-full px-2 py-1.5 text-sm rounded border border-border bg-surface text-text focus:outline-none focus:border-accent resize-none"
+                    />
+                  </div>
+
+                  {/* Options row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-text-muted mb-1 block">Channel preference</label>
+                      <select
+                        value={aiChannelPref}
+                        onChange={(e) => setAiChannelPref(e.target.value)}
+                        className="w-full px-2 py-1.5 text-xs rounded border border-border bg-surface text-text focus:outline-none focus:border-accent"
+                      >
+                        <option value="">Any</option>
+                        {CHANNEL_OPTIONS.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-muted mb-1 block">Number of steps</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={aiNumSteps}
+                        onChange={(e) => setAiNumSteps(e.target.value ? parseInt(e.target.value, 10) : '')}
+                        placeholder="Auto"
+                        className="w-full px-2 py-1.5 text-xs rounded border border-border bg-surface text-text focus:outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Design button */}
+                  <button
+                    onClick={handleAiDesign}
+                    disabled={!aiGoal.trim() || aiDesign.isPending}
+                    className="px-4 py-2 text-xs font-medium rounded bg-accent text-white hover:bg-accent/90 cursor-pointer border-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {aiDesign.isPending ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Designing...
+                      </>
+                    ) : (
+                      'Design Steps'
+                    )}
+                  </button>
+
+                  {steps.length > 0 && (
+                    <p className="text-[10px] text-warning">This will replace all existing steps when confirmed.</p>
+                  )}
+                </>
+              ) : (
+                /* Proposal preview */
+                <div className="space-y-3">
+                  {/* Reasoning */}
+                  <div className="px-3 py-2 rounded bg-surface-alt/50 border border-border/50">
+                    <p className="text-xs text-text-muted italic">{aiProposal.reasoning}</p>
+                  </div>
+
+                  {/* Proposed steps */}
+                  <div className="space-y-2">
+                    {editedProposal.map((step, idx) => (
+                      <div key={idx} className="border border-border rounded-lg bg-surface p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 flex items-center justify-center text-[10px] font-bold text-text-muted bg-surface-alt rounded flex-shrink-0">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={step.label}
+                            onChange={(e) => handleEditProposedStep(idx, 'label', e.target.value)}
+                            className="flex-1 px-2 py-1 text-sm rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent"
+                          />
+                          <span className="text-[10px] text-text-dim flex-shrink-0">Day {step.day_offset}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] text-text-dim mb-0.5 block">Channel</label>
+                            <select
+                              value={step.channel}
+                              onChange={(e) => handleEditProposedStep(idx, 'channel', e.target.value)}
+                              className="w-full px-1.5 py-1 text-xs rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent"
+                            >
+                              {CHANNEL_OPTIONS.map((c) => (
+                                <option key={c.value} value={c.value}>{c.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-text-dim mb-0.5 block">Day offset</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={step.day_offset}
+                              onChange={(e) => handleEditProposedStep(idx, 'day_offset', parseInt(e.target.value, 10) || 0)}
+                              className="w-full px-1.5 py-1 text-xs rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-text-dim mb-0.5 block">Tone</label>
+                            <select
+                              value={step.config.tone ?? 'informal'}
+                              onChange={(e) => handleEditProposedStep(idx, 'config', { ...step.config, tone: e.target.value })}
+                              className="w-full px-1.5 py-1 text-xs rounded border border-border bg-surface-alt text-text focus:outline-none focus:border-accent"
+                            >
+                              <option value="formal">Formal</option>
+                              <option value="informal">Informal</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleAiConfirm}
+                      disabled={confirmAiDesign.isPending}
+                      className="px-4 py-2 text-xs font-medium rounded bg-accent text-white hover:bg-accent/90 cursor-pointer border-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {confirmAiDesign.isPending ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Accept & Save'
+                      )}
+                    </button>
+                    <button
+                      onClick={handleAiCancel}
+                      className="px-4 py-2 text-xs font-medium rounded border border-border text-text-muted hover:text-text hover:border-accent cursor-pointer bg-transparent transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => { handleAiCancel(); }}
+                      className="px-4 py-2 text-xs font-medium rounded border border-border text-text-muted hover:text-text hover:border-accent cursor-pointer bg-transparent transition-colors ml-auto"
+                    >
+                      Redesign
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

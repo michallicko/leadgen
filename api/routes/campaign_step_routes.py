@@ -7,7 +7,8 @@ import uuid
 from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Campaign, CampaignStep, CampaignTemplate, db
+from ..models import Campaign, CampaignContact, CampaignStep, CampaignTemplate, Contact, Company, db
+from ..services.step_designer import design_steps
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,121 @@ def populate_from_template(campaign_id):
             day_offset=ts.get("day_offset", 0),
             label=ts.get("label", ""),
             config=json.dumps(ts.get("config", {})),
+        )
+        db.session.add(step)
+        created.append(step)
+
+    db.session.commit()
+    return jsonify({"steps": [_step_to_dict(s) for s in created]}), 201
+
+
+@campaign_steps_bp.route(
+    "/api/campaigns/<campaign_id>/steps/ai-design", methods=["POST"]
+)
+@require_auth
+def ai_design_steps(campaign_id):
+    """Propose campaign steps using AI. Does not save — returns a proposal."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign, err = _get_campaign_or_404(campaign_id, tenant_id)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    goal = data.get("goal")
+    if not goal:
+        return jsonify({"error": "goal is required"}), 400
+
+    # Build campaign context from contacts
+    campaign_context: dict = {}
+    contact_count = CampaignContact.query.filter_by(campaign_id=campaign_id).count()
+    if contact_count:
+        campaign_context["contact_count"] = contact_count
+
+        # Get top industries from campaign contacts
+        industry_rows = (
+            db.session.query(Company.industry)
+            .join(Contact, Contact.company_id == Company.id)
+            .join(CampaignContact, CampaignContact.contact_id == Contact.id)
+            .filter(
+                CampaignContact.campaign_id == campaign_id,
+                Company.industry.isnot(None),
+            )
+            .group_by(Company.industry)
+            .order_by(db.func.count().desc())
+            .limit(5)
+            .all()
+        )
+        if industry_rows:
+            campaign_context["industries"] = [r[0] for r in industry_rows]
+
+        # Get top seniority levels
+        seniority_rows = (
+            db.session.query(Contact.seniority_level)
+            .join(CampaignContact, CampaignContact.contact_id == Contact.id)
+            .filter(
+                CampaignContact.campaign_id == campaign_id,
+                Contact.seniority_level.isnot(None),
+            )
+            .group_by(Contact.seniority_level)
+            .order_by(db.func.count().desc())
+            .limit(5)
+            .all()
+        )
+        if seniority_rows:
+            campaign_context["seniority_levels"] = [r[0] for r in seniority_rows]
+
+    try:
+        result = design_steps(
+            goal=goal,
+            channel_preference=data.get("channel_preference"),
+            num_steps=data.get("num_steps"),
+            campaign_context=campaign_context or None,
+            feedback_context=data.get("feedback_context"),
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        logger.exception("AI step design failed")
+        return jsonify({"error": f"AI design failed: {e}"}), 500
+
+
+@campaign_steps_bp.route(
+    "/api/campaigns/<campaign_id>/steps/ai-design/confirm", methods=["POST"]
+)
+@require_auth
+def ai_design_confirm(campaign_id):
+    """Confirm and save AI-proposed steps. Replaces existing steps."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign, err = _get_campaign_or_404(campaign_id, tenant_id)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    steps_data = data.get("steps")
+    if not steps_data or not isinstance(steps_data, list):
+        return jsonify({"error": "steps must be a non-empty list"}), 400
+
+    # Clear existing steps
+    CampaignStep.query.filter_by(campaign_id=campaign_id, tenant_id=tenant_id).delete()
+    db.session.flush()
+
+    # Create new steps from confirmed proposal
+    created = []
+    for i, s in enumerate(steps_data):
+        step = CampaignStep(
+            id=str(uuid.uuid4()),
+            campaign_id=campaign_id,
+            tenant_id=tenant_id,
+            position=i + 1,
+            channel=s.get("channel", "linkedin_message"),
+            day_offset=s.get("day_offset", 0),
+            label=s.get("label", ""),
+            config=json.dumps(s.get("config", {})),
         )
         db.session.add(step)
         created.append(step)

@@ -122,3 +122,57 @@ export function usePopulateFromTemplate() {
     },
   })
 }
+
+// ── AI Step Designer ──────────────────────────────────────
+
+export interface AiDesignProposedStep {
+  channel: string
+  day_offset: number
+  label: string
+  config: StepConfig
+}
+
+export interface AiDesignResponse {
+  steps: AiDesignProposedStep[]
+  reasoning: string
+}
+
+export function useAiDesignSteps() {
+  return useMutation({
+    mutationFn: ({
+      campaignId,
+      goal,
+      channel_preference,
+      num_steps,
+    }: {
+      campaignId: string
+      goal: string
+      channel_preference?: string
+      num_steps?: number
+    }) =>
+      apiFetch<AiDesignResponse>(`/campaigns/${campaignId}/steps/ai-design`, {
+        method: 'POST',
+        body: { goal, channel_preference, num_steps },
+      }),
+  })
+}
+
+export function useConfirmAiDesign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      campaignId,
+      steps,
+    }: {
+      campaignId: string
+      steps: AiDesignProposedStep[]
+    }) =>
+      apiFetch<StepsResponse>(`/campaigns/${campaignId}/steps/ai-design/confirm`, {
+        method: 'POST',
+        body: { steps },
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['campaign-steps', vars.campaignId] })
+    },
+  })
+}
