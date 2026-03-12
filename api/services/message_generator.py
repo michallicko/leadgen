@@ -13,7 +13,7 @@ import time
 import uuid
 from decimal import Decimal
 
-from ..models import Message, db
+from ..models import CampaignStep, Message, db
 from .generation_prompts import (
     SYSTEM_PROMPT,
     build_generation_prompt,
@@ -56,8 +56,27 @@ VARIANT_ANGLES = [
 VARIANT_LETTERS = ["A", "B", "C"]
 
 
+def _parse_step_config(config) -> dict:
+    """Safely parse a CampaignStep.config value to a dict.
+
+    Handles JSONB (already a dict), JSON strings (SQLite compat), and None.
+    """
+    if isinstance(config, dict):
+        return config
+    if isinstance(config, str):
+        try:
+            parsed = json.loads(config)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, ValueError):
+            return {}
+    return {}
+
+
 def estimate_generation_cost(
-    template_config: list, total_contacts: int, variant_count: int = 1
+    template_config: list,
+    total_contacts: int,
+    variant_count: int = 1,
+    campaign_id: str | None = None,
 ) -> dict:
     """Estimate the cost of generating messages for a campaign.
 
@@ -65,9 +84,35 @@ def estimate_generation_cost(
 
     Args:
         variant_count: Number of A/B variants per message (1-3). Default 1.
+        campaign_id: Optional campaign ID to check for campaign_steps.
     """
     variant_count = max(1, min(int(variant_count), 3))
-    enabled_steps = [s for s in template_config if s.get("enabled")]
+
+    # Prefer campaign_steps over legacy template_config
+    if campaign_id:
+        campaign_steps = (
+            CampaignStep.query.filter_by(campaign_id=campaign_id)
+            .order_by(CampaignStep.position)
+            .all()
+        )
+    else:
+        campaign_steps = []
+
+    if campaign_steps:
+        enabled_steps = [
+            {
+                "step": s.position,
+                "channel": s.channel,
+                "label": s.label,
+                "enabled": True,
+                "day_offset": s.day_offset,
+                "campaign_step_id": s.id,
+                **_parse_step_config(s.config),
+            }
+            for s in campaign_steps
+        ]
+    else:
+        enabled_steps = [s for s in template_config if s.get("enabled")]
     total_messages = len(enabled_steps) * total_contacts * variant_count
 
     per_message_cost = compute_cost(
@@ -258,7 +303,30 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
     )
     owner_id = campaign[2]
 
-    enabled_steps = [s for s in template_config if s.get("enabled")]
+    # Prefer campaign_steps over legacy template_config
+    campaign_steps = (
+        CampaignStep.query.filter_by(campaign_id=campaign_id)
+        .order_by(CampaignStep.position)
+        .all()
+    )
+
+    if campaign_steps:
+        enabled_steps = [
+            {
+                "step": s.position,
+                "channel": s.channel,
+                "label": s.label,
+                "enabled": True,
+                "day_offset": s.day_offset,
+                "campaign_step_id": s.id,
+                **_parse_step_config(s.config),
+            }
+            for s in campaign_steps
+        ]
+    else:
+        # Fallback to legacy template_config
+        enabled_steps = [s for s in template_config if s.get("enabled")]
+
     if not enabled_steps:
         logger.warning("No enabled steps for campaign %s", campaign_id)
         db.session.execute(
@@ -605,6 +673,8 @@ def _generate_single_message(
         total_steps=total_steps,
         strategy_data=strategy_data,
         per_message_instruction=angle_instruction,
+        example_messages=step.get("example_messages"),
+        max_length=step.get("max_length"),
     )
 
     start_time = time.time()
@@ -690,6 +760,9 @@ def _generate_single_message(
         variant_group=variant_group_id,
         variant_angle=variant_angle["key"] if variant_angle else None,
     )
+    if step.get("campaign_step_id"):
+        msg.campaign_step_id = step["campaign_step_id"]
+
     db.session.add(msg)
     db.session.flush()
 

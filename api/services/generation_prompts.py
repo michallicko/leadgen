@@ -269,6 +269,8 @@ def build_generation_prompt(
     strategy_data: dict | None = None,
     formality: str | None = None,
     per_message_instruction: str | None = None,
+    example_messages: list | None = None,
+    max_length: int | None = None,
 ) -> str:
     """Build the user prompt for generating a single message step.
 
@@ -352,6 +354,29 @@ def build_generation_prompt(
         fi = FORMALITY_INSTRUCTIONS[language].get(effective_formality, "")
         if fi:
             parts.append(f"Formality: {fi}")
+
+    # Reference examples from campaign step config
+    if example_messages:
+        examples_lines = [
+            "",
+            "--- REFERENCE EXAMPLES ---",
+            "Use these as style/tone reference (do NOT copy verbatim):",
+        ]
+        for i, ex in enumerate(example_messages, 1):
+            examples_lines.append(f"\nExample {i}:\n{ex['body']}")
+            if ex.get("note"):
+                examples_lines.append(f"(Note: {ex['note']})")
+        parts.extend(examples_lines)
+
+    # Max length constraint from campaign step config
+    if max_length:
+        parts.extend(
+            [
+                "",
+                "--- LENGTH LIMIT ---",
+                f"Maximum {max_length} characters. Be concise.",
+            ]
+        )
 
     parts.extend(
         [
