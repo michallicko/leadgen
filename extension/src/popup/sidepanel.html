@@ -267,6 +267,29 @@
       color: #ff9f43;
       margin-bottom: 12px;
     }
+    .import-preview {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: #1a1c24;
+      border: 1px solid rgba(110, 44, 139, 0.2);
+      border-radius: 8px;
+    }
+    .preview-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+      font-size: 12px;
+    }
+    .preview-label { color: #9896a6; }
+    .preview-value { color: #e8e6f0; font-weight: 500; }
+    .preview-row-highlight .preview-value { color: #00b8cf; font-weight: 600; font-size: 13px; }
+    .preview-note {
+      padding: 6px 0 2px;
+      font-size: 11px;
+      color: #9896a6;
+      font-style: italic;
+    }
     .hidden { display: none; }
     #sync-status { margin-top: 8px; font-size: 12px; color: #9896a6; }
   </style>
@@ -355,6 +378,31 @@
         <option value="500">500</option>
         <option value="0">All</option>
       </select>
+    </div>
+
+    <!-- Import Preview (shown when on SN search page, no import active) -->
+    <div id="import-preview" class="import-preview hidden">
+      <div class="preview-row">
+        <span class="preview-label">Current page</span>
+        <span class="preview-value" id="preview-page">--</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-label">Contacts on page</span>
+        <span class="preview-value" id="preview-contacts-on-page">--</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-label">Total results</span>
+        <span class="preview-value" id="preview-total-results">--</span>
+      </div>
+      <div id="preview-note" class="preview-note hidden"></div>
+      <div class="preview-row preview-row-highlight">
+        <span class="preview-label">Estimated leads</span>
+        <span class="preview-value" id="preview-estimated-leads">--</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-label">Expected time</span>
+        <span class="preview-value" id="preview-expected-time">--</span>
+      </div>
     </div>
 
     <!-- Load Leads (primary action) -->

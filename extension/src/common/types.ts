@@ -151,7 +151,9 @@ export type ExtensionMessage =
   | { type: 'go_to_next_page' }
   | { type: 'linkedin_page_loaded'; url: string }
   | { type: 'sso_login'; provider: 'google' | 'github' }
-  | { type: 'extraction_progress'; progress: ExtractionProgress };
+  | { type: 'extraction_progress'; progress: ExtractionProgress }
+  | { type: 'get_page_info' }
+  | { type: 'page_info'; pageInfo: PageInfo };
 
 /** Result reported after extracting a single page in multi-page mode. */
 export interface PageExtractionResult {
@@ -170,6 +172,14 @@ export interface PageExtractionResult {
 export interface ActivitySyncSettings {
   lastSyncTime: string;
   syncEnabled: boolean;
+}
+
+/** Page info for import preview (read from Sales Navigator DOM). */
+export interface PageInfo {
+  currentPage: number;
+  totalResults: number | null;
+  totalPages: number | null;
+  contactsOnPage: number;
 }
 
 /** Per-lead extraction progress stored in chrome.storage.local. */

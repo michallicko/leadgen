@@ -1,7 +1,7 @@
 import { login, logout, getAuthState, storeAuthState, getImportSettings, storeImportSettings, getImportTag, storeImportTag } from '../common/auth';
 import { getStatus, fetchTags } from '../common/api-client';
 import { config } from '../common/config';
-import type { AuthState, ExtractionProgress, MultiPageProcess } from '../common/types';
+import type { AuthState, ExtractionProgress, MultiPageProcess, PageInfo } from '../common/types';
 
 // --------------- DOM Elements ---------------
 const header = document.getElementById('header') as HTMLDivElement;
@@ -33,6 +33,114 @@ const loadLeadsBtn = document.getElementById('load-leads-btn') as HTMLButtonElem
 const stopExtractionBtn = document.getElementById('stop-extraction-btn') as HTMLButtonElement;
 const extractionStatus = document.getElementById('extraction-status') as HTMLDivElement;
 const tabNotice = document.getElementById('tab-notice') as HTMLDivElement;
+
+// --------------- Import Preview Elements ---------------
+const importPreview = document.getElementById('import-preview') as HTMLDivElement;
+const previewPage = document.getElementById('preview-page') as HTMLSpanElement;
+const previewContactsOnPage = document.getElementById('preview-contacts-on-page') as HTMLSpanElement;
+const previewTotalResults = document.getElementById('preview-total-results') as HTMLSpanElement;
+const previewNote = document.getElementById('preview-note') as HTMLDivElement;
+const previewEstimatedLeads = document.getElementById('preview-estimated-leads') as HTMLSpanElement;
+const previewExpectedTime = document.getElementById('preview-expected-time') as HTMLSpanElement;
+
+let cachedPageInfo: PageInfo | null = null;
+
+function updateImportPreview(pageInfo: PageInfo | null): void {
+  cachedPageInfo = pageInfo;
+  if (!pageInfo || pageInfo.contactsOnPage === 0) {
+    importPreview.classList.add('hidden');
+    return;
+  }
+
+  // Don't show preview when extraction is active
+  const progressVisible = !progressContainer.classList.contains('hidden');
+  if (progressVisible) {
+    importPreview.classList.add('hidden');
+    return;
+  }
+
+  importPreview.classList.remove('hidden');
+
+  // Current page display
+  if (pageInfo.totalPages) {
+    previewPage.textContent = `Page ${pageInfo.currentPage} of ~${pageInfo.totalPages}`;
+  } else {
+    previewPage.textContent = `Page ${pageInfo.currentPage}`;
+  }
+
+  // Contacts on current page
+  previewContactsOnPage.textContent = String(pageInfo.contactsOnPage);
+
+  // Total results
+  if (pageInfo.totalResults) {
+    previewTotalResults.textContent = pageInfo.totalResults.toLocaleString();
+  } else {
+    previewTotalResults.textContent = '--';
+  }
+
+  // Note about starting page
+  if (pageInfo.currentPage > 1) {
+    previewNote.textContent = `Leads from page ${pageInfo.currentPage} onward will be imported`;
+    previewNote.classList.remove('hidden');
+  } else {
+    previewNote.classList.add('hidden');
+  }
+
+  // Estimated leads calculation
+  recalcEstimatedLeads();
+}
+
+function recalcEstimatedLeads(): void {
+  if (!cachedPageInfo) return;
+
+  const contactsPerPage = 25;
+  const totalPages = cachedPageInfo.totalPages;
+  const currentPage = cachedPageInfo.currentPage;
+  const maxContacts = parseInt(maxContactsSelect.value, 10);
+
+  let totalRemaining: number | null = null;
+  if (totalPages) {
+    totalRemaining = (totalPages - currentPage + 1) * contactsPerPage;
+  }
+
+  let estimatedLeads: number | string;
+  if (totalRemaining !== null) {
+    if (maxContacts > 0) {
+      estimatedLeads = Math.min(totalRemaining, maxContacts);
+    } else {
+      estimatedLeads = totalRemaining;
+    }
+  } else if (maxContacts > 0) {
+    estimatedLeads = maxContacts;
+  } else {
+    estimatedLeads = '--';
+  }
+
+  previewEstimatedLeads.textContent = typeof estimatedLeads === 'number'
+    ? `~${estimatedLeads}`
+    : estimatedLeads;
+
+  // Expected time: ~15 seconds per page
+  if (typeof estimatedLeads === 'number') {
+    const pages = Math.ceil(estimatedLeads / contactsPerPage);
+    const totalSeconds = pages * 15;
+    if (totalSeconds < 60) {
+      previewExpectedTime.textContent = `~${totalSeconds}s for ~${estimatedLeads} leads`;
+    } else {
+      const mins = Math.ceil(totalSeconds / 60);
+      previewExpectedTime.textContent = `~${mins} min for ~${estimatedLeads} leads`;
+    }
+  } else {
+    previewExpectedTime.textContent = '--';
+  }
+}
+
+function requestPageInfo(): void {
+  chrome.runtime.sendMessage({ type: 'get_page_info' }, (resp?: PageInfo | null) => {
+    if (chrome.runtime.lastError) return;
+    updateImportPreview(resp ?? null);
+  });
+}
 
 // --------------- Environment Badge ---------------
 if (config.environment === 'staging') {
@@ -99,8 +207,9 @@ async function showConnected(state: AuthState): Promise<void> {
     activityCount.textContent = '\u2014';
   }
 
-  // Check current tab for Sales Navigator
+  // Check current tab for Sales Navigator and request page info
   checkCurrentTab();
+  requestPageInfo();
 }
 
 function showNamespacePicker(state: AuthState): void {
@@ -132,12 +241,15 @@ async function checkCurrentTab(): Promise<void> {
 // Listen for tab switches — side panel stays open across tabs
 chrome.tabs.onActivated.addListener(() => {
   checkCurrentTab();
+  requestPageInfo();
 });
 
 // Listen for tab URL changes (e.g. navigating within a tab)
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.active) {
     checkCurrentTab();
+    // Delay page info request to allow content script to load
+    setTimeout(requestPageInfo, 2000);
   }
 });
 
@@ -200,6 +312,7 @@ importTagInput.addEventListener('change', async () => {
 // --------------- Max Contacts Setting ---------------
 maxContactsSelect.addEventListener('change', async () => {
   await storeImportSettings({ maxContacts: parseInt(maxContactsSelect.value, 10) });
+  recalcEstimatedLeads();
 });
 
 // --------------- Sync Button ---------------
@@ -449,6 +562,7 @@ loadLeadsBtn.addEventListener('click', async () => {
         extractionStartTime = Date.now();
         setExtractionUI(true);
         hideExtractionStatus();
+        importPreview.classList.add('hidden');
         showProgress(true);
         progressBar.style.width = '5%';
         progressBar.classList.add('animated');
@@ -541,6 +655,11 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.extractionProgress?.newValue) {
     const progress = changes.extractionProgress.newValue as ExtractionProgress;
     updateLeadProgress(progress);
+  }
+
+  // Page info from content script (proactive push on SN page load)
+  if (changes.pageInfo?.newValue) {
+    updateImportPreview(changes.pageInfo.newValue as PageInfo);
   }
 });
 

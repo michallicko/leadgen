@@ -14,6 +14,7 @@ import type {
   EnrichedLeadRow,
   Lead,
   PaginationInfo,
+  PageInfo,
   ExtractionResult,
   PageExtractionResult,
   ImportSettings,
@@ -711,6 +712,50 @@ async function runExtractionAndReport(messageTag?: string): Promise<void> {
   }
 }
 
+// ============== PAGE INFO (for import preview) ==============
+
+function getPageInfo(): PageInfo {
+  const currentPage = parseInt(
+    new URL(window.location.href).searchParams.get('page') || '1',
+    10,
+  );
+
+  // Count visible contact card rows (same selector used by extractLeads)
+  const contactsOnPage = document.querySelectorAll('tr[data-row-id]').length;
+
+  // Read total results from the SN search header (e.g. "1,234 results")
+  let totalResults: number | null = null;
+  const resultText = document.body.innerText.match(/(\d+(?:,\d+)?)\s+results?/i);
+  if (resultText) {
+    totalResults = parseInt(resultText[1].replace(/,/g, ''), 10);
+  }
+
+  // Calculate total pages from result count or pagination buttons
+  let totalPages: number | null = null;
+  if (totalResults) {
+    totalPages = Math.ceil(totalResults / 25);
+  } else {
+    // Fall back to pagination buttons
+    const paginationButtons = document.querySelectorAll(
+      '[class*="pagination"] button, [class*="artdeco-pagination"] button',
+    );
+    paginationButtons.forEach((btn) => {
+      const num = parseInt((btn.textContent || '').trim(), 10);
+      if (!isNaN(num) && (totalPages === null || num > totalPages)) {
+        totalPages = num;
+      }
+    });
+
+    // Also check for "of X pages" text
+    const paginationText = document.body.innerText.match(/of\s+(\d+)\s*pages?/i);
+    if (paginationText) {
+      totalPages = parseInt(paginationText[1], 10);
+    }
+  }
+
+  return { currentPage, totalResults, totalPages, contactsOnPage };
+}
+
 // ============== MESSAGE HANDLER ==============
 
 chrome.runtime.onMessage.addListener(
@@ -768,6 +813,12 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (request.action === 'getPageInfo' || request.type === 'get_page_info') {
+      const pageInfo = getPageInfo();
+      sendResponse(pageInfo);
+      return true;
+    }
+
     if (request.action === 'getNextPageInfo') {
       const pagination = getPaginationInfo();
       sendResponse({
@@ -809,3 +860,10 @@ chrome.runtime.onMessage.addListener(
 
 log.success('Sales Navigator content script loaded and ready');
 log.info(`Page URL: ${window.location.href}`);
+
+// Send page info proactively when loading on a search page
+setTimeout(() => {
+  const pageInfo = getPageInfo();
+  chrome.runtime.sendMessage({ type: 'page_info', pageInfo });
+  log.debug('Sent page_info:', pageInfo);
+}, 1500); // Wait for DOM to stabilize

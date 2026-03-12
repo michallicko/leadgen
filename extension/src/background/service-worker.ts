@@ -685,6 +685,34 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
+    // Page info from content script (proactive push on SN page load)
+    if (msgType === 'page_info') {
+      chrome.storage.local.set({ pageInfo: message.pageInfo });
+      sendResponse({ success: true });
+      return false;
+    }
+
+    // Page info request from side panel — relay to active tab's content script
+    if (msgType === 'get_page_info') {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (!tab?.id || !tab.url?.includes('linkedin.com/sales/')) {
+          sendResponse(null);
+          return;
+        }
+        chrome.tabs.sendMessage(tab.id, { type: 'get_page_info' }, (resp) => {
+          if (chrome.runtime.lastError) {
+            sendResponse(null);
+          } else {
+            // Also store in storage for later reads
+            if (resp) chrome.storage.local.set({ pageInfo: resp });
+            sendResponse(resp);
+          }
+        });
+      });
+      return true;
+    }
+
     // LinkedIn page loaded notification
     if (msgType === 'linkedin_page_loaded') {
       log.debug(`LinkedIn page loaded: ${message.url}`);
