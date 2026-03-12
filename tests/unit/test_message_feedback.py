@@ -1,4 +1,5 @@
 """Unit tests for MessageFeedback auto-capture and feedback summary (Phase 4a)."""
+
 import json
 
 from tests.conftest import auth_header
@@ -97,7 +98,9 @@ class TestEditFeedbackCapture:
         assert fb.campaign_id == str(campaign.id)
         assert fb.edit_reason == "too_formal"
         assert fb.edit_reason_text == "Needs a friendlier tone"
-        diff = fb.edit_diff if isinstance(fb.edit_diff, dict) else json.loads(fb.edit_diff)
+        diff = (
+            fb.edit_diff if isinstance(fb.edit_diff, dict) else json.loads(fb.edit_diff)
+        )
         assert diff["field"] == "body"
         assert "original message body" in diff["before"]
         assert diff["after"] == "Completely rewritten message"
@@ -126,6 +129,32 @@ class TestApproveFeedbackCapture:
         feedbacks = MessageFeedback.query.filter_by(message_id=msg_id).all()
         assert len(feedbacks) == 1
         assert feedbacks[0].action == "approved"
+        assert feedbacks[0].campaign_id == str(campaign.id)
+
+
+class TestRejectFeedbackCapture:
+    """Rejecting a message auto-creates a MessageFeedback record."""
+
+    def test_reject_creates_feedback(self, client, seed_companies_contacts, db):
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        seed = seed_companies_contacts
+        campaign, ccs, msgs = _setup_campaign_with_messages(db, seed, msg_count=1)
+
+        msg_id = str(msgs[0].id)
+
+        resp = client.patch(
+            f"/api/messages/{msg_id}",
+            headers=headers,
+            json={"status": "rejected"},
+        )
+        assert resp.status_code == 200
+
+        from api.models import MessageFeedback
+
+        feedbacks = MessageFeedback.query.filter_by(message_id=msg_id).all()
+        assert len(feedbacks) == 1
+        assert feedbacks[0].action == "rejected"
         assert feedbacks[0].campaign_id == str(campaign.id)
 
 
