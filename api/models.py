@@ -1800,3 +1800,38 @@ class LinkedInAccount(db.Model):
             "created_at": (self.created_at.isoformat() if self.created_at else None),
             "updated_at": (self.updated_at.isoformat() if self.updated_at else None),
         }
+
+
+class Asset(db.Model):
+    __tablename__ = "assets"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("gen_random_uuid()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    campaign_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaigns.id"), nullable=True
+    )
+    filename = db.Column(db.String(500), nullable=False)
+    content_type = db.Column(db.String(100), nullable=False)
+    storage_path = db.Column(db.String(1000), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=False, default=0)
+    metadata_ = db.Column("metadata", JSONB, nullable=False, server_default=db.text("'{}'::jsonb"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "campaign_id": str(self.campaign_id) if self.campaign_id else None,
+            "filename": self.filename,
+            "content_type": self.content_type,
+            "storage_path": self.storage_path,
+            "size_bytes": self.size_bytes,
+            "metadata": self.metadata_ or {},
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
+        }
