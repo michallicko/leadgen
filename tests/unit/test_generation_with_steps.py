@@ -1,12 +1,176 @@
-"""Unit tests for generation reading from campaign_steps (Task 4).
+"""Unit tests for generation reading from campaign_steps (Task 4 + Task 6).
 
 Tests cover:
 - Cost estimation prefers campaign_steps over template_config
 - Example messages from step config are included in prompt
 - Max length from step config is included in prompt
+- Auto-migration of template_config to campaign_steps on generation start
 """
 
 from api.services.generation_prompts import build_generation_prompt
+
+
+class TestAutoMigrateTemplateConfigToSteps:
+    def test_auto_migrate_template_config_to_steps(
+        self, client, seed_companies_contacts, db
+    ):
+        """When generation starts and campaign has template_config but no steps,
+        auto-create steps from enabled template entries."""
+        from tests.conftest import auth_header
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+
+        # Create campaign
+        resp = client.post(
+            "/api/campaigns",
+            headers=headers,
+            json={"name": "Legacy Campaign", "channel": "linkedin_message"},
+        )
+        assert resp.status_code == 201, resp.get_json()
+        cid = resp.get_json()["id"]
+
+        # Set template_config via PATCH (legacy way)
+        tpl_config = [
+            {
+                "step": 1,
+                "channel": "linkedin_connect",
+                "day_offset": 0,
+                "label": "Connect",
+                "enabled": True,
+            },
+            {
+                "step": 2,
+                "channel": "email",
+                "day_offset": 5,
+                "label": "Email",
+                "enabled": True,
+                "max_length": 500,
+            },
+            {
+                "step": 3,
+                "channel": "call",
+                "day_offset": 10,
+                "label": "Call",
+                "enabled": False,
+            },
+        ]
+        client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={"template_config": tpl_config},
+        )
+
+        # Verify no steps exist yet
+        steps_resp = client.get(f"/api/campaigns/{cid}/steps", headers=headers)
+        assert steps_resp.status_code == 200
+        assert len(steps_resp.get_json()["steps"]) == 0
+
+        # Transition campaign to 'ready' so generate accepts it
+        patch_resp = client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={"status": "ready"},
+        )
+        assert patch_resp.status_code == 200, f"PATCH failed: {patch_resp.get_json()}"
+
+        # Start generation — will fail (no contacts) but auto-migration runs first
+        client.post(
+            f"/api/campaigns/{cid}/generate",
+            headers=headers,
+            json={},
+        )
+
+        # Check steps were auto-created from enabled template entries only
+        steps_resp = client.get(f"/api/campaigns/{cid}/steps", headers=headers)
+        steps = steps_resp.get_json()["steps"]
+        assert len(steps) == 2  # Only enabled steps (step 3 disabled)
+        assert steps[0]["channel"] == "linkedin_connect"
+        assert steps[0]["label"] == "Connect"
+        assert steps[0]["position"] == 1
+        assert steps[0]["day_offset"] == 0
+        assert steps[1]["channel"] == "email"
+        assert steps[1]["label"] == "Email"
+        assert steps[1]["position"] == 2
+        assert steps[1]["day_offset"] == 5
+        # max_length should be in config (extra fields go there)
+        assert steps[1]["config"].get("max_length") == 500
+
+    def test_no_migration_when_steps_already_exist(
+        self, client, seed_companies_contacts, db
+    ):
+        """When campaign_steps already exist, auto-migration should be skipped."""
+        from api.models import CampaignStep
+        from tests.conftest import auth_header
+
+        headers = auth_header(client)
+        headers["X-Namespace"] = "test-corp"
+        tenant_id = seed_companies_contacts["tenant"].id
+
+        # Create campaign and set template_config via PATCH
+        resp = client.post(
+            "/api/campaigns",
+            headers=headers,
+            json={"name": "Already Has Steps"},
+        )
+        assert resp.status_code == 201, resp.get_json()
+        cid = resp.get_json()["id"]
+        client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={
+                "template_config": [
+                    {
+                        "step": 1,
+                        "channel": "email",
+                        "day_offset": 0,
+                        "label": "Email",
+                        "enabled": True,
+                    },
+                    {
+                        "step": 2,
+                        "channel": "call",
+                        "day_offset": 3,
+                        "label": "Call",
+                        "enabled": True,
+                    },
+                ],
+            },
+        )
+
+        # Manually add one step (simulating steps already created)
+        manual_step = CampaignStep(
+            campaign_id=cid,
+            tenant_id=tenant_id,
+            position=1,
+            channel="linkedin_message",
+            label="Manual Step",
+            day_offset=0,
+            config={},
+        )
+        db.session.add(manual_step)
+        db.session.commit()
+
+        # Transition to ready
+        client.patch(
+            f"/api/campaigns/{cid}",
+            headers=headers,
+            json={"status": "ready"},
+        )
+
+        # Start generation
+        client.post(
+            f"/api/campaigns/{cid}/generate",
+            headers=headers,
+            json={},
+        )
+
+        # Steps should still be just the manual one (no migration)
+        steps_resp = client.get(f"/api/campaigns/{cid}/steps", headers=headers)
+        steps = steps_resp.get_json()["steps"]
+        assert len(steps) == 1
+        assert steps[0]["channel"] == "linkedin_message"
+        assert steps[0]["label"] == "Manual Step"
 
 
 class TestCostEstimateWithCampaignSteps:

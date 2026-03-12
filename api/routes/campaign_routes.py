@@ -10,6 +10,7 @@ from ..display import display_campaign_status, display_tier, display_status
 from ..models import (
     Campaign,
     CampaignContact,
+    CampaignStep,
     CampaignTemplate,
     LinkedInSendQueue,
     StrategyDocument,
@@ -1423,6 +1424,31 @@ def start_campaign_generation(campaign_id):
     current_status = row[0] or "draft"
     total_contacts = row[1] or 0
     template_config = _parse_jsonb(row[2]) or []
+
+    # Auto-migrate template_config to campaign_steps if no steps exist
+    existing_steps = CampaignStep.query.filter_by(campaign_id=campaign_id).count()
+    if existing_steps == 0 and template_config:
+        tpl_steps = (
+            template_config
+            if isinstance(template_config, list)
+            else json.loads(template_config or "[]")
+        )
+        for i, ts in enumerate([s for s in tpl_steps if s.get("enabled")], 1):
+            step = CampaignStep(
+                campaign_id=campaign_id,
+                tenant_id=str(tenant_id),
+                position=i,
+                channel=ts.get("channel", "linkedin_message"),
+                day_offset=ts.get("day_offset", 0),
+                label=ts.get("label", f"Step {i}"),
+                config={
+                    k: v
+                    for k, v in ts.items()
+                    if k not in ("channel", "day_offset", "label", "step", "enabled")
+                },
+            )
+            db.session.add(step)
+        db.session.commit()
 
     # Must be in ready status to start generation
     if current_status != "ready":
