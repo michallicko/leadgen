@@ -13,7 +13,7 @@ import time
 import uuid
 from decimal import Decimal
 
-from ..models import Asset, CampaignStep, Message, db
+from ..models import Asset, CampaignStep, Message, MessageFeedback, db
 from .generation_prompts import (
     SYSTEM_PROMPT,
     build_generation_prompt,
@@ -285,6 +285,76 @@ def _extract_messaging_sections(content: str, max_chars: int = 2000) -> str:
     return result
 
 
+def _load_feedback_signals(
+    campaign_id: str, step_channel: str, campaign_step_id: str | None = None
+) -> dict | None:
+    """Load learning signals from previous feedback for a campaign step.
+
+    Collects approved message bodies as positive examples, top edit reasons
+    as correction guidance, and rejected message bodies as negative examples.
+    Prefers feedback from the same campaign_step, falls back to same channel.
+
+    Returns a dict with approved_examples, common_edits, rejected_patterns
+    or None if no feedback exists.
+    """
+    # Get feedback entries for this campaign
+    feedbacks = (
+        MessageFeedback.query.filter_by(campaign_id=campaign_id)
+        .order_by(MessageFeedback.created_at.desc())
+        .all()
+    )
+    if not feedbacks:
+        return None
+
+    # Collect message bodies by action, preferring same step then same channel
+    approved_bodies = []
+    rejected_bodies = []
+    edit_reasons: dict[str, int] = {}
+
+    for f in feedbacks:
+        msg = db.session.get(Message, f.message_id)
+        if not msg:
+            continue
+
+        # Check if this feedback is from the same step or same channel
+        same_step = campaign_step_id and msg.campaign_step_id == campaign_step_id
+        same_channel = msg.channel == step_channel
+
+        if not (same_step or same_channel):
+            continue
+
+        if f.action == "approved" and msg.body:
+            # Prioritize same-step matches
+            priority = 0 if same_step else 1
+            approved_bodies.append((priority, msg.body))
+        elif f.action == "rejected" and msg.body:
+            priority = 0 if same_step else 1
+            rejected_bodies.append((priority, msg.body))
+
+        if f.edit_reason:
+            edit_reasons[f.edit_reason] = edit_reasons.get(f.edit_reason, 0) + 1
+
+    # Sort by priority (same-step first) and take top N
+    approved_bodies.sort(key=lambda x: x[0])
+    rejected_bodies.sort(key=lambda x: x[0])
+
+    approved_examples = [body for _, body in approved_bodies[:3]]
+    rejected_patterns = [body for _, body in rejected_bodies[:2]]
+    common_edits = sorted(edit_reasons.items(), key=lambda x: -x[1])[:3]
+
+    if not approved_examples and not rejected_patterns and not common_edits:
+        return None
+
+    signals: dict = {}
+    if approved_examples:
+        signals["approved_examples"] = approved_examples
+    if common_edits:
+        signals["common_edits"] = common_edits
+    if rejected_patterns:
+        signals["rejected_patterns"] = rejected_patterns
+    return signals
+
+
 def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
     """Core generation loop: iterate contacts × steps."""
     # Load campaign config
@@ -433,6 +503,13 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
             # Generate each enabled step
             contact_cost = Decimal("0")
             for step in enabled_steps:
+                # Load feedback signals for this step (once per step per contact batch)
+                step_feedback = _load_feedback_signals(
+                    campaign_id,
+                    step["channel"],
+                    step.get("campaign_step_id"),
+                )
+
                 # Generate variant A (always — default/no angle)
                 vg_id = str(uuid.uuid4()) if variant_count > 1 else None
                 msg_cost = _generate_single_message(
@@ -451,6 +528,7 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
                     strategy_data=strategy_data,
                     variant_letter="a",
                     variant_group_id=vg_id,
+                    feedback_signals=step_feedback,
                 )
                 contact_cost += msg_cost
 
@@ -481,6 +559,7 @@ def _generate_all(campaign_id: str, tenant_id: str, user_id: str):
                         variant_letter=letter,
                         variant_group_id=vg_id,
                         variant_angle=angle,
+                        feedback_signals=step_feedback,
                     )
                     contact_cost += msg_cost
 
@@ -653,6 +732,7 @@ def _generate_single_message(
     variant_letter: str = "a",
     variant_group_id: str | None = None,
     variant_angle: dict | None = None,
+    feedback_signals: dict | None = None,
 ) -> Decimal:
     """Generate a single message for one contact x one step.
 
@@ -663,6 +743,7 @@ def _generate_single_message(
         variant_letter: The variant label (a, b, c).
         variant_group_id: UUID linking variants of the same step/contact.
         variant_angle: Optional angle dict with 'key', 'label', 'instruction'.
+        feedback_signals: Optional learning signals from previous feedback.
     """
     # Build per-message instruction from variant angle
     angle_instruction = variant_angle["instruction"] if variant_angle else None
@@ -700,6 +781,7 @@ def _generate_single_message(
         example_messages=step.get("example_messages"),
         max_length=step.get("max_length"),
         reference_assets=reference_assets or None,
+        feedback_signals=feedback_signals,
     )
 
     start_time = time.time()

@@ -272,6 +272,7 @@ def build_generation_prompt(
     example_messages: list | None = None,
     max_length: int | None = None,
     reference_assets: list | None = None,
+    feedback_signals: dict | None = None,
 ) -> str:
     """Build the user prompt for generating a single message step.
 
@@ -393,6 +394,32 @@ def build_generation_prompt(
                 f"Maximum {max_length} characters. Be concise.",
             ]
         )
+
+    # Feedback learning signals from previous generation rounds
+    if feedback_signals:
+        learning_parts = []
+        if feedback_signals.get("approved_examples"):
+            learning_parts.append("Messages like these were approved by the user:")
+            for i, ex in enumerate(feedback_signals["approved_examples"][:3], 1):
+                learning_parts.append(f"\nApproved {i}:\n{ex}")
+        if feedback_signals.get("common_edits"):
+            learning_parts.append("\nThe user frequently corrects these issues:")
+            for reason, count in feedback_signals["common_edits"][:3]:
+                learning_parts.append(f"- {reason} ({count}x)")
+        if feedback_signals.get("rejected_patterns"):
+            learning_parts.append(
+                "\nAvoid messages similar to these (they were rejected):"
+            )
+            for i, ex in enumerate(feedback_signals["rejected_patterns"][:2], 1):
+                learning_parts.append(f"\nRejected {i}:\n{ex}")
+        if learning_parts:
+            parts.extend(
+                [
+                    "",
+                    "--- LEARNING ---",
+                    *learning_parts,
+                ]
+            )
 
     parts.extend(
         [
