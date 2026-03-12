@@ -108,6 +108,8 @@ export interface MultiPageProcess {
   startTime: number;
   endTime?: number;
   maxContacts?: number;
+  /** Import tag passed from side panel, used as primary source of truth. */
+  tag?: string;
   /** Cumulative count of newly created contacts across all pages. */
   createdContacts?: number;
   /** Cumulative count of duplicate contacts (tagged only) across all pages. */

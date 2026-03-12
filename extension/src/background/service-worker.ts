@@ -311,6 +311,7 @@ async function startMultiPageFromTab(
     totalProfileUrls: processData.totalProfileUrls || 0,
     pagesCompleted: processData.pagesCompleted || 0,
     startTime: Date.now(),
+    tag: processData.tag,
   };
 
   await chrome.storage.local.set({ multiPageProcess: state });
@@ -327,6 +328,15 @@ async function triggerExtraction(tabId: number): Promise<void> {
   const process = multiPageProcess as MultiPageProcess | undefined;
   if (!process || !process.active || process.stopped) {
     log.info('Process not active, skipping extraction trigger');
+    return;
+  }
+
+  // Pre-check: stop before extracting if max contacts already reached
+  const { import_settings: triggerSettings } = await chrome.storage.local.get('import_settings');
+  const triggerMax = (triggerSettings as ImportSettings | undefined)?.maxContacts ?? config.defaultMaxContacts;
+  if (triggerMax > 0 && process.totalLeads >= triggerMax) {
+    log.success(`Max contacts limit already reached (${process.totalLeads}/${triggerMax}), not starting extraction`);
+    await finishMultiPage(process);
     return;
   }
 
@@ -348,10 +358,10 @@ async function triggerExtraction(tabId: number): Promise<void> {
     // Wait for script to initialize
     await new Promise<void>((r) => setTimeout(r, 500));
 
-    // Tell content script to extract
+    // Tell content script to extract, passing the tag from multi-page state
     chrome.tabs.sendMessage(
       tabId,
-      { action: 'extractAndReport', isMultiPage: true },
+      { action: 'extractAndReport', isMultiPage: true, tag: process?.tag || '' },
       (response?: { success: boolean }) => {
         if (chrome.runtime.lastError) {
           log.error(
@@ -412,6 +422,15 @@ async function handlePageExtractionComplete(
   const maxContacts = (import_settings as ImportSettings | undefined)?.maxContacts ?? config.defaultMaxContacts;
   if (maxContacts > 0 && updatedData.totalLeads >= maxContacts) {
     log.success(`Max contacts limit reached (${updatedData.totalLeads}/${maxContacts}), stopping`);
+    await finishMultiPage(updatedData);
+    return;
+  }
+
+  // Re-check max contacts limit before starting next page (belt-and-suspenders)
+  const { import_settings: settingsRecheck } = await chrome.storage.local.get('import_settings');
+  const maxContactsRecheck = (settingsRecheck as ImportSettings | undefined)?.maxContacts ?? config.defaultMaxContacts;
+  if (maxContactsRecheck > 0 && updatedData.totalLeads >= maxContactsRecheck) {
+    log.success(`Max contacts limit reached after re-check (${updatedData.totalLeads}/${maxContactsRecheck}), stopping`);
     await finishMultiPage(updatedData);
     return;
   }
@@ -645,7 +664,7 @@ chrome.runtime.onMessage.addListener(
           import_settings: { maxContacts } as ImportSettings,
           import_tag: tag,
         })
-        .then(() => startMultiPageFromTab(tabId, { currentPage: 1 }))
+        .then(() => startMultiPageFromTab(tabId, { currentPage: 1, tag }))
         .then(() => {
           sendResponse({ success: true });
         });

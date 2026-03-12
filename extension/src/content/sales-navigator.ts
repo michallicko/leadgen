@@ -627,8 +627,10 @@ async function waitForPageReady(): Promise<boolean> {
   return false;
 }
 
-/** Run extraction and report results back to service worker (multi-page mode). */
-async function runExtractionAndReport(): Promise<void> {
+/** Run extraction and report results back to service worker (multi-page mode).
+ *  @param messageTag - tag passed from service worker via message channel (primary source)
+ */
+async function runExtractionAndReport(messageTag?: string): Promise<void> {
   try {
     log.info('Running extraction for multi-page process...');
 
@@ -652,7 +654,8 @@ async function runExtractionAndReport(): Promise<void> {
     const leads = convertToLeads(extraction.results);
     const currentPage = new URL(window.location.href).searchParams.get('page') || '1';
     const autoTag = `sn-import-p${currentPage}-${Date.now()}`;
-    const tag = await getImportTag(autoTag);
+    // Prefer tag from message channel (passed by service worker), fall back to storage
+    const tag = (messageTag && messageTag.trim()) ? messageTag.trim() : await getImportTag(autoTag);
 
     // Wait for upload to complete before reporting page result
     const uploadResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
@@ -712,7 +715,7 @@ async function runExtractionAndReport(): Promise<void> {
 
 chrome.runtime.onMessage.addListener(
   (
-    request: { action?: string; type?: string },
+    request: { action?: string; type?: string; tag?: string },
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void,
   ): boolean | void => {
@@ -742,7 +745,7 @@ chrome.runtime.onMessage.addListener(
 
         extractionInProgress = true;
         log.info('Starting extraction for multi-page process...');
-        runExtractionAndReport().finally(() => {
+        runExtractionAndReport(request.tag).finally(() => {
           extractionInProgress = false;
         });
         sendResponse({ success: true, message: 'Extraction started' });
