@@ -1,3 +1,5 @@
+import uuid
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
@@ -1834,4 +1836,45 @@ class Asset(db.Model):
             "size_bytes": self.size_bytes,
             "metadata": self.metadata_ or {},
             "created_at": (self.created_at.isoformat() if self.created_at else None),
+        }
+
+
+class MessageFeedback(db.Model):
+    __tablename__ = "message_feedback"
+
+    id = db.Column(
+        db.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    message_id = db.Column(
+        db.String(36),
+        db.ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    campaign_id = db.Column(
+        db.String(36), db.ForeignKey("campaigns.id"), nullable=True
+    )
+    action = db.Column(db.String(50), nullable=False)
+    edit_diff = db.Column(JSONB, nullable=True)
+    edit_reason = db.Column(db.String(100), nullable=True)
+    edit_reason_text = db.Column(db.Text, nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+
+    message = db.relationship(
+        "Message", backref=db.backref("feedback", lazy="dynamic")
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "message_id": self.message_id,
+            "campaign_id": self.campaign_id,
+            "action": self.action,
+            "edit_diff": self.edit_diff,
+            "edit_reason": self.edit_reason,
+            "edit_reason_text": self.edit_reason_text,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
         }

@@ -13,6 +13,8 @@ from ..models import (
     CampaignStep,
     CampaignTemplate,
     LinkedInSendQueue,
+    Message,
+    MessageFeedback,
     StrategyDocument,
     db,
 )
@@ -3105,3 +3107,65 @@ def _generate_campaign_name(extracted: dict, contact_count: int) -> str:
         return f"{focus} — {quarter} {year}"
 
     return f"Outreach Campaign — {quarter} {year} ({contact_count} contacts)"
+
+
+# ── Feedback Summary ─────────────────────────────────────────
+
+
+@campaigns_bp.route(
+    "/api/campaigns/<campaign_id>/feedback-summary", methods=["GET"]
+)
+@require_auth
+def feedback_summary(campaign_id):
+    """Aggregated feedback stats for a campaign."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    # Verify campaign belongs to tenant
+    campaign = db.session.execute(
+        db.text(
+            "SELECT id FROM campaigns WHERE id = :id AND tenant_id = :t"
+        ),
+        {"id": campaign_id, "t": str(tenant_id)},
+    ).fetchone()
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    feedbacks = MessageFeedback.query.filter_by(campaign_id=campaign_id).all()
+
+    by_action = {}
+    edit_reasons = {}
+    for f in feedbacks:
+        by_action[f.action] = by_action.get(f.action, 0) + 1
+        if f.edit_reason:
+            edit_reasons[f.edit_reason] = edit_reasons.get(f.edit_reason, 0) + 1
+
+    # Per-step approval rate
+    step_stats = {}
+    for f in feedbacks:
+        msg = Message.query.get(f.message_id)
+        if msg and msg.campaign_step_id:
+            sid = str(msg.campaign_step_id)
+            if sid not in step_stats:
+                step_stats[sid] = {"total": 0, "approved": 0}
+            step_stats[sid]["total"] += 1
+            if f.action == "approved":
+                step_stats[sid]["approved"] += 1
+
+    for sid in step_stats:
+        s = step_stats[sid]
+        s["approval_rate"] = (
+            round(s["approved"] / s["total"] * 100) if s["total"] > 0 else 0
+        )
+
+    return jsonify(
+        {
+            "total": len(feedbacks),
+            "by_action": by_action,
+            "top_edit_reasons": sorted(
+                edit_reasons.items(), key=lambda x: -x[1]
+            ),
+            "per_step": step_stats,
+        }
+    )
