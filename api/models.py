@@ -1218,14 +1218,16 @@ class CampaignStep(db.Model):
     day_offset = db.Column(db.Integer, nullable=False, default=0)
     label = db.Column(db.String(255), nullable=False, default="")
     config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    condition = db.Column(db.String(50), nullable=False, default="always")
+    execution_status = db.Column(db.String(50), nullable=False, default="pending")
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     campaign = db.relationship(
         "Campaign",
-        backref=db.backref(
-            "steps", lazy="dynamic", order_by="CampaignStep.position"
-        ),
+        backref=db.backref("steps", lazy="dynamic", order_by="CampaignStep.position"),
     )
 
     __table_args__ = (
@@ -1243,6 +1245,12 @@ class CampaignStep(db.Model):
             "day_offset": self.day_offset,
             "label": self.label,
             "config": self.config or {},
+            "condition": self.condition or "always",
+            "execution_status": self.execution_status or "pending",
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -1822,7 +1830,9 @@ class Asset(db.Model):
     content_type = db.Column(db.String(100), nullable=False)
     storage_path = db.Column(db.String(1000), nullable=False)
     size_bytes = db.Column(db.Integer, nullable=False, default=0)
-    metadata_ = db.Column("metadata", JSONB, nullable=False, server_default=db.text("'{}'::jsonb"))
+    metadata_ = db.Column(
+        "metadata", JSONB, nullable=False, server_default=db.text("'{}'::jsonb")
+    )
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
     def to_dict(self):
@@ -1842,28 +1852,20 @@ class Asset(db.Model):
 class MessageFeedback(db.Model):
     __tablename__ = "message_feedback"
 
-    id = db.Column(
-        db.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     message_id = db.Column(
         db.String(36),
         db.ForeignKey("messages.id", ondelete="CASCADE"),
         nullable=False,
     )
-    campaign_id = db.Column(
-        db.String(36), db.ForeignKey("campaigns.id"), nullable=True
-    )
+    campaign_id = db.Column(db.String(36), db.ForeignKey("campaigns.id"), nullable=True)
     action = db.Column(db.String(50), nullable=False)
     edit_diff = db.Column(JSONB, nullable=True)
     edit_reason = db.Column(db.String(100), nullable=True)
     edit_reason_text = db.Column(db.Text, nullable=True)
-    created_at = db.Column(
-        db.DateTime(timezone=True), server_default=db.text("now()")
-    )
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
 
-    message = db.relationship(
-        "Message", backref=db.backref("feedback", lazy="dynamic")
-    )
+    message = db.relationship("Message", backref=db.backref("feedback", lazy="dynamic"))
 
     def to_dict(self):
         return {
@@ -1874,7 +1876,5 @@ class MessageFeedback(db.Model):
             "edit_diff": self.edit_diff,
             "edit_reason": self.edit_reason,
             "edit_reason_text": self.edit_reason_text,
-            "created_at": (
-                self.created_at.isoformat() if self.created_at else None
-            ),
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
         }
