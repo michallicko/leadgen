@@ -271,6 +271,7 @@ def build_generation_prompt(
     per_message_instruction: str | None = None,
     example_messages: list | None = None,
     max_length: int | None = None,
+    reference_assets: list | None = None,
 ) -> str:
     """Build the user prompt for generating a single message step.
 
@@ -336,6 +337,19 @@ def build_generation_prompt(
                 enrichment_section,
             ]
         )
+
+    # Reference assets (uploaded files with summaries)
+    if reference_assets:
+        ref_lines = [
+            "",
+            "--- REFERENCE MATERIALS ---",
+            "The following assets are provided as context. Reference key points naturally in the message:",
+        ]
+        for asset in reference_assets:
+            ref_lines.append(
+                f"\n### {asset['filename']} ({asset['content_type']})\n{asset['summary']}"
+            )
+        parts.extend(ref_lines)
 
     parts.extend(
         [

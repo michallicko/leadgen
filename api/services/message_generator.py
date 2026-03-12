@@ -13,7 +13,7 @@ import time
 import uuid
 from decimal import Decimal
 
-from ..models import CampaignStep, Message, db
+from ..models import Asset, CampaignStep, Message, db
 from .generation_prompts import (
     SYSTEM_PROMPT,
     build_generation_prompt,
@@ -667,6 +667,25 @@ def _generate_single_message(
     # Build per-message instruction from variant angle
     angle_instruction = variant_angle["instruction"] if variant_angle else None
 
+    # Load reference assets for this step
+    reference_assets = []
+    asset_ids = step.get("asset_ids", [])
+    asset_modes = step.get("asset_mode", {})
+    if asset_ids:
+        ref_ids = [aid for aid in asset_ids if asset_modes.get(aid) == "reference"]
+        if ref_ids:
+            assets = Asset.query.filter(Asset.id.in_(ref_ids)).all()
+            reference_assets = [
+                {
+                    "filename": a.filename,
+                    "content_type": a.content_type,
+                    "summary": (a.metadata_ or {}).get(
+                        "summary", f"[{a.filename} — no summary available]"
+                    ),
+                }
+                for a in assets
+            ]
+
     prompt = build_generation_prompt(
         channel=step["channel"],
         step_label=step.get("label", f"Step {step['step']}"),
@@ -680,6 +699,7 @@ def _generate_single_message(
         per_message_instruction=angle_instruction,
         example_messages=step.get("example_messages"),
         max_length=step.get("max_length"),
+        reference_assets=reference_assets or None,
     )
 
     start_time = time.time()

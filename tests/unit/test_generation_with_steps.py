@@ -297,6 +297,43 @@ class TestBuildPromptWithExamplesAndMaxLength:
         assert "LENGTH LIMIT" in prompt
         assert "Maximum 300 characters" in prompt
 
+    def test_reference_assets_in_prompt(self):
+        """Reference asset summaries should appear in the prompt."""
+        prompt = build_generation_prompt(
+            channel="email",
+            step_label="Follow-up",
+            contact_data={"first_name": "John", "last_name": "Doe"},
+            company_data={"name": "Acme"},
+            enrichment_data={},
+            generation_config={},
+            step_number=1,
+            total_steps=2,
+            reference_assets=[
+                {
+                    "filename": "case-study.pdf",
+                    "content_type": "application/pdf",
+                    "summary": "AI consulting saved 40% costs for FinCorp",
+                },
+            ],
+        )
+        assert "REFERENCE MATERIALS" in prompt
+        assert "case-study.pdf" in prompt
+        assert "AI consulting saved 40% costs" in prompt
+
+    def test_no_reference_assets_when_absent(self):
+        """When reference_assets is None, section should be absent."""
+        prompt = build_generation_prompt(
+            channel="email",
+            step_label="Email 1",
+            contact_data={"first_name": "Jane"},
+            company_data={"name": "Acme"},
+            enrichment_data={},
+            generation_config={},
+            step_number=1,
+            total_steps=1,
+        )
+        assert "REFERENCE MATERIALS" not in prompt
+
     def test_no_examples_no_max_length_when_absent(self):
         """When example_messages and max_length are not set, sections are absent."""
         prompt = build_generation_prompt(
