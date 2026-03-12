@@ -1071,6 +1071,9 @@ class Message(db.Model):
     campaign_contact_id = db.Column(
         UUID(as_uuid=False), db.ForeignKey("campaign_contacts.id")
     )
+    campaign_step_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("campaign_steps.id"), nullable=True
+    )
     # Version tracking + regeneration (migration 027)
     original_body = db.Column(db.Text)
     original_subject = db.Column(db.Text)
@@ -1133,6 +1136,9 @@ class Campaign(db.Model):
     target_criteria = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     conflict_report = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
     contact_cooldown_days = db.Column(db.Integer, default=30)
+    linkedin_account_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("linkedin_accounts.id"), nullable=True
+    )
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     airtable_record_id = db.Column(db.Text)
@@ -1185,6 +1191,59 @@ class CampaignTemplate(db.Model):
     is_system = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
     updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+
+class CampaignStep(db.Model):
+    """A single step in a campaign outreach sequence."""
+
+    __tablename__ = "campaign_steps"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("uuid_generate_v4()"),
+    )
+    campaign_id = db.Column(
+        UUID(as_uuid=False),
+        db.ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    position = db.Column(db.Integer, nullable=False, default=1)
+    channel = db.Column(db.String(50), nullable=False, default="linkedin_message")
+    day_offset = db.Column(db.Integer, nullable=False, default=0)
+    label = db.Column(db.String(255), nullable=False, default="")
+    config = db.Column(JSONB, server_default=db.text("'{}'::jsonb"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    campaign = db.relationship(
+        "Campaign",
+        backref=db.backref(
+            "steps", lazy="dynamic", order_by="CampaignStep.position"
+        ),
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "campaign_id", "position", name="uq_campaign_step_position"
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "campaign_id": self.campaign_id,
+            "position": self.position,
+            "channel": self.channel,
+            "day_offset": self.day_offset,
+            "label": self.label,
+            "config": self.config or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
 
 
 class CampaignOverlapLog(db.Model):
