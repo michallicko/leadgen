@@ -3,6 +3,7 @@
 import json
 import logging
 import uuid
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
@@ -284,6 +285,8 @@ def populate_from_template(campaign_id):
             day_offset=ts.get("day_offset", 0),
             label=ts.get("label", ""),
             config=json.dumps(ts.get("config", {})),
+            condition=ts.get("condition", "always"),
+            execution_status="pending",
         )
         db.session.add(step)
         created.append(step)
@@ -405,3 +408,118 @@ def ai_design_confirm(campaign_id):
 
     db.session.commit()
     return jsonify({"steps": [_step_to_dict(s) for s in created]}), 201
+
+
+# ── Sequence (execution-focused) endpoints ───────────────────
+
+
+@campaign_steps_bp.route("/api/campaigns/<campaign_id>/sequence", methods=["GET"])
+@require_auth
+def get_sequence(campaign_id):
+    """Return steps with execution info, ordered by position."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign, err = _get_campaign_or_404(campaign_id, tenant_id)
+    if err:
+        return err
+
+    steps = (
+        CampaignStep.query.filter_by(campaign_id=campaign_id, tenant_id=tenant_id)
+        .order_by(CampaignStep.position)
+        .all()
+    )
+    return jsonify({"sequence": [_step_to_dict(s) for s in steps]}), 200
+
+
+@campaign_steps_bp.route("/api/campaigns/<campaign_id>/sequence", methods=["PUT"])
+@require_auth
+def replace_sequence(campaign_id):
+    """Bulk replace sequence config. Accepts array of step definitions."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign, err = _get_campaign_or_404(campaign_id, tenant_id)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    steps_data = data.get("steps")
+    if not steps_data or not isinstance(steps_data, list):
+        return jsonify({"error": "steps must be a non-empty list"}), 400
+
+    # Delete existing steps
+    CampaignStep.query.filter_by(campaign_id=campaign_id, tenant_id=tenant_id).delete()
+    db.session.flush()
+
+    # Create new steps
+    created = []
+    for i, s in enumerate(steps_data):
+        step = CampaignStep(
+            id=str(uuid.uuid4()),
+            campaign_id=campaign_id,
+            tenant_id=tenant_id,
+            position=s.get("position", i + 1),
+            channel=s.get("channel", "linkedin_message"),
+            day_offset=s.get("day_offset", 0),
+            label=s.get("label", ""),
+            config=json.dumps(s.get("config", {})),
+            condition=s.get("condition", "always"),
+            execution_status="pending",
+        )
+        db.session.add(step)
+        created.append(step)
+
+    db.session.commit()
+    return jsonify({"sequence": [_step_to_dict(s) for s in created]}), 200
+
+
+@campaign_steps_bp.route(
+    "/api/campaigns/<campaign_id>/sequence/<int:step_number>", methods=["PATCH"]
+)
+@require_auth
+def patch_sequence_step(campaign_id, step_number):
+    """Update a single step's execution-related fields by position number."""
+    tenant_id = resolve_tenant()
+    if not tenant_id:
+        return jsonify({"error": "Tenant not found"}), 404
+
+    campaign, err = _get_campaign_or_404(campaign_id, tenant_id)
+    if err:
+        return err
+
+    step = CampaignStep.query.filter_by(
+        campaign_id=campaign_id, tenant_id=tenant_id, position=step_number
+    ).first()
+    if not step:
+        return jsonify({"error": "Step not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    allowed = (
+        "condition",
+        "execution_status",
+        "day_offset",
+        "started_at",
+        "completed_at",
+    )
+    updated = False
+    for field in allowed:
+        if field in data:
+            value = data[field]
+            # Parse ISO timestamps
+            if field in ("started_at", "completed_at") and isinstance(value, str):
+                try:
+                    value = datetime.fromisoformat(value)
+                except (ValueError, TypeError):
+                    return jsonify({"error": f"Invalid timestamp for {field}"}), 400
+            setattr(step, field, value)
+            updated = True
+
+    if not updated:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    db.session.commit()
+    return jsonify(_step_to_dict(step)), 200
