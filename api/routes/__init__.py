@@ -1,3 +1,4 @@
+from .asset_routes import assets_bp
 from .auth_routes import auth_bp
 from .bulk_routes import bulk_bp
 from .tag_routes import tag_bp
@@ -49,3 +50,4 @@ def register_blueprints(app):
     app.register_blueprint(token_bp)
     app.register_blueprint(strategy_templates_bp)
     app.register_blueprint(version_bp)
+    app.register_blueprint(assets_bp)
