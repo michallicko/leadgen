@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   useCampaignSteps,
   useAddCampaignStep,
@@ -8,8 +8,10 @@ import {
   usePopulateFromTemplate,
   type CampaignStep,
   type ExampleMessage,
+  type StepConfig,
 } from '../../../api/queries/useCampaignSteps'
 import { useCampaignTemplates } from '../../../api/queries/useCampaigns'
+import { useAssets, useUploadAsset, type Asset } from '../../../api/queries/useAssets'
 import { useToast } from '../../../components/ui/Toast'
 import { SectionDivider } from '../../../components/ui/DetailField'
 
@@ -494,6 +496,14 @@ function StepCard({
             }}
           />
 
+          {/* Assets */}
+          <StepAssetsEditor
+            config={config}
+            campaignId={step.campaign_id}
+            isEditable={isEditable}
+            onUpdateConfig={(newConfig) => onUpdateField('config', newConfig)}
+          />
+
           {/* Delete */}
           {isEditable && (
             <div className="flex justify-end pt-2 border-t border-border">
@@ -582,6 +592,193 @@ function ExampleMessagesEditor({ examples, isEditable, onChange }: ExampleMessag
         </div>
       ) : (
         <p className="text-[11px] text-text-dim">No examples yet. Add examples to guide the AI tone and style.</p>
+      )}
+    </div>
+  )
+}
+
+// ── Helpers: file type labels & size formatting ──────────
+
+function fileTypeLabel(contentType: string): string {
+  if (contentType === 'application/pdf') return 'PDF'
+  if (contentType.startsWith('image/')) return 'IMG'
+  if (contentType.startsWith('text/')) return 'TXT'
+  if (contentType.includes('spreadsheet') || contentType.includes('csv')) return 'CSV'
+  if (contentType.includes('word') || contentType.includes('document')) return 'DOC'
+  return 'FILE'
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ── StepAssetsEditor ─────────────────────────────────────
+
+interface StepAssetsEditorProps {
+  config: StepConfig
+  campaignId: string
+  isEditable: boolean
+  onUpdateConfig: (config: StepConfig) => void
+}
+
+function StepAssetsEditor({ config, campaignId, isEditable, onUpdateConfig }: StepAssetsEditorProps) {
+  const { toast } = useToast()
+  const { data: assetsData } = useAssets()
+  const uploadAsset = useUploadAsset()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showPicker, setShowPicker] = useState(false)
+
+  const attachedIds = config.asset_ids ?? []
+  const assetMode = config.asset_mode ?? {}
+  const allAssets = assetsData?.assets ?? []
+
+  // Assets currently attached to this step
+  const attachedAssets = allAssets.filter((a) => attachedIds.includes(a.id))
+
+  // Assets available to add (tenant library minus already attached)
+  const availableAssets = allAssets.filter((a) => !attachedIds.includes(a.id))
+
+  const updateAssetConfig = (newIds: string[], newMode: Record<string, 'attach' | 'reference'>) => {
+    onUpdateConfig({ ...config, asset_ids: newIds, asset_mode: newMode })
+  }
+
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const asset = await uploadAsset.mutateAsync({ file, campaignId })
+      const newIds = [...attachedIds, asset.id]
+      const newMode = { ...assetMode, [asset.id]: 'attach' as const }
+      updateAssetConfig(newIds, newMode)
+      toast(`Uploaded ${asset.filename}`, 'success')
+    } catch {
+      toast('Upload failed', 'error')
+    }
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [uploadAsset, campaignId, attachedIds, assetMode, toast, config, onUpdateConfig])
+
+  const handleAddExisting = useCallback((asset: Asset) => {
+    const newIds = [...attachedIds, asset.id]
+    const newMode = { ...assetMode, [asset.id]: 'attach' as const }
+    updateAssetConfig(newIds, newMode)
+    setShowPicker(false)
+  }, [attachedIds, assetMode, config, onUpdateConfig])
+
+  const handleRemove = useCallback((assetId: string) => {
+    const newIds = attachedIds.filter((id) => id !== assetId)
+    const newMode = { ...assetMode }
+    delete newMode[assetId]
+    updateAssetConfig(newIds, newMode)
+  }, [attachedIds, assetMode, config, onUpdateConfig])
+
+  const handleToggleMode = useCallback((assetId: string) => {
+    const current = assetMode[assetId] ?? 'attach'
+    const next = current === 'attach' ? 'reference' : 'attach'
+    const newMode = { ...assetMode, [assetId]: next }
+    updateAssetConfig(attachedIds, newMode)
+  }, [attachedIds, assetMode, config, onUpdateConfig])
+
+  return (
+    <div>
+      <SectionDivider title="Assets" />
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-xs text-text-muted">Attached Files</label>
+        {isEditable && (
+          <div className="flex items-center gap-2">
+            {availableAssets.length > 0 && (
+              <button
+                onClick={() => setShowPicker((v) => !v)}
+                className="text-[10px] text-accent-cyan hover:text-accent-cyan/80 bg-transparent border-none cursor-pointer transition-colors"
+              >
+                + Add existing
+              </button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadAsset.isPending}
+              className="text-[10px] text-accent-cyan hover:text-accent-cyan/80 bg-transparent border-none cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {uploadAsset.isPending ? 'Uploading...' : '+ Upload file'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleUpload}
+              className="hidden"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Existing asset picker dropdown */}
+      {showPicker && availableAssets.length > 0 && (
+        <div className="border border-border rounded-md bg-surface-alt/50 p-2 mb-3 max-h-40 overflow-y-auto">
+          {availableAssets.map((asset) => (
+            <button
+              key={asset.id}
+              onClick={() => handleAddExisting(asset)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs text-text hover:bg-surface-alt rounded transition-colors bg-transparent border-none cursor-pointer"
+            >
+              <span className="text-[9px] font-bold text-text-dim bg-surface-alt px-1.5 py-0.5 rounded flex-shrink-0">
+                {fileTypeLabel(asset.content_type)}
+              </span>
+              <span className="truncate flex-1">{asset.filename}</span>
+              <span className="text-text-dim flex-shrink-0">{formatFileSize(asset.size_bytes)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Attached assets list */}
+      {attachedAssets.length > 0 ? (
+        <div className="space-y-1.5">
+          {attachedAssets.map((asset) => {
+            const mode = assetMode[asset.id] ?? 'attach'
+            return (
+              <div key={asset.id} className="flex items-center gap-2 px-2.5 py-2 border border-border/50 rounded-md bg-surface-alt/30">
+                {/* Type badge */}
+                <span className="text-[9px] font-bold text-text-dim bg-surface-alt px-1.5 py-0.5 rounded flex-shrink-0">
+                  {fileTypeLabel(asset.content_type)}
+                </span>
+
+                {/* Filename + size */}
+                <span className="text-xs text-text truncate flex-1">{asset.filename}</span>
+                <span className="text-[10px] text-text-dim flex-shrink-0">{formatFileSize(asset.size_bytes)}</span>
+
+                {/* Mode toggle */}
+                {isEditable && (
+                  <button
+                    onClick={() => handleToggleMode(asset.id)}
+                    title={mode === 'attach' ? 'Attached to message' : 'Referenced only'}
+                    className={`text-[10px] px-2 py-0.5 rounded border bg-transparent cursor-pointer transition-colors flex-shrink-0 ${
+                      mode === 'attach'
+                        ? 'border-accent/40 text-accent'
+                        : 'border-border text-text-dim'
+                    }`}
+                  >
+                    {mode === 'attach' ? 'Attach' : 'Reference'}
+                  </button>
+                )}
+
+                {/* Remove */}
+                {isEditable && (
+                  <button
+                    onClick={() => handleRemove(asset.id)}
+                    className="text-[10px] text-error/60 hover:text-error bg-transparent border-none cursor-pointer transition-colors p-0 flex-shrink-0"
+                    title="Remove from step"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-[11px] text-text-dim">No files attached. Upload or add existing assets.</p>
       )}
     </div>
   )

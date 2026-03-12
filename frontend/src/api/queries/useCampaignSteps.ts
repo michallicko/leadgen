@@ -7,6 +7,8 @@ export interface StepConfig {
   language?: string
   custom_instructions?: string
   example_messages?: ExampleMessage[]
+  asset_ids?: string[]
+  asset_mode?: Record<string, 'attach' | 'reference'>
 }
 
 export interface ExampleMessage {
