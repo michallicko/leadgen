@@ -8,10 +8,12 @@ import {
   usePopulateFromTemplate,
   useAiDesignSteps,
   useConfirmAiDesign,
+  useFeedbackSummary,
   type CampaignStep,
   type ExampleMessage,
   type StepConfig,
   type AiDesignProposedStep,
+  type FeedbackSummary,
 } from '../../../api/queries/useCampaignSteps'
 import { useCampaignTemplates } from '../../../api/queries/useCampaigns'
 import { useAssets, useUploadAsset, type Asset } from '../../../api/queries/useAssets'
@@ -68,6 +70,7 @@ export function StepsTab({ campaignId, isEditable }: Props) {
   const populateFromTemplate = usePopulateFromTemplate()
   const aiDesign = useAiDesignSteps()
   const confirmAiDesign = useConfirmAiDesign()
+  const { data: feedbackData } = useFeedbackSummary(campaignId)
 
   const steps = data?.steps ?? []
   const templates = templateData?.templates ?? []
@@ -462,6 +465,7 @@ export function StepsTab({ campaignId, isEditable }: Props) {
               total={steps.length}
               isEditable={isEditable}
               isExpanded={expandedId === step.id}
+              feedbackSummary={feedbackData ?? null}
               onToggleExpand={() => toggleExpand(step.id)}
               onMoveUp={() => handleMoveUp(idx)}
               onMoveDown={() => handleMoveDown(idx)}
@@ -501,6 +505,7 @@ interface StepCardProps {
   total: number
   isEditable: boolean
   isExpanded: boolean
+  feedbackSummary: FeedbackSummary | null
   onToggleExpand: () => void
   onMoveUp: () => void
   onMoveDown: () => void
@@ -514,6 +519,7 @@ function StepCard({
   total,
   isEditable,
   isExpanded,
+  feedbackSummary,
   onToggleExpand,
   onMoveUp,
   onMoveDown,
@@ -523,6 +529,21 @@ function StepCard({
   const config = step.config || {}
   const maxLength = config.max_length ?? CHANNEL_MAX_LENGTH[step.channel] ?? 1900
   const channelLabel = CHANNEL_OPTIONS.find((c) => c.value === step.channel)?.label ?? step.channel
+
+  // Feedback stats for this step
+  const stepFeedback = feedbackSummary?.per_step?.[step.id] ?? null
+  const approvalRate = stepFeedback?.approval_rate ?? null
+  const approvalColor =
+    approvalRate === null
+      ? ''
+      : approvalRate > 75
+        ? 'text-success bg-success/10 border-success/30'
+        : approvalRate >= 50
+          ? 'text-warning bg-warning/10 border-warning/30'
+          : 'text-error bg-error/10 border-error/30'
+
+  // Top edit reason for this step (from global top_edit_reasons as we don't have per-step reasons)
+  const topEditReason = feedbackSummary?.top_edit_reasons?.[0]?.[0] ?? null
 
   // Config summary line
   const summaryParts: string[] = []
@@ -562,6 +583,16 @@ function StepCard({
         {summaryParts.length > 0 && (
           <span className="text-[10px] text-text-dim flex-shrink-0 hidden sm:inline">
             {summaryParts.join(' / ')}
+          </span>
+        )}
+
+        {/* Approval rate badge */}
+        {approvalRate !== null && (
+          <span
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex-shrink-0 ${approvalColor}`}
+            title={topEditReason ? `Top edit reason: ${topEditReason}` : `Approval rate: ${approvalRate}%`}
+          >
+            {approvalRate}%
           </span>
         )}
 

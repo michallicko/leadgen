@@ -157,6 +157,30 @@ export function useAiDesignSteps() {
   })
 }
 
+// ── Feedback Summary ─────────────────────────────────────
+
+export interface StepFeedbackStats {
+  total: number
+  approved: number
+  approval_rate: number
+}
+
+export interface FeedbackSummary {
+  total: number
+  by_action: Record<string, number>
+  top_edit_reasons: [string, number][]
+  per_step: Record<string, StepFeedbackStats>
+}
+
+export function useFeedbackSummary(campaignId: string | null) {
+  return useQuery({
+    queryKey: ['feedback-summary', campaignId],
+    queryFn: () => apiFetch<FeedbackSummary>(`/campaigns/${campaignId}/feedback-summary`),
+    enabled: !!campaignId,
+    staleTime: 30_000,
+  })
+}
+
 export function useConfirmAiDesign() {
   const qc = useQueryClient()
   return useMutation({
