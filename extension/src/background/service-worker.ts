@@ -10,7 +10,7 @@
  * Ported from ~/git/linkedin-lead-uploader/background.js
  */
 
-import { uploadLeads, uploadActivities } from '../common/api-client';
+import { uploadLeads, uploadActivities, reportLinkedInIdentity } from '../common/api-client';
 import { getAuthState, storeAuthState } from '../common/auth';
 import { config, jitter } from '../common/config';
 import type {
@@ -711,6 +711,20 @@ chrome.runtime.onMessage.addListener(
         });
       });
       return true;
+    }
+
+    // LinkedIn identity detected by content script
+    if (msgType === 'linkedin_identity') {
+      const liName = message.linkedin_name as string;
+      const liUrl = message.linkedin_url as string;
+      log.info(`LinkedIn identity detected: ${liName} (${liUrl})`);
+      chrome.storage.local.set({ linkedinIdentity: { linkedin_name: liName, linkedin_url: liUrl } });
+      // Forward to API (fire-and-forget, don't block the content script)
+      reportLinkedInIdentity(liName, liUrl)
+        .then((resp) => log.info(`LinkedIn identity reported to API: is_new=${resp.is_new}`))
+        .catch((err) => log.warn(`Failed to report LinkedIn identity: ${err}`));
+      sendResponse({ success: true });
+      return false;
     }
 
     // LinkedIn page loaded notification

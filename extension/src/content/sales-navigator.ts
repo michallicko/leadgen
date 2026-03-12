@@ -858,6 +858,117 @@ chrome.runtime.onMessage.addListener(
   }
 })();
 
+// ============== LINKEDIN IDENTITY DETECTION ==============
+
+/**
+ * Detect the logged-in LinkedIn user from the global nav.
+ * Works on both regular LinkedIn and Sales Navigator pages.
+ */
+function detectLinkedInIdentity(): { linkedin_name: string; linkedin_url: string } | null {
+  // Sales Navigator global nav: profile link in the nav
+  // Try multiple selectors for resilience across LinkedIn UI versions
+
+  // Method 1: Global nav "Me" button area (regular LinkedIn + SN)
+  const mePhoto = document.querySelector<HTMLImageElement>('.global-nav__me-photo');
+  const meLink = document.querySelector<HTMLAnchorElement>('.global-nav__primary-link');
+
+  // Method 2: SN-specific nav profile link
+  const snProfileLink = document.querySelector<HTMLAnchorElement>(
+    'nav a[href*="/in/"], header a[href*="/in/"]',
+  );
+
+  // Method 3: Any profile link in top nav area
+  const navArea =
+    document.querySelector('.global-nav') ||
+    document.querySelector('[data-test-global-nav]') ||
+    document.querySelector('header');
+
+  let profileUrl: string | null = null;
+  let displayName: string | null = null;
+
+  // Try to find profile URL from nav links
+  if (meLink?.href?.includes('/in/')) {
+    profileUrl = meLink.href;
+  } else if (snProfileLink?.href) {
+    profileUrl = snProfileLink.href;
+  } else if (navArea) {
+    const navProfileLinks = navArea.querySelectorAll<HTMLAnchorElement>('a[href*="/in/"]');
+    for (const link of navProfileLinks) {
+      // Skip links that look like they're for other people (e.g., feed items)
+      if (link.closest('.feed') || link.closest('.search-results')) continue;
+      profileUrl = link.href;
+      break;
+    }
+  }
+
+  // Try to extract display name
+  if (mePhoto?.alt) {
+    displayName = mePhoto.alt;
+  }
+
+  // Try nav text content for name
+  if (!displayName) {
+    const meContent = document.querySelector('.global-nav__me-content');
+    if (meContent) {
+      const nameEl = meContent.querySelector('.t-16, .t-14, .t-bold');
+      if (nameEl?.textContent) {
+        displayName = nameEl.textContent.trim();
+      }
+    }
+  }
+
+  // SN-specific: look for user name in the nav
+  if (!displayName && navArea) {
+    const nameEls = navArea.querySelectorAll(
+      '.global-nav__me-content span, .nav-item__profile-member-photo',
+    );
+    for (const el of nameEls) {
+      const text = (el.textContent || '').trim();
+      if (text.length > 1 && text.length < 60 && !text.includes('Premium')) {
+        displayName = text;
+        break;
+      }
+    }
+  }
+
+  // If we still have no name but have a URL, extract from URL slug
+  if (!displayName && profileUrl) {
+    const slugMatch = profileUrl.match(/\/in\/([^/?]+)/);
+    if (slugMatch) {
+      displayName = slugMatch[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  }
+
+  if (!profileUrl || !displayName) {
+    return null;
+  }
+
+  // Normalize the profile URL (ensure it ends with /)
+  const urlMatch = profileUrl.match(/(https:\/\/www\.linkedin\.com\/in\/[^/?]+)/);
+  const normalizedUrl = urlMatch ? urlMatch[1] + '/' : profileUrl;
+
+  return {
+    linkedin_name: displayName,
+    linkedin_url: normalizedUrl,
+  };
+}
+
+// Detect identity after DOM stabilization and report to service worker
+setTimeout(() => {
+  const identity = detectLinkedInIdentity();
+  if (identity) {
+    log.info(`Detected LinkedIn identity: ${identity.linkedin_name} (${identity.linkedin_url})`);
+    chrome.storage.local.set({ linkedinIdentity: identity });
+    chrome.runtime.sendMessage({
+      type: 'linkedin_identity',
+      linkedin_name: identity.linkedin_name,
+      linkedin_url: identity.linkedin_url,
+    });
+  } else {
+    log.debug('Could not detect LinkedIn identity from nav');
+  }
+}, 2000);
+
 log.success('Sales Navigator content script loaded and ready');
 log.info(`Page URL: ${window.location.href}`);
 

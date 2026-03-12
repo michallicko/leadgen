@@ -153,7 +153,8 @@ export type ExtensionMessage =
   | { type: 'sso_login'; provider: 'google' | 'github' }
   | { type: 'extraction_progress'; progress: ExtractionProgress }
   | { type: 'get_page_info' }
-  | { type: 'page_info'; pageInfo: PageInfo };
+  | { type: 'page_info'; pageInfo: PageInfo }
+  | { type: 'linkedin_identity'; linkedin_name: string; linkedin_url: string };
 
 /** Result reported after extracting a single page in multi-page mode. */
 export interface PageExtractionResult {

@@ -1698,3 +1698,46 @@ class LinkedInSendQueue(db.Model):
             "retry_count": self.retry_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class LinkedInAccount(db.Model):
+    __tablename__ = "linkedin_accounts"
+
+    id = db.Column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=db.text("gen_random_uuid()"),
+    )
+    tenant_id = db.Column(
+        UUID(as_uuid=False), db.ForeignKey("tenants.id"), nullable=False
+    )
+    owner_id = db.Column(UUID(as_uuid=False), db.ForeignKey("owners.id"), nullable=True)
+    linkedin_name = db.Column(db.String(255), nullable=False)
+    linkedin_url = db.Column(db.String(500), nullable=False)
+    last_seen_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.text("now()")
+    )
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.text("now()"))
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "tenant_id", "linkedin_url", name="uq_linkedin_accounts_tenant_url"
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "tenant_id": str(self.tenant_id),
+            "owner_id": str(self.owner_id) if self.owner_id else None,
+            "linkedin_name": self.linkedin_name,
+            "linkedin_url": self.linkedin_url,
+            "last_seen_at": (
+                self.last_seen_at.isoformat() if self.last_seen_at else None
+            ),
+            "is_active": self.is_active,
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
+            "updated_at": (self.updated_at.isoformat() if self.updated_at else None),
+        }

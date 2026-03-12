@@ -110,3 +110,21 @@ export async function fetchTags(): Promise<{ id: string; name: string }[]> {
   const data = await apiFetch<{ tags: { id: string; name: string }[] }>('/api/tags');
   return data.tags || [];
 }
+
+/** Report detected LinkedIn account identity to the API. */
+export interface LinkedInIdentityResponse {
+  id: string;
+  linkedin_name: string;
+  linkedin_url: string;
+  is_new: boolean;
+}
+
+export async function reportLinkedInIdentity(
+  linkedinName: string,
+  linkedinUrl: string,
+): Promise<LinkedInIdentityResponse> {
+  return apiFetch<LinkedInIdentityResponse>('/api/extension/linkedin-identity', {
+    method: 'POST',
+    body: { linkedin_name: linkedinName, linkedin_url: linkedinUrl },
+  });
+}

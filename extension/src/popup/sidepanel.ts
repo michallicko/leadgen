@@ -43,6 +43,25 @@ const previewNote = document.getElementById('preview-note') as HTMLDivElement;
 const previewEstimatedLeads = document.getElementById('preview-estimated-leads') as HTMLSpanElement;
 const previewExpectedTime = document.getElementById('preview-expected-time') as HTMLSpanElement;
 
+// --------------- LinkedIn Identity Elements ---------------
+const linkedinIdentityEl = document.getElementById('linkedin-identity') as HTMLDivElement;
+const linkedinIdentityName = document.getElementById('linkedin-identity-name') as HTMLSpanElement;
+
+function updateLinkedInIdentity(identity: { linkedin_name: string; linkedin_url: string } | null): void {
+  if (identity && identity.linkedin_name) {
+    linkedinIdentityName.textContent = `LinkedIn: ${identity.linkedin_name}`;
+    linkedinIdentityEl.classList.remove('hidden');
+  } else {
+    linkedinIdentityEl.classList.add('hidden');
+  }
+}
+
+// Load identity from storage on init
+chrome.storage.local.get(['linkedinIdentity'], (result) => {
+  const identity = result.linkedinIdentity as { linkedin_name: string; linkedin_url: string } | undefined;
+  updateLinkedInIdentity(identity ?? null);
+});
+
 let cachedPageInfo: PageInfo | null = null;
 
 function updateImportPreview(pageInfo: PageInfo | null): void {
@@ -660,6 +679,11 @@ chrome.storage.onChanged.addListener((changes) => {
   // Page info from content script (proactive push on SN page load)
   if (changes.pageInfo?.newValue) {
     updateImportPreview(changes.pageInfo.newValue as PageInfo);
+  }
+
+  // LinkedIn identity change (account switch detected)
+  if (changes.linkedinIdentity?.newValue) {
+    updateLinkedInIdentity(changes.linkedinIdentity.newValue as { linkedin_name: string; linkedin_url: string });
   }
 });
 
