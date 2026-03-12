@@ -7,7 +7,15 @@ import uuid
 from flask import Blueprint, jsonify, request
 
 from ..auth import require_auth, resolve_tenant
-from ..models import Campaign, CampaignContact, CampaignStep, CampaignTemplate, Contact, Company, db
+from ..models import (
+    Campaign,
+    CampaignContact,
+    CampaignStep,
+    CampaignTemplate,
+    Contact,
+    Company,
+    db,
+)
 from ..services.step_designer import design_steps
 
 logger = logging.getLogger(__name__)

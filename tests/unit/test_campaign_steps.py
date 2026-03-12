@@ -1,5 +1,8 @@
 """Unit tests for campaign step CRUD routes."""
 
+import json
+from unittest.mock import MagicMock, patch
+
 from tests.conftest import auth_header
 
 
@@ -185,9 +188,24 @@ class TestPopulateFromTemplate:
 
         # Create a template
         template_steps = [
-            {"step": 1, "channel": "email", "label": "Cold Email", "config": {"tone": "formal"}},
-            {"step": 2, "channel": "linkedin_message", "label": "LinkedIn Follow-up", "day_offset": 3},
-            {"step": 3, "channel": "email", "label": "Email Follow-up", "day_offset": 7},
+            {
+                "step": 1,
+                "channel": "email",
+                "label": "Cold Email",
+                "config": {"tone": "formal"},
+            },
+            {
+                "step": 2,
+                "channel": "linkedin_message",
+                "label": "LinkedIn Follow-up",
+                "day_offset": 3,
+            },
+            {
+                "step": 3,
+                "channel": "email",
+                "label": "Email Follow-up",
+                "day_offset": 7,
+            },
         ]
         resp = client.post(
             "/api/campaign-templates",
@@ -218,3 +236,121 @@ class TestPopulateFromTemplate:
         assert steps[2]["channel"] == "email"
         assert steps[2]["label"] == "Email Follow-up"
         assert steps[2]["position"] == 3
+
+
+class TestAiDesignSteps:
+    @patch("api.services.step_designer.anthropic")
+    def test_ai_design_returns_proposal(
+        self, mock_anthropic, client, seed_companies_contacts
+    ):
+        headers = _headers(client)
+        campaign_id = _create_campaign(client, headers)
+
+        # Mock Claude response
+        mock_response = MagicMock()
+        mock_response.content = [
+            MagicMock(
+                text=json.dumps(
+                    {
+                        "steps": [
+                            {
+                                "channel": "linkedin_connect",
+                                "day_offset": 0,
+                                "label": "Connect",
+                                "config": {"max_length": 300, "tone": "informal"},
+                            },
+                            {
+                                "channel": "linkedin_message",
+                                "day_offset": 3,
+                                "label": "Follow-up",
+                                "config": {"max_length": 500, "tone": "informal"},
+                            },
+                        ],
+                        "reasoning": "Start with connection, follow up in 3 days",
+                    }
+                )
+            )
+        ]
+        mock_anthropic.Anthropic.return_value.messages.create.return_value = (
+            mock_response
+        )
+
+        resp = client.post(
+            f"/api/campaigns/{campaign_id}/steps/ai-design",
+            headers=headers,
+            json={"goal": "3-step LinkedIn outreach for SaaS CTOs"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["steps"]) == 2
+        assert data["steps"][0]["channel"] == "linkedin_connect"
+        assert data["steps"][1]["label"] == "Follow-up"
+        assert "reasoning" in data
+
+    def test_ai_design_missing_goal(self, client, seed_companies_contacts):
+        headers = _headers(client)
+        campaign_id = _create_campaign(client, headers)
+
+        resp = client.post(
+            f"/api/campaigns/{campaign_id}/steps/ai-design",
+            headers=headers,
+            json={},
+        )
+        assert resp.status_code == 400
+        assert "goal" in resp.get_json()["error"]
+
+
+class TestAiDesignConfirm:
+    def test_confirm_saves_steps(self, client, seed_companies_contacts):
+        headers = _headers(client)
+        campaign_id = _create_campaign(client, headers)
+
+        # Add an existing step first to verify it gets replaced
+        client.post(
+            f"/api/campaigns/{campaign_id}/steps",
+            headers=headers,
+            json={"channel": "email", "label": "Old Step"},
+        )
+
+        # Confirm AI-proposed steps
+        proposed_steps = [
+            {
+                "channel": "linkedin_connect",
+                "day_offset": 0,
+                "label": "Connect",
+                "config": {"max_length": 300, "tone": "informal"},
+            },
+            {
+                "channel": "linkedin_message",
+                "day_offset": 3,
+                "label": "Follow-up",
+                "config": {"max_length": 500, "tone": "informal"},
+            },
+        ]
+        resp = client.post(
+            f"/api/campaigns/{campaign_id}/steps/ai-design/confirm",
+            headers=headers,
+            json={"steps": proposed_steps},
+        )
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert len(data["steps"]) == 2
+        assert data["steps"][0]["channel"] == "linkedin_connect"
+        assert data["steps"][0]["position"] == 1
+        assert data["steps"][1]["channel"] == "linkedin_message"
+        assert data["steps"][1]["position"] == 2
+
+        # Verify old step was replaced
+        resp = client.get(f"/api/campaigns/{campaign_id}/steps", headers=headers)
+        assert len(resp.get_json()["steps"]) == 2
+
+    def test_confirm_empty_steps_rejected(self, client, seed_companies_contacts):
+        headers = _headers(client)
+        campaign_id = _create_campaign(client, headers)
+
+        resp = client.post(
+            f"/api/campaigns/{campaign_id}/steps/ai-design/confirm",
+            headers=headers,
+            json={"steps": []},
+        )
+        assert resp.status_code == 400

@@ -1,7 +1,11 @@
 """AI-powered campaign step designer."""
+
+from __future__ import annotations
+
 import json
 import logging
 import os
+from typing import Optional
 
 import anthropic
 
@@ -42,10 +46,10 @@ Design sequences that are respectful, value-driven, and avoid being pushy. Space
 def design_steps(
     *,
     goal: str,
-    channel_preference: str | None = None,
-    num_steps: int | None = None,
-    campaign_context: dict | None = None,
-    feedback_context: str | None = None,
+    channel_preference: Optional[str] = None,
+    num_steps: Optional[int] = None,
+    campaign_context: Optional[dict] = None,
+    feedback_context: Optional[str] = None,
 ) -> dict:
     """Call Claude to design campaign steps.
 
