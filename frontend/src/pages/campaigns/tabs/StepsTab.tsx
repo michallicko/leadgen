@@ -7,7 +7,6 @@ import {
   useReorderCampaignSteps,
   usePopulateFromTemplate,
   type CampaignStep,
-  type StepConfig,
   type ExampleMessage,
 } from '../../../api/queries/useCampaignSteps'
 import { useCampaignTemplates } from '../../../api/queries/useCampaigns'
