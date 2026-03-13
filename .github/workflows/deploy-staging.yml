@@ -1,0 +1,66 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          VITE_IAM_BASE_URL=https://iam-staging.visionvolve.com npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/staging.pem
+          chmod 600 ~/.ssh/staging.pem
+          ssh-keyscan -H 3.124.110.199 >> ~/.ssh/known_hosts
+
+      - name: Sync source to VPS
+        run: |
+          rsync -avz --delete \
+            --exclude='node_modules' --exclude='.git' --exclude='__pycache__' --exclude='.env' --exclude='frontend/node_modules' \
+            -e "ssh -i ~/.ssh/staging.pem" \
+            ./ ec2-user@3.124.110.199:/home/ec2-user/leadgen-api/
+
+      - name: Upload frontend build
+        run: |
+          ssh -i ~/.ssh/staging.pem ec2-user@3.124.110.199 "mkdir -p ~/staging/dashboard"
+          scp -i ~/.ssh/staging.pem -r frontend/dist/* ec2-user@3.124.110.199:~/staging/dashboard/
+
+      - name: Deploy Caddy snippet
+        run: |
+          ssh -i ~/.ssh/staging.pem ec2-user@3.124.110.199 "mkdir -p ~/staging/caddy/conf.d"
+          scp -i ~/.ssh/staging.pem deploy/staging.caddy ec2-user@3.124.110.199:~/staging/caddy/conf.d/leadgen.caddy
+
+      - name: Build and restart
+        run: |
+          ssh -i ~/.ssh/staging.pem ec2-user@3.124.110.199 << 'EOF'
+            cd ~/staging
+            docker compose -f docker-compose.yml -f docker-compose.leadgen.yml up -d --build leadgen-api
+            docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+            docker system prune -f --filter "until=1h"
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 15
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://leadgen-staging.visionvolve.com/api/health)
+          echo "Health check: $code"
+          if [[ ! "$code" =~ ^[23] ]]; then
+            echo "::error::Health check failed with status $code"
+            exit 1
+          fi

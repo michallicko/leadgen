@@ -301,6 +301,15 @@ Forbidden commands:
 - **Feature branches** deploy API-only as `/api-rev-{commit}/` — test via `?rev={commit}` query param
 - The `?rev=` param makes the dashboard route API calls to the revision's backend
 
+## Staging
+
+- **URL:** https://leadgen-staging.visionvolve.com
+- **Deploy:** push to `staging` branch → auto-deploys via GitHub Actions
+- **Migrations:** `gh workflow run migrate-staging` (manual dispatch)
+- **Caddy snippet:** `deploy/staging.caddy`
+- **GHA workflow:** `.github/workflows/deploy-staging.yml`
+- **VPS:** 3.124.110.199 (SSH blocked by default, use `claude --staging-access`)
+
 ## Infrastructure
 
 ### Production (52.58.119.191)
